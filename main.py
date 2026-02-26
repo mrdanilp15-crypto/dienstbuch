@@ -1,7 +1,7 @@
 import os
 import mysql.connector
 import urllib.request
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,7 +20,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # FAVICON ROUTE: Serviert das Icon direkt
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return FileResponse("static/favicon.svg")
+    if os.path.exists("static/favicon.svg"):
+        return FileResponse("static/favicon.svg")
+    return Response(status_code=204)
 
 def get_db_connection():
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
@@ -29,19 +31,27 @@ def safe_decode(value):
     if isinstance(value, bytes): return value.decode('utf-8')
     return value
 
+# --- ALLE MODELS (Wichtig für FastAPI) ---
 class PinCheck(BaseModel): pin: str
 class EntryDto(BaseModel): person_id: int; is_present: bool; note: Optional[str] = ""; vehicle: Optional[str] = ""; signature: Optional[str] = None
 class AttendanceUpload(BaseModel): 
     session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; duration: float = 0.0; 
     description: str; address: Optional[str] = ""; instructors: Optional[str] = ""; 
     leader_signature: Optional[str] = None; entries: List[EntryDto]
+class LeaderSigUpdate(BaseModel): signature: Optional[str] = None
+class PersonData(BaseModel): name: str
+class GroupName(BaseModel): name: str
 
+# --- ROUTES ---
 @app.get("/", response_class=FileResponse)
 def get_login(): return "static/login.html"
 @app.get("/dashboard", response_class=FileResponse)
 def get_dash(): return "static/dashboard.html"
 @app.get("/editor", response_class=FileResponse)
 def get_edit(): return "static/editor.html"
+
+@app.post("/api/verify_admin")
+async def verify_admin(data: PinCheck): return {"success": (data.pin == ADMIN_PIN)}
 
 @app.post("/api/login")
 async def login(data: dict, request: Request):
@@ -53,7 +63,6 @@ async def login(data: dict, request: Request):
 @app.get("/api/system/update")
 async def run_update(pin: str):
     if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
-    # Liste inklusive favicon.svg
     files = [
         ("main.py", "main.py"), ("reports.py", "reports.py"), 
         ("static/dashboard.html", "static/dashboard.html"), 
@@ -70,7 +79,6 @@ async def run_update(pin: str):
         os._exit(0)
     except Exception as e: raise HTTPException(500, detail=str(e))
 
-# ... (Rest der API-Methoden wie gehabt)
 @app.get("/groups")
 def groups():
     c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table ORDER BY name"); r=cur.fetchall(); c.close(); return r
@@ -85,16 +93,16 @@ def attendance(id:int, session_id:Optional[int]=None):
     cur.execute(sql, (sid, id)); persons = cur.fetchall()
     for p in persons: p['is_present']=bool(p['is_present']); p['signature']=safe_decode(p['signature'])
     c.close()
-    return {"session_id":sid, "date":str(row['date']) if row else str(datetime.now().date()), "category":row['category'] if row else "Übung", "duration":float(row['duration']) if row else 2.0, "description":row['description'] if row else "", "instructors":row['instructors'] if row else "", "leader_signature": l_sig, "persons":persons}
+    return {"session_id":sid, "date":str(row['date']) if row else str(datetime.now().date()), "category":row['category'] if row else "Übung", "duration":float(row['duration']) if row else 2.0, "description":row['description'] if row else "", "address":row.get('address','') if row else "", "instructors":row['instructors'] if row else "", "leader_signature": l_sig, "persons":persons}
 
 @app.post("/attendance")
 def save_attendance(d: AttendanceUpload):
     c=get_db_connection(); cur=c.cursor()
     if d.session_id:
-        cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id)); sid = d.session_id
+        cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, address=%s, instructors=%s, leader_signature=%s WHERE id=%s", (d.date, d.category, d.duration, d.description, d.address, d.instructors, d.leader_signature, d.session_id)); sid = d.session_id
         cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
     else:
-        cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature)); sid = cur.lastrowid
+        cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, address, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (d.date, d.group_id, d.category, d.duration, d.description, d.address, d.instructors, d.leader_signature)); sid = cur.lastrowid
     for e in d.entries: cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
     c.commit(); c.close(); return {"session_id":sid}
 
@@ -125,3 +133,39 @@ def single_report(session_id: int):
 @app.post("/sessions/{id}/leader_signature")
 def update_leader_sig(id: int, data: LeaderSigUpdate):
     c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.signature, id)); c.commit(); c.close(); return {"status": "updated"}
+
+@app.get("/groups/{id}/topics")
+def get_topics(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT description FROM sessions WHERE group_id=%s AND description != '' ORDER BY description", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
+
+@app.get("/groups/{id}/instructors")
+def get_instructors(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors != '' ORDER BY instructors", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
+
+@app.post("/groups/{id}/persons")
+def add_person(id: int, p: PersonData):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", (p.name, id)); c.commit(); c.close(); return {"status": "created"}
+
+@app.put("/persons/{id}")
+def update_person(id: int, p: PersonData):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE persons SET name=%s WHERE id=%s", (p.name, id)); c.commit(); c.close(); return {"status": "updated"}
+
+@app.delete("/persons/{id}")
+def delete_person(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE person_id=%s", (id,)); cur.execute("DELETE FROM persons WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
+
+@app.post("/groups")
+def create_group(g: GroupName):
+    c=get_db_connection(); cur=c.cursor(); cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,)); c.commit(); c.close(); return {"status": "created"}
+
+@app.put("/groups/{id}")
+def update_group(id: int, g: GroupName):
+    c=get_db_connection(); cur=c.cursor(); cur.execute("UPDATE groups_table SET name=%s WHERE id=%s", (g.name, id)); c.commit(); c.close(); return {"status": "updated"}
+
+@app.delete("/groups/{id}")
+def delete_group(id: int):
+    c=get_db_connection(); cur=c.cursor(); cur.execute("DELETE FROM attendance WHERE session_id IN (SELECT id FROM sessions WHERE group_id=%s)", (id,)); cur.execute("DELETE FROM sessions WHERE group_id=%s", (id,)); cur.execute("DELETE FROM persons WHERE group_id=%s", (id,)); cur.execute("DELETE FROM groups_table WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
+
+@app.delete("/sessions/{id}")
+def delete_session(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE session_id=%s", (id,)); cur.execute("DELETE FROM sessions WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
