@@ -23,6 +23,15 @@ async def favicon():
     if os.path.exists("static/favicon.svg"): return FileResponse("static/favicon.svg")
     return Response(status_code=204)
 
+@app.get("/api/info")
+async def get_info():
+    return {
+        "version": "1.61",
+        "developer": "Daniel Hegemann",
+        "email": "d.hege@icloud.com",
+        "town": TOWN_NAME
+    }
+
 def get_db_connection():
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
 
