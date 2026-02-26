@@ -1,0 +1,10 @@
+# Datenbank-Ordner (Hier liegen deine echten Daten - NIEMALS hochladen!)
+attendance_db/
+
+# Python Müll
+__pycache__/
+*.py[cod]
+
+# Lokale Konfigurationen
+.env
+.DS_Store
