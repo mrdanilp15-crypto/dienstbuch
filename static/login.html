@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login - Dienstbuch</title>
+    
+    <meta name="theme-color" content="#b71c1c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/921/921063.png">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root { --primary-color: #b71c1c; }
+        body { 
+            background: linear-gradient(135deg, #b71c1c 0%, #1a237e 100%); 
+            height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+        }
+        .login-card { 
+            width: 100%; 
+            max-width: 380px; 
+            padding: 40px; 
+            border-radius: 20px; 
+            background: white; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4); 
+            text-align: center; 
+            margin: 20px;
+        }
+        .fire-icon { color: var(--primary-color); margin-bottom: 20px; }
+        .form-control-lg { 
+            letter-spacing: 2px; 
+            font-weight: bold; 
+            text-align: center; 
+            border-radius: 12px;
+            border: 2px solid #eee;
+        }
+        .form-control-lg:focus { border-color: var(--primary-color); box-shadow: none; }
+        .btn-login { 
+            background-color: var(--primary-color); 
+            border: none; 
+            border-radius: 12px; 
+            padding: 12px; 
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .btn-login:hover { background-color: #d32f2f; transform: translateY(-2px); }
+        .error-msg { color: #dc3545; font-weight: bold; margin-top: 15px; display: none; font-size: 0.9rem; }
+        .loader { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="fire-icon">
+            <i class="fa-solid fa-fire-extinguisher fa-4x"></i>
+        </div>
+        <h2 class="fw-bold mb-2">Dienstbuch</h2>
+        <p class="text-muted mb-4">Bitte geben Sie Ihr Passwort ein</p>
+
+        <div class="mb-3">
+            <input type="password" id="pinInput" class="form-control form-control-lg" placeholder="Passwort eingeben" maxlength="96" autofocus>
+        </div>
+
+        <button onclick="handleLogin()" id="loginBtn" class="btn btn-danger btn-login w-100 shadow">
+            <span id="btnText">ANMELDEN</span>
+            <i id="btnSpinner" class="fa fa-spinner fa-spin loader"></i>
+        </button>
+
+        <div id="errorBox" class="error-msg">
+            <i class="fa fa-exclamation-circle me-1"></i> Passwort nicht korrekt!
+        </div>
+    </div>
+
+    <script>
+        // Lokale Speicher beim Laden leeren (Sicherheit)
+        localStorage.clear();
+
+        async function handleLogin() {
+            const pinInput = document.getElementById('pinInput');
+            const pin = pinInput.value;
+            const btnText = document.getElementById('btnText');
+            const spinner = document.getElementById('btnSpinner');
+            const errorBox = document.getElementById('errorBox');
+            const btn = document.getElementById('loginBtn');
+
+            if (pin.length < 3) return;
+
+            // UI Feedback
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+            errorBox.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // Falls der Server eine Nachricht schickt (z.B. Sperre), zeige diese an
+                    const errorMsg = data.detail || 'Passwort nicht korrekt!';
+                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${errorMsg}`;
+                    errorBox.style.display = 'block';
+                    
+                    pinInput.value = '';
+                    btn.disabled = false;
+                    btnText.style.display = 'inline-block';
+                    spinner.style.display = 'none';
+                    pinInput.focus();
+                    return;
+                }
+
+                // Erfolg: Rolle und Status im Browser merken
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userRole', data.role);
+
+                // Weiterleitung zum Dashboard
+                window.location.href = data.redirect;
+
+            } catch (error) {
+                // Netzwerkfehler oder Server antwortet nicht
+                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
+                errorBox.style.display = 'block';
+                btn.disabled = false;
+                btnText.style.display = 'inline-block';
+                spinner.style.display = 'none';
+            }
+        }
+
+        // Enter-Taste unterstützen
+        document.getElementById('pinInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+    </script>
+</body>
+</html>
