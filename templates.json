@@ -1,44 +1,50 @@
-[
-  {
-    "type": 2,
-    "title": "Digitales Dienstbuch",
-    "description": "Entwickelt von Daniel Hegemann. Professionelle Anwesenheitserfassung für Feuerwehren.",
-    "logo": "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/static/favicon.svg",
-    "repository": {
-      "url": "https://github.com/mrdanilp15-crypto/dienstbuch",
-      "stackfile": "docker-compose.yml"
-    },
-    "env": [
-      {
-        "name": "TOWN_NAME",
-        "label": "Ortsname / Wehr",
-        "description": "Welcher Ort soll auf den Berichten stehen?",
-        "default": ""
+{
+  "version": "3",
+  "templates": [
+    {
+      "type": 2,
+      "title": "Digitales Dienstbuch",
+      "description": "Entwickelt von Daniel Hegemann. Professionelle Anwesenheitserfassung für Feuerwehren.",
+      "note": "Nach der Installation als Admin einloggen und System-Update klicken.",
+      "categories": ["Feuerwehr", "Tools"],
+      "platform": "linux",
+      "logo": "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/static/favicon.svg",
+      "repository": {
+        "url": "https://github.com/mrdanilp15-crypto/dienstbuch",
+        "stackfile": "docker-compose.yml"
       },
-      {
-        "name": "ADMIN_PIN",
-        "label": "Admin Passwort (Code)",
-        "description": "Dein individueller Code für Admin-Rechte",
-        "default": ""
-      },
-      {
-        "name": "USER_PIN",
-        "label": "Mannschafts Passwort (Code)",
-        "description": "Code für die normale Mannschaft",
-        "default": ""
-      },
-      {
-        "name": "ROOT_PASS",
-        "label": "DB Root Passwort",
-        "description": "Sicheres Passwort für die Datenbank-Administration",
-        "default": ""
-      },
-      {
-        "name": "DB_PASS",
-        "label": "App Datenbank Passwort",
-        "description": "Passwort für den App-Nutzer der DB",
-        "default": ""
-      }
-    ]
-  }
-]
+      "env": [
+        {
+          "name": "TOWN_NAME",
+          "label": "Ortsname / Wehr",
+          "description": "Welcher Ort soll auf den Berichten stehen?",
+          "default": ""
+        },
+        {
+          "name": "ADMIN_PIN",
+          "label": "Admin Passwort (Code)",
+          "description": "Dein individueller Code für Admin-Rechte",
+          "default": ""
+        },
+        {
+          "name": "USER_PIN",
+          "label": "Mannschafts Passwort (Code)",
+          "description": "Code für die normale Mannschaft",
+          "default": ""
+        },
+        {
+          "name": "ROOT_PASS",
+          "label": "DB Root Passwort",
+          "description": "Sicheres Passwort für die Datenbank-Administration",
+          "default": ""
+        },
+        {
+          "name": "DB_PASS",
+          "label": "App Datenbank Passwort",
+          "description": "Passwort für den App-Nutzer der DB",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}
