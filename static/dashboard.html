@@ -23,13 +23,9 @@
         .stat-card { border: none; border-radius: 18px; color: white; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         .stat-label { font-size: 0.7rem; text-transform: uppercase; font-weight: bold; opacity: 0.9; }
         .stat-val { font-size: 1.5rem; font-weight: 900; margin: 0; }
-        .rank-card { border-radius: 20px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         .rank-badge { width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; }
         .rank-1 { background: linear-gradient(135deg, #ffd700, #ffb900); color: #000; }
-        .rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); color: #333; }
-        .rank-3 { background: linear-gradient(135deg, #f0a070, #cd7f32); color: #fff; }
         .session-item { background: white; border-radius: 20px !important; border: none !important; margin-bottom: 12px; padding: 15px; box-shadow: 0 3px 10px rgba(0,0,0,0.04); transition: all 0.2s ease; cursor: pointer; }
-        .session-item:hover { transform: scale(1.01); box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
         .btn-icon { background: transparent; border: none; padding: 6px; color: #ccc; transition: 0.2s; }
         .btn-icon:hover { color: var(--primary-color); background: #f8f9fa; border-radius: 8px; }
         .sig-wrapper { border: 2px dashed #ddd; background: white; border-radius: 15px; overflow: hidden; height: 250px; touch-action: none; }
@@ -39,21 +35,17 @@
 <body>
     <div id="app">
         <div class="mobile-nav shadow-sm">
-            <div class="fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>DIENSTBUCH</div>
+            <div class="fw-bold text-danger">DIENSTBUCH</div>
             <select v-model="mobileSelectedId" class="form-select form-select-sm w-50 rounded-pill" @change="onMobileGroupChange">
                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
             </select>
-            <button v-if="!isAdmin" class="btn btn-sm btn-light rounded-circle shadow-sm" @click="promptAdmin">
-                <i class="fa fa-lock"></i>
-            </button>
-            <button v-else class="btn btn-sm btn-danger rounded-circle shadow-sm" @click="logoutAdminOnly">
-                <i class="fa fa-unlock"></i>
-            </button>
+            <button v-if="!isAdmin" class="btn btn-sm btn-light rounded-circle shadow-sm" @click="promptAdmin"><i class="fa fa-lock"></i></button>
+            <button v-else class="btn btn-sm btn-danger rounded-circle shadow-sm" @click="logoutAdminOnly"><i class="fa fa-unlock"></i></button>
         </div>
 
         <div class="app-container">
             <div class="sidebar">
-                <div class="p-4 text-center border-bottom"><h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4><small class="text-muted fw-bold" style="font-size: 0.6rem; letter-spacing: 1px;">DIGITALES DIENSTBUCH</small></div>
+                <div class="p-4 text-center border-bottom"><h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4><small class="text-muted fw-bold" style="font-size: 0.6rem;">DIGITALES DIENSTBUCH</small></div>
                 <div class="flex-grow-1 overflow-y-auto pt-2">
                     <div v-for="g in groups" :key="g.id" class="group-item" :class="{active: selectedGroup?.id === g.id}" @click="selectGroup(g)">
                         <span>{{ g.name }}</span>
@@ -66,7 +58,7 @@
                     <button class="btn btn-outline-info btn-sm w-100 mb-2 rounded-pill fw-bold" @click="showAbout"><i class="fa fa-info-circle me-1"></i> Projekt Info</button>
                     <button v-if="!isAdmin" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm fw-bold" @click="promptAdmin">Admin Login</button>
                     <button v-else class="btn btn-dark btn-sm w-100 rounded-pill shadow-sm" @click="logoutAdminOnly">Admin Logout</button>
-                    <button class="btn btn-secondary btn-sm w-100 rounded-pill mt-2" @click="fullLogout">Vollständig Abmelden</button>
+                    <div class="text-center mt-3"><small class="text-muted" style="font-size: 0.6rem;">Version 1.46 | Open Source</small></div>
                 </div>
             </div>
 
@@ -75,11 +67,9 @@
                     <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                         <div>
                             <h1 class="fw-bold m-0" style="font-size: 2.2rem; letter-spacing: -1px;">{{ selectedGroup.name }}</h1>
-                            <div class="d-flex align-items-center mt-2">
-                                <select v-model="selectedYear" class="form-select form-select-sm year-select rounded-pill shadow-sm" style="width: auto;" @change="loadData">
-                                    <option v-for="y in [2024,2025,2026]" :value="y">Jahr {{ y }}</option>
-                                </select>
-                            </div>
+                            <select v-model="selectedYear" class="form-select form-select-sm year-select rounded-pill shadow-sm mt-2" @change="loadData">
+                                <option v-for="y in [2024,2025,2026]" :value="y">Jahr {{ y }}</option>
+                            </select>
                         </div>
                         <div class="d-flex gap-2">
                             <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm"><i class="fa fa-print me-1"></i> Jahresbericht</a>
@@ -93,24 +83,21 @@
                         <div class="col-4"><div class="stat-card text-dark" style="background: var(--misc-color);"><div class="stat-label">Sonstiges</div><div class="stat-val">{{catStats.Sonstiges}}h</div></div></div>
                     </div>
 
-                    <div class="card rank-card mb-4 overflow-hidden shadow-sm">
+                    <div class="card border-0 rounded-4 shadow-sm mb-4">
                         <div class="card-header bg-white py-3 border-0" @click="showRanking = !showRanking" style="cursor:pointer">
                             <div class="d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center gap-2"><h6 class="m-0 fw-bold text-uppercase small"><i class="fa fa-trophy text-warning me-1"></i>Ranking</h6>
-                                    <div v-if="!showRanking && ranking.length > 0"><span class="badge rounded-pill bg-warning text-dark px-2 py-1 small">#1 {{ ranking[0].name }}</span></div>
-                                </div>
+                                <h6 class="m-0 fw-bold text-uppercase small"><i class="fa fa-trophy text-warning me-1"></i>Ranking</h6>
+                                <div v-if="!showRanking && ranking.length > 0"><span class="badge rounded-pill bg-warning text-dark px-2 py-1 small">#1 {{ ranking[0].name }}</span></div>
                                 <i class="fa text-muted small" :class="showRanking?'fa-chevron-up':'fa-chevron-down'"></i>
                             </div>
                         </div>
                         <div v-show="showRanking" class="table-responsive px-3 pb-3">
                             <table class="table table-hover mb-0 align-middle">
-                                <thead class="text-muted" style="font-size: 0.65rem;"><tr><th class="ps-2 border-0">PLATZ</th><th class="border-0">NAME</th><th class="text-center border-0">STUNDEN</th><th class="text-center border-0">DIENSTE</th></tr></thead>
                                 <tbody>
                                     <tr v-for="(p, i) in ranking" :key="p.id" class="border-0">
-                                        <td class="ps-2 border-0"><div class="rank-badge" :class="'rank-'+(i+1)">{{i+1}}</div></td>
-                                        <td class="border-0"><span class="fw-bold small">{{ p.name }}</span></td>
-                                        <td class="text-center border-0"><span class="badge bg-light text-dark rounded-pill px-2 small">{{ p.total_hours }}h</span></td>
-                                        <td class="text-center border-0 small text-muted">{{ p.present_count }}/{{ p.total_sessions }}</td>
+                                        <td><div class="rank-badge" :class="'rank-'+(i+1)">{{i+1}}</div></td>
+                                        <td><span class="fw-bold small">{{ p.name }}</span></td>
+                                        <td class="text-center"><span class="badge bg-light text-dark rounded-pill px-2 small">{{ p.total_hours }}h</span></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -120,7 +107,7 @@
                     <div v-for="s in sessions" :key="s.id" class="session-item shadow-sm" @click="loadSession(s)">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="d-flex gap-3 align-items-center">
-                                <div class="text-center bg-light rounded-4 p-2 shadow-sm" style="min-width: 55px; border: 1px solid #eee;">
+                                <div class="text-center bg-light rounded-4 p-2 shadow-sm" style="min-width: 55px;">
                                     <div class="fw-bold text-danger small m-0">{{ s.date.split('-')[2] }}</div>
                                     <div class="small text-muted fw-bold" style="font-size: 0.55rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
                                 </div>
@@ -143,9 +130,7 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
                     <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift Leitung</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body p-4">
-                        <div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div>
-                    </div>
+                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
                     <div class="modal-footer border-0 justify-content-between pt-0"><button class="btn btn-light rounded-pill px-3" @click="clearSig">Löschen</button><button class="btn btn-danger rounded-pill px-4 fw-bold shadow" @click="saveSig">Bestätigen</button></div>
                 </div>
             </div>
@@ -163,26 +148,18 @@
                 await this.loadGroups();
                 const gid = new URLSearchParams(window.location.search).get('group_id');
                 if(gid) this.selectGroup(this.groups.find(x => x.id == gid));
-                
-                const canvas = document.getElementById('sigCanvas');
-                sigPad = new SignaturePad(canvas, { backgroundColor: 'white' });
+                sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'white' });
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
-                resizeCanvas() {
-                    const canvas = document.getElementById('sigCanvas');
-                    if(!canvas) return;
-                    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                    canvas.width = canvas.offsetWidth * ratio; canvas.height = canvas.offsetHeight * ratio;
-                    canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
-                },
                 async loadGroups() { this.groups = await(await fetch('/groups')).json(); if(this.groups.length && !this.selectedGroup) this.selectGroup(this.groups[0]); },
                 selectGroup(g) { if(!g) return; this.selectedGroup=g; this.mobileSelectedId=g.id; this.loadData(); },
                 onMobileGroupChange() { this.selectGroup(this.groups.find(x => x.id == this.mobileSelectedId)); },
                 async loadData() {
-                    this.sessionsList = await(await fetch(`/groups/${this.selectedGroup.id}/sessions`)).json();
-                    this.ranking = (await(await fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`)).json()).persons;
+                    const res = await fetch(`/groups/${this.selectedGroup.id}/sessions`);
+                    this.sessionsList = await res.json();
+                    const sRes = await fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`);
+                    this.ranking = (await sRes.json()).persons;
                     this.calcStats();
                 },
                 calcStats() {
@@ -193,7 +170,7 @@
                 loadSession(s) { window.location.href=`/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 createNew() { window.location.href=`/editor?group_id=${this.selectedGroup.id}`; },
                 openReport(s) { window.open(`/sessions/${s.id}/report`, '_blank'); },
-                openSig(s) { this.activeS=s; sigModal.show(); setTimeout(this.resizeCanvas, 200); },
+                openSig(s) { this.activeS=s; sigModal.show(); },
                 async saveSig() {
                     await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({signature: sigPad.toDataURL()}) });
                     sigModal.hide(); this.loadData();
@@ -203,11 +180,18 @@
                 async editGroup(g) { const n=prompt("Name:", g.name); if(n) { await fetch(`/groups/${g.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}); this.loadGroups(); }},
                 async deleteGroup(g) { if(confirm("Löschen?")) { await fetch(`/groups/${g.id}`,{method:'DELETE'}); this.loadGroups(); }},
                 async deleteSession(s) { if(confirm("Löschen?")) { await fetch(`/sessions/${s.id}`,{method:'DELETE'}); this.loadData(); }},
-                showAbout() { alert("Digitales Dienstbuch Feuerwehr\nEntwickelt für den mobilen Einsatz.\nVersion: 1.42 Final"); },
+                showAbout() { alert("Digitales Dienstbuch Feuerwehr\nVersion: 1.46 Final"); },
                 async promptAdmin() { const p=prompt("PIN:"); if(p) { const r=await fetch('/api/verify_admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:p})}); if((await r.json()).success){ this.isAdmin=true; localStorage.setItem('userRole','admin'); location.reload(); }}},
                 logoutAdminOnly() { this.isAdmin=false; localStorage.removeItem('userRole'); location.reload(); },
-                fullLogout() { localStorage.clear(); window.location.href='/'; },
-                async checkSystemUpdate() { if(confirm("Update starten?")) { const pin = prompt("PIN:"); const r = await fetch(`/api/system/update?pin=${pin}`); if(r.ok) { alert("Update erfolgreich!"); setTimeout(() => location.reload(), 2000); } } }
+                async checkSystemUpdate() { 
+                    if(confirm("System-Update von GitHub starten?")) { 
+                        const pin = prompt("Admin-PIN:"); 
+                        if(!pin) return;
+                        alert("Update gestartet. Der Server lädt die Dateien und startet neu. Die Seite lädt in 8 Sekunden automatisch neu...");
+                        fetch(`/api/system/update?pin=${pin}`); // Server wird sich beenden
+                        setTimeout(() => { location.reload(true); }, 8000); 
+                    } 
+                }
             }
         }).mount('#app');
     </script>
