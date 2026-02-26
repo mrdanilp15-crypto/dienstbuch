@@ -1,15 +1,21 @@
-# 🚒 Digitales Dienstbuch
+# 🚒 Digitales Dienstbuch – 
 
-Ein modernes, webbasiertes System zur Erfassung von Anwesenheiten, Übungen und Einsätzen für Feuerwehren und Hilfsorganisationen. Optimiert für die mobile Nutzung.
+Entwickelt von **Daniel Hegemann** (<d.hege@icloud.com>)
 
-## 🌟 Highlights
-* Handy-optimiert & rechtssicher durch digitale Unterschriften.
-* Automatisierte PDF-Berichte & Live-Ranking.
-* Smart-Update direkt über das Dashboard.
+Dieses System ermöglicht eine rechtssichere und digitale Erfassung von Übungen und Einsätzen.
 
-## 🚀 Installation
-Das System läuft als Docker-Stack. Kopiere die `docker-compose.yml` und passe deine PINs an.
+## 🚀 Installation via Portainer
 
-## 📄 Lizenz
-Open Source – Von Kameraden für Kameraden.
+1. Erstelle einen neuen Stack.
+2. Nutze die `docker-compose.yml` aus diesem Repo.
+3. **WICHTIG:** Du musst folgende Umgebungsvariablen (Environment Variables) händisch setzen, da keine Standardwerte vergeben sind (Sicherheitsgrund):
+   - `ADMIN_PIN`: Dein Admin-Code (Buchstaben & Zahlen erlaubt)
+   - `USER_PIN`: Dein Mannschafts-Code
+   - `TOWN_NAME`: Name deiner Wehr/Stadt
+   - `ROOT_PASS` & `DB_PASS`: Datenbank-Passwörter
+
+## 🔄 Updates
+Einmal installiert, kann das System bequem über den **System Update** Button im Dashboard aktuell gehalten werden.
+
+---
 *Gott zur Ehr, dem Nächsten zur Wehr!*
