@@ -12,7 +12,7 @@ import reports
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-UPDATE_BASE_URL = "https://deine-webseite.de/buxheim-update/"
+UPDATE_BASE_URL = "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/"
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
