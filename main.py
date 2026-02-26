@@ -12,7 +12,7 @@ import reports
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-UPDATE_BASE_URL = "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/"
+UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -24,6 +24,7 @@ def safe_decode(value):
     if isinstance(value, bytes): return value.decode('utf-8')
     return value
 
+# MODELS
 class PinCheck(BaseModel): pin: str
 class EntryDto(BaseModel): person_id: int; is_present: bool; note: Optional[str] = ""; vehicle: Optional[str] = ""; signature: Optional[str] = None
 class AttendanceUpload(BaseModel): 
@@ -50,6 +51,28 @@ async def login(data: dict, request: Request):
     role = "admin" if (ADMIN_PIN and p == ADMIN_PIN) else "user" if (USER_PIN and p == USER_PIN) else None
     if role: return {"status": "success", "role": role, "redirect": "/dashboard"}
     raise HTTPException(401, detail="Falsch")
+
+@app.get("/api/system/update")
+async def run_update(pin: str):
+    if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
+    
+    # JETZT INKLUSIVE login.html!
+    files = [
+        ("main.py", "main.py"), 
+        ("reports.py", "reports.py"), 
+        ("static/dashboard.html", "static/dashboard.html"), 
+        ("static/editor.html", "static/editor.html"),
+        ("static/login.html", "static/login.html")
+    ]
+    
+    try:
+        for remote_name, local_path in files:
+            url = UPDATE_BASE_URL + remote_name
+            with urllib.request.urlopen(url) as response:
+                content = response.read().decode('utf-8')
+                with open(local_path, "w") as f: f.write(content)
+        os._exit(0)
+    except Exception as e: raise HTTPException(500, detail=str(e))
 
 @app.get("/groups")
 def groups():
@@ -78,27 +101,11 @@ def save_attendance(d: AttendanceUpload):
     for e in d.entries: cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
     c.commit(); c.close(); return {"session_id":sid}
 
-@app.post("/sessions/{id}/leader_signature")
-def update_leader_sig(id: int, data: LeaderSigUpdate):
-    c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.signature, id)); c.commit(); c.close(); return {"status": "updated"}
-
-@app.delete("/sessions/{id}")
-def delete_session(id: int):
-    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE session_id=%s", (id,)); cur.execute("DELETE FROM sessions WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
-
 @app.get("/groups/{id}/sessions")
 def sessions(id:int):
     c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT id, date, category, description, address, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC",(id,)); r=cur.fetchall(); c.close()
     for x in r: x['date']=str(x['date']); x['is_signed']=bool(x['leader_signature'] and len(str(x['leader_signature'])) > 100); del x['leader_signature']
     return r
-
-@app.get("/groups/{id}/topics")
-def get_topics(id: int):
-    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT description FROM sessions WHERE group_id=%s AND description != '' ORDER BY description", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
-
-@app.get("/groups/{id}/instructors")
-def get_instructors(id: int):
-    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors != '' ORDER BY instructors", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
 
 @app.get("/groups/{id}/stats")
 def stats(id:int, year:int):
@@ -141,6 +148,14 @@ def print_view(group_id: int, year: int):
     html_body += reports.generate_year_report(gname, year, p_stats, cat_sums)
     c.close(); return f"<html><head><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
 
+@app.get("/groups/{id}/topics")
+def get_topics(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT description FROM sessions WHERE group_id=%s AND description != '' ORDER BY description", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
+
+@app.get("/groups/{id}/instructors")
+def get_instructors(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors != '' ORDER BY instructors", (id,)); r = cur.fetchall(); c.close(); return [x[0] for x in r]
+
 @app.post("/groups/{id}/persons")
 def add_person(id: int, p: PersonData):
     c = get_db_connection(); cur = c.cursor(); cur.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", (p.name, id)); c.commit(); c.close(); return {"status": "created"}
@@ -149,15 +164,23 @@ def add_person(id: int, p: PersonData):
 def update_person(id: int, p: PersonData):
     c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE persons SET name=%s WHERE id=%s", (p.name, id)); c.commit(); c.close(); return {"status": "updated"}
 
-@app.get("/api/system/update")
-async def run_update(pin: str):
-    if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
-    files = [("main.py", "main.py"), ("reports.py", "reports.py"), ("static/dashboard.html", "static/dashboard.html"), ("static/editor.html", "static/editor.html")]
-    try:
-        for remote_name, local_path in files:
-            url = UPDATE_BASE_URL + remote_name
-            with urllib.request.urlopen(url) as response:
-                content = response.read().decode('utf-8')
-                with open(local_path, "w") as f: f.write(content)
-        os._exit(0)
-    except Exception as e: raise HTTPException(500, detail=str(e))
+@app.delete("/persons/{id}")
+def delete_person(id: int):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE person_id=%s", (id,)); cur.execute("DELETE FROM persons WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
+
+@app.post("/groups")
+def create_group(g: GroupName):
+    c=get_db_connection(); cur=c.cursor(); cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,)); c.commit(); c.close(); return {"status": "created"}
+
+@app.put("/groups/{id}")
+def update_group(id: int, g: GroupName):
+    c=get_db_connection(); cur=c.cursor(); cur.execute("UPDATE groups_table SET name=%s WHERE id=%s", (g.name, id)); c.commit(); c.close(); return {"status": "updated"}
+
+@app.delete("/groups/{id}")
+def delete_group(id: int):
+    c=get_db_connection(); cur=c.cursor()
+    cur.execute("DELETE FROM attendance WHERE session_id IN (SELECT id FROM sessions WHERE group_id=%s)", (id,))
+    cur.execute("DELETE FROM sessions WHERE group_id=%s", (id,))
+    cur.execute("DELETE FROM persons WHERE group_id=%s", (id,))
+    cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
+    c.commit(); c.close(); return {"status": "deleted"}
