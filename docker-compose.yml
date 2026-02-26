@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.6
+    container_name: attendance_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ROOT_PASS}
+      MYSQL_DATABASE: attendance_system
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: ${DB_PASS}
+    volumes:
+      - ./attendance_db:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  api:
+    image: python:3.9-slim
+    container_name: attendance_api
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - DB_PASSWORD=${DB_PASS}
+      - ADMIN_PIN=${ADMIN_PIN}
+      - USER_PIN=${USER_PIN}
+      - TOWN_NAME=${TOWN_NAME}
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "pip install fastapi uvicorn mysql-connector-python pydantic && 
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      - db
