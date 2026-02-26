@@ -46,6 +46,10 @@ def get_dash(): return "static/dashboard.html"
 @app.get("/editor", response_class=FileResponse)
 def get_edit(): return "static/editor.html"
 
+@app.post("/api/verify_admin")
+async def verify_admin(data: PinCheck): 
+    return {"success": (data.pin == ADMIN_PIN)}
+
 @app.post("/api/login")
 async def login(data: dict, request: Request):
     p = data.get("pin", "").strip()
