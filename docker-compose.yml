@@ -27,7 +27,7 @@ services:
       - USER_PIN=${USER_PIN}
       - TOWN_NAME=${TOWN_NAME}
     ports:
-      - "8000:8000"
+      - "7000:7000"
     command: >
       sh -c "pip install fastapi uvicorn mysql-connector-python pydantic && 
              uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
