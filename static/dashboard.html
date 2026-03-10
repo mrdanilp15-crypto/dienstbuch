@@ -84,7 +84,7 @@
                     <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Komplett Logout</button>
                     
                     <div class="text-center mt-3">
-                        <small class="text-muted" style="font-size: 0.6rem;">Version 1.61 | Standard Edition</small>
+                        <small class="text-muted" style="font-size: 0.6rem;">Version {{ projectInfo.version }} | Standard Edition</small>
                     </div>
                 </div>
             </div>
@@ -179,21 +179,10 @@
                         <i class="fa fa-fire-extinguisher text-danger mb-4" style="font-size: 4rem;"></i>
                         <h3 class="fw-bold mb-1">Digitales Dienstbuch</h3>
                         <p class="text-muted small mb-4">Version {{ projectInfo.version }}</p>
-                        
                         <div class="bg-light p-4 rounded-4 mb-4 text-start">
-                            <div class="mb-3">
-                                <strong>Entwicklung:</strong><br>
-                                {{ projectInfo.developer }}
-                            </div>
-                            <div>
-                                <strong>Support / Kontakt:</strong><br>
-                                <a :href="'mailto:' + projectInfo.email" class="text-danger fw-bold text-decoration-none">
-                                    {{ projectInfo.email }}
-                                </a>
-                            </div>
+                            <div class="mb-3"><strong>Entwicklung:</strong><br>{{ projectInfo.developer }}</div>
+                            <div><strong>Support / Kontakt:</strong><br><a :href="'mailto:' + projectInfo.email" class="text-danger fw-bold text-decoration-none">{{ projectInfo.email }}</a></div>
                         </div>
-                        
-                        <p class="small text-muted mb-4">Entwickelt für die effiziente Dokumentation im Feuerwehrdienst.</p>
                         <button class="btn btn-dark rounded-pill px-5 fw-bold w-100 py-3" data-bs-dismiss="modal">Schließen</button>
                     </div>
                 </div>
@@ -203,13 +192,8 @@
         <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title fw-bold">Unterschrift Leitung</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-4">
-                        <div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div>
-                    </div>
+                    <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift Leitung</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
                     <div class="modal-footer border-0 justify-content-between pt-0">
                         <button class="btn btn-light rounded-pill px-4" @click="clearSig">Löschen</button>
                         <button class="btn btn-danger rounded-pill px-5 fw-bold shadow" @click="saveSig">Speichern</button>
@@ -263,18 +247,34 @@
                 async loadGroups() {
                     const res = await fetch('/groups');
                     this.groups = await res.json();
-                    if (this.groups.length && !this.selectedGroup) this.selectGroup(this.groups[0]);
+                    
+                    if (this.groups.length > 0) {
+                        // GEDÄCHTNIS: Zuletzt gewählte ID holen
+                        const lastId = localStorage.getItem('lastSelectedGroupId');
+                        const savedGroup = this.groups.find(g => g.id == lastId);
+                        
+                        if (savedGroup) {
+                            this.selectGroup(savedGroup);
+                        } else {
+                            this.selectGroup(this.groups[0]);
+                        }
+                    }
                 },
                 selectGroup(g) {
                     if (!g) return;
                     this.selectedGroup = g;
                     this.mobileSelectedId = g.id;
+                    
+                    // SPEICHERN: ID im Browser merken
+                    localStorage.setItem('lastSelectedGroupId', g.id);
+                    
                     this.loadData();
                 },
                 onMobileGroupChange() {
                     this.selectGroup(this.groups.find(x => x.id == this.mobileSelectedId));
                 },
                 async loadData() {
+                    if (!this.selectedGroup) return;
                     const res = await fetch(`/groups/${this.selectedGroup.id}/sessions`);
                     this.sessionsList = await res.json();
                     const sRes = await fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`);
@@ -314,9 +314,7 @@
                             this.isAdmin = true;
                             localStorage.setItem('userRole', 'admin');
                             location.reload();
-                        } else {
-                            alert("Falsche PIN!");
-                        }
+                        } else { alert("Falsche PIN!"); }
                     }
                 },
                 async runSystemUpdateAction() {
@@ -345,7 +343,7 @@
                     }
                 },
                 async deleteGroup(g) {
-                    if (confirm(`Möchtest du die Gruppe "${g.name}" wirklich löschen? Alle Daten gehen verloren!`)) {
+                    if (confirm(`Wirklich löschen? Alle Daten gehen verloren!`)) {
                         await fetch(`/groups/${g.id}`, { method: 'DELETE' });
                         this.loadGroups();
                     }
