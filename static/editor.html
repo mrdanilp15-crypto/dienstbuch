@@ -13,34 +13,24 @@
         :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise: #0d6efd; --incident: #dc3545; --misc: #ffc107; }
         body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
         .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
-        
         .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; pointer-events: none; }
         .save-status.visible { opacity: 1; }
-
         .editor-card { background: white; border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 20px; }
         .controls-wrapper { position: sticky; top: 0; z-index: 100; background: var(--bg-color); padding: 10px 0; }
-        
         .present-row { background-color: #f0fdf4 !important; border-left: 6px solid #198754 !important; }
         .stat-pill { flex: 1; background: white; padding: 8px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-bottom: 3px solid #ddd; }
-        
         .search-input { border-radius: 30px; padding-left: 45px; border: 1px solid #eee; height: 48px; }
         .search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #bbb; }
-        
         .filter-btn { white-space: nowrap; padding: 5px 12px; border-radius: 15px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; background: white; color: #666; }
         .filter-btn.active { background: #333; color: white; border-color: #333; }
-
         .btn-icon { background: transparent; border: none; color: #ccc; padding: 5px; }
         .btn-icon:hover { color: var(--primary-color); }
-        
         .sig-preview { height: 50px; background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
         .sig-preview img { height: 100%; object-fit: contain; mix-blend-mode: multiply; }
         .delete-sig-overlay { position: absolute; top: 0; right: 0; background: rgba(220, 53, 69, 0.9); color: white; padding: 2px 6px; border-bottom-left-radius: 8px; font-size: 0.6rem; }
-        
         .floating-buttons { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: center; border-top: 1px solid #eee; z-index: 1000; }
         .sig-wrapper { border: 2px dashed #ccc; border-radius: 15px; background: white; width: 100%; height: 300px; position: relative; touch-action: none; }
         #sigCanvas { width: 100%; height: 100%; border-radius: 15px; }
-
-        /* MOBILE HOCHFORMAT OPTIMIERUNG */
         @media (max-width: 576px) {
             .person-row-container { display: flex; align-items: center; gap: 10px; }
             .person-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
@@ -62,8 +52,17 @@
 
         <div class="main-content">
             <div class="mb-3 d-flex justify-content-between align-items-center">
-                <a :href="'/dashboard?group_id=' + groupId" class="btn btn-link text-danger p-0 fw-bold text-decoration-none"><i class="fa fa-arrow-left me-2"></i>Abbrechen</a>
-                <button v-if="isAdmin" class="btn btn-sm btn-outline-secondary rounded-pill px-3" @click="logoutAdmin">Admin Logout</button>
+                <button @click="window.location.href='/static/dashboard.html'" class="btn btn-link text-danger p-0 fw-bold text-decoration-none">
+                    <i class="fa fa-arrow-left me-2"></i>Abbrechen
+                </button>
+                <div>
+                    <button v-if="!isAdmin" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold" @click="promptAdmin">
+                        <i class="fa fa-lock me-1"></i> Admin Login
+                    </button>
+                    <button v-else class="btn btn-sm btn-dark rounded-pill px-3 fw-bold" @click="logoutAdmin">
+                        <i class="fa fa-unlock me-1"></i> Admin Logout
+                    </button>
+                </div>
             </div>
             
             <div class="editor-card">
@@ -109,10 +108,6 @@
                     <div class="position-relative flex-grow-1"><i class="fa fa-search search-icon"></i><input type="text" class="form-control search-input" v-model="q" placeholder="Namen suchen..."></div>
                     <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" @click="addP" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
                 </div>
-                <div class="d-flex gap-1 overflow-x-auto pb-1" style="scrollbar-width: none;">
-                    <button class="filter-btn" :class="{active: vF === null}" @click="vF = null">ALLE</button>
-                    <button v-for="v in ['MZF', 'HLF', 'TLF', 'GWL']" class="filter-btn" :class="{active: vF === v}" @click="vF = v">{{ v }}</button>
-                </div>
             </div>
 
             <div class="mt-3">
@@ -122,7 +117,6 @@
                             <i v-if="p.is_present" class="fa-solid fa-circle-check text-success fs-2"></i>
                             <i v-else class="fa-regular fa-circle text-secondary fs-2"></i>
                         </div>
-                        
                         <div class="person-info">
                             <div class="person-name-box">
                                 <span class="fw-bold">{{ p.name }}</span>
@@ -135,7 +129,6 @@
                                 <button v-for="v in ['MZF', 'HLF', 'TLF', 'GWL']" class="btn btn-xs border" :class="p.vehicle === v ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" @click.stop="setVehicle(p, v)">{{v}}</button>
                             </div>
                         </div>
-
                         <div v-if="p.is_present" class="sig-box-mobile">
                             <div class="sig-preview" style="height: 40px;" @click="openSig(p)">
                                 <template v-if="p.signature">
@@ -156,9 +149,7 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
                     <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift</h5><button type="button" class="btn-close" @click="closeSig"></button></div>
-                    <div class="modal-body p-4">
-                        <div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div>
-                    </div>
+                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
                     <div class="modal-footer border-0 justify-content-between pt-0"><button class="btn btn-light rounded-pill px-4" @click="clearModal">Löschen</button><button class="btn btn-primary rounded-pill px-5 fw-bold" @click="saveSig">OK</button></div>
                 </div>
             </div>
@@ -192,6 +183,15 @@
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
+                async promptAdmin() {
+                    const pin = prompt("Admin-Code eingeben:");
+                    if (!pin) return;
+                    const res = await fetch('/api/verify_admin', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin}) });
+                    const data = await res.json();
+                    if (data.success) { localStorage.setItem('userRole', 'admin'); this.isAdmin = true; location.reload(); }
+                    else { alert("Falscher Code!"); }
+                },
+                logoutAdmin() { localStorage.setItem('userRole', 'user'); this.isAdmin = false; location.reload(); },
                 resizeCanvas() {
                     const canvas = document.getElementById('sigCanvas'); if (!canvas) return;
                     const ratio = Math.max(window.devicePixelRatio || 1, 1);
@@ -209,7 +209,7 @@
                     const rd = await res.json(); this.sessionId = rd.session_id; this.saveState='saved';
                     setTimeout(() => { if(this.saveState === 'saved') this.saveState='idle'; }, 2000);
                 },
-                async saveAndExit() { await this.performSave(); window.location.href='/dashboard?group_id='+this.groupId; },
+                async saveAndExit() { await this.performSave(); window.location.href='/static/dashboard.html'; },
                 setCat(c) { this.category=c; this.autoSave(); },
                 togglePresence(p) { p.is_present=!p.is_present; if(!p.is_present) p.signature=null; this.autoSave(); },
                 setVehicle(p,v) { p.vehicle=(p.vehicle===v)?'':v; if(p.vehicle) p.is_present=true; this.autoSave(); },
@@ -228,8 +228,7 @@
                 closeSig() { sigModal.hide(); },
                 async addP() { const n=prompt("Name:"); if(n) { await fetch(`/groups/${this.groupId}/persons`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}); this.load(); }},
                 async editP(p) { const n=prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}); this.load(); }},
-                async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`,{method:'DELETE'}); this.load(); }},
-                logoutAdmin() { localStorage.removeItem('userRole'); location.reload(); }
+                async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`,{method:'DELETE'}); this.load(); }}
             }
         }).mount('#app');
     </script>
