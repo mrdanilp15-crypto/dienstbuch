@@ -15,11 +15,9 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   api:
-
     image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
     container_name: attendance_api
     restart: unless-stopped
-
     environment:
       - DB_PASSWORD=${DB_PASS}
       - ADMIN_PIN=${ADMIN_PIN}
