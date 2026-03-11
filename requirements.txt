@@ -1,3 +1,8 @@
 flask
 flask-sqlalchemy
+fastapi
+uvicorn
+mysql-connector-python
+pydantic
+python-multipart
 # falls du weitere Pakete nutzt (z.B. für PDF), hier ergänzen
