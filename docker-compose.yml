@@ -15,12 +15,11 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   api:
-    # Hier nutzt du nun dein fertiges Image von GitHub
+
     image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
     container_name: attendance_api
     restart: unless-stopped
-    # working_dir, volumes (für Code) und command fallen weg, 
-    # da alles schon im Image eingebaut ist!
+
     environment:
       - DB_PASSWORD=${DB_PASS}
       - ADMIN_PIN=${ADMIN_PIN}
