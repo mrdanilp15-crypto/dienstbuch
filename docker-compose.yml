@@ -15,12 +15,12 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   api:
-    image: python:3.9-slim
+    # Hier nutzt du nun dein fertiges Image von GitHub
+    image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
     container_name: attendance_api
     restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - .:/app
+    # working_dir, volumes (für Code) und command fallen weg, 
+    # da alles schon im Image eingebaut ist!
     environment:
       - DB_PASSWORD=${DB_PASS}
       - ADMIN_PIN=${ADMIN_PIN}
@@ -28,8 +28,5 @@ services:
       - TOWN_NAME=${TOWN_NAME}
     ports:
       - "8000:8000"
-    command: >
-      sh -c "pip install fastapi uvicorn mysql-connector-python pydantic && 
-             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
       - db
