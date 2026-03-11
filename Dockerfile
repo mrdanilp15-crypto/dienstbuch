@@ -1,23 +1,22 @@
-# Wir nutzen Python 3.11 als Basis
 FROM python:3.11-slim
 
-# Arbeitsverzeichnis im Container
 WORKDIR /app
 
-# System-Abhängigkeiten für PDF-Generierung (falls nötig für deine Reports)
+# System-Abhängigkeiten
 RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Python-Abhängigkeiten kopieren und installieren
+# Python-Pakete installieren
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Den gesamten Code kopieren
+# Den Code kopieren
 COPY . .
 
-# Port 8000 freigeben (passend zu deiner main.py/compose)
+# Port 8000 für FastAPI/Uvicorn
 EXPOSE 8000
 
-# Startbefehl
-CMD ["python", "main.py"]
+# Startbefehl: Uvicorn startet die FastAPI App
+# host 0.0.0.0 ist wichtig für den Zugriff aus Docker
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
