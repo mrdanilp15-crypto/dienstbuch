@@ -140,7 +140,7 @@ async def favicon():
 async def get_info():
     remote_version = CURRENT_VERSION
     try:
-        v_url = UPDATE_BASE_URL + "VERSION"
+        v_url = UPDATE_BASE_URL + "VERSION.txt"
         with urllib.request.urlopen(v_url, timeout=2) as response:
             remote_version = response.read().decode('utf-8').strip()
     except:
