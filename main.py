@@ -8,9 +8,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 import reports
+import time
 
 # --- KONFIGURATION ---
-CURRENT_VERSION = "1.61"  # Deine aktuelle lokale Version
+CURRENT_VERSION = "1.61"
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -22,7 +23,7 @@ app = FastAPI()
 # WICHTIG: Mountet den Ordner für CSS/JS/Bilder
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- HILFSFUNKTIONEN ---
+# --- DATENBANK INITIALISIERUNG ---
 def get_db_connection():
     return mysql.connector.connect(
         host="db", 
@@ -31,6 +32,76 @@ def get_db_connection():
         database="attendance_system"
     )
 
+def init_db():
+    """Erstellt alle notwendigen Tabellen automatisch beim Start."""
+    # Kurze Verzögerung, falls die DB noch am Hochfahren ist (für Docker relevant)
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            # 1. Gruppen
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS groups_table (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL
+                ) ENGINE=InnoDB;
+            """)
+            
+            # 2. Personen
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS persons (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_id INT,
+                    name VARCHAR(255) NOT NULL,
+                    FOREIGN KEY (group_id) REFERENCES groups_table(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB;
+            """)
+
+            # 3. Sitzungen (Sessions)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_id INT,
+                    date DATE,
+                    category VARCHAR(50),
+                    duration DECIMAL(5,2),
+                    description TEXT,
+                    instructors TEXT,
+                    leader_signature LONGTEXT,
+                    FOREIGN KEY (group_id) REFERENCES groups_table(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB;
+            """)
+
+            # 4. Anwesenheits-Einträge
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    session_id INT,
+                    person_id INT,
+                    is_present BOOLEAN,
+                    note TEXT,
+                    vehicle VARCHAR(50),
+                    signature LONGTEXT,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB;
+            """)
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("Datenbank-Struktur wurde erfolgreich initialisiert.")
+            break
+        except Exception as e:
+            print(f"DB-Init Versuch {i+1} fehlgeschlagen: {e}")
+            time.sleep(3)
+
+# Initialisierung aufrufen
+init_db()
+
+# --- HILFSFUNKTIONEN ---
 def safe_decode(value):
     if isinstance(value, bytes): return value.decode('utf-8')
     return value
@@ -66,17 +137,16 @@ async def favicon():
     if os.path.exists("static/favicon.svg"): return FileResponse("static/favicon.svg")
     return Response(status_code=204)
 
-# --- API CORE (Das neue Update-Check System) ---
+# --- API CORE ---
 @app.get("/api/info")
 async def get_info():
     remote_version = CURRENT_VERSION
     try:
-        # Prüft die Version auf GitHub (Datei namens VERSION im Repo)
         v_url = UPDATE_BASE_URL + "VERSION"
         with urllib.request.urlopen(v_url, timeout=2) as response:
             remote_version = response.read().decode('utf-8').strip()
     except:
-        pass # Falls GitHub nicht erreichbar ist
+        pass
 
     return {
         "version": CURRENT_VERSION,
