@@ -16,7 +16,7 @@ ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
-UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/refs/heads/main/VERSION.txt")
+UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/refs/heads/main/")
 
 app = FastAPI()
 
@@ -140,17 +140,23 @@ async def favicon():
 async def get_info():
     remote_version = CURRENT_VERSION
     try:
-        v_url = UPDATE_BASE_URL + "VERSION"
-        with urllib.request.urlopen(v_url, timeout=2) as response:
+        # Hier wird der Dateiname angehängt
+        v_url = UPDATE_BASE_URL + "VERSION.txt"
+        
+        # Cache umgehen mit Zeitstempel
+        v_url += "?t=" + str(int(time.time()))
+        
+        req = urllib.request.Request(v_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
             remote_version = response.read().decode('utf-8').strip()
-    except:
-        pass
+    except Exception as e:
+        print(f"Update-Fehler: {e}")
+
     return {
         "version": CURRENT_VERSION,
         "remote_version": remote_version,
         "update_available": remote_version != CURRENT_VERSION,
         "developer": "Daniel Hegemann",
-        "email": "d.hege@icloud.com",
         "town": TOWN_NAME
     }
 
@@ -206,6 +212,20 @@ def delete_person(id: int):
     c.commit(); c.close(); return {"status": "deleted"}
 
 # --- DIENST-LOGIK ---
+
+# --- THEMEN & AUSBILDER (Zusatzfunktionen) ---
+
+@app.get("/groups/{id}/topics")
+def get_topics(id: int):
+    # Hier kannst du später Themen aus der Datenbank laden. 
+    # Fürs Erste geben wir eine leere Liste zurück, damit der 404 verschwindet.
+    return []
+
+@app.get("/groups/{id}/instructors")
+def get_instructors(id: int):
+    # Hier kannst du Namen von Ausbildern hinterlegen
+    return ["Kommandant", "Gruppenführer", "Jugendwart"]
+
 @app.get("/groups/{id}/sessions")
 def get_sessions(id:int):
     c=get_db_connection(); cur=c.cursor(dictionary=True)
