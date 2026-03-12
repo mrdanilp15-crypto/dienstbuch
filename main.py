@@ -16,8 +16,7 @@ ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
-# WICHTIG: Pfad endet auf /
-UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/refs/heads/main/")
+UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
 
 app = FastAPI()
 
@@ -43,6 +42,7 @@ def init_db():
             conn = get_db_connection()
             cur = conn.cursor()
             
+            # 1. Gruppen Tabelle
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS groups_table (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -50,6 +50,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             """)
             
+            # 2. Personen Tabelle
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS persons (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -59,6 +60,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             """)
 
+            # 3. Sitzungen (Sessions)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -73,6 +75,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             """)
 
+            # 4. Anwesenheit (Attendance)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS attendance (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -96,6 +99,7 @@ def init_db():
             print(f"Datenbank-Verbindung fehlgeschlagen (Versuch {i+1}/{max_retries}): {e}")
             time.sleep(5)
 
+# Init beim Start
 init_db()
 
 # --- HILFSFUNKTIONEN ---
@@ -136,17 +140,11 @@ async def favicon():
 async def get_info():
     remote_version = CURRENT_VERSION
     try:
-        # Hier wird die URL korrekt zusammengesetzt
-        v_url = UPDATE_BASE_URL + "VERSION.txt?t=" + str(int(time.time()))
-        
-        req = urllib.request.Request(v_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as response:
+        v_url = UPDATE_BASE_URL + "VERSION"
+        with urllib.request.urlopen(v_url, timeout=2) as response:
             remote_version = response.read().decode('utf-8').strip()
-            # Debug-Ausgabe für Portainer Logs
-            print(f"--- UPDATE CHECK: Lokal={CURRENT_VERSION}, Remote={remote_version} ---")
-    except Exception as e:
-        print(f"--- UPDATE FEHLER: {e} ---")
-
+    except:
+        pass
     return {
         "version": CURRENT_VERSION,
         "remote_version": remote_version,
@@ -206,15 +204,6 @@ def delete_person(id: int):
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM persons WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
-
-# --- THEMEN & AUSBILDER (Fix für 404 Fehler) ---
-@app.get("/groups/{id}/topics")
-def get_topics(id: int):
-    return ["Übung", "Einsatz", "UVV", "Funk", "Atemschutz", "Erste Hilfe", "Fahrzeugkunde"]
-
-@app.get("/groups/{id}/instructors")
-def get_instructors(id: int):
-    return ["Kommandant", "Stv. Kommandant", "Jugendwart", "Gruppenführer", "Gerätewart"]
 
 # --- DIENST-LOGIK ---
 @app.get("/groups/{id}/sessions")
