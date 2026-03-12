@@ -20,7 +20,7 @@ UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.co
 
 app = FastAPI()
 
-# WICHTIG: Mountet den Ordner für CSS/JS/Bilder
+# Mountet den Ordner für CSS/JS/Bilder
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- DATENBANK INITIALISIERUNG ---
@@ -33,15 +33,14 @@ def get_db_connection():
     )
 
 def init_db():
-    """Erstellt alle notwendigen Tabellen automatisch beim Start."""
-    # Kurze Verzögerung, falls die DB noch am Hochfahren ist (für Docker relevant)
+    """Erstellt alle notwendigen Tabellen automatisch, falls sie fehlen."""
     max_retries = 5
     for i in range(max_retries):
         try:
             conn = get_db_connection()
             cur = conn.cursor()
             
-            # 1. Gruppen
+            # 1. Gruppen Tabelle
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS groups_table (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -49,7 +48,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             """)
             
-            # 2. Personen
+            # 2. Personen Tabelle
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS persons (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -74,7 +73,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             """)
 
-            # 4. Anwesenheits-Einträge
+            # 4. Anwesenheit (Attendance)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS attendance (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -92,13 +91,13 @@ def init_db():
             conn.commit()
             cur.close()
             conn.close()
-            print("Datenbank-Struktur wurde erfolgreich initialisiert.")
+            print("--- DATENBANK READY ---")
             break
         except Exception as e:
-            print(f"DB-Init Versuch {i+1} fehlgeschlagen: {e}")
-            time.sleep(3)
+            print(f"Datenbank noch nicht bereit (Versuch {i+1}/5): {e}")
+            time.sleep(5)
 
-# Initialisierung aufrufen
+# Führt die Tabellen-Prüfung beim Starten aus
 init_db()
 
 # --- HILFSFUNKTIONEN ---
@@ -117,27 +116,23 @@ class AttendanceUpload(BaseModel):
     leader_signature: Optional[str] = None; entries: List[EntryDto]
 class LeaderSigUpdate(BaseModel): signature: Optional[str] = None
 class PersonData(BaseModel): name: str
-class GroupName(BaseModel): name: str
 
 # --- NAVIGATION ---
 @app.get("/", response_class=FileResponse)
-def get_login(): 
-    return FileResponse("static/login.html")
+def get_login(): return FileResponse("static/login.html")
 
 @app.get("/dashboard", response_class=FileResponse)
-def get_dash(): 
-    return FileResponse("static/dashboard.html")
+def get_dash(): return FileResponse("static/dashboard.html")
 
 @app.get("/editor", response_class=FileResponse)
-def get_edit(): 
-    return FileResponse("static/editor.html")
+def get_edit(): return FileResponse("static/editor.html")
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     if os.path.exists("static/favicon.svg"): return FileResponse("static/favicon.svg")
     return Response(status_code=204)
 
-# --- API CORE ---
+# --- API CORE (Dein Name & Email hier!) ---
 @app.get("/api/info")
 async def get_info():
     remote_version = CURRENT_VERSION
@@ -153,6 +148,7 @@ async def get_info():
         "remote_version": remote_version,
         "update_available": remote_version != CURRENT_VERSION,
         "developer": "Daniel Hegemann",
+        "email": "d.hege@icloud.com",
         "town": TOWN_NAME
     }
 
@@ -160,11 +156,9 @@ async def get_info():
 async def login(data: dict, response: Response):
     p = data.get("pin", "").strip()
     role = "admin" if (ADMIN_PIN and p == ADMIN_PIN) else "user" if (USER_PIN and p == USER_PIN) else None
-    
     if role:
         response.set_cookie(key="session_token", value="valid", max_age=31536000, httponly=False)
         return {"status": "success", "role": role, "redirect": "/dashboard"}
-    
     raise HTTPException(401, detail="Passwort nicht korrekt!")
 
 @app.post("/api/verify_admin")
@@ -174,18 +168,23 @@ async def verify_admin(data: PinCheck):
 # --- DATEN-ENDPUNKTE ---
 @app.get("/groups")
 def groups():
-    c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table ORDER BY name")
+    c=get_db_connection(); cur=c.cursor(dictionary=True)
+    cur.execute("SELECT * FROM groups_table ORDER BY name")
     r=cur.fetchall(); c.close(); return r
 
 @app.get("/groups/{id}/attendance")
 def attendance(id:int, session_id:Optional[int]=None):
     c=get_db_connection(); cur=c.cursor(dictionary=True); row=None
-    if session_id: cur.execute("SELECT * FROM sessions WHERE id=%s",(session_id,)); row=cur.fetchone()
+    if session_id: 
+        cur.execute("SELECT * FROM sessions WHERE id=%s",(session_id,))
+        row=cur.fetchone()
     sid = row['id'] if row else 0
     l_sig = safe_decode(row['leader_signature']) if row else None
     sql = "SELECT p.id, p.name, IFNULL(a.is_present,0) as is_present, IFNULL(a.note,'') as note, IFNULL(a.vehicle,'') as vehicle, a.signature FROM persons p LEFT JOIN attendance a ON p.id=a.person_id AND a.session_id=%s WHERE p.group_id=%s ORDER BY p.name"
     cur.execute(sql, (sid, id)); persons = cur.fetchall()
-    for p in persons: p['is_present']=bool(p['is_present']); p['signature']=safe_decode(p['signature'])
+    for p in persons: 
+        p['is_present']=bool(p['is_present'])
+        p['signature']=safe_decode(p['signature'])
     c.close()
     return {"session_id":sid, "date":str(row['date']) if row else str(datetime.now().date()), "category":row['category'] if row else "Übung", "duration":float(row['duration']) if row else 2.0, "description":row['description'] if row else "", "instructors":row['instructors'] if row else "", "leader_signature": l_sig, "persons":persons}
 
@@ -193,23 +192,32 @@ def attendance(id:int, session_id:Optional[int]=None):
 def save_attendance(d: AttendanceUpload):
     c=get_db_connection(); cur=c.cursor()
     if d.session_id:
-        cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id)); sid = d.session_id
+        cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
+        sid = d.session_id
         cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
     else:
-        cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature)); sid = cur.lastrowid
-    for e in d.entries: cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
+        cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
+        sid = cur.lastrowid
+    for e in d.entries: 
+        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
     c.commit(); c.close(); return {"session_id":sid}
 
 @app.get("/groups/{id}/sessions")
 def sessions(id:int):
-    c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC",(id,)); r=cur.fetchall(); c.close()
-    for x in r: x['date']=str(x['date']); x['is_signed']=bool(x['leader_signature'] and len(str(x['leader_signature'])) > 100); del x['leader_signature']
+    c=get_db_connection(); cur=c.cursor(dictionary=True)
+    cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC",(id,))
+    r=cur.fetchall(); c.close()
+    for x in r: 
+        x['date']=str(x['date'])
+        x['is_signed']=bool(x['leader_signature'] and len(str(x['leader_signature'])) > 100)
+        del x['leader_signature']
     return r
 
 @app.get("/groups/{id}/stats")
 def stats(id:int, year:int):
     c=get_db_connection(); cur=c.cursor(dictionary=True)
-    cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id,year)); max_s = cur.fetchone()['total'] or 0
+    cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id,year))
+    max_s = cur.fetchone()['total'] or 0
     sql = "SELECT p.name, SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN 1 ELSE 0 END) as present_count, SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN s.duration ELSE 0 END) as total_hours, %s as total_sessions FROM persons p LEFT JOIN attendance a ON p.id=a.person_id LEFT JOIN sessions s ON a.session_id=s.id AND YEAR(s.date)=%s AND s.group_id=%s WHERE p.group_id=%s GROUP BY p.id, p.name ORDER BY total_hours DESC"
     cur.execute(sql, (max_s, year, id, id)); p = cur.fetchall(); c.close(); return {"persons":p}
 
