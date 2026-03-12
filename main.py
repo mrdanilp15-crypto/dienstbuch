@@ -9,7 +9,6 @@ from typing import List, Optional
 from datetime import datetime
 import reports
 
-# --- KONFIGURATION ---
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -17,55 +16,13 @@ TOWN_NAME = os.getenv("TOWN_NAME", "____________")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
 
 app = FastAPI()
-
-# Mounten des statischen Ordners
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# --- HILFSFUNKTIONEN ---
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", 
-        user="app_user", 
-        password=DB_PASSWORD, 
-        database="attendance_system"
-    )
-
-def safe_decode(value):
-    if isinstance(value, bytes): return value.decode('utf-8')
-    return value
-
-# --- DTOs ---
-class PinCheck(BaseModel): pin: str
-class EntryDto(BaseModel): 
-    person_id: int; is_present: bool; note: Optional[str] = ""; 
-    vehicle: Optional[str] = ""; signature: Optional[str] = None
-class AttendanceUpload(BaseModel): 
-    session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; 
-    duration: float = 0.0; description: str; instructors: Optional[str] = ""; 
-    leader_signature: Optional[str] = None; entries: List[EntryDto]
-class LeaderSigUpdate(BaseModel): signature: Optional[str] = None
-class PersonData(BaseModel): name: str
-class GroupName(BaseModel): name: str
-
-# --- NAVIGATION ---
-@app.get("/", response_class=FileResponse)
-def get_login(): 
-    return FileResponse("static/login.html")
-
-@app.get("/dashboard", response_class=FileResponse)
-def get_dash(): 
-    return FileResponse("static/dashboard.html")
-
-@app.get("/editor", response_class=FileResponse)
-def get_edit(): 
-    return FileResponse("static/editor.html")
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     if os.path.exists("static/favicon.svg"): return FileResponse("static/favicon.svg")
     return Response(status_code=204)
 
-# --- API CORE (LOGIN & INFO) ---
 @app.get("/api/info")
 async def get_info():
     return {
@@ -75,36 +32,56 @@ async def get_info():
         "town": TOWN_NAME
     }
 
-@app.post("/api/login")
-async def login(data: dict, response: Response):
-    p = data.get("pin", "").strip()
-    role = "admin" if (ADMIN_PIN and p == ADMIN_PIN) else "user" if (USER_PIN and p == USER_PIN) else None
-    
-    if role:
-        # Cookie setzen für die Session-Validierung
-        response.set_cookie(key="session_token", value="valid", max_age=31536000, httponly=False)
-        # Diese Antwort braucht deine originale login.html zwingend:
-        return {
-            "status": "success", 
-            "role": role, 
-            "redirect": "/dashboard"
-        }
-    
-    raise HTTPException(status_code=401, detail="Passwort nicht korrekt!")
+def get_db_connection():
+    return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
+
+def safe_decode(value):
+    if isinstance(value, bytes): return value.decode('utf-8')
+    return value
+
+class PinCheck(BaseModel): pin: str
+class EntryDto(BaseModel): person_id: int; is_present: bool; note: Optional[str] = ""; vehicle: Optional[str] = ""; signature: Optional[str] = None
+class AttendanceUpload(BaseModel): 
+    session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; duration: float = 0.0; 
+    description: str; instructors: Optional[str] = ""; leader_signature: Optional[str] = None; entries: List[EntryDto]
+class LeaderSigUpdate(BaseModel): signature: Optional[str] = None
+class PersonData(BaseModel): name: str
+class GroupName(BaseModel): name: str
+
+@app.get("/", response_class=FileResponse)
+def get_login(): return "static/login.html"
+@app.get("/dashboard", response_class=FileResponse)
+def get_dash(): return "static/dashboard.html"
+@app.get("/editor", response_class=FileResponse)
+def get_edit(): return "static/editor.html"
 
 @app.post("/api/verify_admin")
 async def verify_admin(data: PinCheck): 
     return {"success": (data.pin == ADMIN_PIN)}
 
-@app.post("/api/verify_user")
-async def verify_user(data: PinCheck): 
-    return {"success": (data.pin == USER_PIN or data.pin == ADMIN_PIN)}
+@app.post("/api/login")
+async def login(data: dict, request: Request):
+    p = data.get("pin", "").strip()
+    role = "admin" if (ADMIN_PIN and p == ADMIN_PIN) else "user" if (USER_PIN and p == USER_PIN) else None
+    if role: return {"status": "success", "role": role, "redirect": "/dashboard"}
+    raise HTTPException(401, detail="Falsch")
 
-# --- DATA ENDPOINTS ---
+@app.get("/api/system/update")
+async def run_update(pin: str):
+    if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
+    files = [("main.py", "main.py"), ("reports.py", "reports.py"), ("static/dashboard.html", "static/dashboard.html"), ("static/editor.html", "static/editor.html"), ("static/login.html", "static/login.html"), ("static/favicon.svg", "static/favicon.svg")]
+    try:
+        for remote_name, local_path in files:
+            url = UPDATE_BASE_URL + remote_name
+            with urllib.request.urlopen(url) as response:
+                content = response.read()
+                with open(local_path, "wb") as f: f.write(content)
+        os._exit(0)
+    except Exception as e: raise HTTPException(500, detail=str(e))
+
 @app.get("/groups")
 def groups():
-    c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table ORDER BY name")
-    r=cur.fetchall(); c.close(); return r
+    c=get_db_connection(); cur=c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table ORDER BY name"); r=cur.fetchall(); c.close(); return r
 
 @app.get("/groups/{id}/attendance")
 def attendance(id:int, session_id:Optional[int]=None):
@@ -142,7 +119,6 @@ def stats(id:int, year:int):
     sql = "SELECT p.name, SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN 1 ELSE 0 END) as present_count, SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN s.duration ELSE 0 END) as total_hours, %s as total_sessions FROM persons p LEFT JOIN attendance a ON p.id=a.person_id LEFT JOIN sessions s ON a.session_id=s.id AND YEAR(s.date)=%s AND s.group_id=%s WHERE p.group_id=%s GROUP BY p.id, p.name ORDER BY total_hours DESC"
     cur.execute(sql, (max_s, year, id, id)); p = cur.fetchall(); c.close(); return {"persons":p}
 
-# --- REPORTING ---
 @app.get("/sessions/{session_id}/report", response_class=HTMLResponse)
 def single_report(session_id: int):
     c=get_db_connection(); cur=c.cursor(dictionary=True)
@@ -177,7 +153,6 @@ def print_view(group_id: int, year: int):
     html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, TOWN_NAME)
     c.close(); return f"<html><head><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
 
-# --- ADMINISTRATION ---
 @app.post("/sessions/{id}/leader_signature")
 def update_leader_sig(id: int, data: LeaderSigUpdate):
     c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.signature, id)); c.commit(); c.close(); return {"status": "updated"}
@@ -217,16 +192,3 @@ def delete_group(id: int):
 @app.delete("/sessions/{id}")
 def delete_session(id: int):
     c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE session_id=%s", (id,)); cur.execute("DELETE FROM sessions WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
-
-@app.get("/api/system/update")
-async def run_update(pin: str):
-    if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
-    files = [("main.py", "main.py"), ("reports.py", "reports.py"), ("static/dashboard.html", "static/dashboard.html"), ("static/editor.html", "static/editor.html"), ("static/login.html", "static/login.html"), ("static/favicon.svg", "static/favicon.svg")]
-    try:
-        for remote_name, local_path in files:
-            url = UPDATE_BASE_URL + remote_name
-            with urllib.request.urlopen(url) as response:
-                content = response.read()
-                with open(local_path, "wb") as f: f.write(content)
-        os._exit(0)
-    except Exception as e: raise HTTPException(500, detail=str(e))
