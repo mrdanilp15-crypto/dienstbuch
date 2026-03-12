@@ -10,6 +10,7 @@ from datetime import datetime
 import reports
 
 # --- KONFIGURATION ---
+CURRENT_VERSION = "1.61"  # Deine aktuelle lokale Version
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -47,7 +48,7 @@ class LeaderSigUpdate(BaseModel): signature: Optional[str] = None
 class PersonData(BaseModel): name: str
 class GroupName(BaseModel): name: str
 
-# --- NAVIGATION (FIXED: Nutzt jetzt FileResponse statt Strings) ---
+# --- NAVIGATION ---
 @app.get("/", response_class=FileResponse)
 def get_login(): 
     return FileResponse("static/login.html")
@@ -65,11 +66,22 @@ async def favicon():
     if os.path.exists("static/favicon.svg"): return FileResponse("static/favicon.svg")
     return Response(status_code=204)
 
-# --- API CORE ---
+# --- API CORE (Das neue Update-Check System) ---
 @app.get("/api/info")
 async def get_info():
+    remote_version = CURRENT_VERSION
+    try:
+        # Prüft die Version auf GitHub (Datei namens VERSION im Repo)
+        v_url = UPDATE_BASE_URL + "VERSION"
+        with urllib.request.urlopen(v_url, timeout=2) as response:
+            remote_version = response.read().decode('utf-8').strip()
+    except:
+        pass # Falls GitHub nicht erreichbar ist
+
     return {
-        "version": "1.61",
+        "version": CURRENT_VERSION,
+        "remote_version": remote_version,
+        "update_available": remote_version != CURRENT_VERSION,
         "developer": "Daniel Hegemann",
         "town": TOWN_NAME
     }
@@ -80,9 +92,7 @@ async def login(data: dict, response: Response):
     role = "admin" if (ADMIN_PIN and p == ADMIN_PIN) else "user" if (USER_PIN and p == USER_PIN) else None
     
     if role:
-        # Setzt den Cookie, damit der Login erhalten bleibt
         response.set_cookie(key="session_token", value="valid", max_age=31536000, httponly=False)
-        # WICHTIG: 'redirect' verhindert den /undefined Fehler im Browser
         return {"status": "success", "role": role, "redirect": "/dashboard"}
     
     raise HTTPException(401, detail="Passwort nicht korrekt!")
@@ -192,17 +202,3 @@ def delete_group(id: int):
 @app.delete("/sessions/{id}")
 def delete_session(id: int):
     c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM attendance WHERE session_id=%s", (id,)); cur.execute("DELETE FROM sessions WHERE id=%s", (id,)); c.commit(); c.close(); return {"status": "deleted"}
-
-# --- AUTO-UPDATE ---
-@app.get("/api/system/update")
-async def run_update(pin: str):
-    if pin != ADMIN_PIN: raise HTTPException(401, detail="Nicht autorisiert")
-    files = [("main.py", "main.py"), ("reports.py", "reports.py"), ("static/dashboard.html", "static/dashboard.html"), ("static/editor.html", "static/editor.html"), ("static/login.html", "static/login.html"), ("static/favicon.svg", "static/favicon.svg")]
-    try:
-        for remote_name, local_path in files:
-            url = UPDATE_BASE_URL + remote_name
-            with urllib.request.urlopen(url) as response:
-                content = response.read()
-                with open(local_path, "wb") as f: f.write(content)
-        os._exit(0)
-    except Exception as e: raise HTTPException(500, detail=str(e))
