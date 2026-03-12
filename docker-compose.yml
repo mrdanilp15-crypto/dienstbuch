@@ -15,7 +15,7 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   api:
-    image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
+    image: ghcr.io/mrdanilp15-crypto/dienstbuch:main
     container_name: attendance_api
     restart: unless-stopped
     environment:
