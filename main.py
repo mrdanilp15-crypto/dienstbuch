@@ -11,7 +11,7 @@ from datetime import datetime
 import reports  # Stelle sicher, dass die reports.py im selben Ordner liegt!
 
 # --- KONFIGURATION ---
-CURRENT_VERSION = "1.62"
+CURRENT_VERSION = "1.64"
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
