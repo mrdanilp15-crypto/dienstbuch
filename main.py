@@ -147,6 +147,14 @@ async def login(data: dict, response: Response):
         return {"status": "success", "role": role, "redirect": "/dashboard"}
     raise HTTPException(401, detail="PIN falsch!")
 
+@app.post("/api/verify_admin")
+async def verify_admin(data: dict):
+    p = data.get("pin", "").strip()
+    # Wir prüfen, ob die eingegebene PIN mit der ADMIN_PIN aus der Konfiguration übereinstimmt
+    if ADMIN_PIN and p == ADMIN_PIN:
+        return {"success": True}
+    raise HTTPException(status_code=401, detail="PIN falsch!")
+
 @app.get("/groups")
 def get_groups():
     c=get_db_connection(); cur=c.cursor(dictionary=True)
