@@ -74,7 +74,7 @@
             <div class="offcanvas-body d-flex flex-column">
                 <div class="mb-4">
                     <h6 class="text-muted small fw-bold text-uppercase mb-3">Funktionen</h6>
-                    <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none">
+                    <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none text-center">
                         <i class="fa fa-sticky-note me-2"></i> Notizen
                     </a>
                     <button class="btn btn-outline-info w-100 mb-3 rounded-pill fw-bold text-start" @click="showAbout" data-bs-dismiss="offcanvas">
@@ -137,10 +137,10 @@
             </div>
 
             <div class="main-content">
-                <div v-if="projectInfo.version < projectInfo.latest" class="alert alert-warning shadow-sm mb-4 rounded-4 d-flex justify-content-between align-items-center border-start border-4 border-warning">
+                <div v-if="projectInfo.update_available" class="alert alert-warning shadow-sm mb-4 rounded-4 d-flex justify-content-between align-items-center border-start border-4 border-warning">
                     <div class="small">
                         <i class="fa fa-cloud-download-alt me-1 text-warning"></i>
-                        <strong>Update v{{ projectInfo.latest }} bereit!</strong>
+                        <strong>Update v{{ projectInfo.remote }} bereit!</strong>
                     </div>
                     <button class="btn btn-sm btn-dark rounded-pill px-3" @click="fullLogout">Jetzt laden</button>
                 </div>
@@ -214,7 +214,7 @@
                         <h3 class="fw-bold mb-1">Dienstbuch</h3>
                         <p class="text-muted small mb-4">Version {{ projectInfo.version }}</p>
                         <div class="bg-light p-3 rounded-4 mb-4 text-start small">
-                            <div class="mb-2"><strong>Entwicklung:</strong> {{ projectInfo.developer }}</div>
+                            <div class="mb-2"><strong>Entwicklung:</strong> Daniel Hegemann</div>
                             <div class="mb-3"><strong>Kontakt:</strong> <a href="mailto:d.hege@icloud.com" class="text-danger fw-bold">d.hege@icloud.com</a></div>
                             <hr>
                             <p class="text-muted italic mb-3">Unterstütze die Kaffeekasse für weitere Updates:</p>
@@ -258,7 +258,8 @@
                     ranking: [],
                     showRanking: false,
                     catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
-                    projectInfo: { version: "1.70", latest: "1.70", developer: "Daniel Hegemann", town: "" },
+                    // Hier jetzt passend zu deiner Python-API
+                    projectInfo: { version: "?.??", remote: "?.??", update_available: false, town: "" },
                     activeS: null
                 }
             },
@@ -296,9 +297,11 @@
                         const r = await fetch('/api/info');
                         if (r.ok) {
                             const data = await r.json();
-                            this.projectInfo.town = data.TOWN_NAME || data.town || "";
-                            this.projectInfo.version = data.version || this.projectInfo.version;
-                            if (data.latest_version) { this.projectInfo.latest = data.latest_version; }
+                            // Mapping deiner API-Felder auf das Vue-Objekt
+                            this.projectInfo.version = data.version;
+                            this.projectInfo.remote = data.remote_version;
+                            this.projectInfo.update_available = data.update_available;
+                            this.projectInfo.town = data.town || "";
                         }
                     } catch(e) { console.error("Info fail", e); }
                 },
