@@ -11,10 +11,10 @@ services:
       MYSQL_USER: app_user
       MYSQL_PASSWORD: ${DB_PASS}
     volumes:
-      - attendance_data:/var/lib/mysql
+      - ${STAPEL_PFAD}/attendance_db:/var/lib/mysql
 
   api:
-    image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
+    image: ghcr.io/mrdanilp15-crypto/dienstbuch:main
     container_name: attendance_api
     restart: unless-stopped
     environment:
