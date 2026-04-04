@@ -12,7 +12,7 @@ import reports
 import notes_manager 
 
 # --- KONFIGURATION ---
-CURRENT_VERSION = "1.65"
+CURRENT_VERSION = "1.70"
 ADMIN_PIN = os.getenv("ADMIN_PIN")
 USER_PIN = os.getenv("USER_PIN")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
