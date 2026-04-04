@@ -98,6 +98,14 @@
             </div>
 
             <div class="main-content">
+                <div v-if="projectInfo.version < projectInfo.latest" class="alert alert-warning shadow-sm mb-4 rounded-4 d-flex justify-content-between align-items-center border-start border-4 border-warning">
+                    <div>
+                        <i class="fa fa-cloud-download-alt me-2 text-warning"></i>
+                        <strong>Update verfügbar!</strong> Eine neue Version (v{{ projectInfo.latest }}) ist bereit.
+                    </div>
+                    <button class="btn btn-sm btn-dark rounded-pill px-3" @click="fullLogout">Jetzt aktualisieren</button>
+                </div>
+
                 <div v-if="selectedGroup">
                     <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                         <div>
@@ -216,7 +224,8 @@
                     ranking: [],
                     showRanking: false,
                     catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
-                    projectInfo: { version: "1.70", developer: "Daniel Hegemann", town: "" },
+                    // HIER ERGÄNZT: latest hinzugefügt
+                    projectInfo: { version: "1.70", latest: "1.70", developer: "Daniel Hegemann", town: "" },
                     activeS: null
                 }
             },
@@ -266,6 +275,10 @@
                             // Holt TOWN_NAME aus Portainer
                             this.projectInfo.town = data.TOWN_NAME || data.town || "";
                             this.projectInfo.version = data.version || this.projectInfo.version;
+                            // HIER ERGÄNZT: latest_version in die Variable laden
+                            if (data.latest_version) {
+                                this.projectInfo.latest = data.latest_version;
+                            }
                         }
                     } catch(e) { 
                         console.error("Konnte Info nicht laden", e); 
