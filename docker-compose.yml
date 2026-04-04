@@ -13,9 +13,8 @@ services:
     volumes:
       - attendance_data:/var/lib/mysql
 
-
   api:
-    image: ghcr.io/mrdanilp15-crypto/dienstbuch:main
+    image: ghcr.io/mrdanilp15-crypto/dienstbuch:latest
     container_name: attendance_api
     restart: unless-stopped
     environment:
@@ -24,10 +23,15 @@ services:
       - USER_PIN=${USER_PIN}
       - TOWN_NAME=${TOWN_NAME}
       - DATABASE_URL=mysql+pymysql://app_user:${DB_PASS}@db/attendance_system
+      # Der Pfad innerhalb des Containers für die Notizen
+      - SQLITE_DB_PATH=/app/data/notes.db
     ports:
       - "9000:8000"
+    volumes:
+      - notes_data:/app/data
     depends_on:
       - db
 
 volumes:
   attendance_data:
+  notes_data:
