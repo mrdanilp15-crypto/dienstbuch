@@ -167,6 +167,22 @@ def create_group(g: GroupData):
     cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,))
     c.commit(); c.close(); return {"status": "created"}
 
+@app.delete("/groups/{id}")
+def delete_group(id: int):
+    try:
+        c = get_db_connection()
+        cur = c.cursor()
+        # Da du in der DB "ON DELETE CASCADE" hast, werden 
+        # alle Mitglieder und Termine dieser Gruppe automatisch mitgelöscht!
+        cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "deleted", "id": id}
+    except Exception as e:
+        print(f"Fehler beim Löschen der Gruppe: {e}")
+        raise HTTPException(status_code=500, detail="Datenbankfehler")
+
 @app.delete("/persons/{id}")
 def delete_person(id: int):
     c = get_db_connection(); cur = c.cursor()
