@@ -179,7 +179,7 @@
                         </div>
                         <div class="d-flex gap-2 align-items-center">
                             <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm">
-                                <i class="fa fa-file-pdf me-1 text-danger"></i> Drucken
+                                <i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht
                             </a>
                             <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew">
                                 <i class="fa fa-plus me-1"></i> Neuer Eintrag
@@ -233,7 +233,7 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-xs btn-outline-danger" @click.stop="openReport(s)">Bericht</button>
-                                <button v-if="isAdmin" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Signum</button>
+                                <button v-if="isAdmin" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Unterschrift</button>
                                 <button v-if="isAdmin" class="btn-icon text-danger ms-1" @click.stop="deleteSession(s)"><i class="fa fa-trash-alt"></i></button>
                             </div>
                         </div>
