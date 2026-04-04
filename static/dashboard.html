@@ -13,54 +13,55 @@
     <style>
         :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise-color: #0d6efd; --incident-color: #dc3545; --misc-color: #ffc107; }
         body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; height: 100dvh; overflow: hidden; }
+        
         .app-container { display: flex; height: 100dvh; }
-        .sidebar { width: 280px; background: white; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 2px 0 10px rgba(0,0,0,0.03); }
+        .sidebar { width: 280px; background: white; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 2px 0 10px rgba(0,0,0,0.03); z-index: 100; }
+        .main-content { flex-grow: 1; overflow-y: auto; padding: 30px; width: 100%; scroll-behavior: smooth; position: relative; }
+        
         .group-item { padding: 14px 20px; cursor: pointer; border-left: 5px solid transparent; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; border-bottom: 1px solid #f8f9fa; }
         .group-item.active { border-left-color: var(--primary-color); background: #fff5f5; color: var(--primary-color); font-weight: bold; }
-        .main-content { flex-grow: 1; overflow-y: auto; padding: 25px; width: 100%; scroll-behavior: smooth; position: relative; }
-        .mobile-nav { display: none; background: white; border-bottom: 1px solid #e0e0e0; padding: 10px 15px; align-items: center; justify-content: space-between; z-index: 1100; }
         
-        .stat-card { border: none; border-radius: 18px; color: white; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .stat-label { font-size: 0.7rem; text-transform: uppercase; font-weight: bold; opacity: 0.9; }
-        .stat-val { font-size: 1.5rem; font-weight: 900; margin: 0; }
+        .mobile-nav { display: none; background: white; border-bottom: 1px solid #e0e0e0; padding: 10px 15px; align-items: center; justify-content: space-between; z-index: 1100; position: sticky; top: 0; }
+        .mobile-select { min-width: 160px; max-width: 200px; border: 2px solid var(--primary-color) !important; color: var(--primary-color) !important; font-weight: bold !important; }
+
+        .stat-card { border: none; border-radius: 18px; color: white; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); height: 100%; }
+        .stat-label { font-size: 0.75rem; text-transform: uppercase; font-weight: bold; opacity: 0.9; }
+        .stat-val { font-size: 1.6rem; font-weight: 900; margin: 0; }
         
-        .rank-card { border-radius: 20px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.05); background: white; margin-bottom: 25px; }
+        .rank-card { border-radius: 20px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.05); background: white; margin-bottom: 25px; overflow: hidden; }
         .rank-badge { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; }
         .rank-1 { background: linear-gradient(135deg, #ffd700, #ffb900); color: #000; }
         .rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); color: #333; }
         .rank-3 { background: linear-gradient(135deg, #f0a070, #cd7f32); color: #fff; }
 
         .session-item { background: white; border-radius: 20px !important; border: none !important; margin-bottom: 15px; padding: 18px 25px; box-shadow: 0 3px 12px rgba(0,0,0,0.04); transition: all 0.2s ease; cursor: pointer; }
-        .report-preview { font-size: 0.75rem; color: #666; font-style: italic; margin-top: 2px; max-width: 450px; }
-        
-        .btn-xs { padding: 4px 12px; font-size: 0.65rem; border-radius: 50px; font-weight: bold; }
-        .btn-icon { background: transparent; border: none; padding: 6px; color: #ccc; transition: 0.2s; }
-        .btn-icon:hover { color: var(--primary-color); background: #f8f9fa; border-radius: 8px; }
         
         .sig-wrapper { border: 2px dashed #ddd; background: white; border-radius: 15px; overflow: hidden; height: 250px; position: relative; }
         #sigCanvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
 
         .paypal-btn { background: #0070ba; color: white !important; transition: 0.3s; text-decoration: none; display: inline-block; width: 100%; }
-        .paypal-btn:hover { background: #005ea6; transform: scale(1.02); }
+        .btn-xs { padding: 4px 12px; font-size: 0.7rem; border-radius: 50px; font-weight: bold; }
+        .btn-icon { background: transparent; border: none; padding: 6px; color: #ccc; transition: 0.2s; }
+        .btn-icon:hover { color: var(--primary-color); background: #f8f9fa; border-radius: 8px; }
 
         @media (max-width: 991px) { 
             .app-container { flex-direction: column; } 
             .sidebar { display: none !important; } 
             .mobile-nav { display: flex; } 
             body { overflow: auto; } 
-            .main-content { padding: 15px; padding-top: 20px; } 
+            .main-content { padding: 20px; } 
         }
     </style>
 </head>
 <body>
     <div id="app">
         <div class="mobile-nav shadow-sm sticky-top">
-            <button class="btn btn-light rounded-circle" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
-                <i class="fa fa-bars"></i>
+            <button class="btn btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
+                <i class="fa fa-bars text-danger"></i>
             </button>
-            <div class="fw-bold text-danger small">DIENSTBUCH</div>
-            <div class="d-flex gap-2 w-50 justify-content-end">
-                <select v-model="mobileSelectedId" class="form-select form-select-sm rounded-pill border-danger text-danger fw-bold" style="max-width: 130px;" @change="onMobileGroupChange">
+            <div class="fw-bold text-danger d-none d-sm-block">DIENSTBUCH</div>
+            <div class="d-flex gap-2">
+                <select v-model="mobileSelectedId" class="form-select form-select-sm rounded-pill mobile-select" @change="onMobileGroupChange">
                     <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
                 </select>
             </div>
@@ -68,41 +69,46 @@
 
         <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu">
             <div class="offcanvas-header border-bottom">
-                <h5 class="offcanvas-title fw-bold text-danger">MENÜ</h5>
+                <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>MENÜ</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
             </div>
             <div class="offcanvas-body d-flex flex-column">
                 <div class="mb-4">
-                    <h6 class="text-muted small fw-bold text-uppercase mb-3">Funktionen</h6>
-                    <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none text-center">
-                        <i class="fa fa-sticky-note me-2"></i> Notizen
+                    <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Aktionen</label>
+                    <button class="btn btn-danger w-100 mb-3 rounded-pill fw-bold py-2 shadow-sm" @click="createNew" data-bs-dismiss="offcanvas">
+                        <i class="fa fa-plus-circle me-2"></i> Neue Liste erstellen
+                    </button>
+                    <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none py-2">
+                        <i class="fa fa-sticky-note me-2"></i> Notizen öffnen
                     </a>
-                    <button class="btn btn-outline-info w-100 mb-3 rounded-pill fw-bold text-start" @click="showAbout" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-info-circle me-2"></i> Projekt unterstützen
+                    <button class="btn btn-outline-info w-100 mb-3 rounded-pill fw-bold py-2" @click="showAbout" data-bs-dismiss="offcanvas">
+                        <i class="fa fa-info-circle me-2"></i> Projekt Info & Support
                     </button>
                 </div>
                 
-                <div class="mt-auto border-top pt-3 text-center">
-                    <button v-if="!isAdmin" class="btn btn-primary w-100 rounded-pill mb-2" @click="promptAdmin" data-bs-dismiss="offcanvas">
+                <div class="mt-auto border-top pt-4 text-center">
+                    <button v-if="!isAdmin" class="btn btn-primary w-100 rounded-pill mb-2 fw-bold" @click="promptAdmin" data-bs-dismiss="offcanvas">
                         <i class="fa fa-lock me-2"></i> Admin Login
                     </button>
-                    <button v-else class="btn btn-dark w-100 rounded-pill mb-2" @click="logoutAdminOnly" data-bs-dismiss="offcanvas">
+                    <button v-else class="btn btn-dark w-100 rounded-pill mb-2 fw-bold" @click="logoutAdminOnly" data-bs-dismiss="offcanvas">
                         <i class="fa fa-unlock me-2"></i> Admin Logout
                     </button>
-                    <button class="btn btn-outline-dark w-100 rounded-pill mb-3" @click="fullLogout">
+                    <button class="btn btn-outline-dark w-100 rounded-pill mb-4 fw-bold" @click="fullLogout">
                         <i class="fa fa-sign-out-alt me-2"></i> Komplett Logout
                     </button>
-                    <small class="text-muted d-block fw-bold">v{{ projectInfo.version }}</small>
-                    <small class="text-muted d-block text-uppercase">{{ projectInfo.town }}</small>
+                    <div class="bg-light p-3 rounded-4 border">
+                        <small class="text-danger fw-bold d-block mb-1 text-uppercase">FEUERWEHR {{ projectInfo.town }}</small>
+                        <small class="text-muted d-block fw-bold" style="font-size: 0.7rem;">v{{ projectInfo.version }}</small>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="app-container">
             <div class="sidebar">
-                <div class="p-4 text-center border-bottom">
+                <div class="p-4 text-center border-bottom bg-light">
                     <h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4>
-                    <small class="text-muted fw-bold" style="font-size: 0.6rem; letter-spacing: 1px;">DIGITALES DIENSTBUCH</small>
+                    <small class="text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 1px;">DIGITALES DIENSTBUCH</small>
                 </div>
                 
                 <div class="flex-grow-1 overflow-y-auto pt-2">
@@ -117,73 +123,83 @@
 
                 <div class="p-3 bg-light border-top">
                     <button v-if="isAdmin" class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup"><i class="fa fa-plus-circle me-1"></i> Neue Liste</button>
-                    
-                    <a href="/notizen" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center">
+                    <a href="/notizen" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block">
                         <i class="fa fa-sticky-note me-1"></i> Notizen
                     </a>
-
-                    <button class="btn btn-outline-info btn-sm w-100 mb-2 rounded-pill fw-bold" @click="showAbout"><i class="fa fa-info-circle me-1"></i> Projekt Info</button>
+                    <button class="btn btn-outline-info btn-sm w-100 mb-3 rounded-pill fw-bold" @click="showAbout"><i class="fa fa-info-circle me-1"></i> Projekt Info</button>
                     
-                    <hr>
                     <button v-if="!isAdmin" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm fw-bold mb-2" @click="promptAdmin"><i class="fa fa-lock me-1"></i> Admin Login</button>
                     <button v-else class="btn btn-dark btn-sm w-100 rounded-pill shadow-sm fw-bold mb-2" @click="logoutAdminOnly"><i class="fa fa-unlock me-1"></i> Admin Logout</button>
-                    <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Komplett Logout</button>
+                    <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Logout</button>
                     
-                    <div class="text-center mt-3">
-                        <small class="text-muted d-block" style="font-size: 0.65rem; font-weight: bold;">Version {{ projectInfo.version }}</small>
-                        <small class="text-muted d-block" style="font-size: 0.6rem; text-transform: uppercase;">{{ projectInfo.town }}</small>
+                    <div class="text-center mt-3 pt-2 border-top">
+                        <small class="text-danger d-block fw-bold text-uppercase" style="font-size: 0.7rem;">{{ projectInfo.town }}</small>
+                        <small class="text-muted d-block fw-bold" style="font-size: 0.6rem;">v{{ projectInfo.version }}</small>
                     </div>
                 </div>
             </div>
 
             <div class="main-content">
                 <div v-if="projectInfo.update_available" class="alert alert-warning shadow-sm mb-4 rounded-4 d-flex justify-content-between align-items-center border-start border-4 border-warning">
-                    <div class="small">
-                        <i class="fa fa-cloud-download-alt me-1 text-warning"></i>
-                        <strong>Update v{{ projectInfo.remote }} bereit!</strong>
-                    </div>
-                    <button class="btn btn-sm btn-dark rounded-pill px-3" @click="fullLogout">Jetzt laden</button>
+                    <div><i class="fa fa-cloud-download-alt me-2 text-warning"></i><strong>Update v{{ projectInfo.remote }}</strong> bereit!</div>
+                    <button class="btn btn-sm btn-dark rounded-pill px-3" @click="fullLogout">Laden</button>
                 </div>
 
                 <div v-if="selectedGroup">
-                    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
-                        <div>
-                            <h1 class="fw-bold m-0" style="font-size: 2.3rem; letter-spacing: -1px;">{{ selectedGroup.name }}</h1>
-                            <select v-model="selectedYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill mt-2" style="width: auto;" @change="loadData">
-                                <option v-for="y in [2024,2025,2026]" :value="y">Jahr {{ y }}</option>
-                            </select>
+                    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+                        <div class="flex-grow-1">
+                            <h1 class="fw-bold m-0" style="font-size: 2.2rem; letter-spacing: -1px; line-height: 1.1;">{{ selectedGroup.name }}</h1>
+                            <div class="d-flex align-items-center mt-2 flex-wrap gap-2">
+                                <span class="badge bg-danger px-3 rounded-pill shadow-sm">Jahr {{ selectedYear }}</span>
+                                <select v-model="selectedYear" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill w-auto px-3" @change="loadData">
+                                    <option v-for="y in [2024,2025,2026]" :value="y">{{ y }}</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="d-flex gap-2">
-                            <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm"><i class="fa fa-print me-1"></i> Bericht</a>
-                            <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Neu</button>
+                        <div class="d-flex gap-2 align-items-center">
+                            <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm">
+                                <i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht drucken
+                            </a>
+                            <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold d-none d-lg-block" @click="createNew">
+                                <i class="fa fa-plus me-1"></i> Neue Liste
+                            </button>
                         </div>
                     </div>
 
-                    <div class="row g-2 g-md-3 mb-4 text-center">
+                    <div class="row g-3 mb-4 text-center">
                         <div class="col-4"><div class="stat-card" style="background: var(--exercise-color);"><div class="stat-label">Übung</div><div class="stat-val">{{catStats.Übung}}h</div></div></div>
                         <div class="col-4"><div class="stat-card" style="background: var(--incident-color);"><div class="stat-label">Einsatz</div><div class="stat-val">{{catStats.Einsatz}}h</div></div></div>
                         <div class="col-4"><div class="stat-card text-dark" style="background: var(--misc-color);"><div class="stat-label">Sonst.</div><div class="stat-val">{{catStats.Sonstiges}}h</div></div></div>
                     </div>
 
                     <div class="card rank-card">
-                        <div class="card-header bg-white py-3 border-0 rounded-top-4 d-flex justify-content-between align-items-center" @click="showRanking = !showRanking" style="cursor:pointer">
-                            <h6 class="m-0 fw-bold text-uppercase small"><i class="fa fa-trophy text-warning me-2"></i>Ranking</h6>
-                            <i class="fa text-muted small" :class="showRanking?'fa-chevron-up':'fa-chevron-down'"></i>
+                        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center" @click="showRanking = !showRanking" style="cursor:pointer">
+                            <h6 class="m-0 fw-bold text-uppercase small text-secondary">
+                                <i class="fa fa-trophy text-warning me-2"></i>Ranking
+                            </h6>
+                            
+                            <div v-if="!showRanking && ranking.length > 0" class="d-flex align-items-center gap-2">
+                                <span class="badge rank-1 rounded-pill small px-2 shadow-sm">{{ ranking[0].name }}</span>
+                                <span class="badge bg-light text-dark rounded-pill border small">{{ ranking[0].total_hours }}h</span>
+                                <i class="fa fa-chevron-down text-muted small ms-1"></i>
+                            </div>
+                            <i v-else class="fa text-muted small" :class="showRanking?'fa-chevron-up':'fa-chevron-down'"></i>
                         </div>
+                        
                         <div v-show="showRanking" class="table-responsive px-3 pb-3">
                             <table class="table table-hover mb-0 align-middle">
-                                <tbody class="small">
+                                <tbody>
                                     <tr v-for="(p, i) in ranking" :key="p.id">
-                                        <td style="width: 40px;"><div class="rank-badge" :class="'rank-'+(i+1)">{{i+1}}</div></td>
+                                        <td style="width: 50px;"><div class="rank-badge" :class="'rank-'+(i+1)">{{i+1}}</div></td>
                                         <td><span class="fw-bold">{{ p.name }}</span></td>
-                                        <td class="text-end"><span class="badge bg-light text-dark rounded-pill">{{ p.total_hours }}h</span></td>
+                                        <td class="text-end"><span class="badge bg-light text-dark rounded-pill px-3">{{ p.total_hours }}h</span></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <div v-for="s in sessions" :key="s.id" class="session-item shadow-sm" @click="loadSession(s)">
+                    <div v-for="s in sessions" :key="s.id" class="session-item" @click="loadSession(s)">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="d-flex gap-3 align-items-center">
                                 <div class="text-center bg-light rounded-4 p-2 shadow-sm" style="min-width: 55px;">
@@ -191,14 +207,15 @@
                                     <div class="small text-muted fw-bold" style="font-size: 0.6rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
                                 </div>
                                 <div>
-                                    <span class="badge rounded-pill mb-1 small" :class="s.category==='Einsatz'?'bg-danger':(s.category==='Sonstiges'?'bg-warning text-dark':'bg-primary')">{{ s.category }}</span>
-                                    <div class="fw-bold small">{{ s.description }}</div>
-                                    <small class="text-muted fw-bold d-block"><i class="fa fa-clock me-1"></i>{{ s.duration }}h</small>
+                                    <span class="badge rounded-pill mb-1 small shadow-sm" :class="s.category==='Einsatz'?'bg-danger':(s.category==='Sonstiges'?'bg-warning text-dark':'bg-primary')">{{ s.category }}</span>
+                                    <div class="fw-bold text-dark">{{ s.description }}</div>
+                                    <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1 text-secondary"></i>{{ s.duration }} Stunden</small>
                                 </div>
                             </div>
-                            <div class="d-flex gap-1">
+                            <div class="d-flex gap-2">
                                 <button class="btn btn-xs btn-outline-danger" @click.stop="openReport(s)">Bericht</button>
-                                <button v-if="isAdmin" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Unterschrift</button>
+                                <button v-if="isAdmin" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Signum</button>
+                                <button v-if="isAdmin" class="btn-icon text-danger ms-1" @click.stop="deleteSession(s)"><i class="fa fa-trash-alt"></i></button>
                             </div>
                         </div>
                     </div>
@@ -207,19 +224,20 @@
         </div>
 
         <div class="modal fade" id="infoModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered mx-3">
-                <div class="modal-content border-0 rounded-4 shadow-lg text-center">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg text-center mx-3">
                     <div class="modal-body p-4 p-md-5">
-                        <i class="fa fa-fire-extinguisher text-danger mb-4" style="font-size: 3rem;"></i>
-                        <h3 class="fw-bold mb-1">Dienstbuch</h3>
+                        <i class="fa fa-fire-extinguisher text-danger mb-4" style="font-size: 3.5rem;"></i>
+                        <h3 class="fw-bold mb-1">Dienstbuch Online</h3>
                         <p class="text-muted small mb-4">Version {{ projectInfo.version }}</p>
-                        <div class="bg-light p-3 rounded-4 mb-4 text-start small">
-                            <div class="mb-2"><strong>Entwicklung:</strong> Daniel Hegemann</div>
-                            <div class="mb-3"><strong>Kontakt:</strong> <a href="mailto:d.hege@icloud.com" class="text-danger fw-bold">d.hege@icloud.com</a></div>
+                        
+                        <div class="bg-light p-4 rounded-4 mb-4 text-start small border">
+                            <div class="mb-2 d-flex justify-content-between"><strong>Entwickler:</strong> <span>Daniel Hegemann</span></div>
+                            <div class="mb-3 d-flex justify-content-between"><strong>Kontakt:</strong> <a href="mailto:d.hege@icloud.com" class="text-danger fw-bold text-decoration-none">E-Mail schreiben</a></div>
                             <hr>
-                            <p class="text-muted italic mb-3">Unterstütze die Kaffeekasse für weitere Updates:</p>
-                            <a href="https://www.paypal.com/paypalme/breteax" target="_blank" class="paypal-btn rounded-pill fw-bold py-2 shadow-sm text-center">
-                                <i class="fab fa-paypal me-2"></i> PayPal Support
+                            <p class="text-muted text-center italic mb-3">Unterstütze die Kaffeekasse für weitere Updates & Serverkosten:</p>
+                            <a href="https://www.paypal.com/paypalme/breteax" target="_blank" class="paypal-btn rounded-pill fw-bold py-3 shadow-sm text-center text-white">
+                                <i class="fab fa-paypal me-2"></i> Via PayPal spenden
                             </a>
                         </div>
                         <button class="btn btn-dark rounded-pill px-5 fw-bold w-100 py-3" data-bs-dismiss="modal">Schließen</button>
@@ -229,13 +247,18 @@
         </div>
 
         <div class="modal fade" id="sigModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered mx-3">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold small">Unterschrift Leitung</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body p-3"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg mx-3">
+                    <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-uppercase small text-muted">Unterschrift Leitung</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="sig-wrapper shadow-inner border"><canvas id="sigCanvas"></canvas></div>
+                    </div>
                     <div class="modal-footer border-0 justify-content-between pt-0">
                         <button class="btn btn-sm btn-light rounded-pill px-3" @click="clearSig">Löschen</button>
-                        <button class="btn btn-sm btn-danger rounded-pill px-4 fw-bold" @click="saveSig">Speichern</button>
+                        <button class="btn btn-sm btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveSig">Speichern</button>
                     </div>
                 </div>
             </div>
@@ -258,13 +281,16 @@
                     ranking: [],
                     showRanking: false,
                     catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
-                    // Hier jetzt passend zu deiner Python-API
                     projectInfo: { version: "?.??", remote: "?.??", update_available: false, town: "" },
                     activeS: null
                 }
             },
             computed: {
-                sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear); }
+                sessions() { 
+                    return this.sessionsList
+                        .filter(s => new Date(s.date).getFullYear() === this.selectedYear)
+                        .sort((a, b) => new Date(b.date) - new Date(a.date)); 
+                }
             },
             async mounted() {
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
@@ -297,13 +323,12 @@
                         const r = await fetch('/api/info');
                         if (r.ok) {
                             const data = await r.json();
-                            // Mapping deiner API-Felder auf das Vue-Objekt
                             this.projectInfo.version = data.version;
                             this.projectInfo.remote = data.remote_version;
                             this.projectInfo.update_available = data.update_available;
-                            this.projectInfo.town = data.town || "";
+                            this.projectInfo.town = data.town || "Standort";
                         }
-                    } catch(e) { console.error("Info fail", e); }
+                    } catch(e) { console.error("Info Fehler", e); }
                 },
                 async loadGroups() {
                     try {
@@ -313,7 +338,7 @@
                             const lastId = localStorage.getItem('lastSelectedGroupId');
                             this.selectGroup(this.groups.find(g => g.id == lastId) || this.groups[0]);
                         }
-                    } catch(e) { console.error("Groups fail", e); }
+                    } catch(e) { console.error("Gruppen Fehler", e); }
                 },
                 selectGroup(g) {
                     this.selectedGroup = g;
@@ -355,8 +380,14 @@
                     this.loadData();
                 },
                 clearSig() { if(sigPad) sigPad.clear(); },
+                async deleteSession(s) {
+                    if (confirm("Eintrag wirklich löschen?")) {
+                        await fetch(`/sessions/${s.id}`, { method: 'DELETE' });
+                        this.loadData();
+                    }
+                },
                 async promptAdmin() {
-                    const p = prompt("Admin PIN:");
+                    const p = prompt("Admin PIN eingeben:");
                     if (p) {
                         const r = await fetch('/api/verify_admin', {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
