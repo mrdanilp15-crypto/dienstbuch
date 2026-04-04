@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notizen | Digitales Dienstbuch</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #0056b3; }
+        body { background: #f8f9fa; padding-bottom: 100px; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: white; border-bottom: 3px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .cat-bar { display: flex; gap: 10px; overflow-x: auto; padding: 15px 0; scrollbar-width: none; }
+        .cat-pill { padding: 8px 20px; border-radius: 25px; background: white; border: 1px solid #ddd; cursor: pointer; white-space: nowrap; font-weight: 600; transition: 0.2s; }
+        .cat-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        .note-card { border: none; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; height: 100%; background: white; transition: transform 0.2s; }
+        .color-red { border-left: 10px solid #dc3545; }
+        .color-yellow { border-left: 10px solid #ffc107; }
+        .color-blue { border-left: 10px solid #0dcaf0; }
+        .color-green { border-left: 10px solid #198754; }
+        .color-default { border-left: 10px solid #adb5bd; }
+        
+        .note-footer { font-size: 0.75rem; color: #888; border-top: 1px solid #eee; padding-top: 8px; margin-top: 10px; display: flex; justify-content: space-between; }
+        .lock-overlay { position: absolute; inset: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; border-radius: 12px; }
+        
+        .fab { position: fixed; bottom: 30px; right: 25px; width: 65px; height: 65px; border-radius: 50%; background: var(--primary); color: white; border: none; font-size: 28px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1000; }
+        .form-label { font-weight: 600; font-size: 0.85rem; color: #555; margin-bottom: 4px; }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <nav class="navbar sticky-top">
+            <div class="container d-flex justify-content-between p-2">
+                <div class="d-flex align-items-center gap-2">
+                    <a href="/dashboard" class="btn btn-light rounded-circle shadow-sm"><i class="fa fa-home text-primary"></i></a>
+                    <input type="text" v-model="search" class="form-control" placeholder="Suchen...">
+                </div>
+                <div class="d-flex gap-2">
+                    <button v-if="unlockedCats.length > 0" class="btn btn-warning btn-sm" @click="lockAllCats" title="Alle wieder sperren"><i class="fa fa-key"></i></button>
+                    <button class="btn btn-outline-primary btn-sm fw-bold" @click="openCatModal">Kategorien</button>
+                    <button v-if="!isAdmin" class="btn btn-dark btn-sm fw-bold" @click="login">Admin</button>
+                    <button v-else class="btn btn-danger btn-sm fw-bold" @click="logout">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mt-3">
+            <div class="cat-bar">
+                <div class="cat-pill shadow-sm" :class="{active: selectedCat === 'Alle'}" @click="selectedCat = 'Alle'">Alle</div>
+                <div v-for="cat in categories" :key="cat.name" class="cat-pill shadow-sm" :class="{active: selectedCat === cat.name}" @click="selectedCat = cat.name">
+                    <i v-if="cat.password" class="fa me-1" :class="isUnlocked(cat.name) ? 'fa-unlock text-success' : 'fa-lock text-muted'"></i> {{cat.name}}
+                </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+                <div v-for="note in filteredNotes" :key="note.id" class="col-12 col-md-6 col-lg-4">
+                    <div class="card note-card shadow-sm" :class="['color-' + (note.color || 'default')]">
+                        <div v-if="isLocked(note.category)" class="lock-overlay">
+                            <i class="fa fa-lock fa-3x text-muted mb-3"></i>
+                            <button class="btn btn-primary btn-sm rounded-pill px-4 shadow" @click="unlockCat(note.category)">Inhalt entsperren</button>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-light text-dark border small shadow-sm">{{note.category}}</span>
+                                <div class="dropdown">
+                                    <i class="fa fa-ellipsis-v text-muted p-2" data-bs-toggle="dropdown" style="cursor:pointer"></i>
+                                    <ul class="dropdown-menu shadow border-0">
+                                        <li><button class="dropdown-item" @click="editNote(note)"><i class="fa fa-edit me-2"></i>Bearbeiten</button></li>
+                                        <li><button class="dropdown-item text-danger" @click="deleteNote(note.id)"><i class="fa fa-trash me-2"></i>Löschen</button></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start gap-2">
+                                <input v-if="note.isTodo" type="checkbox" class="form-check-input mt-1" :checked="note.completed == 1" @change="toggleComplete(note)">
+                                <div style="flex:1">
+                                    <h6 class="fw-bold mb-1" :style="note.completed ? 'text-decoration:line-through; opacity:0.5' : ''">{{note.title || 'Kein Titel'}}</h6>
+                                    <p class="small text-muted mb-0" :style="note.completed ? 'opacity:0.5' : ''" style="white-space: pre-wrap;">{{note.content}}</p>
+                                    
+                                    <div class="note-footer">
+                                        <span><i class="fa fa-user me-1"></i> {{note.author || 'Anonym'}}</span>
+                                        <span>{{note.created_at}} <i class="fa fa-clock ms-1"></i></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="fab shadow-lg" @click="openNoteModal()"><i class="fa fa-plus"></i></button>
+
+        <div class="modal fade" id="noteModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-body p-4">
+                        <h5 class="fw-bold mb-4 text-primary">Notiz bearbeiten</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Titel / Betreff</label>
+                            <input type="text" v-model="currentNote.title" class="form-control fw-bold" placeholder="Worum geht es?">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Erstellt von (Name/Kürzel)</label>
+                            <input type="text" v-model="currentNote.author" class="form-control" placeholder="Dein Name">
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Kategorie</label>
+                                <select v-model="currentNote.category" class="form-select">
+                                    <option v-for="c in categories" :value="c.name">{{c.name}}</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Priorität</label>
+                                <select v-model="currentNote.color" class="form-select">
+                                    <option value="default">Grau (Standard)</option>
+                                    <option value="red">Rot (Dringend)</option>
+                                    <option value="yellow">Gelb (Wichtig)</option>
+                                    <option value="blue">Blau (Info)</option>
+                                    <option value="green">Grün (Erledigt)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Beschreibung</label>
+                            <textarea v-model="currentNote.content" class="form-control" rows="5" placeholder="Details eingeben..."></textarea>
+                        </div>
+
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" v-model="currentNote.isTodo" id="todoSwitch">
+                            <label class="form-check-label fw-bold" for="todoSwitch">Als Checkliste anzeigen</label>
+                        </div>
+
+                        <button class="btn btn-primary w-100 py-2 fw-bold shadow" @click="saveNote">Speichern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="catModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header border-0"><h5>Kategorien verwalten</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Neue Kategorie erstellen</label>
+                            <div class="input-group shadow-sm">
+                                <input type="text" v-model="newCat.name" class="form-control" placeholder="Name">
+                                <input type="text" v-model="newCat.password" class="form-control" placeholder="Passwort (opt.)">
+                                <button class="btn btn-primary" @click="addCategory"><i class="fa fa-plus"></i></button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="list-group">
+                            <div v-for="c in categories" class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light mb-2 rounded p-3">
+                                <div>
+                                    <span class="fw-bold">{{c.name}}</span>
+                                    <div v-if="isAdmin && c.password" class="text-primary small">PW: {{c.password}}</div>
+                                </div>
+                                <button v-if="isAdmin && c.name !== 'Allgemein'" class="btn btn-sm btn-outline-danger border-0" @click="deleteCategory(c.name)"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue;
+        let nModal, cModal;
+
+        createApp({
+            data() {
+                return {
+                    notes: [], categories: [], search: '', selectedCat: 'Alle',
+                    unlockedCats: JSON.parse(localStorage.getItem('unlockedCats') || '[]'),
+                    isAdmin: localStorage.getItem('userRole') === 'admin',
+                    currentNote: { id: null, title: '', content: '', category: 'Allgemein', color: 'default', isTodo: false, completed: 0, author: '' },
+                    newCat: { name: '', password: '' }
+                }
+            },
+            computed: {
+                filteredNotes() {
+                    return this.notes.filter(n => {
+                        const mS = ((n.title || '') + (n.content || '') + (n.author || '')).toLowerCase().includes(this.search.toLowerCase());
+                        const mC = this.selectedCat === 'Alle' || n.category === this.selectedCat;
+                        return mS && mC;
+                    });
+                }
+            },
+            methods: {
+                async load() {
+                    try {
+                        const [rn, rc] = await Promise.all([fetch('/api/notes'), fetch('/api/categories')]);
+                        if(rn.ok) this.notes = await rn.json();
+                        if(rc.ok) this.categories = await rc.json();
+                    } catch(e) { console.error("Fehler beim Laden:", e); }
+                },
+                isUnlocked(name) { return this.isAdmin || this.unlockedCats.includes(name); },
+                isLocked(name) {
+                    const cat = this.categories.find(c => c.name === name);
+                    return cat && cat.password && !this.isUnlocked(name);
+                },
+                unlockCat(name) {
+                    const cat = this.categories.find(c => c.name === name);
+                    const p = prompt("Passwort für " + name + " eingeben:");
+                    if(p === cat.password) {
+                        this.unlockedCats.push(name);
+                        localStorage.setItem('unlockedCats', JSON.stringify(this.unlockedCats));
+                    } else if(p !== null) { alert("Falsches Passwort!"); }
+                },
+                lockAllCats() { 
+                    this.unlockedCats = []; 
+                    localStorage.removeItem('unlockedCats'); 
+                },
+                openNoteModal(n = null) {
+                    if(n) this.currentNote = { ...n, isTodo: n.isTodo == 1 };
+                    else this.currentNote = { id: null, title: '', content: '', category: 'Allgemein', color: 'default', isTodo: false, completed: 0, author: '' };
+                    if(nModal) nModal.show();
+                },
+                editNote(n) { this.openNoteModal(n); },
+                async saveNote() {
+                    const method = this.currentNote.id ? 'PUT' : 'POST';
+                    const url = this.currentNote.id ? `/api/notes/${this.currentNote.id}` : '/api/notes';
+                    const data = { ...this.currentNote, isTodo: this.currentNote.isTodo ? 1 : 0 };
+                    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                    if(nModal) nModal.hide();
+                    this.load();
+                },
+                async toggleComplete(n) {
+                    n.completed = n.completed == 1 ? 0 : 1;
+                    await fetch(`/api/notes/${n.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(n) });
+                },
+                async deleteNote(id) { if(confirm('Notiz wirklich löschen?')) { await fetch(`/api/notes/${id}`, { method: 'DELETE' }); this.load(); } },
+                openCatModal() { if(cModal) cModal.show(); },
+                async addCategory() {
+                    if(!this.newCat.name) return;
+                    await fetch('/api/categories', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newCat) });
+                    this.newCat = { name: '', password: '' }; this.load();
+                },
+                async deleteCategory(name) { if(confirm('Kategorie und alle darin enthaltenen Notizen löschen?')) { await fetch(`/api/categories/${name}`, { method: 'DELETE' }); this.load(); } },
+                async login() { 
+                    const p = prompt("Admin PIN eingeben:"); 
+                    const res = await fetch('/api/admin/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: p}) });
+                    if(res.ok) { localStorage.setItem('userRole', 'admin'); location.reload(); } else { alert("Falsche PIN!"); }
+                },
+                logout() { localStorage.removeItem('userRole'); location.reload(); }
+            },
+            mounted() {
+                // Sicherstellen, dass Modals erst initialisiert werden, wenn das DOM bereit ist
+                const nm = document.getElementById('noteModal');
+                const cm = document.getElementById('catModal');
+                if(nm) nModal = new bootstrap.Modal(nm);
+                if(cm) cModal = new bootstrap.Modal(cm);
+                this.load();
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
