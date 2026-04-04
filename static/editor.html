@@ -30,7 +30,6 @@
         .sig-wrapper { border: 2px dashed #ccc; border-radius: 15px; background: white; width: 100%; height: 300px; position: relative; touch-action: none; }
         #sigCanvas { width: 100%; height: 100%; border-radius: 15px; }
         .btn-xs { font-size: 0.55rem !important; padding: 1px 5px !important; }
-        /* Deaktivierte Buttons sollen trotzdem gut aussehen */
         button:disabled { cursor: not-allowed; opacity: 0.8; }
         @media (max-width: 576px) {
             .person-row-container { display: flex; align-items: center; gap: 10px; }
@@ -52,7 +51,7 @@
                     <i class="fa fa-arrow-left me-2"></i>{{ isAdmin ? 'Abbrechen' : 'Zurück' }}
                 </button>
                 <div>
-                    <button v-if="!isAdmin" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold" @click="promptAdmin">
+                    <button v-if="!isAdmin" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold" @click="promptAdmin">
                         <i class="fa fa-lock me-1"></i> Admin Login
                     </button>
                     <button v-else class="btn btn-sm btn-dark rounded-pill px-3 fw-bold" @click="logoutAdmin">
@@ -230,12 +229,26 @@
                     window.location.href = '/static/dashboard.html';
                 },
                 async promptAdmin() {
-                    const pin = prompt("Admin-Code:");
-                    if (!pin) return;
-                    const res = await fetch('/api/verify_admin', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin}) });
-                    const data = await res.json();
-                    if (data.success) { localStorage.setItem('userRole', 'admin'); location.reload(); }
-                    else alert("Falscher Code!");
+                    const p = prompt("Admin PIN eingeben:");
+                    if (p) {
+                        try {
+                            const r = await fetch('/api/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pin: p })
+                            });
+
+                            if (r.ok) {
+                                this.isAdmin = true;
+                                localStorage.setItem('userRole', 'admin');
+                                location.reload(); 
+                            } else {
+                                alert("Falsche PIN!");
+                            }
+                        } catch (e) {
+                            alert("Verbindung fehlgeschlagen.");
+                        }
+                    }
                 },
                 logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
                 resizeCanvas() {
@@ -265,7 +278,7 @@
                     saveTimer = setTimeout(this.performSave, 1000); 
                 },
                 async performSave() {
-                    if(!this.isAdmin && this.sessionId) return; // Nicht-Admins dürfen nicht speichern
+                    if(!this.isAdmin && this.sessionId) return; 
                     const data = { 
                         session_id: this.sessionId, 
                         date: this.currentDate, 
