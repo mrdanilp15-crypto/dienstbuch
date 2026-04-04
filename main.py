@@ -165,6 +165,21 @@ def delete_person(id: int):
     cur.execute("DELETE FROM persons WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
+@app.delete("/sessions/{id}")
+def delete_session(id: int):
+    try:
+        c = get_db_connection()
+        cur = c.cursor()
+        # Dank "ON DELETE CASCADE" in deiner Datenbank-Struktur 
+        # werden die dazugehörigen Anwesenheiten (attendance) automatisch mitgelöscht.
+        cur.execute("DELETE FROM sessions WHERE id=%s", (id,))
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "deleted", "id": id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Löschen: {e}")
+
 # --- SESSIONS & STATS ---
 @app.get("/groups/{id}/sessions")
 def get_sessions(id: int):
