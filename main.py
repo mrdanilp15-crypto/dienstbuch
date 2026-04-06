@@ -151,7 +151,6 @@ async def login(data: dict, response: Response):
 @app.post("/api/verify_admin")
 async def verify_admin(data: dict):
     p = data.get("pin", "").strip()
-    # Wir prüfen, ob die eingegebene PIN mit der ADMIN_PIN aus der Konfiguration übereinstimmt
     if ADMIN_PIN and p == ADMIN_PIN:
         return {"success": True}
     raise HTTPException(status_code=401, detail="PIN falsch!")
@@ -182,16 +181,11 @@ def add_person(group_id: int, p: PersonData):
         print(f"Fehler beim Hinzufügen der Person: {e}")
         raise HTTPException(status_code=500, detail="Datenbankfehler")
 
-@app.delete("/persons/{id}")
-def delete_person(id: int):
-
 @app.delete("/groups/{id}")
 def delete_group(id: int):
     try:
         c = get_db_connection()
         cur = c.cursor()
-        # Da du in der DB "ON DELETE CASCADE" hast, werden 
-        # alle Mitglieder und Termine dieser Gruppe automatisch mitgelöscht!
         cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
         c.commit()
         cur.close()
@@ -212,8 +206,6 @@ def delete_session(id: int):
     try:
         c = get_db_connection()
         cur = c.cursor()
-        # Dank "ON DELETE CASCADE" in deiner Datenbank-Struktur 
-        # werden die dazugehörigen Anwesenheiten (attendance) automatisch mitgelöscht.
         cur.execute("DELETE FROM sessions WHERE id=%s", (id,))
         c.commit()
         cur.close()
