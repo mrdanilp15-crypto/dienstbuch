@@ -55,17 +55,22 @@ def add_member(m: PersonnelMember):
 def update_member(member_id: int, m: PersonnelMember):
     conn = get_db_connection()
     cur = conn.cursor()
+    
     # Konvertierung von leeren Strings zu None für die Datenbank (DATE Felder)
     g26 = m.g26_3_date if m.g26_3_date else None
     bel = m.belastungslauf_date if m.belastungslauf_date else None
     unt = m.unterweisung_date if m.unterweisung_date else None
 
+    # HIER FIX: 'name' wurde zum UPDATE hinzugefügt
     sql = """UPDATE personnel SET 
+             name=%s,
              is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s, 
              g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s 
              WHERE id=%s"""
-    vals = (m.is_truppmann, m.is_funk, m.is_agt, m.is_maschinist, m.is_tf, m.is_gf,
+    
+    vals = (m.name, m.is_truppmann, m.is_funk, m.is_agt, m.is_maschinist, m.is_tf, m.is_gf,
             g26, bel, unt, member_id)
+    
     cur.execute(sql, vals)
     conn.commit()
     conn.close()
@@ -143,8 +148,6 @@ def init_personnel_db():
         """)
 
         # 3. MIGRATION: Namen rüberkopieren
-        # Wir holen alle Namen aus der alten Tabelle 'persons' und stecken sie in 'personnel'
-        # 'INSERT IGNORE' sorgt dafür, dass nichts doppelt eingetragen wird.
         cur.execute("INSERT IGNORE INTO personnel (name) SELECT DISTINCT name FROM persons")
         
         # Standard-Fristen einfügen falls leer
