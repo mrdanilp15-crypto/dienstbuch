@@ -236,10 +236,11 @@ def create_group(g: GroupData):
 
 @app.get("/api/personnel/list")
 def list_personnel_pool():
-    """Holt die Liste aller verfügbaren Personen aus der Personal-Verwaltung für den Pool."""
+    """Holt die Liste aller verfügbaren Personen aus der NEUEN Personal-Verwaltung."""
     try:
         c = get_db_connection()
         cur = c.cursor(dictionary=True)
+        # HIER GEÄNDERT: Greift jetzt auf die neue 'personnel' Tabelle zu
         cur.execute("SELECT id, name FROM personnel ORDER BY name ASC")
         r = cur.fetchall()
         c.close()
