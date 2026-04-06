@@ -43,18 +43,18 @@ def get_db_connection():
     )
 
 def init_db_extensions():
-    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen."""
+    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen und Einstellungen."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Liste der benötigten Qualifikations-Spalten
+        # 1. Qualifikations-Spalten in der Tabelle 'persons'
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
             ("is_agt", "BOOLEAN DEFAULT FALSE"),
             ("is_maschinist", "BOOLEAN DEFAULT FALSE"),
-            ("is_tf", "BOOLEAN DEFAULT FALSE"),  # Truppführer ergänzt
+            ("is_tf", "BOOLEAN DEFAULT FALSE"),
             ("is_gf", "BOOLEAN DEFAULT FALSE"),
             ("g26_3_date", "DATE NULL"),
             ("belastungslauf_date", "DATE NULL"),
@@ -71,10 +71,27 @@ def init_db_extensions():
                 else:
                     print(f"Fehler bei Spalte {col_name}: {err}")
         
+        # 2. Einstellungen-Tabelle für Intervalle
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                setting_key VARCHAR(50) PRIMARY KEY,
+                setting_value INT
+            ) ENGINE=InnoDB;
+        """)
+        
+        # Standard-Intervalle einfügen, falls noch nicht vorhanden
+        default_settings = [
+            ('int_g26', 36),
+            ('int_belastung', 12),
+            ('int_unterweisung', 12)
+        ]
+        for key, val in default_settings:
+            cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
+
         conn.commit()
         cur.close()
         conn.close()
-        print("--- DATENBANK ERWEITERUNGEN GEPRÜFT ---")
+        print("--- DATENBANK ERWEITERUNGEN & SETTINGS GEPRÜFT ---")
     except Exception as e:
         print(f"Fehler bei DB-Erweiterung: {e}")
 
