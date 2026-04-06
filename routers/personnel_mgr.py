@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 import mysql.connector
 import os
 from pydantic import BaseModel
@@ -29,16 +29,18 @@ class NewPerson(BaseModel):
 
 @router.get("/list")
 async def get_personnel_list():
+    """Holt alle Personen inklusive Gruppennamen."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Fix: 'belastastungslauf_date' hatte einen Tippfehler (ein 'tas' zu viel)
+        # JOIN mit groups_table, um den Gruppennamen anzuzeigen
         cursor.execute("""
-            SELECT id, name, group_id, 
-                   is_truppmann, is_funk, is_agt, is_maschinist, is_gf,
-                   g26_3_date, belastungslauf_date, unterweisung_date 
-            FROM persons 
-            ORDER BY name
+            SELECT p.id, p.name, p.group_id, g.name as group_name,
+                   p.is_truppmann, p.is_funk, p.is_agt, p.is_maschinist, p.is_gf,
+                   p.g26_3_date, p.belastungslauf_date, p.unterweisung_date 
+            FROM persons p
+            LEFT JOIN groups_table g ON p.group_id = g.id
+            ORDER BY p.name
         """)
         members = cursor.fetchall()
         for m in members:
@@ -52,52 +54,40 @@ async def get_personnel_list():
 
 @router.post("/add")
 async def add_person(data: NewPerson):
-    """Fügt manuell eine neue Person zur ersten verfügbaren Gruppe hinzu."""
+    """Fügt eine neue Person hinzu (systemweit im Editor verfügbar)."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # 1. Erste Gruppe finden
+        # 1. Existenz-Check (Vermeidet doppelte Namen)
+        cursor.execute("SELECT id FROM persons WHERE name = %s", (data.name,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=400, detail="Diese Person existiert bereits!")
+
+        # 2. Erste Gruppe finden (Pflicht für Anzeige im Editor)
         cursor.execute("SELECT id FROM groups_table LIMIT 1")
         group = cursor.fetchone()
         if not group:
+            cursor.close()
+            conn.close()
             raise HTTPException(status_code=400, detail="Bitte erstelle zuerst eine Gruppe im Dashboard!")
         
-        # 2. Person einfügen
+        # 3. Person einfügen
         cursor.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", (data.name, group['id']))
         conn.commit()
         cursor.close()
         conn.close()
         return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/sync")
-async def sync_from_reports():
-    """Sucht Namen aus allen Berichten, die noch nicht in der Personal-Tabelle sind."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Erste Gruppe für neue Leute
-        cursor.execute("SELECT id FROM groups_table LIMIT 1")
-        group = cursor.fetchone()
-        if not group: return {"status": "no group"}
-
-        # Dieser Befehl ist etwas komplexer, da wir hier keine Namen-Tabelle haben, 
-        # sondern die Namen in 'persons' stehen. Wir prüfen also, ob wir 
-        # neue Namen importieren müssen (falls du eine externe Quelle hättest).
-        # Da dein System aber 'persons' als Basis nutzt, reicht das manuelle Hinzufügen 
-        # oder das automatische Anlegen beim ersten Start in der main.py.
-        
-        cursor.close()
-        conn.close()
-        return {"status": "synced"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/update/{person_id}")
 async def update_personnel_data(person_id: int, data: PersonnelUpdate):
+    """Aktualisiert Qualifikationen eines Mitglieds."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
