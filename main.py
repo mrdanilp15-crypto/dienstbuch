@@ -43,12 +43,12 @@ def get_db_connection():
     )
 
 def init_db_extensions():
-    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen."""
+    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen und importiert bestehende Namen."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Liste der neuen Spalten für die Personen-Tabelle
+        # 1. Spalten für Qualifikationen sicherstellen
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
@@ -171,7 +171,7 @@ def get_edit(): return FileResponse("static/editor.html")
 @app.get("/notizen", response_class=FileResponse)
 def get_notes_page(): return FileResponse("static/notizen.html")
 @app.get("/personal", response_class=FileResponse)
-def get_personnel_page(): return FileResponse("static/personnel.html") # Neue Route für Personal-Dashboard
+def get_personnel_page(): return FileResponse("static/personnel.html") 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
@@ -269,7 +269,7 @@ def create_vehicle(v: VehicleData):
 @app.delete("/api/vehicles/{id}")
 def delete_vehicle(id: int):
     c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE BY vehicles WHERE id=%s", (id,))
+    cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
 # --- SESSIONS & STATS ---
