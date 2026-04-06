@@ -42,6 +42,41 @@ def get_db_connection():
         database="attendance_system"
     )
 
+def init_db_extensions():
+    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Liste der neuen Spalten für die Personen-Tabelle
+        required_columns = [
+            ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
+            ("is_funk", "BOOLEAN DEFAULT FALSE"),
+            ("is_agt", "BOOLEAN DEFAULT FALSE"),
+            ("is_maschinist", "BOOLEAN DEFAULT FALSE"),
+            ("is_gf", "BOOLEAN DEFAULT FALSE"),
+            ("g26_3_date", "DATE NULL"),
+            ("belastungslauf_date", "DATE NULL"),
+            ("unterweisung_date", "DATE NULL")
+        ]
+
+        for col_name, col_type in required_columns:
+            try:
+                cur.execute(f"ALTER TABLE persons ADD COLUMN {col_name} {col_type}")
+                print(f"Spalte {col_name} wurde hinzugefügt.")
+            except mysql.connector.Error as err:
+                if err.errno == 1060: # Spalte existiert bereits
+                    pass 
+                else:
+                    print(f"Fehler bei Spalte {col_name}: {err}")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("--- DATENBANK ERWEITERUNGEN GEPRÜFT ---")
+    except Exception as e:
+        print(f"Fehler bei DB-Erweiterung: {e}")
+
 def init_db():
     max_retries = 10
     for i in range(max_retries):
@@ -62,7 +97,6 @@ def init_db():
                     FOREIGN KEY (group_id) REFERENCES groups_table(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB;
             """)
-            # NEU: FAHRZEUG TABELLE
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS vehicles (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,7 +132,10 @@ def init_db():
             conn.commit()
             cur.close()
             conn.close()
-            print("--- DATENBANK INITIALISIERT (INKL. FAHRZEUGE) ---")
+            print("--- DATENBANK INITIALISIERT ---")
+            
+            # Jetzt die neuen Spalten für Qualis hinzufügen
+            init_db_extensions()
             break
         except Exception as e:
             print(f"Datenbank-Verbindung fehlgeschlagen (Versuch {i+1}/{max_retries}): {e}")
@@ -114,7 +151,7 @@ def safe_decode(value):
 # --- DATENMODELLE ---
 class PinCheck(BaseModel): pin: str
 class PersonData(BaseModel): name: str
-class VehicleData(BaseModel): name: str # NEU
+class VehicleData(BaseModel): name: str
 class EntryDto(BaseModel): 
     person_id: int; is_present: bool; note: Optional[str] = ""; 
     vehicle: Optional[str] = ""; signature: Optional[str] = None
@@ -133,6 +170,8 @@ def get_dash(): return FileResponse("static/dashboard.html")
 def get_edit(): return FileResponse("static/editor.html")
 @app.get("/notizen", response_class=FileResponse)
 def get_notes_page(): return FileResponse("static/notizen.html")
+@app.get("/personal", response_class=FileResponse)
+def get_personnel_page(): return FileResponse("static/personnel.html") # Neue Route für Personal-Dashboard
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
@@ -214,7 +253,7 @@ def delete_person(id: int):
     cur.execute("DELETE FROM persons WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
-# --- NEU: FAHRZEUG VERWALTUNG API ---
+# --- FAHRZEUG VERWALTUNG API ---
 @app.get("/api/vehicles")
 def get_vehicles():
     c = get_db_connection(); cur = c.cursor(dictionary=True)
@@ -230,7 +269,7 @@ def create_vehicle(v: VehicleData):
 @app.delete("/api/vehicles/{id}")
 def delete_vehicle(id: int):
     c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
+    cur.execute("DELETE BY vehicles WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
 # --- SESSIONS & STATS ---
