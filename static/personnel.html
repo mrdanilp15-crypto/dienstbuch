@@ -3,128 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal & Qualifikationen</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
+    <title>Personalverwaltung - Dienstbuch</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
-        :root { --fire-red: #b71c1c; }
         body { background: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .navbar { background: var(--fire-red) !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
-        .status-ok { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
-        .status-warn { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
-        .status-critical { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
-        .badge-quali { background: #eee; color: #555; margin-right: 4px; font-size: 0.75rem; }
-        .table-hover tbody tr:hover { background-color: #f1f1f1; cursor: pointer; }
+        .card { border-radius: 15px; border: none; }
+        .table thead { background: #f8f9fa; }
+        .status-badge { width: 40px; text-align: center; cursor: pointer; }
+        .bg-success-light { background-color: #d1e7dd; color: #0f5132; }
+        .bg-danger-light { background-color: #f8d7da; color: #842029; }
+        .sticky-top-custom { position: sticky; top: 20px; z-index: 100; }
     </style>
 </head>
 <body>
-    <div id="app">
-        <nav class="navbar navbar-dark mb-4">
-            <div class="container">
-                <a class="navbar-brand" href="/dashboard"><i class="fas fa-arrow-left me-2"></i> Personalverwaltung</a>
-                <span class="navbar-text text-white d-none d-md-inline">Übersicht Qualifikationen & Fristen</span>
-            </div>
-        </nav>
+    <div id="app" class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fa fa-users-gear me-2 text-danger"></i>Personalverwaltung</h1>
+            <a href="/dashboard" class="btn btn-outline-secondary rounded-pill">
+                <i class="fa fa-arrow-left me-1"></i> Zurück
+            </a>
+        </div>
 
-        <div class="container pb-5">
-            <div class="card p-3 mb-4">
-                <div class="row g-3">
-                    <div class="col-md-8">
-                        <div class="input-group">
-                            <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
-                            <input type="text" v-model="searchQuery" class="form-control" placeholder="Name suchen...">
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <select v-model="filterAgt" class="form-select">
-                            <option :value="false">Alle Mitglieder</option>
-                            <option :value="true">Nur AGT-Träger</option>
-                        </select>
-                    </div>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title small fw-bold text-muted text-uppercase mb-3">Neues Mitglied anlegen</h5>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 rounded-start-pill">
+                        <i class="fa fa-user text-muted"></i>
+                    </span>
+                    <input type="text" v-model="newName" class="form-control border-start-0 ps-0" placeholder="Vorname Nachname" @keyup.enter="addPerson">
+                    <button class="btn btn-danger rounded-end-pill px-4" @click="addPerson">
+                        <i class="fa fa-plus me-2"></i>Hinzufügen
+                    </button>
                 </div>
+                <div class="form-text mt-2 ps-2">Hinweis: Neue Personen werden automatisch der ersten Gruppe im Editor zugeordnet.</div>
             </div>
+        </div>
 
-            <div class="card overflow-hidden">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>Qualifikationen</th>
-                                <th>Atemschutz-Status</th>
-                                <th>G26.3 / Belastung</th>
-                                <th class="text-end">Aktion</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="p in filteredPersonnel" :key="p.id">
-                                <td><strong>{{ p.name }}</strong></td>
-                                <td>
-                                    <span v-if="p.is_truppmann" class="badge badge-quali">TM</span>
-                                    <span v-if="p.is_funk" class="badge badge-quali">Funk</span>
-                                    <span v-if="p.is_maschinist" class="badge badge-quali">Ma</span>
-                                    <span v-if="p.is_gf" class="badge badge-quali">GF</span>
-                                </td>
-                                <td>
-                                    <div v-if="p.is_agt">
-                                        <span :class="['status-pill', getAgtClass(p)]">
-                                            <i class="fas fa-mask me-1"></i> {{ getAgtText(p) }}
-                                        </span>
-                                    </div>
-                                    <span v-else class="text-muted small">Kein AGT</span>
-                                </td>
-                                <td>
-                                    <small class="d-block text-muted">G26.3: {{ formatDate(p.g26_3_date) }}</small>
-                                    <small class="d-block text-muted">Lauf: {{ formatDate(p.belastungslauf_date) }}</small>
-                                </td>
-                                <td class="text-end">
-                                    <button @click="editPerson(p)" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <input type="text" v-model="search" class="form-control form-control-sm border-0" placeholder="Suchen nach Namen oder Abteilungen...">
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-secondary rounded-pill">{{ filteredPersonnel.length }} Personen</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div v-if="editing" class="modal d-block" style="background: rgba(0,0,0,0.5)">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">{{ editing.name }} bearbeiten</h5>
-                        <button @click="editing = null" class="btn-close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <h6>Lehrgänge</h6>
-                        <div class="row mb-3">
-                            <div class="col-6"><div class="form-check"><input type="checkbox" v-model="editing.is_truppmann" class="form-check-input"> <label>Truppmann</label></div></div>
-                            <div class="col-6"><div class="form-check"><input type="checkbox" v-model="editing.is_funk" class="form-check-input"> <label>Funker</label></div></div>
-                            <div class="col-6"><div class="form-check"><input type="checkbox" v-model="editing.is_agt" class="form-check-input"> <label>Atemschutz</label></div></div>
-                            <div class="col-6"><div class="form-check"><input type="checkbox" v-model="editing.is_maschinist" class="form-check-input"> <label>Maschinist</label></div></div>
-                        </div>
-                        
-                        <div v-if="editing.is_agt">
-                            <hr>
-                            <h6>AGT-Fristen</h6>
-                            <div class="mb-2">
-                                <label class="small">Letzte G26.3 Untersuchung:</label>
-                                <input type="date" v-model="editing.g26_3_date" class="form-control">
-                            </div>
-                            <div class="mb-2">
-                                <label class="small">Letzter Belastungslauf:</label>
-                                <input type="date" v-model="editing.belastungslauf_date" class="form-control">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button @click="saveEdit" class="btn btn-danger w-100">Speichern</button>
-                    </div>
-                </div>
+        <div class="card shadow-sm overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Abteilung</th>
+                            <th class="text-center">TM</th>
+                            <th class="text-center">Funk</th>
+                            <th class="text-center">AGT</th>
+                            <th class="text-center">Masch.</th>
+                            <th class="text-center">GF</th>
+                            <th>G26.3 / Belastung / Unterw.</th>
+                            <th class="text-end">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="p in filteredPersonnel" :key="p.id">
+                            <td>
+                                <div class="fw-bold">{{ p.name }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ p.group_name || 'Keine Gruppe' }}</span>
+                            </td>
+                            <td v-for="skill in ['is_truppmann', 'is_funk', 'is_agt', 'is_maschinist', 'is_gf']" class="text-center">
+                                <div class="form-check form-check-inline m-0">
+                                    <input class="form-check-input" type="checkbox" v-model="p[skill]" @change="savePerson(p)">
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <input type="date" v-model="p.g26_3_date" class="form-control form-control-sm" title="G26.3" @change="savePerson(p)">
+                                    <input type="date" v-model="p.belastungslauf_date" class="form-control form-control-sm" title="Belastungslauf" @change="savePerson(p)">
+                                    <input type="date" v-model="p.unterweisung_date" class="form-control form-control-sm" title="Unterweisung" @change="savePerson(p)">
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-danger border-0" @click="deletePerson(p.id)">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -135,57 +109,63 @@
             data() {
                 return {
                     personnel: [],
-                    searchQuery: '',
-                    filterAgt: false,
-                    editing: null
+                    search: '',
+                    newName: ''
                 }
             },
             computed: {
                 filteredPersonnel() {
-                    return this.personnel.filter(p => {
-                        const matchSearch = p.name.toLowerCase().includes(this.searchQuery.toLowerCase());
-                        const matchAgt = !this.filterAgt || p.is_agt;
-                        return matchSearch && matchAgt;
-                    });
+                    const s = this.search.toLowerCase();
+                    return this.personnel.filter(p => 
+                        p.name.toLowerCase().includes(s) || 
+                        (p.group_name && p.group_name.toLowerCase().includes(s))
+                    );
                 }
             },
             methods: {
-                async loadData() {
-                    const res = await fetch('/api/personnel/list');
-                    this.personnel = await res.json();
+                async loadPersonnel() {
+                    const r = await fetch('/api/personnel/list');
+                    this.personnel = await r.json();
                 },
-                formatDate(d) {
-                    if(!d) return 'n.V.';
-                    return new Date(d).toLocaleDateString('de-DE');
-                },
-                getAgtClass(p) {
-                    if(!p.g26_3_date) return 'status-critical';
-                    const expiry = new Date(p.g26_3_date);
-                    expiry.setFullYear(expiry.getFullYear() + 3);
-                    const today = new Date();
-                    if(today > expiry) return 'status-critical';
-                    if(expiry - today < 90 * 24 * 60 * 60 * 1000) return 'status-warn'; // 90 Tage Warnung
-                    return 'status-ok';
-                },
-                getAgtText(p) {
-                    const cls = this.getAgtClass(p);
-                    return cls === 'status-ok' ? 'Einsatzbereit' : cls === 'status-warn' ? 'Ablaufend' : 'Gesperrt';
-                },
-                editPerson(p) {
-                    this.editing = JSON.parse(JSON.stringify(p)); // Deep Copy
-                },
-                async saveEdit() {
-                    await fetch(`/api/personnel/update/${this.editing.id}`, {
+                async addPerson() {
+                    if (!this.newName) return;
+                    const r = await fetch('/api/personnel/add', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(this.editing)
+                        body: JSON.stringify({ name: this.newName })
                     });
-                    this.editing = null;
-                    this.loadData();
+                    if (r.ok) {
+                        this.newName = '';
+                        this.loadPersonnel();
+                    } else {
+                        const err = await r.json();
+                        alert(err.detail);
+                    }
+                },
+                async savePerson(p) {
+                    await fetch(`/api/personnel/update/${p.id}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            is_truppmann: !!p.is_truppmann,
+                            is_funk: !!p.is_funk,
+                            is_agt: !!p.is_agt,
+                            is_maschinist: !!p.is_maschinist,
+                            is_gf: !!p.is_gf,
+                            g26_3_date: p.g26_3_date || null,
+                            belastungslauf_date: p.belastungslauf_date || null,
+                            unterweisung_date: p.unterweisung_date || null
+                        })
+                    });
+                },
+                async deletePerson(id) {
+                    if (!confirm("Person wirklich löschen? Sie wird auch aus dem Editor entfernt.")) return;
+                    await fetch(`/persons/${id}`, { method: 'DELETE' });
+                    this.loadPersonnel();
                 }
             },
             mounted() {
-                this.loadData();
+                this.loadPersonnel();
             }
         }).mount('#app');
     </script>
