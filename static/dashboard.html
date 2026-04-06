@@ -82,6 +82,9 @@
                     
                     <div v-if="isAdmin">
                         <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Admin-Optionen</label>
+                        <a href="/personal" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-decoration-none text-center d-block">
+                            <i class="fa fa-user-shield me-2"></i> Personal & Qualis
+                        </a>
                         <button class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2" @click="addGroup" data-bs-dismiss="offcanvas">
                             <i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen
                         </button>
@@ -134,6 +137,9 @@
 
                 <div class="p-3 bg-light border-top">
                     <div v-if="isAdmin" class="mb-2">
+                        <a href="/personal" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block shadow-sm">
+                            <i class="fa fa-user-shield me-1"></i> Personalverwaltung
+                        </a>
                         <button class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup">
                             <i class="fa fa-plus-circle me-1"></i> Neue Liste
                         </button>
@@ -345,7 +351,6 @@
                     catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
                     projectInfo: { version: "?.??", remote: "?.??", update_available: false, town: "" },
                     activeS: null,
-                    // NEU
                     vehicles: [],
                     newVehicleName: ''
                 }
@@ -361,7 +366,6 @@
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
                 await this.fetchInfo();
                 await this.loadGroups();
-                // NEU
                 if (this.isAdmin) { await this.loadVehicles(); }
                 
                 const canvas = document.getElementById('sigCanvas');
@@ -458,7 +462,6 @@
                         await this.loadGroups();
                     }
                 },
-                // NEUE METHODEN FÜR FAHRZEUGE
                 async loadVehicles() {
                     const res = await fetch('/api/vehicles');
                     this.vehicles = await res.json();
@@ -505,22 +508,25 @@
                     const p = prompt("Admin PIN:");
                     if (p) {
                         const r = await fetch('/api/verify_admin', {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({pin: p})
                         });
-                        if ((await r.json()).success) {
+                        if (r.ok) {
                             localStorage.setItem('userRole', 'admin');
                             location.reload();
-                        } else { alert("Falsch!"); }
+                        } else {
+                            alert("Falscher PIN");
+                        }
                     }
                 },
-                logoutAdminOnly() { 
-                    localStorage.setItem('userRole', 'user'); 
-                    location.reload(); 
+                logoutAdminOnly() {
+                    localStorage.removeItem('userRole');
+                    location.reload();
                 },
-                fullLogout() { 
-                    localStorage.clear(); 
-                    window.location.href = '/'; 
+                fullLogout() {
+                    localStorage.clear();
+                    window.location.href = "/";
                 }
             }
         }).mount('#app');
