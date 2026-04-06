@@ -185,7 +185,8 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
-                    vehicles: [], // NEU
+                    personnelPool: [], // Pool aus der Verwaltung
+                    vehicles: [], 
                     topicOptions: [],
                     instrOptions: [],
                     q: '',
@@ -214,7 +215,7 @@
                 this.sessionId = p.get('session_id');
                 
                 await this.load();
-                await this.loadVehicles(); // NEU
+                await this.loadVehicles();
                 
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
@@ -227,7 +228,7 @@
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
-                async loadVehicles() { // NEU
+                async loadVehicles() {
                     try {
                         const res = await fetch('/api/vehicles');
                         this.vehicles = await res.json();
@@ -246,7 +247,6 @@
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ pin: p })
                             });
-
                             if (r.ok) {
                                 this.isAdmin = true;
                                 localStorage.setItem('userRole', 'admin');
@@ -267,9 +267,17 @@
                     canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
                 },
                 async load() { 
+                    // Aktuelle Liste der Gruppe laden
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                     const d = await(await fetch(url)).json(); 
                     this.persons = d.persons; 
+                    
+                    // Personal aus der Verwaltung laden
+                    try {
+                        const resPool = await fetch('/api/personnel/list');
+                        this.personnelPool = await resPool.json();
+                    } catch(e) { console.error("Pool Fehler", e); }
+
                     if(d.session_id){ 
                         this.sessionId = d.session_id; 
                         this.category = d.category; 
@@ -325,7 +333,32 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
-                async addP() { const n = prompt("Name:"); if(n) { await fetch(`/groups/${this.groupId}/persons`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
+                async addP() { 
+                    const currentNames = this.persons.map(p => p.name);
+                    const available = this.personnelPool.filter(p => !currentNames.includes(p.name));
+                    
+                    if (available.length === 0) {
+                        alert("Alle Personen aus der Verwaltung sind bereits in der Liste.");
+                        return;
+                    }
+
+                    let msg = "Wähle eine Nummer aus der Verwaltung:\n\n";
+                    available.forEach((p, i) => msg += `${i+1}: ${p.name}\n`);
+                    
+                    const choice = prompt(msg);
+                    if (choice) {
+                        const idx = parseInt(choice) - 1;
+                        if (available[idx]) {
+                            const p = available[idx];
+                            await fetch(`/groups/${this.groupId}/persons`, {
+                                method:'POST', 
+                                headers:{'Content-Type':'application/json'}, 
+                                body:JSON.stringify({name: p.name})
+                            });
+                            this.load();
+                        } else { alert("Ungültige Wahl."); }
+                    }
+                },
                 async editP(p) { const n = prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
                 async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }}
             }
