@@ -58,6 +58,13 @@ def init_db():
                     FOREIGN KEY (group_id) REFERENCES groups_table(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB;
             """)
+            # NEU: FAHRZEUG TABELLE
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS vehicles (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL
+                ) ENGINE=InnoDB;
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -87,7 +94,7 @@ def init_db():
             conn.commit()
             cur.close()
             conn.close()
-            print("--- DATENBANK INITIALISIERT ---")
+            print("--- DATENBANK INITIALISIERT (INKL. FAHRZEUGE) ---")
             break
         except Exception as e:
             print(f"Datenbank-Verbindung fehlgeschlagen (Versuch {i+1}/{max_retries}): {e}")
@@ -103,6 +110,7 @@ def safe_decode(value):
 # --- DATENMODELLE ---
 class PinCheck(BaseModel): pin: str
 class PersonData(BaseModel): name: str
+class VehicleData(BaseModel): name: str # NEU
 class EntryDto(BaseModel): 
     person_id: int; is_present: bool; note: Optional[str] = ""; 
     vehicle: Optional[str] = ""; signature: Optional[str] = None
@@ -155,6 +163,7 @@ async def verify_admin(data: dict):
         return {"success": True}
     raise HTTPException(status_code=401, detail="PIN falsch!")
 
+# --- GRUPPEN & PERSONEN ---
 @app.get("/groups")
 def get_groups():
     c=get_db_connection(); cur=c.cursor(dictionary=True)
@@ -201,6 +210,26 @@ def delete_person(id: int):
     cur.execute("DELETE FROM persons WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
+# --- NEU: FAHRZEUG VERWALTUNG API ---
+@app.get("/api/vehicles")
+def get_vehicles():
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT * FROM vehicles ORDER BY name")
+    r = cur.fetchall(); c.close(); return r
+
+@app.post("/api/vehicles")
+def create_vehicle(v: VehicleData):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("INSERT INTO vehicles (name) VALUES (%s)", (v.name,))
+    c.commit(); c.close(); return {"status": "created"}
+
+@app.delete("/api/vehicles/{id}")
+def delete_vehicle(id: int):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
+    c.commit(); c.close(); return {"status": "deleted"}
+
+# --- SESSIONS & STATS ---
 @app.delete("/sessions/{id}")
 def delete_session(id: int):
     try:
@@ -214,7 +243,6 @@ def delete_session(id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fehler beim Löschen: {e}")
 
-# --- SESSIONS & STATS ---
 @app.get("/groups/{id}/sessions")
 def get_sessions(id: int):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
@@ -277,7 +305,7 @@ def save_attendance(d: AttendanceUpload):
         cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
     c.commit(); c.close(); return {"session_id":sid}
 
-# --- NEU: UNTERSCHRIFT & EDITOR VORSCHLÄGE ---
+# --- UNTERSCHRIFT & EDITOR VORSCHLÄGE ---
 @app.post("/sessions/{session_id}/leader_signature")
 async def save_leader_sig(session_id: int, data: dict):
     sig = data.get("signature")
@@ -313,7 +341,8 @@ def single_report(session_id: int):
 def year_report(group_id: int, year: int):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM groups_table WHERE id=%s", (group_id,))
-    gname = cur.fetchone()['name']
+    gname_res = cur.fetchone()
+    gname = gname_res['name'] if gname_res else "Unbekannt"
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (group_id, year))
     max_s = cur.fetchone()['total'] or 0
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.group_id=%s AND YEAR(s.date)=%s ORDER BY s.date ASC, s.id ASC", (group_id, year))
