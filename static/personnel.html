@@ -3,103 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personalverwaltung - Dienstbuch</title>
+    <title>Personal-Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
-        body { background: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card { border-radius: 15px; border: none; }
-        .table thead { background: #f8f9fa; }
-        .status-badge { width: 40px; text-align: center; cursor: pointer; }
-        .bg-success-light { background-color: #d1e7dd; color: #0f5132; }
-        .bg-danger-light { background-color: #f8d7da; color: #842029; }
-        .sticky-top-custom { position: sticky; top: 20px; z-index: 100; }
+        body { background: #f0f2f5; font-family: 'Inter', sans-serif; }
+        .card { border-radius: 12px; border: none; transition: transform 0.2s; }
+        .stat-card { border-left: 5px solid #dc3545; }
+        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        
+        /* Ampel-System für Daten */
+        .date-ok { background-color: #d1e7dd !important; color: #0f5132; }
+        .date-warn { background-color: #fff3cd !important; color: #856404; }
+        .date-crit { background-color: #f8d7da !important; color: #842029; font-weight: bold; }
+        
+        /* Schickere Checkboxen */
+        .skill-badge { padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; user-select: none; transition: 0.2s; }
+        .skill-active { background: #dc3545; color: white; border: 1px solid #dc3545; }
+        .skill-inactive { background: #e9ecef; color: #adb5bd; border: 1px solid #dee2e6; }
+        
+        /* Toast Animation */
+        .toast-msg { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: none; }
     </style>
 </head>
 <body>
     <div id="app" class="container py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="fa fa-users-gear me-2 text-danger"></i>Personalverwaltung</h1>
-            <a href="/dashboard" class="btn btn-outline-secondary rounded-pill">
-                <i class="fa fa-arrow-left me-1"></i> Zurück
-            </a>
+        
+        <div class="row mb-4 align-items-center">
+            <div class="col-md-6">
+                <h2 class="fw-bold"><i class="fa fa-id-card text-danger me-2"></i>Personal-Cockpit</h2>
+            </div>
+            <div class="col-md-6 text-end">
+                <a href="/dashboard" class="btn btn-dark rounded-pill px-4"><i class="fa fa-home me-2"></i>Dashboard</a>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card shadow-sm stat-card p-3">
+                    <div class="small text-muted text-uppercase">Gesamtstärke</div>
+                    <div class="h3 mb-0">{{ personnel.length }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm p-3 border-start border-primary border-5">
+                    <div class="small text-muted text-uppercase">AGT Träger</div>
+                    <div class="h3 mb-0 text-primary">{{ countSkill('is_agt') }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm p-3 border-start border-success border-5">
+                    <div class="small text-muted text-uppercase">Maschinisten</div>
+                    <div class="h3 mb-0 text-success">{{ countSkill('is_maschinist') }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm p-3 border-start border-warning border-5">
+                    <div class="small text-muted text-uppercase">G26 fällig</div>
+                    <div class="h3 mb-0 text-warning">{{ countExpired() }}</div>
+                </div>
+            </div>
         </div>
 
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <h5 class="card-title small fw-bold text-muted text-uppercase mb-3">Neues Mitglied anlegen</h5>
                 <div class="input-group">
-                    <span class="input-group-text bg-white border-end-0 rounded-start-pill">
-                        <i class="fa fa-user text-muted"></i>
-                    </span>
-                    <input type="text" v-model="newName" class="form-control border-start-0 ps-0" placeholder="Vorname Nachname" @keyup.enter="addPerson">
-                    <button class="btn btn-danger rounded-end-pill px-4" @click="addPerson">
-                        <i class="fa fa-plus me-2"></i>Hinzufügen
-                    </button>
-                </div>
-                <div class="form-text mt-2 ps-2">Hinweis: Neue Personen werden automatisch der ersten Gruppe im Editor zugeordnet.</div>
-            </div>
-        </div>
-
-        <div class="card shadow-sm mb-4">
-            <div class="card-body py-2">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <input type="text" v-model="search" class="form-control form-control-sm border-0" placeholder="Suchen nach Namen oder Abteilungen...">
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <span class="badge bg-secondary rounded-pill">{{ filteredPersonnel.length }} Personen</span>
-                    </div>
+                    <input type="text" v-model="newName" class="form-control border-0 bg-light" placeholder="Neues Mitglied eingeben..." @keyup.enter="addPerson">
+                    <button class="btn btn-danger px-4" @click="addPerson"><i class="fa fa-plus me-2"></i>Anlegen</button>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow-sm overflow-hidden">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Abteilung</th>
-                            <th class="text-center">TM</th>
-                            <th class="text-center">Funk</th>
-                            <th class="text-center">AGT</th>
-                            <th class="text-center">Masch.</th>
-                            <th class="text-center">GF</th>
-                            <th>G26.3 / Belastung / Unterw.</th>
-                            <th class="text-end">Aktion</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="p in filteredPersonnel" :key="p.id">
-                            <td>
-                                <div class="fw-bold">{{ p.name }}</div>
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-dark border">{{ p.group_name || 'Keine Gruppe' }}</span>
-                            </td>
-                            <td v-for="skill in ['is_truppmann', 'is_funk', 'is_agt', 'is_maschinist', 'is_gf']" class="text-center">
-                                <div class="form-check form-check-inline m-0">
-                                    <input class="form-check-input" type="checkbox" v-model="p[skill]" @change="savePerson(p)">
-                                </div>
-                            </td>
-                            <td>
-                                <div class="d-flex gap-1">
-                                    <input type="date" v-model="p.g26_3_date" class="form-control form-control-sm" title="G26.3" @change="savePerson(p)">
-                                    <input type="date" v-model="p.belastungslauf_date" class="form-control form-control-sm" title="Belastungslauf" @change="savePerson(p)">
-                                    <input type="date" v-model="p.unterweisung_date" class="form-control form-control-sm" title="Unterweisung" @change="savePerson(p)">
-                                </div>
-                            </td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-danger border-0" @click="deletePerson(p.id)">
-                                    <i class="fa fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-container p-0 overflow-hidden">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Mitglied</th>
+                        <th>Qualifikationen (Klicken zum Ändern)</th>
+                        <th>Termine (G26 / Belastung / Unterw.)</th>
+                        <th class="text-end pe-4">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="p in personnel" :key="p.id">
+                        <td class="ps-4">
+                            <div class="fw-bold">{{ p.name }}</div>
+                            <div class="small text-muted">{{ p.group_name }}</div>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <span v-for="skill in skills" 
+                                      :class="p[skill.id] ? 'skill-active' : 'skill-inactive'"
+                                      class="skill-badge"
+                                      @click="toggleSkill(p, skill.id)">
+                                    {{ skill.label }}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <input type="date" v-model="p.g26_3_date" class="form-control form-control-sm border-0" :class="getDateClass(p.g26_3_date, 36)" @change="savePerson(p)">
+                                <input type="date" v-model="p.belastungslauf_date" class="form-control form-control-sm border-0" :class="getDateClass(p.belastungslauf_date, 12)" @change="savePerson(p)">
+                                <input type="date" v-model="p.unterweisung_date" class="form-control form-control-sm border-0" :class="getDateClass(p.unterweisung_date, 12)" @change="savePerson(p)">
+                            </div>
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-link text-danger" @click="deletePerson(p.id)"><i class="fa fa-trash"></i></button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="toast" class="toast-msg alert alert-success shadow">
+            <i class="fa fa-check-circle me-2"></i> Änderungen gespeichert!
         </div>
     </div>
 
@@ -109,17 +127,14 @@
             data() {
                 return {
                     personnel: [],
-                    search: '',
-                    newName: ''
-                }
-            },
-            computed: {
-                filteredPersonnel() {
-                    const s = this.search.toLowerCase();
-                    return this.personnel.filter(p => 
-                        p.name.toLowerCase().includes(s) || 
-                        (p.group_name && p.group_name.toLowerCase().includes(s))
-                    );
+                    newName: '',
+                    skills: [
+                        {id: 'is_truppmann', label: 'TM'},
+                        {id: 'is_funk', label: 'Funk'},
+                        {id: 'is_agt', label: 'AGT'},
+                        {id: 'is_maschinist', label: 'Ma'},
+                        {id: 'is_gf', label: 'GF'}
+                    ]
                 }
             },
             methods: {
@@ -128,22 +143,21 @@
                     this.personnel = await r.json();
                 },
                 async addPerson() {
-                    if (!this.newName) return;
-                    const r = await fetch('/api/personnel/add', {
+                    if(!this.newName) return;
+                    await fetch('/api/personnel/add', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ name: this.newName })
+                        body: JSON.stringify({name: this.newName})
                     });
-                    if (r.ok) {
-                        this.newName = '';
-                        this.loadPersonnel();
-                    } else {
-                        const err = await r.json();
-                        alert(err.detail);
-                    }
+                    this.newName = '';
+                    this.loadPersonnel();
+                },
+                toggleSkill(p, skillId) {
+                    p[skillId] = !p[skillId];
+                    this.savePerson(p);
                 },
                 async savePerson(p) {
-                    await fetch(`/api/personnel/update/${p.id}`, {
+                    const r = await fetch(`/api/personnel/update/${p.id}`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -157,16 +171,34 @@
                             unterweisung_date: p.unterweisung_date || null
                         })
                     });
+                    if(r.ok) this.showToast();
+                },
+                getDateClass(dateStr, monthsValid) {
+                    if(!dateStr) return 'bg-light text-muted';
+                    const diff = (new Date() - new Date(dateStr)) / (1000*60*60*24*30);
+                    if(diff > monthsValid) return 'date-crit';
+                    if(diff > (monthsValid - 3)) return 'date-warn';
+                    return 'date-ok';
+                },
+                countSkill(id) {
+                    return this.personnel.filter(p => p[id]).length;
+                },
+                countExpired() {
+                    return this.personnel.filter(p => this.getDateClass(p.g26_3_date, 36) === 'date-crit').length;
+                },
+                showToast() {
+                    const t = document.getElementById('toast');
+                    t.style.display = 'block';
+                    setTimeout(() => t.style.display = 'none', 2000);
                 },
                 async deletePerson(id) {
-                    if (!confirm("Person wirklich löschen? Sie wird auch aus dem Editor entfernt.")) return;
-                    await fetch(`/persons/${id}`, { method: 'DELETE' });
-                    this.loadPersonnel();
+                    if(confirm("Löschen?")) {
+                        await fetch(`/persons/${id}`, {method: 'DELETE'});
+                        this.loadPersonnel();
+                    }
                 }
             },
-            mounted() {
-                this.loadPersonnel();
-            }
+            mounted() { this.loadPersonnel(); }
         }).mount('#app');
     </script>
 </body>
