@@ -10,21 +10,17 @@
         :root { --fire: #d32f2f; --warn: #ff9800; --safe: #2e7d32; }
         body { background: #f1f3f5; font-size: 0.9rem; font-family: 'Inter', sans-serif; }
         
-        /* Kompakt-Tabelle */
         .main-table { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .main-table thead { background: #212529; color: white; }
         .main-table td { vertical-align: middle; padding: 8px 12px; border-bottom: 1px solid #eee; }
         
-        /* Benachrichtigungs-Center */
         .notif-bar { background: #fff3f3; border-left: 4px solid var(--fire); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
         .notif-item { font-size: 0.85rem; padding: 3px 0; border-bottom: 1px dashed #f8d7da; }
 
-        /* Quali-Buttons klein */
         .btn-q { padding: 2px 8px; font-size: 0.7rem; font-weight: bold; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: 0.2s; margin-right: 2px; }
         .q-active { background: var(--fire); color: white; border-color: var(--fire); }
         .q-inactive { background: #f8f9fa; color: #ccc; }
 
-        /* Datumsfelder ultra-kompakt */
         .date-cell { width: 130px; position: relative; }
         .date-cell input { border: 1px solid #eee; border-radius: 4px; font-size: 0.75rem; width: 100%; padding: 2px 5px; }
         
@@ -35,7 +31,6 @@
         
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        /* Interval-Settings */
         .settings-bar { background: #e9ecef; border-radius: 8px; padding: 10px; font-size: 0.8rem; }
     </style>
 </head>
@@ -51,15 +46,15 @@
                 <span class="fw-bold text-muted text-uppercase small">Intervalle (Monate):</span>
                 <div class="d-flex align-items-center gap-1">
                     <label class="small">G26:</label>
-                    <input type="number" v-model="intervals.g26" class="form-control form-control-sm w-25">
+                    <input type="number" v-model="intervals.g26" @change="updateGlobalIntervals" class="form-control form-control-sm w-25">
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="small">Belast.:</label>
-                    <input type="number" v-model="intervals.belastung" class="form-control form-control-sm w-25">
+                    <input type="number" v-model="intervals.belastung" @change="updateGlobalIntervals" class="form-control form-control-sm w-25">
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="small">Unterw.:</label>
-                    <input type="number" v-model="intervals.unterweisung" class="form-control form-control-sm w-25">
+                    <input type="number" v-model="intervals.unterweisung" @change="updateGlobalIntervals" class="form-control form-control-sm w-25">
                 </div>
             </div>
         </div>
@@ -139,7 +134,7 @@ createApp({
             personnel: [],
             search: '',
             newName: '',
-            intervals: { g26: 36, belastung: 12, unterweisung: 12 }, // Selbst anpassbar!
+            intervals: { g26: 36, belastung: 12, unterweisung: 12 }, 
             qualifications: [
                 {id: 'is_truppmann', label: 'TM'}, {id: 'is_funk', label: 'FUNK'},
                 {id: 'is_agt', label: 'AGT'}, {id: 'is_maschinist', label: 'MA'},
@@ -167,6 +162,28 @@ createApp({
         async load() {
             const r = await fetch('/api/personnel/list');
             this.personnel = await r.json();
+        },
+        // NEU: Lädt die gespeicherten Intervalle aus der DB
+        async loadSettings() {
+            try {
+                const r = await fetch('/api/personnel/settings');
+                const data = await r.json();
+                if(data.int_g26) this.intervals.g26 = data.int_g26;
+                if(data.int_belastung) this.intervals.belastung = data.int_belastung;
+                if(data.int_unterweisung) this.intervals.unterweisung = data.int_unterweisung;
+            } catch(e) { console.error("Settings konnten nicht geladen werden", e); }
+        },
+        // NEU: Speichert die Intervalle in der DB
+        async updateGlobalIntervals() {
+            await fetch('/api/personnel/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    int_g26: this.intervals.g26,
+                    int_belastung: this.intervals.belastung,
+                    int_unterweisung: this.intervals.unterweisung
+                })
+            });
         },
         getStatus(dateStr, months) {
             if(!dateStr) return '';
@@ -198,7 +215,10 @@ createApp({
             if(confirm('Löschen?')) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }
         }
     },
-    mounted() { this.load(); }
+    mounted() { 
+        this.load(); 
+        this.loadSettings(); // Beim Start laden
+    }
 }).mount('#app');
 </script>
 </body>
