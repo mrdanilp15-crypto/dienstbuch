@@ -135,11 +135,12 @@
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-1">
-                                <button v-for="v in ['MZF', 'HLF', 'TLF', 'GWL']" 
+                                <button v-for="v in vehicles" 
+                                        :key="v.id"
                                         class="btn btn-xs border" 
-                                        :class="p.vehicle === v ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" 
-                                        @click.stop="isAdmin && setVehicle(p, v)"
-                                        :disabled="!isAdmin">{{v}}</button>
+                                        :class="p.vehicle === v.name ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" 
+                                        @click.stop="isAdmin && setVehicle(p, v.name)"
+                                        :disabled="!isAdmin">{{v.name}}</button>
                             </div>
                         </div>
                         <div v-if="p.is_present" style="width: 80px;">
@@ -184,6 +185,7 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
+                    vehicles: [], // NEU
                     topicOptions: [],
                     instrOptions: [],
                     q: '',
@@ -212,6 +214,7 @@
                 this.sessionId = p.get('session_id');
                 
                 await this.load();
+                await this.loadVehicles(); // NEU
                 
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
@@ -224,6 +227,12 @@
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
+                async loadVehicles() { // NEU
+                    try {
+                        const res = await fetch('/api/vehicles');
+                        this.vehicles = await res.json();
+                    } catch (e) { console.error("Fehler beim Laden der Fahrzeuge", e); }
+                },
                 async goBack() {
                     if(this.isAdmin) await this.performSave();
                     window.location.href = '/static/dashboard.html';
