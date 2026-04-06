@@ -185,7 +185,7 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
-                    personnelPool: [], // Pool aus der Verwaltung
+                    personnelPool: [],
                     vehicles: [], 
                     topicOptions: [],
                     instrOptions: [],
@@ -232,11 +232,11 @@
                     try {
                         const res = await fetch('/api/vehicles');
                         this.vehicles = await res.json();
-                    } catch (e) { console.error("Fehler beim Laden der Fahrzeuge", e); }
+                    } catch (e) { console.error("Fahrzeuge Fehler", e); }
                 },
                 async goBack() {
                     if(this.isAdmin) await this.performSave();
-                    window.location.href = '/static/dashboard.html';
+                    window.location.href = '/dashboard';
                 },
                 async promptAdmin() {
                     const p = prompt("Admin PIN eingeben:");
@@ -251,12 +251,8 @@
                                 this.isAdmin = true;
                                 localStorage.setItem('userRole', 'admin');
                                 location.reload(); 
-                            } else {
-                                alert("Falsche PIN!");
-                            }
-                        } catch (e) {
-                            alert("Verbindung fehlgeschlagen.");
-                        }
+                            } else { alert("Falsche PIN!"); }
+                        } catch (e) { alert("Fehler!"); }
                     }
                 },
                 logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
@@ -267,12 +263,10 @@
                     canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
                 },
                 async load() { 
-                    // Aktuelle Liste der Gruppe laden
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                     const d = await(await fetch(url)).json(); 
                     this.persons = d.persons; 
                     
-                    // Personal aus der Verwaltung laden
                     try {
                         const resPool = await fetch('/api/personnel/list');
                         this.personnelPool = await resPool.json();
@@ -315,7 +309,7 @@
                 },
                 async saveAndExit() { 
                     if(this.isAdmin) await this.performSave(); 
-                    window.location.href = '/static/dashboard.html'; 
+                    window.location.href = '/dashboard'; 
                 },
                 setCat(c) { this.category = c; this.autoSave(); },
                 togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
@@ -338,11 +332,11 @@
                     const available = this.personnelPool.filter(p => !currentNames.includes(p.name));
                     
                     if (available.length === 0) {
-                        alert("Alle Personen aus der Verwaltung sind bereits in der Liste.");
+                        alert("Alle Personen aus dem Personal-Pool sind bereits in dieser Gruppe.");
                         return;
                     }
 
-                    let msg = "Wähle eine Nummer aus der Verwaltung:\n\n";
+                    let msg = "Nummer wählen, um Person hinzuzufügen:\n\n";
                     available.forEach((p, i) => msg += `${i+1}: ${p.name}\n`);
                     
                     const choice = prompt(msg);
@@ -359,8 +353,23 @@
                         } else { alert("Ungültige Wahl."); }
                     }
                 },
-                async editP(p) { const n = prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
-                async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }}
+                async editP(p) { 
+                    const n = prompt("Name ändern:", p.name); 
+                    if(n && n !== p.name) { 
+                        await fetch(`/persons/${p.id}`, {
+                            method:'PUT', 
+                            headers:{'Content-Type':'application/json'}, 
+                            body:JSON.stringify({name:n})
+                        }); 
+                        this.load(); 
+                    }
+                },
+                async deleteP(p) { 
+                    if(confirm("Person aus dieser Gruppe entfernen?")) { 
+                        await fetch(`/persons/${p.id}`, {method:'DELETE'}); 
+                        this.load(); 
+                    }
+                }
             }
         }).mount('#app');
     </script>
