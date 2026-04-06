@@ -236,11 +236,10 @@ def create_group(g: GroupData):
 
 @app.get("/api/personnel/list")
 def list_personnel_pool():
-    """Holt die Liste aller verfügbaren Personen aus der NEUEN Personal-Verwaltung."""
+    """Holt die Liste aller verfügbaren Personen aus der Personal-Verwaltung."""
     try:
         c = get_db_connection()
         cur = c.cursor(dictionary=True)
-        # HIER GEÄNDERT: Greift jetzt auf die neue 'personnel' Tabelle zu
         cur.execute("SELECT id, name FROM personnel ORDER BY name ASC")
         r = cur.fetchall()
         c.close()
@@ -256,6 +255,17 @@ def add_person(group_id: int, p: PersonData):
         cur.execute("INSERT INTO persons (group_id, name) VALUES (%s, %s)", (group_id, p.name))
         c.commit(); cur.close(); c.close()
         return {"status": "person added"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/persons/{id}")
+def update_person(id: int, p: PersonData):
+    """Ermöglicht das Umbenennen von Personen direkt im Editor."""
+    try:
+        c = get_db_connection(); cur = c.cursor()
+        cur.execute("UPDATE persons SET name=%s WHERE id=%s", (p.name, id))
+        c.commit(); cur.close(); c.close()
+        return {"status": "updated"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
