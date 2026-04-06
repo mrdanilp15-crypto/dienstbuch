@@ -8,8 +8,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-import reports 
-import notes_manager 
+
+# --- Gehirne ---
+from routers import reports
+from routers import notes_manager
+from routers import personnel_mgr
 
 # --- KONFIGURATION ---
 CURRENT_VERSION = "1.70"
@@ -28,6 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- ZWEITES GEHIRN EINBINDEN ---
 app.include_router(notes_manager.router)
+app.include_router(personnel_mgr.router)
 
 # --- DATENBANK INITIALISIERUNG (MYSQL) ---
 def get_db_connection():
