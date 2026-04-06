@@ -45,7 +45,8 @@ def get_all_personnel():
 def add_member(m: PersonnelMember):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO personnel (name) VALUES (%s)", (m.name,))
+    # Nutze INSERT IGNORE, falls der Name schon existiert
+    cur.execute("INSERT IGNORE INTO personnel (name) VALUES (%s)", (m.name,))
     conn.commit()
     conn.close()
     return {"status": "success"}
@@ -54,12 +55,17 @@ def add_member(m: PersonnelMember):
 def update_member(member_id: int, m: PersonnelMember):
     conn = get_db_connection()
     cur = conn.cursor()
+    # Konvertierung von leeren Strings zu None für die Datenbank (DATE Felder)
+    g26 = m.g26_3_date if m.g26_3_date else None
+    bel = m.belastungslauf_date if m.belastungslauf_date else None
+    unt = m.unterweisung_date if m.unterweisung_date else None
+
     sql = """UPDATE personnel SET 
              is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s, 
              g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s 
              WHERE id=%s"""
     vals = (m.is_truppmann, m.is_funk, m.is_agt, m.is_maschinist, m.is_tf, m.is_gf,
-            m.g26_3_date, m.belastungslauf_date, m.unterweisung_date, member_id)
+            g26, bel, unt, member_id)
     cur.execute(sql, vals)
     conn.commit()
     conn.close()
@@ -74,7 +80,7 @@ def delete_member(member_id: int):
     conn.close()
     return {"status": "deleted"}
 
-# --- SETTINGS ROUTEN (Fristen) ---
+# --- SETTINGS ROUTEN ---
 @router.get("/settings")
 def get_settings():
     conn = get_db_connection()
@@ -82,8 +88,10 @@ def get_settings():
     cur.execute("SELECT setting_key, setting_value FROM settings")
     rows = cur.fetchall()
     conn.close()
-    # Umwandlung in ein flaches JSON Objekt
     res = {row['setting_key']: row['setting_value'] for row in rows}
+    # Standardwerte falls Tabelle leer
+    if not res:
+        return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12}
     return res
 
 @router.post("/settings")
@@ -96,7 +104,57 @@ def save_settings(s: GlobalSettings):
         ('int_unterweisung', s.int_unterweisung)
     ]
     for key, val in settings:
-        cur.execute("UPDATE settings SET setting_value=%s WHERE setting_key=%s", (val, key))
+        cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (key, val, val))
     conn.commit()
     conn.close()
     return {"status": "settings updated"}
+
+# --- INITIALISIERUNG & MIGRATION ---
+
+def init_personnel_db():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # 1. Personal-Tabelle
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personnel (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                rank VARCHAR(100) DEFAULT '',
+                is_truppmann BOOLEAN DEFAULT FALSE,
+                is_funk BOOLEAN DEFAULT FALSE,
+                is_agt BOOLEAN DEFAULT FALSE,
+                is_maschinist BOOLEAN DEFAULT FALSE,
+                is_tf BOOLEAN DEFAULT FALSE,
+                is_gf BOOLEAN DEFAULT FALSE,
+                g26_3_date DATE NULL,
+                belastungslauf_date DATE NULL,
+                unterweisung_date DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        # 2. Settings-Tabelle für Fristen
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                setting_key VARCHAR(50) PRIMARY KEY,
+                setting_value INT
+            ) ENGINE=InnoDB;
+        """)
+
+        # 3. MIGRATION: Namen rüberkopieren
+        # Wir holen alle Namen aus der alten Tabelle 'persons' und stecken sie in 'personnel'
+        # 'INSERT IGNORE' sorgt dafür, dass nichts doppelt eingetragen wird.
+        cur.execute("INSERT IGNORE INTO personnel (name) SELECT DISTINCT name FROM persons")
+        
+        # Standard-Fristen einfügen falls leer
+        cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12)")
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("--- PERSONAL-POOL & MIGRATION ERFOLGREICH ---")
+    except Exception as e:
+        print(f"Fehler bei init_personnel_db: {e}")
+
+init_personnel_db()
