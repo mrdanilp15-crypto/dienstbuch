@@ -12,36 +12,36 @@
         :root { --fire: #d32f2f; --warn: #ff9800; --safe: #2e7d32; }
         body { background: #f1f3f5; font-size: 0.9rem; font-family: 'Inter', sans-serif; }
         
-        /* --- 2. LAYOUT-KOMPONENTEN (Tabelle & Karten) --- */
+        /* --- 2. LAYOUT-KOMPONENTEN --- */
         .table-responsive-wrapper { 
             background: white; 
             border-radius: 10px; 
             overflow: hidden; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
         }
-        .main-table { min-width: 900px; margin-bottom: 0 !important; }
+        .main-table { min-width: 950px; margin-bottom: 0 !important; }
         .main-table thead { background: #212529; color: white; }
         .main-table td { vertical-align: middle; padding: 10px 12px; border-bottom: 1px solid #eee; }
         
-        /* --- 3. STATUS-INDIKATOREN (Punkte & Blink-Effekt) --- */
+        /* --- 3. STATUS-INDIKATOREN --- */
         .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .bg-ok { background: var(--safe); }
         .bg-warn { background: var(--warn); }
         .bg-crit { background: var(--fire); animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        /* --- 4. BEDIENELEMENTE (Buttons & Inputs) --- */
+        /* --- 4. BEDIENELEMENTE --- */
         .btn-q { padding: 4px 10px; font-size: 0.75rem; font-weight: bold; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: 0.2s; margin-right: 2px; display: inline-block; }
         .q-active { background: var(--fire); color: white; border-color: var(--fire); }
         .q-inactive { background: #f8f9fa; color: #ccc; }
         
-        .date-cell { width: 150px; }
+        .date-cell { width: 160px; }
         .date-cell input { border: 1px solid #eee; border-radius: 4px; font-size: 0.8rem; width: 100%; padding: 4px; }
         
-        /* --- 5. EINSTELLUNGS-BAR (Intervall-Felder fixiert) --- */
+        /* --- 5. EINSTELLUNGS-BAR (Intervall-Felder) --- */
         .settings-bar { background: #e9ecef; border-radius: 8px; padding: 12px; font-size: 0.85rem; }
         .interval-input { 
-            width: 75px !important; /* Breit genug für PC & Handy */
+            width: 75px !important; 
             text-align: center; 
             font-weight: bold; 
             border: 1px solid #ced4da;
@@ -50,6 +50,7 @@
         /* --- 6. HINWEIS-BOX (Handlungsbedarf) --- */
         .notif-bar { background: #fff3f3; border-left: 4px solid var(--fire); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
         .notif-item { font-size: 0.85rem; padding: 3px 0; border-bottom: 1px dashed #f8d7da; }
+        .text-bald { color: #856404; font-weight: bold; } /* Gelber Text für bald fällig */
     </style>
 </head>
 
@@ -78,15 +79,18 @@
             </div>
         </div>
         <div class="col-xl-2 col-lg-2 text-end">
-            <a href="/dashboard" class="btn btn-sm btn-dark px-3 rounded-pill">Dashboard</a>
+            <a href="/dashboard" class="btn btn-sm btn-dark px-3 rounded-pill shadow-sm">Dashboard</a>
         </div>
     </div>
 
     <div v-if="fälligePersonen.length > 0" class="notif-bar shadow-sm">
-        <h6 class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-2"></i> Handlungsbedarf!</h6>
+        <h6 class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-2"></i> Fristen-Check</h6>
         <div class="row">
             <div v-for="item in fälligePersonen" class="col-md-4 notif-item">
-                <span class="fw-bold">{{ item.name }}:</span> <span class="text-muted">{{ item.reason }}</span>
+                <span :class="item.isCritical ? 'text-danger fw-bold' : 'text-bald'">
+                    {{ item.name }}:
+                </span> 
+                <span class="text-muted ms-1">{{ item.reason }}</span>
             </div>
         </div>
     </div>
@@ -102,7 +106,7 @@
         </div>
     </div>
 
-    <div class="table-responsive-wrapper">
+    <div class="table-responsive-wrapper shadow-sm">
         <div class="table-responsive">
             <table class="table table-sm table-hover main-table">
                 <thead>
@@ -168,30 +172,47 @@ createApp({
         }
     },
     computed: {
-        // Filtert die Liste basierend auf der Sucheingabe
         filteredPersonnel() {
             return this.personnel.filter(p => p.name.toLowerCase().includes(this.search.toLowerCase()));
         },
-        // Prüft, wer in der roten Notif-Bar oben erscheinen muss
         fälligePersonen() {
             let list = [];
             this.personnel.forEach(p => {
                 let issues = [];
-                if(this.getStatus(p.g26_3_date, this.intervals.g26) === 'bg-crit') issues.push("G26");
-                if(this.getStatus(p.belastungslauf_date, this.intervals.belastung) === 'bg-crit') issues.push("Belastung");
-                if(this.getStatus(p.unterweisung_date, this.intervals.unterweisung) === 'bg-crit') issues.push("Unterweisung");
-                if(issues.length > 0) list.push({name: p.name, reason: issues.join(", ") + " fällig"});
+                let criticalFound = false;
+
+                // Check G26
+                let sG26 = this.getStatus(p.g26_3_date, this.intervals.g26);
+                if(sG26 === 'bg-crit') { issues.push("G26!"); criticalFound = true; }
+                else if(sG26 === 'bg-warn') issues.push("G26 (bald)");
+
+                // Check Belastung
+                let sBel = this.getStatus(p.belastungslauf_date, this.intervals.belastung);
+                if(sBel === 'bg-crit') { issues.push("Belastung!"); criticalFound = true; }
+                else if(sBel === 'bg-warn') issues.push("Belastung (bald)");
+
+                // Check Unterweisung
+                let sUnt = this.getStatus(p.unterweisung_date, this.intervals.unterweisung);
+                if(sUnt === 'bg-crit') { issues.push("UVV!"); criticalFound = true; }
+                else if(sUnt === 'bg-warn') issues.push("UVV (bald)");
+
+                if(issues.length > 0) {
+                    list.push({
+                        name: p.name, 
+                        reason: issues.join(", "),
+                        isCritical: criticalFound
+                    });
+                }
             });
-            return list;
+            // Sortierung: Kritische Fälle zuerst
+            return list.sort((a, b) => b.isCritical - a.isCritical);
         }
     },
     methods: {
-        // Daten vom Server laden
         async load() {
             const r = await fetch('/api/personnel/list');
             this.personnel = await r.json();
         },
-        // Intervalle aus DB laden
         async loadSettings() {
             try {
                 const r = await fetch('/api/personnel/settings');
@@ -199,9 +220,8 @@ createApp({
                 if(data.int_g26) this.intervals.g26 = data.int_g26;
                 if(data.int_belastung) this.intervals.belastung = data.int_belastung;
                 if(data.int_unterweisung) this.intervals.unterweisung = data.int_unterweisung;
-            } catch(e) { console.error("Fehler beim Laden der Settings", e); }
+            } catch(e) { console.error("Settings Fehler", e); }
         },
-        // Intervalle in DB speichern
         async updateGlobalIntervals() {
             await fetch('/api/personnel/settings', {
                 method: 'POST',
@@ -213,17 +233,14 @@ createApp({
                 })
             });
         },
-        // Berechnet den Status (Farbe) basierend auf dem Datum
         getStatus(dateStr, months) {
             if(!dateStr) return '';
             const diff = (new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24 * 30.44);
-            if(diff >= months) return 'bg-crit';
-            if(diff >= months - 3) return 'bg-warn';
-            return 'bg-ok';
+            if(diff >= months) return 'bg-crit'; // Abgelaufen
+            if(diff >= months - 3) return 'bg-warn'; // 3 Monate Puffer
+            return 'bg-ok'; // Alles gut
         },
-        // Qualifikation umschalten
         async toggleQ(p, qId) { p[qId] = !p[qId]; this.save(p); },
-        // Person hinzufügen
         async addPerson() {
             if(!this.newName) return;
             await fetch('/api/personnel/add', {
@@ -232,7 +249,6 @@ createApp({
             });
             this.newName = ''; this.load();
         },
-        // Einzelne Person/Datum speichern
         async save(p) {
             await fetch(`/api/personnel/update/${p.id}`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -243,9 +259,8 @@ createApp({
                 })
             });
         },
-        // Person löschen
         async deletePerson(p) {
-            if(confirm(`Möchtest du ${p.name} wirklich löschen?`)) { 
+            if(confirm(`${p.name} wirklich löschen?`)) { 
                 await fetch(`/api/personnel/delete/${p.id}`, {method:'DELETE'}); 
                 this.load(); 
             }
