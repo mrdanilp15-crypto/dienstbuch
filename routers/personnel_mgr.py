@@ -1,125 +1,85 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import List, Optional
 import mysql.connector
 import os
-from pydantic import BaseModel
-from typing import Optional, List
 
-router = APIRouter(prefix="/api/personnel", tags=["Personal"])
+router = APIRouter(prefix="/api/personnel", tags=["personnel"])
+
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 def get_db_connection():
     return mysql.connector.connect(
-        host="db", 
-        user="app_user", 
-        password=os.getenv("DB_PASSWORD"), 
-        database="attendance_system"
+        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
     )
 
-class PersonnelUpdate(BaseModel):
-    is_truppmann: bool
-    is_funk: bool
-    is_agt: bool
-    is_maschinist: bool
-    is_tf: bool
-    is_gf: bool
+# Datenbank beim Start prüfen
+def init_personnel_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS personnel (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            rank VARCHAR(100),
+            is_agt BOOLEAN DEFAULT FALSE,
+            is_maschinist BOOLEAN DEFAULT FALSE,
+            is_funk BOOLEAN DEFAULT FALSE,
+            is_truppmann BOOLEAN DEFAULT FALSE,
+            is_tf BOOLEAN DEFAULT FALSE,
+            is_gf BOOLEAN DEFAULT FALSE,
+            g26_3_date DATE,
+            belastungslauf_date DATE,
+            unterweisung_date DATE
+        ) ENGINE=InnoDB;
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_personnel_db()
+
+class PersonnelMember(BaseModel):
+    name: str
+    rank: Optional[str] = ""
+    is_agt: bool = False
+    is_maschinist: bool = False
+    is_funk: bool = False
+    is_truppmann: bool = False
+    is_tf: bool = False
+    is_gf: bool = False
     g26_3_date: Optional[str] = None
     belastungslauf_date: Optional[str] = None
     unterweisung_date: Optional[str] = None
 
-class NewPerson(BaseModel):
-    name: str
-
 @router.get("/list")
-async def get_personnel_list():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT p.*, g.name as group_name 
-            FROM persons p
-            LEFT JOIN groups_table g ON p.group_id = g.id
-            ORDER BY p.name
-        """)
-        members = cursor.fetchall()
-        for m in members:
-            for key in ['g26_3_date', 'belastungslauf_date', 'unterweisung_date']:
-                if m[key]: m[key] = str(m[key])
-        cursor.close()
-        conn.close()
-        return members
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def get_all_personnel():
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM personnel ORDER BY name ASC")
+    res = cur.fetchall()
+    conn.close()
+    return res
 
 @router.post("/add")
-async def add_person(data: NewPerson):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id FROM groups_table LIMIT 1")
-        group = cursor.fetchone()
-        if not group:
-            raise HTTPException(status_code=400, detail="Erstelle erst eine Gruppe!")
-        cursor.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", (data.name, group['id']))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def add_member(m: PersonnelMember):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    sql = """INSERT INTO personnel (name, rank, is_agt, is_maschinist, is_funk, is_truppmann, is_tf, is_gf, 
+             g26_3_date, belastungslauf_date, unterweisung_date) 
+             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+    vals = (m.name, m.rank, m.is_agt, m.is_maschinist, m.is_funk, m.is_truppmann, m.is_tf, m.is_gf,
+            m.g26_3_date, m.belastungslauf_date, m.unterweisung_date)
+    cur.execute(sql, vals)
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
 
-@router.post("/update/{person_id}")
-async def update_personnel_data(person_id: int, data: PersonnelUpdate):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """
-            UPDATE persons SET 
-            is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
-            g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s
-            WHERE id=%s
-        """
-        values = (
-            data.is_truppmann, data.is_funk, data.is_agt, data.is_maschinist, 
-            data.is_tf, data.is_gf,
-            data.g26_3_date if data.g26_3_date else None,
-            data.belastungslauf_date if data.belastungslauf_date else None,
-            data.unterweisung_date if data.unterweisung_date else None,
-            person_id
-        )
-        cursor.execute(sql, values)
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- NEU: Einstellungen für Intervalle laden und speichern ---
-
-@router.get("/settings")
-def get_settings():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM settings")
-        rows = cur.fetchall()
-        # Wandelt Liste in ein praktisches Format um: {'int_g26': 36, ...}
-        res = {row['setting_key']: row['setting_value'] for row in rows}
-        cur.close()
-        conn.close()
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/settings")
-async def save_settings(data: dict):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        for key, value in data.items():
-            cur.execute("UPDATE settings SET setting_value=%s WHERE setting_key=%s", (value, key))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return {"status": "saved"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/{member_id}")
+def delete_member(member_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted"}
