@@ -234,6 +234,20 @@ def create_group(g: GroupData):
     cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,))
     c.commit(); c.close(); return {"status": "created"}
 
+@app.get("/api/personnel/list")
+def list_personnel_pool():
+    """Holt die Liste aller verfügbaren Personen aus der Personal-Verwaltung für den Pool."""
+    try:
+        c = get_db_connection()
+        cur = c.cursor(dictionary=True)
+        cur.execute("SELECT id, name FROM personnel ORDER BY name ASC")
+        r = cur.fetchall()
+        c.close()
+        return r
+    except Exception as e:
+        print(f"Fehler beim Laden des Personal-Pools: {e}")
+        return []
+
 @app.post("/groups/{group_id}/persons")
 def add_person(group_id: int, p: PersonData):
     try:
