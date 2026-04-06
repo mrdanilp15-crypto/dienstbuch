@@ -102,6 +102,7 @@ def safe_decode(value):
 
 # --- DATENMODELLE ---
 class PinCheck(BaseModel): pin: str
+class PersonData(BaseModel): name: str
 class EntryDto(BaseModel): 
     person_id: int; is_present: bool; note: Optional[str] = ""; 
     vehicle: Optional[str] = ""; signature: Optional[str] = None
@@ -166,6 +167,23 @@ def create_group(g: GroupData):
     c=get_db_connection(); cur=c.cursor()
     cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,))
     c.commit(); c.close(); return {"status": "created"}
+
+@app.post("/groups/{group_id}/persons")
+def add_person(group_id: int, p: PersonData):
+    try:
+        c = get_db_connection()
+        cur = c.cursor()
+        cur.execute("INSERT INTO persons (group_id, name) VALUES (%s, %s)", (group_id, p.name))
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "person added"}
+    except Exception as e:
+        print(f"Fehler beim Hinzufügen der Person: {e}")
+        raise HTTPException(status_code=500, detail="Datenbankfehler")
+
+@app.delete("/persons/{id}")
+def delete_person(id: int):
 
 @app.delete("/groups/{id}")
 def delete_group(id: int):
