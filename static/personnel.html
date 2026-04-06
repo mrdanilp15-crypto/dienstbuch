@@ -12,7 +12,6 @@
         :root { --fire: #d32f2f; --warn: #ff9800; --safe: #2e7d32; --dark: #212529; }
         body { background: #f8f9fa; font-size: 0.9rem; font-family: 'Inter', sans-serif; color: var(--dark); }
         
-        /* STATISTIK-KACHELN */
         .stat-card { 
             background: white; border-radius: 12px; padding: 12px; 
             text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
@@ -21,18 +20,15 @@
         .stat-val { display: block; font-size: 1.4rem; font-weight: 800; color: var(--fire); line-height: 1; }
         .stat-label { font-size: 0.7rem; text-transform: uppercase; font-weight: bold; color: #777; }
 
-        /* TABELLE & MOBILE OPTIMIERUNG */
         .table-responsive-wrapper { 
             background: white; border-radius: 12px; overflow: hidden; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-top: 15px;
         }
-        .table-responsive { overflow-x: auto; }
         .main-table { min-width: 1100px; margin-bottom: 0 !important; }
         .main-table thead { background: var(--dark); color: white; }
         .main-table th { padding: 15px 12px; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
         .main-table td { vertical-align: middle; padding: 12px; border-bottom: 1px solid #f1f1f1; }
 
-        /* Name auf Mobile fixieren (Sticky Column) */
         @media (max-width: 768px) {
             .sticky-col { 
                 position: sticky; left: 0; background: white; z-index: 10; 
@@ -41,23 +37,19 @@
             .main-table thead th:first-child { position: sticky; left: 0; background: var(--dark); z-index: 11; }
         }
 
-        /* STATUS & BEDIENUNG */
         .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         .bg-ok { background: var(--safe); }
         .bg-warn { background: var(--warn); }
         .bg-crit { background: var(--fire); animation: blink 1.2s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-        .btn-q { padding: 6px 12px; font-size: 0.75rem; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; cursor: pointer; transition: all 0.2s; margin: 2px; }
+        .btn-q { padding: 6px 12px; font-size: 0.75rem; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; cursor: pointer; transition: all 0.2s; margin: 2px; display: inline-block; }
         .q-active { background: var(--fire); color: white; border-color: var(--fire); box-shadow: 0 2px 4px rgba(211,47,47,0.3); }
         .q-inactive { background: #f8f9fa; color: #adb5bd; }
         
-        .date-input { border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.85rem; padding: 6px; width: 100%; transition: border 0.2s; }
-        .date-input:focus { border-color: var(--fire); outline: none; box-shadow: 0 0 0 3px rgba(211,47,47,0.1); }
-        
+        .date-input { border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.85rem; padding: 6px; width: 100%; }
         .settings-bar { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 15px; }
-        .interval-input { width: 80px !important; text-align: center; font-weight: bold; border-radius: 6px; }
-
+        .interval-input { width: 80px !important; text-align: center; font-weight: bold; }
         .notif-bar { background: #fff5f5; border-left: 5px solid var(--fire); border-radius: 10px; padding: 15px; margin-bottom: 20px; }
     </style>
 </head>
@@ -67,14 +59,22 @@
 
     <div class="row mb-4 g-3 align-items-center">
         <div class="col-xl-4 col-12 text-center text-xl-start">
-            <h3 class="fw-bold mb-0"><i class="fa fa-users-cog text-danger me-2"></i>Personal</h3>
+            <h3 class="fw-bold mb-0"><i class="fa fa-users-cog text-danger me-2"></i>Personalverwaltung</h3>
         </div>
         <div class="col-xl-6 col-12">
             <div class="settings-bar d-flex align-items-center justify-content-center flex-wrap gap-3 shadow-sm">
                 <span class="fw-bold text-muted small"><i class="fa fa-history me-1"></i> FRISTEN (MONATE):</span>
-                <div v-for="(val, key) in {G26: 'g26', 'BELASTUNG': 'belastung', 'UVV': 'unterweisung'}" class="d-flex align-items-center gap-2">
-                    <label class="small fw-bold">{{ key }}</label>
-                    <input type="number" v-model="intervals[val]" @change="updateGlobalIntervals" class="form-control form-control-sm interval-input">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small fw-bold">G26</label>
+                    <input type="number" v-model="intervals.g26" @change="updateGlobalIntervals" class="form-control form-control-sm interval-input">
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small fw-bold">BELASTUNG</label>
+                    <input type="number" v-model="intervals.belastung" @change="updateGlobalIntervals" class="form-control form-control-sm interval-input">
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small fw-bold">UVV</label>
+                    <input type="number" v-model="intervals.unterweisung" @change="updateGlobalIntervals" class="form-control form-control-sm interval-input">
                 </div>
             </div>
         </div>
@@ -99,7 +99,7 @@
     </div>
 
     <div v-if="fälligePersonen.length > 0" class="notif-bar shadow-sm">
-        <h6 class="text-danger fw-bold small mb-2"><i class="fa fa-bell me-2"></i>FRISTEN-ALARM</h6>
+        <h6 class="text-danger fw-bold small mb-2"><i class="fa fa-bell me-2"></i>FRISTEN-ALARM (ABGELAUFEN ODER BALD FÄLLIG)</h6>
         <div class="d-flex flex-wrap gap-2">
             <span v-for="item in fälligePersonen" class="badge rounded-pill" :class="item.isCritical ? 'bg-danger' : 'bg-warning text-dark'">
                 {{ item.name }}
@@ -116,7 +116,7 @@
         </div>
         <div class="col-md-8 col-12 text-md-end">
             <div class="d-flex gap-2 justify-content-md-end">
-                <input type="text" v-model="newName" class="form-control shadow-sm w-auto" placeholder="Vorname Nachname..." @keyup.enter="addPerson">
+                <input type="text" v-model="newName" class="form-control shadow-sm w-auto" placeholder="Name..." @keyup.enter="addPerson">
                 <button class="btn btn-danger px-4 fw-bold shadow-sm" @click="addPerson">NEU ANLEGEN</button>
             </div>
         </div>
@@ -127,7 +127,7 @@
             <table class="table table-hover main-table">
                 <thead>
                     <tr>
-                        <th>Name / Gruppe</th>
+                        <th>Name</th>
                         <th>Qualifikationen</th>
                         <th>G26.3 Untersuchung</th>
                         <th>Belastungslauf</th>
@@ -139,7 +139,6 @@
                     <tr v-for="p in filteredPersonnel" :key="p.id">
                         <td class="sticky-col">
                             <div class="fw-bold">{{ p.name }}</div>
-                            <div class="small text-muted">{{ p.group_name || 'Einsatzabteilung' }}</div>
                         </td>
                         <td>
                             <span v-for="q in qualifications" 
@@ -201,8 +200,14 @@ createApp({
             this.personnel.forEach(p => {
                 let crit = false; let warn = false;
                 const check = (d, m) => this.getStatus(d, m);
-                const results = [check(p.g26_3_date, this.intervals.g26), check(p.belastungslauf_date, this.intervals.belastung), check(p.unterweisung_date, this.intervals.unterweisung)];
-                if(results.includes('bg-crit')) crit = true; else if(results.includes('bg-warn')) warn = true;
+                const results = [
+                    check(p.g26_3_date, this.intervals.g26), 
+                    check(p.belastungslauf_date, this.intervals.belastung), 
+                    check(p.unterweisung_date, this.intervals.unterweisung)
+                ];
+                if(results.includes('bg-crit')) crit = true; 
+                else if(results.includes('bg-warn')) warn = true;
+                
                 if(crit || warn) list.push({name: p.name, isCritical: crit});
             });
             return list.sort((a, b) => b.isCritical - a.isCritical);
@@ -218,15 +223,19 @@ createApp({
             try {
                 const r = await fetch('/api/personnel/settings');
                 const d = await r.json();
-                if(d.int_g26) this.intervals.g26 = d.int_g26;
-                if(d.int_belastung) this.intervals.belastung = d.int_belastung;
-                if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung;
+                if(d.int_g26) this.intervals.g26 = parseInt(d.int_g26);
+                if(d.int_belastung) this.intervals.belastung = parseInt(d.int_belastung);
+                if(d.int_unterweisung) this.intervals.unterweisung = parseInt(d.int_unterweisung);
             } catch(e) {}
         },
         async updateGlobalIntervals() {
             await fetch('/api/personnel/settings', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ int_g26: this.intervals.g26, int_belastung: this.intervals.belastung, int_unterweisung: this.intervals.unterweisung })
+                body: JSON.stringify({ 
+                    int_g26: parseInt(this.intervals.g26), 
+                    int_belastung: parseInt(this.intervals.belastung), 
+                    int_unterweisung: parseInt(this.intervals.unterweisung) 
+                })
             });
         },
         getStatus(dateStr, months) {
@@ -249,17 +258,17 @@ createApp({
             await fetch(`/api/personnel/update/${p.id}`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
+                    name: p.name,
                     is_truppmann: !!p.is_truppmann, is_funk: !!p.is_funk, is_agt: !!p.is_agt,
                     is_maschinist: !!p.is_maschinist, is_tf: !!p.is_tf, is_gf: !!p.is_gf,
                     g26_3_date: p.g26_3_date, belastungslauf_date: p.belastungslauf_date, unterweisung_date: p.unterweisung_date
                 })
             });
         },
-        // HIER WAR DER FEHLER: Pfad auf /api/personnel/delete korrigiert
         async deletePerson(p) {
-            if(confirm(`${p.name} wirklich aus der Liste löschen?`)) { 
-                const r = await fetch(`/api/personnel/delete/${p.id}`, { method: 'DELETE' }); 
-                if(r.ok) this.load(); else alert("Fehler beim Löschen");
+            if(confirm(`${p.name} wirklich löschen?`)) { 
+                await fetch(`/api/personnel/delete/${p.id}`, { method: 'DELETE' }); 
+                this.load();
             }
         }
     },
