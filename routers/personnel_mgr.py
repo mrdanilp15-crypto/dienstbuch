@@ -1,11 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
 import os
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
-
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 def get_db_connection():
@@ -13,44 +12,25 @@ def get_db_connection():
         host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
     )
 
-# Datenbank beim Start prüfen
-def init_personnel_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS personnel (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            rank VARCHAR(100),
-            is_agt BOOLEAN DEFAULT FALSE,
-            is_maschinist BOOLEAN DEFAULT FALSE,
-            is_funk BOOLEAN DEFAULT FALSE,
-            is_truppmann BOOLEAN DEFAULT FALSE,
-            is_tf BOOLEAN DEFAULT FALSE,
-            is_gf BOOLEAN DEFAULT FALSE,
-            g26_3_date DATE,
-            belastungslauf_date DATE,
-            unterweisung_date DATE
-        ) ENGINE=InnoDB;
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-init_personnel_db()
-
+# --- DATENMODELLE ---
 class PersonnelMember(BaseModel):
     name: str
-    rank: Optional[str] = ""
+    is_truppmann: bool = False
+    is_funk: bool = False
     is_agt: bool = False
     is_maschinist: bool = False
-    is_funk: bool = False
-    is_truppmann: bool = False
     is_tf: bool = False
     is_gf: bool = False
     g26_3_date: Optional[str] = None
     belastungslauf_date: Optional[str] = None
     unterweisung_date: Optional[str] = None
+
+class GlobalSettings(BaseModel):
+    int_g26: int
+    int_belastung: int
+    int_unterweisung: int
+
+# --- API ROUTEN ---
 
 @router.get("/list")
 def get_all_personnel():
@@ -65,17 +45,27 @@ def get_all_personnel():
 def add_member(m: PersonnelMember):
     conn = get_db_connection()
     cur = conn.cursor()
-    sql = """INSERT INTO personnel (name, rank, is_agt, is_maschinist, is_funk, is_truppmann, is_tf, is_gf, 
-             g26_3_date, belastungslauf_date, unterweisung_date) 
-             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-    vals = (m.name, m.rank, m.is_agt, m.is_maschinist, m.is_funk, m.is_truppmann, m.is_tf, m.is_gf,
-            m.g26_3_date, m.belastungslauf_date, m.unterweisung_date)
-    cur.execute(sql, vals)
+    cur.execute("INSERT INTO personnel (name) VALUES (%s)", (m.name,))
     conn.commit()
     conn.close()
     return {"status": "success"}
 
-@router.delete("/{member_id}")
+@router.post("/update/{member_id}")
+def update_member(member_id: int, m: PersonnelMember):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    sql = """UPDATE personnel SET 
+             is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s, 
+             g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s 
+             WHERE id=%s"""
+    vals = (m.is_truppmann, m.is_funk, m.is_agt, m.is_maschinist, m.is_tf, m.is_gf,
+            m.g26_3_date, m.belastungslauf_date, m.unterweisung_date, member_id)
+    cur.execute(sql, vals)
+    conn.commit()
+    conn.close()
+    return {"status": "updated"}
+
+@router.delete("/delete/{member_id}")
 def delete_member(member_id: int):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -83,3 +73,30 @@ def delete_member(member_id: int):
     conn.commit()
     conn.close()
     return {"status": "deleted"}
+
+# --- SETTINGS ROUTEN (Fristen) ---
+@router.get("/settings")
+def get_settings():
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT setting_key, setting_value FROM settings")
+    rows = cur.fetchall()
+    conn.close()
+    # Umwandlung in ein flaches JSON Objekt
+    res = {row['setting_key']: row['setting_value'] for row in rows}
+    return res
+
+@router.post("/settings")
+def save_settings(s: GlobalSettings):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    settings = [
+        ('int_g26', s.int_g26),
+        ('int_belastung', s.int_belastung),
+        ('int_unterweisung', s.int_unterweisung)
+    ]
+    for key, val in settings:
+        cur.execute("UPDATE settings SET setting_value=%s WHERE setting_key=%s", (val, key))
+    conn.commit()
+    conn.close()
+    return {"status": "settings updated"}
