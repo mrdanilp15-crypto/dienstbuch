@@ -43,17 +43,18 @@ def get_db_connection():
     )
 
 def init_db_extensions():
-    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen und importiert bestehende Namen."""
+    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Spalten für Qualifikationen sicherstellen
+        # Liste der benötigten Qualifikations-Spalten
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
             ("is_agt", "BOOLEAN DEFAULT FALSE"),
             ("is_maschinist", "BOOLEAN DEFAULT FALSE"),
+            ("is_tf", "BOOLEAN DEFAULT FALSE"),  # Truppführer ergänzt
             ("is_gf", "BOOLEAN DEFAULT FALSE"),
             ("g26_3_date", "DATE NULL"),
             ("belastungslauf_date", "DATE NULL"),
@@ -134,7 +135,6 @@ def init_db():
             conn.close()
             print("--- DATENBANK INITIALISIERT ---")
             
-            # Jetzt die neuen Spalten für Qualis hinzufügen
             init_db_extensions()
             break
         except Exception as e:
@@ -149,7 +149,6 @@ def safe_decode(value):
     return value
 
 # --- DATENMODELLE ---
-class PinCheck(BaseModel): pin: str
 class PersonData(BaseModel): name: str
 class VehicleData(BaseModel): name: str
 class EntryDto(BaseModel): 
@@ -202,8 +201,7 @@ async def login(data: dict, response: Response):
 @app.post("/api/verify_admin")
 async def verify_admin(data: dict):
     p = data.get("pin", "").strip()
-    if ADMIN_PIN and p == ADMIN_PIN:
-        return {"success": True}
+    if ADMIN_PIN and p == ADMIN_PIN: return {"success": True}
     raise HTTPException(status_code=401, detail="PIN falsch!")
 
 # --- GRUPPEN & PERSONEN ---
@@ -222,30 +220,18 @@ def create_group(g: GroupData):
 @app.post("/groups/{group_id}/persons")
 def add_person(group_id: int, p: PersonData):
     try:
-        c = get_db_connection()
-        cur = c.cursor()
+        c = get_db_connection(); cur = c.cursor()
         cur.execute("INSERT INTO persons (group_id, name) VALUES (%s, %s)", (group_id, p.name))
-        c.commit()
-        cur.close()
-        c.close()
+        c.commit(); cur.close(); c.close()
         return {"status": "person added"}
     except Exception as e:
-        print(f"Fehler beim Hinzufügen der Person: {e}")
-        raise HTTPException(status_code=500, detail="Datenbankfehler")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/groups/{id}")
 def delete_group(id: int):
-    try:
-        c = get_db_connection()
-        cur = c.cursor()
-        cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
-        c.commit()
-        cur.close()
-        c.close()
-        return {"status": "deleted", "id": id}
-    except Exception as e:
-        print(f"Fehler beim Löschen der Gruppe: {e}")
-        raise HTTPException(status_code=500, detail="Datenbankfehler")
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
+    c.commit(); c.close(); return {"status": "deleted"}
 
 @app.delete("/persons/{id}")
 def delete_person(id: int):
@@ -275,16 +261,9 @@ def delete_vehicle(id: int):
 # --- SESSIONS & STATS ---
 @app.delete("/sessions/{id}")
 def delete_session(id: int):
-    try:
-        c = get_db_connection()
-        cur = c.cursor()
-        cur.execute("DELETE FROM sessions WHERE id=%s", (id,))
-        c.commit()
-        cur.close()
-        c.close()
-        return {"status": "deleted", "id": id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fehler beim Löschen: {e}")
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM sessions WHERE id=%s", (id,))
+    c.commit(); c.close(); return {"status": "deleted"}
 
 @app.get("/groups/{id}/sessions")
 def get_sessions(id: int):
