@@ -173,6 +173,13 @@
                             <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
                             <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen...">
                         </div>
+                        
+                        <div class="form-check mb-2 ms-2">
+                            <input class="form-check-input" type="checkbox" id="selectAllCheck" @change="toggleSelectAll" :checked="allSelected">
+                            <label class="form-check-label fw-bold text-danger" for="selectAllCheck">Alle im Pool auswählen</label>
+                        </div>
+                        <hr class="mt-1 mb-2">
+
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
                                 <div class="form-check w-100 py-1">
@@ -212,9 +219,9 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
-                    allPersonnel: [],         // NEU für den Pool
-                    selectedFromPool: [],     // NEU für das Modal
-                    modalSearch: '',          // NEU für das Modal
+                    allPersonnel: [],         
+                    selectedFromPool: [],     
+                    modalSearch: '',          
                     topicOptions: [],
                     instrOptions: [],
                     q: '',
@@ -235,10 +242,13 @@
                     if (!this.q) return this.persons;
                     return this.persons.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
                 },
-                // NEU: Berechnet wer im Modal angezeigt wird (Leute die noch nicht in der Liste stehen)
                 availableFromPool() {
                     const currentNames = this.persons.map(p => p.name.toLowerCase());
                     return this.allPersonnel.filter(p => !currentNames.includes(p.name.toLowerCase()) && p.name.toLowerCase().includes(this.modalSearch.toLowerCase()));
+                },
+                // NEU: Prüft ob alle Checkboxen gesetzt sind
+                allSelected() { 
+                    return this.availableFromPool.length > 0 && this.selectedFromPool.length === this.availableFromPool.length; 
                 }
             },
             async mounted() { 
@@ -248,7 +258,7 @@
                 this.sessionId = p.get('session_id');
                 
                 await this.load();
-                await this.loadPool(); // NEU
+                await this.loadPool();
                 
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
@@ -309,7 +319,6 @@
                     }
                 },
                 async loadPool() { 
-                    // NEU: Lädt alle Personen aus dem zentralen Personal-Stamm
                     const r = await fetch('/api/personnel/list'); 
                     this.allPersonnel = await r.json(); 
                 },
@@ -358,8 +367,17 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
+
+                // NEU: Logik für Alle Auswählen
+                toggleSelectAll() {
+                    if (this.allSelected) {
+                        this.selectedFromPool = []; // Abwählen
+                    } else {
+                        // Alle Namen aus dem verfügbaren Pool in die Auswahl packen
+                        this.selectedFromPool = this.availableFromPool.map(p => p.name);
+                    }
+                },
                 
-                // NEUE FUNKTIONEN FÜR DAS MODAL STATT DER ALTEN addP, editP, deleteP
                 async addSelectedPersonnel() {
                     this.selectedFromPool.forEach(name => {
                         const p = this.allPersonnel.find(x => x.name === name);
@@ -375,11 +393,12 @@
                     if (modalInstance) modalInstance.hide();
                     
                     this.selectedFromPool = [];
-                    // Sofort speichern, damit der Server das neue Objekt hat
+                    
+                    // WICHTIG: Speichern ja, aber KEIN this.load() danach, 
+                    // damit die Liste nicht direkt wieder wegbricht!
                     await this.performSave();
-                    // Liste frisch vom Server laden, damit die IDs und Zustände 100% synchron sind
-                    await this.load(); 
                 },
+
                 async removeFromList(person) {
                     if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
                         clearTimeout(saveTimer);
