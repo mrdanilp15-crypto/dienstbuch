@@ -185,27 +185,18 @@
                             <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
                             <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen oder neuen Namen tippen...">
                         </div>
-
                         <div v-if="availableFromPool.length > 0" class="d-flex align-items-center p-2 mb-2 bg-light rounded-3">
                             <div class="form-check w-100 py-1">
-                                <input class="form-check-input" type="checkbox" id="selectAllPool" 
-                                       :checked="isAllSelected" 
-                                       @change="toggleSelectAll">
-                                <label class="form-check-label fw-bold ms-2 w-100" for="selectAllPool">
-                                    Alle auswählen ({{ availableFromPool.length }})
-                                </label>
+                                <input class="form-check-input" type="checkbox" id="selectAllPool" :checked="isAllSelected" @change="toggleSelectAll">
+                                <label class="form-check-label fw-bold ms-2 w-100" for="selectAllPool">Alle auswählen ({{ availableFromPool.length }})</label>
                             </div>
                         </div>
-
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
                                 <div class="form-check w-100 py-1">
                                     <input class="form-check-input" type="checkbox" :value="p.name" v-model="selectedFromPool" :id="'pool'+p.id">
                                     <label class="form-check-label fw-bold ms-2 w-100" :for="'pool'+p.id">{{ p.name }}</label>
                                 </div>
-                            </div>
-                            <div v-if="availableFromPool.length === 0 && modalSearch === ''" class="text-center text-muted py-3">
-                                Alle Personen aus dem Pool sind bereits in der Liste.
                             </div>
                         </div>
                         <div class="mt-3" v-if="modalSearch.length > 2">
@@ -268,8 +259,7 @@
                     });
                 },
                 isAllSelected() {
-                    return this.availableFromPool.length > 0 && 
-                           this.availableFromPool.every(p => this.selectedFromPool.includes(p.name));
+                    return this.availableFromPool.length > 0 && this.availableFromPool.every(p => this.selectedFromPool.includes(p.name));
                 }
             },
             async mounted() { 
@@ -277,44 +267,27 @@
                 const p = new URLSearchParams(window.location.search);
                 this.groupId = p.get('group_id');
                 this.sessionId = p.get('session_id');
-                
                 await this.load();
                 await this.loadPool();
-                
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
                 const instrs = await fetch(`/groups/${this.groupId}/instructors`);
                 this.instrOptions = await instrs.json();
-
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
                 const canvas = document.getElementById('sigCanvas');
                 sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
-                async goBack() {
-                    if(this.isAdmin) await this.performSave();
-                    window.location.href = '/static/dashboard.html';
-                },
+                async goBack() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
                 async promptAdmin() {
                     const p = prompt("Admin PIN eingeben:");
                     if (p) {
                         try {
-                            const r = await fetch('/api/login', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ pin: p })
-                            });
-                            if (r.ok) {
-                                this.isAdmin = true;
-                                localStorage.setItem('userRole', 'admin');
-                                location.reload(); 
-                            } else {
-                                alert("Falsche PIN!");
-                            }
-                        } catch (e) {
-                            alert("Verbindung fehlgeschlagen.");
-                        }
+                            const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: p }) });
+                            if (r.ok) { this.isAdmin = true; localStorage.setItem('userRole', 'admin'); location.reload(); }
+                            else { alert("Falsche PIN!"); }
+                        } catch (e) { alert("Verbindung fehlgeschlagen."); }
                     }
                 },
                 logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
@@ -329,50 +302,34 @@
                     const d = await(await fetch(url)).json(); 
                     this.persons = d.persons; 
                     if(d.session_id){ 
-                        this.sessionId = d.session_id; 
-                        this.category = d.category; 
-                        this.duration = d.duration; 
-                        this.description = d.description; 
-                        this.instructors = d.instructors; 
-                        this.currentDate = d.date; 
-                        this.leaderSignature = d.leader_signature; 
+                        this.sessionId = d.session_id; this.category = d.category; this.duration = d.duration; 
+                        this.description = d.description; this.instructors = d.instructors; 
+                        this.currentDate = d.date; this.leaderSignature = d.leader_signature; 
                     }
                 },
                 async loadPool() {
-                    try {
-                        const r = await fetch('/api/personnel/list');
-                        this.allPersonnel = await r.json();
-                    } catch (e) { console.error("Pool konnte nicht geladen werden"); }
+                    try { const r = await fetch('/api/personnel/list'); this.allPersonnel = await r.json(); }
+                    catch (e) { console.error("Pool konnte nicht geladen werden"); }
                 },
                 autoSave() { 
                     if(!this.isAdmin) return;
-                    this.saveState = 'saving'; 
-                    clearTimeout(saveTimer); 
+                    this.saveState = 'saving'; clearTimeout(saveTimer); 
                     saveTimer = setTimeout(this.performSave, 1000); 
                 },
                 async performSave() {
                     if(!this.isAdmin && this.sessionId) return; 
                     const data = { 
-                        session_id: this.sessionId, 
-                        date: this.currentDate, 
-                        group_id: parseInt(this.groupId), 
-                        category: this.category, 
-                        duration: parseFloat(this.duration), 
-                        description: this.description, 
-                        instructors: this.instructors, 
-                        leader_signature: this.leaderSignature, 
+                        session_id: this.sessionId, date: this.currentDate, group_id: parseInt(this.groupId), 
+                        category: this.category, duration: parseFloat(this.duration), description: this.description, 
+                        instructors: this.instructors, leader_signature: this.leaderSignature, 
                         entries: this.persons.map(x => ({person_id: x.id, is_present: x.is_present, vehicle: x.vehicle, signature: x.signature})) 
                     };
                     const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
                     const rd = await res.json(); 
-                    this.sessionId = rd.session_id; 
-                    this.saveState = 'saved';
+                    this.sessionId = rd.session_id; this.saveState = 'saved';
                     setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
                 },
-                async saveAndExit() { 
-                    if(this.isAdmin) await this.performSave(); 
-                    window.location.href = '/static/dashboard.html'; 
-                },
+                async saveAndExit() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
                 setCat(c) { this.category = c; this.autoSave(); },
                 togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
                 setVehicle(p,v) { p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
@@ -395,37 +352,30 @@
                         await fetch(`/groups/${this.groupId}/persons`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})});
                         await this.load();
                         const modal = bootstrap.Modal.getInstance(document.getElementById('personnelModal'));
-                        modal.hide();
-                        this.modalSearch = '';
+                        modal.hide(); this.modalSearch = '';
                     }
                 },
                 async addSelectedPersonnel() {
                     for (const name of this.selectedFromPool) {
-                        await fetch(`/groups/${this.groupId}/persons`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ name: name })
-                        });
+                        await fetch(`/groups/${this.groupId}/persons`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name: name }) });
                     }
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('personnelModal'));
-                    modal.hide();
-                    this.selectedFromPool = [];
-                    this.modalSearch = '';
-                    await this.load();
+                    bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
+                    this.selectedFromPool = []; this.modalSearch = ''; await this.load();
                 },
                 toggleSelectAll(event) {
-                    if (event.target.checked) {
-                        const names = this.availableFromPool.map(p => p.name);
-                        this.selectedFromPool = [...new Set([...this.selectedFromPool, ...names])];
-                    } else {
-                        const visibleNames = this.availableFromPool.map(p => p.name);
-                        this.selectedFromPool = this.selectedFromPool.filter(name => !visibleNames.includes(name));
-                    }
+                    if (event.target.checked) { const names = this.availableFromPool.map(p => p.name); this.selectedFromPool = [...new Set([...this.selectedFromPool, ...names])]; }
+                    else { const visibleNames = this.availableFromPool.map(p => p.name); this.selectedFromPool = this.selectedFromPool.filter(name => !visibleNames.includes(name)); }
                 },
-                removeFromList(person) {
-                    if(confirm(`${person.name} aus diesem Termin entfernen? (Person bleibt im Pool erhalten)`)) {
-                        this.persons = this.persons.filter(p => p.id !== person.id);
-                        this.autoSave();
+                async removeFromList(person) {
+                    if(confirm(`${person.name} aus dieser Gruppe entfernen?`)) {
+                        try {
+                            const response = await fetch(`/groups/${this.groupId}/persons/${person.id}`, { method: 'DELETE' });
+                            if (response.ok) {
+                                this.persons = this.persons.filter(p => p.id !== person.id);
+                                await this.performSave(); // Speichere den aktuellen Stand ohne die Person
+                                await this.load(); // Lade die Liste sauber vom Server neu
+                            } else { alert("Fehler beim Entfernen vom Server."); }
+                        } catch (e) { console.error("Verbindungsfehler:", e); this.persons = this.persons.filter(p => p.id !== person.id); }
                     }
                 }
             }
