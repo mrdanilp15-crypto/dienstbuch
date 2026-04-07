@@ -386,7 +386,13 @@
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
                 await this.fetchInfo();
                 await this.loadGroups();
-                this.checkGlobalInfo(); // Banner check beim Start
+                
+                // Banner check beim Start und Intervall (alle 5 Min)
+                this.checkGlobalInfo(); 
+                setInterval(() => {
+                    this.checkGlobalInfo();
+                }, 300000);
+
                 if (this.isAdmin) { await this.loadVehicles(); }
                 
                 const canvas = document.getElementById('sigCanvas');
