@@ -130,7 +130,6 @@
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold">{{ p.name }}</span>
                                 <div v-if="isAdmin">
-                                    <button class="btn-icon" @click.stop="editP(p)"><i class="fa fa-pen" style="font-size: 0.7rem;"></i></button>
                                     <button class="btn-icon text-danger" @click.stop="deleteP(p)"><i class="fa fa-trash-alt" style="font-size: 0.7rem;"></i></button>
                                 </div>
                             </div>
@@ -351,17 +350,6 @@
                             });
                             this.load();
                         } else { alert("Ungültige Wahl."); }
-                    }
-                },
-                async editP(p) { 
-                    const n = prompt("Name ändern:", p.name); 
-                    if(n && n !== p.name) { 
-                        await fetch(`/persons/${p.id}`, {
-                            method:'PUT', 
-                            headers:{'Content-Type':'application/json'}, 
-                            body:JSON.stringify({name:n})
-                        }); 
-                        this.load(); 
                     }
                 },
                 async deleteP(p) { 
