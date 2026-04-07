@@ -10,129 +10,146 @@
     <style>
         :root { 
             --fire: #ef4444; --warn: #f59e0b; --safe: #10b981; 
-            --dark: #1e293b; --bg: #f8fafc; 
+            --dark: #1e293b; --bg: #f1f5f9; 
         }
-        body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--dark); padding-bottom: 50px; }
+        body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--dark); padding-bottom: 80px; }
 
-        /* KARTEN & LAYOUT */
-        .glass-card {
-            background: white; border-radius: 16px; border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1.5rem; margin-bottom: 1.5rem;
+        /* KACHELN */
+        .stat-card {
+            background: white; border-radius: 12px; padding: 1rem;
+            border-left: 4px solid var(--fire); box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
         }
-        .main-table-wrapper { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-val { font-size: 1.5rem; font-weight: 800; display: block; }
+        .stat-label { font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; }
+
+        /* RESPONSIVE TABLE / CARDS */
+        .main-container { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
         
-        /* PULSIERENDER PUNKT */
-        .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+        @media (max-width: 768px) {
+            .desktop-only { display: none; }
+            .person-row { 
+                display: block; padding: 15px; border-bottom: 1px solid #e2e8f0; 
+                background: white; margin-bottom: 10px; border-radius: 12px;
+            }
+            .mobile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+            .mobile-label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 2px; }
+        }
+
+        /* STATUS & DESIGN */
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .bg-ok { background: var(--safe); }
         .bg-warn { background: var(--warn); }
-        .bg-crit { 
-            background: var(--fire); 
-            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-            animation: pulse-red 2s infinite; 
-        }
+        .bg-crit { background: var(--fire); animation: pulse-red 2s infinite; }
+        
         @keyframes pulse-red {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; }
         }
 
-        /* QUALI BUTTONS */
         .btn-q {
-            padding: 4px 10px; font-size: 0.7rem; font-weight: 700; border-radius: 6px;
-            border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s; margin: 2px;
+            padding: 5px 8px; font-size: 0.75rem; font-weight: 700; border-radius: 6px;
+            border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s;
         }
         .q-active { background: var(--dark); color: white; border-color: var(--dark); }
-        .q-inactive { background: #f1f5f9; color: #94a3b8; }
+        .q-inactive { background: #f8fafc; color: #cbd5e1; }
 
-        /* EDITABLE NAME */
-        .name-edit { border: 1px dashed transparent; padding: 2px 5px; border-radius: 4px; cursor: text; transition: 0.2s; }
-        .name-edit:hover { border-color: var(--warn); background: #fffcf0; }
-        .name-edit:focus { border-color: var(--fire); outline: none; background: white; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
-
-        /* ALARM BAR */
-        .notif-bar {
-            background: #fff1f2; border-left: 4px solid var(--fire); color: #991b1b;
-            padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;
+        .date-input { 
+            border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; 
+            font-size: 0.85rem; width: 100%; background: #f8fafc;
         }
+        .name-input { font-weight: 700; border: none; background: transparent; font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
-<div id="app" class="container py-4">
+<div id="app" class="container py-3">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="fw-bold"><i class="fa fa-user-shield text-danger me-2"></i>Personalstamm</h2>
-        <a href="/dashboard" class="btn btn-outline-dark btn-sm rounded-pill px-4">Zurück</a>
-    </div>
-
-    <div class="glass-card d-flex align-items-center flex-wrap gap-4">
-        <div class="small fw-bold text-uppercase text-muted"><i class="fa fa-clock me-2"></i>Intervalle (Monate)</div>
-        <div v-for="(val, key) in {G26: 'g26', Belastung: 'belastung', UVV: 'unterweisung'}" class="d-flex align-items-center gap-2">
-            <span class="small">{{ key }}:</span>
-            <input type="number" v-model="intervals[val]" @change="updateGlobalIntervals" class="form-control form-control-sm shadow-sm" style="width: 70px;">
-        </div>
-    </div>
-
-    <div v-if="fälligePersonen.length > 0" class="notif-bar shadow-sm">
-        <div>
-            <i class="fa fa-exclamation-triangle me-2"></i>
-            <strong>Achtung:</strong> {{ fälligePersonen.length }} Personen haben fällige Termine.
-        </div>
-        <div class="d-flex gap-1">
-            <span v-for="p in fälligePersonen.slice(0, 5)" class="badge bg-danger">{{ p.name }}</span>
-            <span v-if="fälligePersonen.length > 5" class="badge bg-secondary">+{{ fälligePersonen.length - 5 }}</span>
-        </div>
+        <h3 class="fw-bold m-0"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung</h3>
+        <a href="/dashboard" class="btn btn-dark btn-sm rounded-pill px-3">Dashboard</a>
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col-md-6">
-            <div class="input-group">
-                <span class="input-group-text bg-white border-end-0"><i class="fa fa-search text-muted"></i></span>
-                <input type="text" v-model="search" class="form-control border-start-0 shadow-none" placeholder="Nach Namen filtern...">
-            </div>
-        </div>
-        <div class="col-md-6 text-end">
-            <div class="d-inline-flex gap-2">
-                <input type="text" v-model="newName" class="form-control shadow-sm" placeholder="Neues Mitglied..." @keyup.enter="addPerson">
-                <button class="btn btn-danger px-4 fw-bold shadow-sm" @click="addPerson">Hinzufügen</button>
+        <div class="col-6 col-md-3" v-for="stat in stats" :key="stat.label">
+            <div class="stat-card" :style="{ borderColor: stat.color }">
+                <span class="stat-val">{{ stat.count }}</span>
+                <span class="stat-label">{{ stat.label }}</span>
             </div>
         </div>
     </div>
 
-    <div class="main-table-wrapper">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th style="width: 200px;">Name (Klicken zum Ändern)</th>
-                    <th>Qualifikationen</th>
-                    <th>G26.3</th>
-                    <th>Belastung</th>
-                    <th>UVV</th>
-                    <th class="text-end px-4">Löschen</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr v-for="p in filteredPersonnel" :key="p.id">
-                    <td>
-                        <input v-model="p.name" @blur="save(p)" class="name-edit fw-bold border-0 bg-transparent w-100">
-                    </td>
-                    <td>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-12 col-md-4">
+                    <label class="small fw-bold mb-1">Schnellsuche</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-0"><i class="fa fa-search"></i></span>
+                        <input type="text" v-model="search" class="form-control border-0 bg-light" placeholder="Name suchen...">
+                    </div>
+                </div>
+                <div class="col-12 col-md-8">
+                    <label class="small fw-bold mb-1">Neues Mitglied hinzufügen</label>
+                    <div class="d-flex gap-2">
+                        <input type="text" v-model="newName" class="form-control" placeholder="Vorname Nachname" @keyup.enter="addPerson">
+                        <button class="btn btn-danger px-4" @click="addPerson"><i class="fa fa-plus"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="row g-0 bg-light p-3 fw-bold small text-muted desktop-only border-bottom">
+            <div class="col-md-3">NAME</div>
+            <div class="col-md-3 text-center">QUALIFIKATIONEN</div>
+            <div class="col-md-2 text-center">G26.3</div>
+            <div class="col-md-2 text-center">BELASTUNG</div>
+            <div class="col-md-2 text-end">AKTION</div>
+        </div>
+
+        <div v-for="p in filteredPersonnel" :key="p.id" class="person-row border-bottom">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-3">
+                    <input v-model="p.name" @blur="save(p)" class="name-input w-100" placeholder="Name...">
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <div class="d-flex flex-wrap gap-1 justify-content-md-center">
                         <span v-for="q in qualifications" @click="toggleQ(p, q.id)"
                               :class="p[q.id] ? 'q-active' : 'q-inactive'" class="btn-q">
                             {{ q.label }}
                         </span>
-                    </td>
-                    <td v-for="field in ['g26_3_date', 'belastungslauf_date', 'unterweisung_date']">
-                        <div class="d-flex align-items-center">
-                            <span :class="getStatus(p[field], field)" class="status-dot"></span>
-                            <input type="date" v-model="p[field]" @change="save(p)" class="form-control form-control-sm border-0 bg-light py-0 px-1 shadow-none" style="font-size: 0.8rem;">
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <div class="mobile-grid">
+                        <div v-for="field in [{f: 'g26_3_date', l: 'G26.3'}, {f: 'belastungslauf_date', l: 'Belastung'}]">
+                            <span class="mobile-label">{{ field.l }}</span>
+                            <div class="d-flex align-items-center">
+                                <span :class="getStatus(p[field.f], field.f)" class="status-dot"></span>
+                                <input type="date" v-model="p[field.f]" @change="save(p)" class="date-input">
+                            </div>
                         </div>
-                    </td>
-                    <td class="text-end px-4">
-                        <button class="btn btn-link text-muted p-0" @click="deletePerson(p)"><i class="fa fa-trash-can"></i></button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                    </div>
+                    <div class="mt-2">
+                        <span class="mobile-label">UVV Unterweisung</span>
+                        <div class="d-flex align-items-center">
+                            <span :class="getStatus(p.unterweisung_date, 'unterweisung_date')" class="status-dot"></span>
+                            <input type="date" v-model="p.unterweisung_date" @change="save(p)" class="date-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-2 text-end">
+                    <hr class="d-md-none text-muted">
+                    <button class="btn btn-outline-secondary border-0 btn-sm" @click="deletePerson(p)">
+                        <i class="fa fa-trash-can me-1"></i> <span class="d-md-none">Löschen</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -154,15 +171,13 @@ createApp({
         filteredPersonnel() {
             return this.personnel.filter(p => p.name.toLowerCase().includes(this.search.toLowerCase()));
         },
-        fälligePersonen() {
-            return this.personnel.filter(p => {
-                const results = [
-                    this.getStatus(p.g26_3_date, 'g26_3_date'),
-                    this.getStatus(p.belastungslauf_date, 'belastungslauf_date'),
-                    this.getStatus(p.unterweisung_date, 'unterweisung_date')
-                ];
-                return results.includes('bg-crit') || results.includes('bg-warn');
-            });
+        stats() {
+            return [
+                { label: 'Gesamt', count: this.personnel.length, color: '#1e293b' },
+                { label: 'AGT', count: this.personnel.filter(p => p.is_agt).length, color: '#ef4444' },
+                { label: 'Maschinist', count: this.personnel.filter(p => p.is_maschinist).length, color: '#3b82f6' },
+                { label: 'Führung', count: this.personnel.filter(p => p.is_gf || p.is_tf).length, color: '#f59e0b' }
+            ];
         }
     },
     methods: {
@@ -176,12 +191,6 @@ createApp({
             if(d.int_g26) this.intervals.g26 = d.int_g26;
             if(d.int_belastung) this.intervals.belastung = d.int_belastung;
             if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung;
-        },
-        async updateGlobalIntervals() {
-            await fetch('/api/personnel/settings', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ int_g26: this.intervals.g26, int_belastung: this.intervals.belastung, int_unterweisung: this.intervals.unterweisung })
-            });
         },
         getStatus(dateStr, field) {
             if(!dateStr) return '';
