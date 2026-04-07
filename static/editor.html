@@ -30,7 +30,6 @@
         .sig-wrapper { border: 2px dashed #ccc; border-radius: 15px; background: white; width: 100%; height: 300px; position: relative; touch-action: none; }
         #sigCanvas { width: 100%; height: 100%; border-radius: 15px; }
         .btn-xs { font-size: 0.55rem !important; padding: 1px 5px !important; }
-        button:disabled { cursor: not-allowed; opacity: 0.8; }
         @media (max-width: 576px) {
             .person-row-container { display: flex; align-items: center; gap: 10px; }
             .person-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
@@ -120,7 +119,7 @@
             </div>
 
             <div class="mt-3">
-                <div v-for="p in filtered" :key="p.id" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
+                <div v-for="(p, idx) in filtered" :key="p.id + '-' + idx" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
                     <div class="person-row-container">
                         <div @click="isAdmin && togglePresence(p)" :style="{cursor: isAdmin ? 'pointer' : 'default'}">
                             <i v-if="p.is_present" class="fa-solid fa-circle-check text-success fs-2"></i>
@@ -163,16 +162,6 @@
             </button>
         </div>
 
-        <div class="modal fade" id="sigModal" tabindex="-1" data-bs-backdrop="static">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift</h5><button type="button" class="btn-close" @click="closeSig"></button></div>
-                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
-                    <div class="modal-footer border-0 justify-content-between pt-0"><button class="btn btn-light rounded-pill px-4" @click="clearModal">Löschen</button><button class="btn btn-primary rounded-pill px-5 fw-bold" @click="saveSig">OK</button></div>
-                </div>
-            </div>
-        </div>
-
         <div class="modal fade" id="personnelModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-md">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -183,13 +172,7 @@
                     <div class="modal-body">
                         <div class="input-group mb-3 border rounded-pill overflow-hidden bg-light">
                             <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
-                            <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen oder neuen Namen tippen...">
-                        </div>
-                        <div v-if="availableFromPool.length > 0" class="d-flex align-items-center p-2 mb-2 bg-light rounded-3">
-                            <div class="form-check w-100 py-1">
-                                <input class="form-check-input" type="checkbox" id="selectAllPool" :checked="isAllSelected" @change="toggleSelectAll">
-                                <label class="form-check-label fw-bold ms-2 w-100" for="selectAllPool">Alle auswählen ({{ availableFromPool.length }})</label>
-                            </div>
+                            <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen...">
                         </div>
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
@@ -199,18 +182,21 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-3" v-if="modalSearch.length > 2">
-                            <button class="btn btn-sm btn-outline-danger w-100 py-2 rounded-pill" @click="addManualPerson">
-                                <i class="fa fa-plus me-1"></i> "{{ modalSearch }}" neu hinzufügen
-                            </button>
-                        </div>
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">
-                            {{ selectedFromPool.length }} Hinzufügen
-                        </button>
+                        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">Hinzufügen</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="sigModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift</h5><button type="button" class="btn-close" @click="closeSig"></button></div>
+                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
+                    <div class="modal-footer border-0 justify-content-between pt-0"><button class="btn btn-light rounded-pill px-4" @click="clearModal">Löschen</button><button class="btn btn-primary rounded-pill px-5 fw-bold" @click="saveSig">OK</button></div>
                 </div>
             </div>
         </div>
@@ -223,24 +209,11 @@
         createApp({
             data() {
                 return {
-                    isAdmin: false,
-                    groupId: null,
-                    sessionId: null,
-                    persons: [],
-                    allPersonnel: [],
-                    selectedFromPool: [],
-                    modalSearch: '',
-                    topicOptions: [],
-                    instrOptions: [],
-                    q: '',
-                    category: 'Übung',
-                    duration: 2.0,
-                    description: '',
-                    instructors: '',
-                    leaderSignature: null,
-                    currentDate: new Date().toISOString().split('T')[0],
-                    saveState: 'idle',
-                    activeSigner: null
+                    isAdmin: false, groupId: null, sessionId: null, persons: [], allPersonnel: [],
+                    selectedFromPool: [], modalSearch: '', topicOptions: [], instrOptions: [],
+                    q: '', category: 'Übung', duration: 2.0, description: '', instructors: '',
+                    leaderSignature: null, currentDate: new Date().toISOString().split('T')[0],
+                    saveState: 'idle', activeSigner: null
                 }
             },
             computed: { 
@@ -252,70 +225,47 @@
                 },
                 availableFromPool() {
                     const currentNames = this.persons.map(p => p.name.toLowerCase());
-                    return this.allPersonnel.filter(p => {
-                        const isNotIncluded = !currentNames.includes(p.name.toLowerCase());
-                        const matchesSearch = p.name.toLowerCase().includes(this.modalSearch.toLowerCase());
-                        return isNotIncluded && matchesSearch;
-                    });
-                },
-                isAllSelected() {
-                    return this.availableFromPool.length > 0 && this.availableFromPool.every(p => this.selectedFromPool.includes(p.name));
+                    return this.allPersonnel.filter(p => !currentNames.includes(p.name.toLowerCase()) && p.name.toLowerCase().includes(this.modalSearch.toLowerCase()));
                 }
             },
             async mounted() { 
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
                 const p = new URLSearchParams(window.location.search);
-                this.groupId = p.get('group_id');
-                this.sessionId = p.get('session_id');
-                await this.load();
-                await this.loadPool();
-                const topics = await fetch(`/groups/${this.groupId}/topics`);
-                this.topicOptions = await topics.json();
-                const instrs = await fetch(`/groups/${this.groupId}/instructors`);
-                this.instrOptions = await instrs.json();
+                this.groupId = p.get('group_id'); this.sessionId = p.get('session_id');
+                await this.load(); await this.loadPool();
+                const t = await fetch(`/groups/${this.groupId}/topics`); this.topicOptions = await t.json();
+                const i = await fetch(`/groups/${this.groupId}/instructors`); this.instrOptions = await i.json();
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                const canvas = document.getElementById('sigCanvas');
-                sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+                sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'rgb(255, 255, 255)' });
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
                 async goBack() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
                 async promptAdmin() {
-                    const p = prompt("Admin PIN eingeben:");
-                    if (p) {
-                        try {
-                            const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: p }) });
-                            if (r.ok) { this.isAdmin = true; localStorage.setItem('userRole', 'admin'); location.reload(); }
-                            else { alert("Falsche PIN!"); }
-                        } catch (e) { alert("Verbindung fehlgeschlagen."); }
+                    const pin = prompt("Admin PIN:");
+                    if(pin) {
+                        const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin}) });
+                        if(r.ok) { this.isAdmin=true; localStorage.setItem('userRole','admin'); location.reload(); } else alert("Falsch!");
                     }
                 },
-                logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
+                logoutAdmin() { localStorage.setItem('userRole','user'); location.reload(); },
                 resizeCanvas() {
-                    const canvas = document.getElementById('sigCanvas'); if (!canvas) return;
-                    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                    canvas.width = canvas.offsetWidth * ratio; canvas.height = canvas.offsetHeight * ratio;
-                    canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
+                    const c = document.getElementById('sigCanvas'); if(!c) return;
+                    const r = Math.max(window.devicePixelRatio || 1, 1);
+                    c.width = c.offsetWidth * r; c.height = c.offsetHeight * r;
+                    c.getContext("2d").scale(r, r); sigPad.clear();
                 },
                 async load() { 
-                    const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
-                    const d = await(await fetch(url)).json(); 
-                    this.persons = d.persons; 
+                    const r = await fetch(`/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`);
+                    const d = await r.json(); this.persons = d.persons; 
                     if(d.session_id){ 
                         this.sessionId = d.session_id; this.category = d.category; this.duration = d.duration; 
                         this.description = d.description; this.instructors = d.instructors; 
                         this.currentDate = d.date; this.leaderSignature = d.leader_signature; 
                     }
                 },
-                async loadPool() {
-                    try { const r = await fetch('/api/personnel/list'); this.allPersonnel = await r.json(); }
-                    catch (e) { console.error("Pool konnte nicht geladen werden"); }
-                },
-                autoSave() { 
-                    if(!this.isAdmin) return;
-                    this.saveState = 'saving'; clearTimeout(saveTimer); 
-                    saveTimer = setTimeout(this.performSave, 1000); 
-                },
+                async loadPool() { const r = await fetch('/api/personnel/list'); this.allPersonnel = await r.json(); },
+                autoSave() { if(!this.isAdmin) return; this.saveState = 'saving'; clearTimeout(saveTimer); saveTimer = setTimeout(this.performSave, 1000); },
                 async performSave() {
                     if(!this.isAdmin && this.sessionId) return; 
                     const data = { 
@@ -325,20 +275,19 @@
                         entries: this.persons.map(x => ({person_id: x.id, is_present: x.is_present, vehicle: x.vehicle, signature: x.signature})) 
                     };
                     const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-                    const rd = await res.json(); 
-                    this.sessionId = rd.session_id; this.saveState = 'saved';
+                    const rd = await res.json(); this.sessionId = rd.session_id; this.saveState = 'saved';
                     setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
                 },
                 async saveAndExit() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
                 setCat(c) { this.category = c; this.autoSave(); },
                 togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
                 setVehicle(p,v) { p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
-                openSig(target) { this.activeSigner = target; sigModal.show(); setTimeout(this.resizeCanvas, 200); },
+                openSig(t) { this.activeSigner = t; sigModal.show(); setTimeout(this.resizeCanvas, 200); },
                 saveSig() { 
                     if(!sigPad.isEmpty()){ 
-                        const data = sigPad.toDataURL();
-                        if(this.activeSigner === 'LEADER') this.leaderSignature = data;
-                        else { this.activeSigner.signature = data; this.activeSigner.is_present = true; }
+                        const d = sigPad.toDataURL();
+                        if(this.activeSigner === 'LEADER') this.leaderSignature = d;
+                        else { this.activeSigner.signature = d; this.activeSigner.is_present = true; }
                     }
                     sigModal.hide(); this.autoSave();
                 },
@@ -346,36 +295,22 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
-                async addManualPerson() {
-                    const n = this.modalSearch.trim();
-                    if(n) {
-                        await fetch(`/groups/${this.groupId}/persons`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})});
-                        await this.load();
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('personnelModal'));
-                        modal.hide(); this.modalSearch = '';
-                    }
-                },
                 async addSelectedPersonnel() {
-                    for (const name of this.selectedFromPool) {
-                        await fetch(`/groups/${this.groupId}/persons`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name: name }) });
-                    }
+                    this.selectedFromPool.forEach(name => {
+                        const p = this.allPersonnel.find(x => x.name === name);
+                        if(p) this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
+                    });
                     bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
-                    this.selectedFromPool = []; this.modalSearch = ''; await this.load();
-                },
-                toggleSelectAll(event) {
-                    if (event.target.checked) { const names = this.availableFromPool.map(p => p.name); this.selectedFromPool = [...new Set([...this.selectedFromPool, ...names])]; }
-                    else { const visibleNames = this.availableFromPool.map(p => p.name); this.selectedFromPool = this.selectedFromPool.filter(name => !visibleNames.includes(name)); }
+                    this.selectedFromPool = []; this.autoSave();
                 },
                 async removeFromList(person) {
-                    if(confirm(`${person.name} aus dieser Gruppe entfernen?`)) {
-                        try {
-                            const response = await fetch(`/groups/${this.groupId}/persons/${person.id}`, { method: 'DELETE' });
-                            if (response.ok) {
-                                this.persons = this.persons.filter(p => p.id !== person.id);
-                                await this.performSave(); // Speichere den aktuellen Stand ohne die Person
-                                await this.load(); // Lade die Liste sauber vom Server neu
-                            } else { alert("Fehler beim Entfernen vom Server."); }
-                        } catch (e) { console.error("Verbindungsfehler:", e); this.persons = this.persons.filter(p => p.id !== person.id); }
+                    if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
+                        // 1. Aus dem lokalen Array löschen (filtert Dubletten oder die Person raus)
+                        this.persons = this.persons.filter(p => p !== person);
+                        // 2. Den neuen Stand (ohne die Person) SOFORT zum Server schicken
+                        await this.performSave();
+                        // 3. Optional: Liste neu laden, um 100% sicher zu sein
+                        await this.load();
                     }
                 }
             }
