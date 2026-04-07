@@ -21,7 +21,7 @@
         .stat-pill { flex: 1; background: white; padding: 8px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-bottom: 3px solid #ddd; }
         .search-input { border-radius: 30px; padding-left: 45px; border: 1px solid #eee; height: 48px; }
         .search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #bbb; }
-        .btn-icon { background: transparent; border: none; color: #ccc; padding: 5px; transition: 0.2s; }
+        .btn-icon { background: transparent; border: none; color: #ccc; padding: 5px; transition: 0.2s; cursor: pointer; }
         .btn-icon:hover { color: var(--primary-color); }
         .sig-preview { height: 50px; background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
         .sig-preview img { height: 100%; object-fit: contain; mix-blend-mode: multiply; }
@@ -30,10 +30,6 @@
         .sig-wrapper { border: 2px dashed #ccc; border-radius: 15px; background: white; width: 100%; height: 300px; position: relative; touch-action: none; }
         #sigCanvas { width: 100%; height: 100%; border-radius: 15px; }
         .btn-xs { font-size: 0.55rem !important; padding: 1px 5px !important; }
-        @media (max-width: 576px) {
-            .person-row-container { display: flex; align-items: center; gap: 10px; }
-            .person-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-        }
     </style>
 </head>
 <body>
@@ -41,19 +37,15 @@
         <div class="save-status" :class="{ visible: saveState !== 'idle' }">
             <i v-if="saveState === 'saving'" class="fa fa-circle-notch fa-spin text-primary"></i>
             <i v-if="saveState === 'saved'" class="fa fa-check-circle text-success"></i>
-            <i v-if="saveState === 'error'" class="fa fa-exclamation-triangle text-danger"></i>
             <span>{{ statusText }}</span>
         </div>
 
         <div class="main-content">
             <div class="mb-3 d-flex justify-content-between align-items-center">
                 <button @click="goBack" class="btn btn-link text-danger p-0 fw-bold text-decoration-none">
-                    <i class="fa fa-arrow-left me-2"></i>{{ isAdmin ? 'Abbrechen' : 'Zurück' }}
+                    <i class="fa fa-arrow-left me-2"></i>Zurück
                 </button>
-                <div>
-                    <button v-if="!isAdmin" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold" @click="promptAdmin">Login</button>
-                    <button v-else class="btn btn-sm btn-dark rounded-pill px-3 fw-bold" @click="logoutAdmin">Logout</button>
-                </div>
+                <button v-if="isAdmin" class="btn btn-sm btn-dark rounded-pill px-3 fw-bold" @click="logoutAdmin">Logout</button>
             </div>
             
             <div class="editor-card">
@@ -68,9 +60,8 @@
                     </div>
                     <div class="col-12">
                         <label class="small fw-bold text-muted">STICHWORT / THEMA</label>
-                        <input type="text" class="form-control fw-bold border-0 bg-light rounded-3" v-model="description" @input="autoSave" list="topicList" :disabled="!isAdmin">
+                        <input type="text" class="form-control fw-bold border-0 bg-light rounded-3" v-model="description" @input="autoSave" :disabled="!isAdmin">
                     </div>
-                    <datalist id="topicList"><option v-for="t in topicOptions" :value="t"></option></datalist>
                     <div class="col-12 mt-2">
                         <div class="btn-group w-100 shadow-sm rounded-3 overflow-hidden">
                             <button class="btn border-0 py-2 fw-bold" :class="category==='Übung' ? 'btn-primary' : 'btn-outline-dark'" @click="isAdmin && setCat('Übung')" :disabled="!isAdmin">Übung</button>
@@ -82,11 +73,10 @@
             </div>
 
             <div class="editor-card">
-                <h6 class="fw-bold text-muted text-uppercase mb-3" style="font-size: 0.65rem; letter-spacing: 1px;">Leitung & Unterschrift</h6>
+                <h6 class="fw-bold text-muted text-uppercase mb-3" style="font-size: 0.65rem; letter-spacing: 1px;">Leitung</h6>
                 <div class="row align-items-center">
                     <div class="col-7">
-                        <input type="text" class="form-control border-0 bg-light rounded-3" v-model="instructors" @input="autoSave" placeholder="Name Leitung..." list="instrList" :disabled="!isAdmin">
-                        <datalist id="instrList"><option v-for="i in instrOptions" :value="i"></option></datalist>
+                        <input type="text" class="form-control border-0 bg-light rounded-3" v-model="instructors" @input="autoSave" placeholder="Name..." :disabled="!isAdmin">
                     </div>
                     <div class="col-5">
                         <div class="sig-preview" @click="isAdmin && openSig('LEADER')">
@@ -108,25 +98,25 @@
                 <div class="d-flex gap-2 align-items-center mb-2">
                     <div class="position-relative flex-grow-1">
                         <i class="fa fa-search search-icon"></i>
-                        <input type="text" class="form-control search-input" v-model="q" placeholder="Namen suchen...">
+                        <input type="text" class="form-control search-input" v-model="q" placeholder="Suchen...">
                     </div>
-                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#personnelModal" @click="selectedFromPool = []; modalSearch = ''" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
+                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#personnelModal" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
                 </div>
             </div>
 
             <div class="mt-3">
-                <div v-for="(p, idx) in filtered" :key="p.id" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
-                    <div class="person-row-container">
+                <div v-for="p in filtered" :key="p.id" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
+                    <div class="d-flex align-items-center gap-3">
                         <div @click="isAdmin && togglePresence(p)" :style="{cursor: isAdmin ? 'pointer' : 'default'}">
                             <i v-if="p.is_present" class="fa-solid fa-circle-check text-success fs-2"></i>
                             <i v-else class="fa-regular fa-circle text-secondary fs-2"></i>
                         </div>
-                        <div class="person-info">
+                        <div class="flex-grow-1">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold">{{ p.name }}</span>
-                                <button v-if="isAdmin" class="btn-icon text-muted" @click.stop="removeFromList(p)"><i class="fa fa-times-circle" style="font-size: 0.8rem;"></i></button>
+                                <i v-if="isAdmin" class="fa fa-times-circle text-muted" style="cursor:pointer" @click.stop="removeFromList(p)"></i>
                             </div>
-                            <div class="d-flex flex-wrap gap-1">
+                            <div class="d-flex gap-1 mt-1">
                                 <button v-for="v in ['MZF', 'HLF', 'TLF', 'GWL']" 
                                         class="btn btn-xs border" 
                                         :class="p.vehicle === v ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" 
@@ -136,11 +126,8 @@
                         </div>
                         <div v-if="p.is_present" style="width: 80px;">
                             <div class="sig-preview" style="height: 40px;" @click="isAdmin && openSig(p)">
-                                <template v-if="p.signature">
-                                    <img :src="p.signature">
-                                    <div v-if="isAdmin" class="delete-sig-overlay" @click.stop="clearP(p)"><i class="fa fa-trash"></i></div>
-                                </template>
-                                <i v-else class="fa fa-pen" :class="isAdmin ? 'text-danger' : 'text-muted'"></i>
+                                <img v-if="p.signature" :src="p.signature">
+                                <i v-else class="fa fa-pen text-muted"></i>
                             </div>
                         </div>
                     </div>
@@ -154,35 +141,42 @@
 
         <div class="modal fade" id="personnelModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content rounded-4 border-0">
-                    <div class="modal-header bg-dark text-white rounded-top-4">
-                        <h5 class="modal-title fw-bold">Personal hinzufügen</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div class="modal-content rounded-4">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Personal hinzufügen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="text" v-model="modalSearch" class="form-control mb-3 rounded-pill" placeholder="Suchen...">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <input type="text" v-model="modalSearch" class="form-control rounded-pill me-2" placeholder="Suchen...">
+                            <button class="btn btn-sm btn-outline-secondary text-nowrap" @click="toggleSelectAll">
+                                {{ allSelected ? 'Keine' : 'Alle' }}
+                            </button>
+                        </div>
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div v-for="p in availableFromPool" :key="p.id" class="p-2 border-bottom">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" :value="p.name" v-model="selectedFromPool" :id="'pool'+p.id">
+                                    <input class="form-check-input" type="checkbox" :value="p" v-model="selectedFromPool" :id="'pool'+p.id">
                                     <label class="form-check-label fw-bold ms-2 w-100" :for="'pool'+p.id">{{ p.name }}</label>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">Hinzufügen</button>
+                    <div class="modal-footer">
+                        <button class="btn btn-danger w-100 rounded-pill" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">Hinzufügen</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="modal fade" id="sigModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">Unterschrift</h5><button type="button" class="btn-close" @click="closeSig"></button></div>
-                    <div class="modal-body p-4"><div class="sig-wrapper shadow-inner"><canvas id="sigCanvas"></canvas></div></div>
-                    <div class="modal-footer border-0 justify-content-between pt-0"><button class="btn btn-light rounded-pill px-4" @click="clearModal">Löschen</button><button class="btn btn-primary rounded-pill px-5 fw-bold" @click="saveSig">OK</button></div>
+                <div class="modal-content">
+                    <div class="modal-body"><div class="sig-wrapper"><canvas id="sigCanvas"></canvas></div></div>
+                    <div class="modal-footer justify-content-between">
+                        <button class="btn btn-light" @click="clearModal">Löschen</button>
+                        <button class="btn btn-primary" @click="saveSig">OK</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -210,7 +204,8 @@
                 availableFromPool() {
                     const currentIds = this.persons.map(p => p.id);
                     return this.allPersonnel.filter(p => !currentIds.includes(p.id) && p.name.toLowerCase().includes(this.modalSearch.toLowerCase()));
-                }
+                },
+                allSelected() { return this.availableFromPool.length > 0 && this.selectedFromPool.length === this.availableFromPool.length; }
             },
             async mounted() { 
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
@@ -218,20 +213,10 @@
                 this.groupId = p.get('group_id'); this.sessionId = p.get('session_id');
                 await this.loadPool();
                 await this.load();
-                const t = await fetch(`/groups/${this.groupId}/topics`); this.topicOptions = await t.json();
-                const i = await fetch(`/groups/${this.groupId}/instructors`); this.instrOptions = await i.json();
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'rgb(255, 255, 255)' });
-                window.addEventListener('resize', this.resizeCanvas);
+                sigPad = new SignaturePad(document.getElementById('sigCanvas'));
             },
             methods: {
-                async goBack() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
-                resizeCanvas() {
-                    const c = document.getElementById('sigCanvas'); if(!c) return;
-                    const r = Math.max(window.devicePixelRatio || 1, 1);
-                    c.width = c.offsetWidth * r; c.height = c.offsetHeight * r;
-                    c.getContext("2d").scale(r, r); sigPad.clear();
-                },
                 async load() { 
                     const r = await fetch(`/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`);
                     const d = await r.json(); 
@@ -243,10 +228,8 @@
                     }
                 },
                 async loadPool() { const r = await fetch('/api/personnel/list'); this.allPersonnel = await r.json(); },
-                autoSave() { if(!this.isAdmin) return; this.saveState = 'saving'; this.statusText = 'Warten...'; clearTimeout(saveTimer); saveTimer = setTimeout(this.performSave, 1500); },
+                autoSave() { if(!this.isAdmin) return; this.saveState = 'saving'; this.statusText = 'Speichert...'; clearTimeout(saveTimer); saveTimer = setTimeout(this.performSave, 1000); },
                 async performSave() {
-                    if(!this.isAdmin) return;
-                    this.saveState = 'saving'; this.statusText = 'Speichert...';
                     const data = { 
                         session_id: this.sessionId, date: this.currentDate, group_id: parseInt(this.groupId), 
                         category: this.category, duration: parseFloat(this.duration), description: this.description, 
@@ -254,17 +237,19 @@
                         entries: this.persons.map(x => ({person_id: x.id, is_present: x.is_present, vehicle: x.vehicle, signature: x.signature})) 
                     };
                     const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-                    if(res.ok) {
+                    if(res.ok) { 
                         const rd = await res.json(); this.sessionId = rd.session_id; 
                         this.saveState = 'saved'; this.statusText = 'Gespeichert';
                         setTimeout(() => this.saveState = 'idle', 2000);
                     }
                 },
-                async saveAndExit() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
+                toggleSelectAll() {
+                    if (this.allSelected) this.selectedFromPool = [];
+                    else this.selectedFromPool = [...this.availableFromPool];
+                },
                 addSelectedPersonnel() {
-                    this.selectedFromPool.forEach(name => {
-                        const p = this.allPersonnel.find(x => x.name === name);
-                        if(p) this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
+                    this.selectedFromPool.forEach(p => {
+                        this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
                     });
                     this.selectedFromPool = [];
                     bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
@@ -272,7 +257,11 @@
                 },
                 togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
                 setVehicle(p,v) { p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
-                openSig(t) { this.activeSigner = t; sigModal.show(); setTimeout(this.resizeCanvas, 200); },
+                openSig(t) { this.activeSigner = t; sigModal.show(); setTimeout(() => {
+                    const c = document.getElementById('sigCanvas');
+                    c.width = c.offsetWidth; c.height = c.offsetHeight;
+                    sigPad.clear();
+                }, 200); },
                 saveSig() { 
                     if(!sigPad.isEmpty()){ 
                         const d = sigPad.toDataURL();
@@ -284,9 +273,10 @@
                 clearModal() { sigPad.clear(); },
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
-                closeSig() { sigModal.hide(); },
                 removeFromList(p) { if(confirm(`${p.name} entfernen?`)) { this.persons = this.persons.filter(x => x.id !== p.id); this.performSave(); } },
-                promptAdmin() { const p = prompt("PIN:"); if(p === "admin112") { localStorage.setItem('userRole', 'admin'); location.reload(); } },
+                goBack() { window.location.href='/static/dashboard.html'; },
+                saveAndExit() { this.performSave().then(() => window.location.href='/static/dashboard.html'); },
+                setCat(c) { this.category = c; this.autoSave(); },
                 logoutAdmin() { localStorage.removeItem('userRole'); location.reload(); }
             }
         }).mount('#app');
