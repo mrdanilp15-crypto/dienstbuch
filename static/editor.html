@@ -21,7 +21,7 @@
         .stat-pill { flex: 1; background: white; padding: 8px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-bottom: 3px solid #ddd; }
         .search-input { border-radius: 30px; padding-left: 45px; border: 1px solid #eee; height: 48px; }
         .search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #bbb; }
-        .btn-icon { background: transparent; border: none; color: #ccc; padding: 5px; }
+        .btn-icon { background: transparent; border: none; color: #ccc; padding: 5px; transition: 0.2s; }
         .btn-icon:hover { color: var(--primary-color); }
         .sig-preview { height: 50px; background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
         .sig-preview img { height: 100%; object-fit: contain; mix-blend-mode: multiply; }
@@ -130,8 +130,9 @@
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold">{{ p.name }}</span>
                                 <div v-if="isAdmin">
-                                    <button class="btn-icon" @click.stop="editP(p)"><i class="fa fa-pen" style="font-size: 0.7rem;"></i></button>
-                                    <button class="btn-icon text-danger" @click.stop="deleteP(p)"><i class="fa fa-trash-alt" style="font-size: 0.7rem;"></i></button>
+                                    <button class="btn-icon text-muted" @click.stop="removeFromList(p)" title="Aus Liste entfernen">
+                                        <i class="fa fa-times-circle" style="font-size: 0.8rem;"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-1">
@@ -304,7 +305,6 @@
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ pin: p })
                             });
-
                             if (r.ok) {
                                 this.isAdmin = true;
                                 localStorage.setItem('userRole', 'admin');
@@ -422,8 +422,12 @@
                         this.selectedFromPool = this.selectedFromPool.filter(name => !visibleNames.includes(name));
                     }
                 },
-                async editP(p) { const n = prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
-                async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }}
+                removeFromList(person) {
+                    if(confirm(`${person.name} aus diesem Termin entfernen? (Person bleibt im Pool erhalten)`)) {
+                        this.persons = this.persons.filter(p => p.id !== person.id);
+                        this.autoSave();
+                    }
+                }
             }
         }).mount('#app');
     </script>
