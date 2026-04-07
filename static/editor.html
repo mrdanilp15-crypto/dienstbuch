@@ -15,12 +15,10 @@
         .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
         .editor-card { background: white; border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 20px; }
         .present-row { background-color: #f0fdf4 !important; border-left: 6px solid #198754 !important; }
-        .btn-xs { font-size: 0.65rem !important; padding: 4px 8px !important; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; background: white; color: #666; }
+        .btn-xs { font-size: 0.65rem !important; padding: 4px 8px !important; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; background: white; color: #666; margin-right: 4px; }
         .btn-xs.active { background-color: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
-        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; }
+        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; pointer-events: none; }
         .save-status.visible { opacity: 1; }
-        .sig-preview { height: 40px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .sig-preview img { height: 100%; mix-blend-mode: multiply; }
         .floating-buttons { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: center; border-top: 1px solid #eee; z-index: 1000; }
         .btn-main { background: var(--primary-color); color: white; border-radius: 50px; padding: 12px 40px; font-weight: 700; border: none; box-shadow: 0 10px 20px rgba(183, 28, 28, 0.2); }
     </style>
@@ -28,7 +26,7 @@
 <body>
     <div id="app">
         <div class="save-status" :class="{ visible: saving }">
-            <i class="fa fa-sync fa-spin text-danger"></i> Speichern...
+            <i class="fa fa-sync fa-spin text-danger"></i> Speichert...
         </div>
 
         <div class="main-content">
@@ -37,7 +35,7 @@
                     <i class="fa fa-arrow-left me-2"></i>Dashboard
                 </button>
                 <div class="badge bg-white text-dark border rounded-pill px-3 py-2 shadow-sm">
-                    {{ groupName }}
+                    {{ groupName || 'Lade Gruppe...' }}
                 </div>
             </div>
             
@@ -85,13 +83,6 @@
                         </div>
                     </div>
 
-                    <div v-if="p.is_present" style="width: 70px;">
-                        <div class="sig-preview" @click="openSig(p)">
-                            <img v-if="p.signature" :src="p.signature">
-                            <i v-else class="fa fa-pen text-danger small"></i>
-                        </div>
-                    </div>
-                    
                     <button class="btn text-muted p-1" @click="removePerson(p)">
                         <i class="fa fa-trash"></i>
                     </button>
@@ -101,7 +92,7 @@
 
         <div class="floating-buttons shadow-lg">
             <button class="btn-main shadow" @click="goBack">
-                <i class="fa fa-check me-2"></i>DASHBOARD
+                <i class="fa fa-check me-2"></i>FERTIG
             </button>
         </div>
 
@@ -125,25 +116,10 @@
                 </div>
             </div>
         </div>
-
-        <div class="modal fade" id="sigModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-body p-4">
-                        <canvas id="sigCanvas" style="width:100%; height:200px; border:1px dashed #ccc; border-radius: 12px;"></canvas>
-                        <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-light flex-grow-1 rounded-pill" @click="clearSig">Löschen</button>
-                            <button class="btn btn-primary flex-grow-1 rounded-pill" @click="saveSig">OK</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
         const { createApp } = Vue;
-        let sigPad = null, sigModal = null;
 
         createApp({
             data() {
@@ -151,7 +127,7 @@
                     groupId: null, sessionId: null, groupName: '',
                     globalVehicles: [], persons: [], pool: [],
                     description: '', duration: 2.0, currentDate: new Date().toISOString().split('T')[0],
-                    saving: false, q: '', activePerson: null
+                    saving: false, q: ''
                 }
             },
             computed: {
@@ -165,37 +141,43 @@
                 this.groupId = params.get('group_id');
                 this.sessionId = params.get('session_id');
 
-                // 1. Fahrzeuge laden (Globaler Pfad aus deinem Dashboard!)
-                const vRes = await fetch('/api/vehicles');
-                this.globalVehicles = await vRes.json();
+                // 1. Fahrzeuge laden (Dashboard Pfad)
+                try {
+                    const vRes = await fetch('/api/vehicles');
+                    this.globalVehicles = await vRes.json();
+                } catch(e) {}
 
-                // 2. Gruppe laden (Korrekt ohne /api/ laut deinem Log)
-                const gRes = await fetch(`/groups/${this.groupId}`);
-                const gData = await gRes.json();
-                this.groupName = gData.name;
+                // 2. Gruppen-Name laden (OHNE die fehlerhafte /groups/1 Route)
+                try {
+                    const gRes = await fetch('/groups');
+                    const groups = await gRes.json();
+                    const currentGroup = groups.find(g => g.id == this.groupId);
+                    if (currentGroup) this.groupName = currentGroup.name;
+                } catch(e) {}
 
                 // 3. Bestehende Anwesenheit laden
                 await this.loadAttendance();
 
                 // 4. Personal Pool laden
-                const pRes = await fetch('/api/personnel/list');
-                this.pool = await pRes.json();
-
-                sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                sigPad = new SignaturePad(document.getElementById('sigCanvas'));
+                try {
+                    const pRes = await fetch('/api/personnel/list');
+                    this.pool = await pRes.json();
+                } catch(e) {}
             },
             methods: {
                 async loadAttendance() {
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    this.persons = data.persons || [];
-                    if (data.session_id) {
-                        this.sessionId = data.session_id;
-                        this.description = data.description || '';
-                        this.duration = data.duration || 2.0;
-                        this.currentDate = data.date || this.currentDate;
-                    }
+                    try {
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        this.persons = data.persons || [];
+                        if (data.session_id) {
+                            this.sessionId = data.session_id;
+                            this.description = data.description || '';
+                            this.duration = data.duration || 2.0;
+                            this.currentDate = data.date || this.currentDate;
+                        }
+                    } catch(e) {}
                 },
                 async autoSave() {
                     this.saving = true;
@@ -208,53 +190,45 @@
                         entries: this.persons.map(p => ({
                             person_id: p.id,
                             is_present: p.is_present,
-                            vehicle: p.vehicle || '',
-                            signature: p.signature
+                            vehicle: p.vehicle || ''
                         }))
                     };
-                    const r = await fetch('/attendance', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(payload)
-                    });
-                    const res = await r.json();
-                    if (res.session_id) this.sessionId = res.session_id;
-                    setTimeout(() => { this.saving = false; }, 500);
+                    try {
+                        const r = await fetch('/attendance', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(payload)
+                        });
+                        const res = await r.json();
+                        if (res.session_id) {
+                            this.sessionId = res.session_id;
+                            // Update URL ohne Seite neu zu laden, damit Session-ID erhalten bleibt
+                            const newUrl = `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`;
+                            window.history.replaceState({path: newUrl}, '', newUrl);
+                        }
+                    } catch (e) {}
+                    setTimeout(() => { this.saving = false; }, 400);
                 },
                 async addFromPool(p) {
                     if(!this.persons.find(x => x.id === p.id)) {
-                        this.persons.push({...p, is_present: true, vehicle: '', signature: null});
-                        await this.autoSave(); // Sofort speichern!
+                        this.persons.push({...p, is_present: true, vehicle: ''});
+                        await this.autoSave(); 
                     }
                     bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
                 },
-                removePerson(p) {
+                async removePerson(p) {
                     this.persons = this.persons.filter(x => x.id !== p.id);
-                    this.autoSave();
+                    await this.autoSave();
                 },
-                togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
-                setVehicle(p, vName) {
+                async togglePresence(p) { 
+                    p.is_present = !p.is_present; 
+                    await this.autoSave(); 
+                },
+                async setVehicle(p, vName) {
                     p.vehicle = (p.vehicle === vName) ? '' : vName;
                     if(p.vehicle) p.is_present = true;
-                    this.autoSave();
+                    await this.autoSave();
                 },
-                openSig(p) {
-                    this.activePerson = p;
-                    sigModal.show();
-                    setTimeout(() => {
-                        const c = document.getElementById('sigCanvas');
-                        c.width = c.offsetWidth; c.height = c.offsetHeight;
-                        sigPad.clear();
-                    }, 200);
-                },
-                saveSig() {
-                    if(!sigPad.isEmpty()) {
-                        this.activePerson.signature = sigPad.toDataURL();
-                        this.autoSave();
-                    }
-                    sigModal.hide();
-                },
-                clearSig() { sigPad.clear(); },
                 goBack() { window.location.href = '/static/dashboard.html'; }
             }
         }).mount('#app');
