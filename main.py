@@ -284,65 +284,73 @@ def get_stats(id: int, year: int):
     cur.execute(sql, (year, id, id)); p = cur.fetchall(); c.close()
     return {"persons": p, "total_sessions": max_s}
 
-@app.get("/groups/{id}/attendance")
-def get_attendance(id:int, session_id:Optional[int]=None):
-    c=get_db_connection(); cur=c.cursor(dictionary=True); row=None
-    if session_id: 
-        cur.execute("SELECT * FROM sessions WHERE id=%s",(session_id,))
-        row=cur.fetchone()
-    
-    sid = row['id'] if row else 0
-    
-    # KORREKTUR: Wir laden Personen der Gruppe PLUS Personen, die bereits in attendance für diese Session stehen
-    sql = """SELECT p.id, p.name, IFNULL(a.is_present,0) as is_present, 
-             IFNULL(a.note,'') as note, IFNULL(a.vehicle,'') as vehicle, a.signature 
-             FROM persons p 
-             LEFT JOIN attendance a ON p.id=a.person_id AND a.session_id=%s 
-             WHERE p.group_id=%s OR a.session_id=%s 
-             GROUP BY p.id
-             ORDER BY p.name"""
-    cur.execute(sql, (sid, id, sid)); persons = cur.fetchall()
-    for p in persons: 
-        p['is_present']=bool(p['is_present'])
-        p['signature']=safe_decode(p['signature'])
-    c.close()
-    return {
-        "session_id":sid, "date":str(row['date']) if row else str(datetime.now().date()), 
-        "category":row['category'] if row else "Übung", "duration":float(row['duration']) if row else 2.0, 
-        "description":row['description'] if row else "", "instructors":row['instructors'] if row else "", 
-        "leader_signature": safe_decode(row['leader_signature']) if row else None, "persons":persons
-    }
+@app.get("/groups/{group_id}/attendance")
+async def get_attendance(group_id: int, session_id: Optional[int] = None):
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        session_data = {"session_id": session_id, "description": "", "duration": 2.0, "date": datetime.now().strftime("%Y-%m-%d")}
+        if session_id:
+            cur.execute("SELECT id as session_id, description, duration, date FROM sessions WHERE id = %s", (session_id,))
+            row = cur.fetchone()
+            if row:
+                session_data = row
+                session_data['date'] = str(session_data['date'])
+
+        # LEFT JOIN: Lädt alle Personen der Gruppe, auch wenn sie noch nicht gespeichert wurden
+        query = """
+            SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, 
+                   COALESCE(a.note, '') as note, COALESCE(a.vehicle, '') as vehicle, a.signature 
+            FROM persons p
+            LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s
+            WHERE p.group_id = %s ORDER BY p.name
+        """
+        cur.execute(query, (session_id, group_id))
+        persons = cur.fetchall()
+        for p in persons:
+            p['signature'] = safe_decode(p['signature'])
+            p['is_present'] = bool(p['is_present'])
+
+        return {**session_data, "persons": persons}
+    finally:
+        cur.close()
+        conn.close()
 
 @app.post("/attendance")
-def save_attendance(d: AttendanceUpload):
-    c = get_db_connection()
-    cur = c.cursor()
+async def save_attendance(payload: AttendancePayload):
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
     try:
-        if d.session_id:
-            cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", 
-                        (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
-            sid = d.session_id
-            cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
+        if payload.session_id:
+            cur.execute(
+                "UPDATE sessions SET date=%s, description=%s, duration=%s WHERE id=%s",
+                (payload.date, payload.description, payload.duration, payload.session_id)
+            )
+            session_id = payload.session_id
         else:
-            cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
-                        (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
-            sid = cur.lastrowid
+            cur.execute(
+                "INSERT INTO sessions (group_id, date, description, duration) VALUES (%s, %s, %s, %s)",
+                (payload.group_id, payload.date, payload.description, payload.duration)
+            )
+            session_id = cur.lastrowid
 
-        # Sicherheits-Check: Wir prüfen nur, ob die IDs existieren
-        cur.execute("SELECT id FROM persons")
-        valid_ids = {row[0] for row in cur.fetchall()}
-
-        for e in d.entries: 
-            if e.person_id in valid_ids:
-                cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", 
-                            (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
-        c.commit()
-        return {"session_id": sid}
-    except Exception as err:
-        c.rollback()
-        raise HTTPException(status_code=500, detail=str(err))
+        # WICHTIG: Erst löschen, dann neu schreiben (Clean Slate)
+        cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
+        for entry in payload.entries:
+            cur.execute(
+                "INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",
+                (session_id, entry.person_id, 1 if entry.is_present else 0, entry.note, entry.vehicle, entry.signature)
+            )
+        
+        conn.commit()
+        return {"status": "success", "session_id": session_id}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        c.close()
+        cur.close()
+        conn.close()
+
 
 @app.post("/sessions/{session_id}/leader_signature")
 async def save_leader_sig(session_id: int, data: dict):
