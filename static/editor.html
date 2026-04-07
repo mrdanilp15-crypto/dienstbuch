@@ -93,7 +93,7 @@
                         <datalist id="instrList"><option v-for="i in instrOptions" :value="i"></option></datalist>
                     </div>
                     <div class="col-5">
-                        <div class="sig-preview" @click="isAdmin && openSig('LEADER')">
+                        <div class="sig-preview" @click="openSig('LEADER')">
                             <template v-if="leaderSignature">
                                 <img :src="leaderSignature">
                                 <div v-if="isAdmin" class="delete-sig-overlay" @click.stop="clearLeaderSig"><i class="fa fa-trash"></i></div>
@@ -142,12 +142,12 @@
                             </div>
                         </div>
                         <div v-if="p.is_present" style="width: 80px;">
-                            <div class="sig-preview" style="height: 40px;" @click="isAdmin && openSig(p)">
+                            <div class="sig-preview" style="height: 40px;" @click="openSig(p)">
                                 <template v-if="p.signature">
                                     <img :src="p.signature">
                                     <div v-if="isAdmin" class="delete-sig-overlay" @click.stop="clearP(p)"><i class="fa fa-trash"></i></div>
                                 </template>
-                                <i v-else class="fa fa-pen" :class="isAdmin ? 'text-danger' : 'text-muted'"></i>
+                                <i v-else class="fa fa-pen" :class="'text-danger'"></i>
                             </div>
                         </div>
                     </div>
@@ -246,7 +246,6 @@
                     const currentNames = this.persons.map(p => p.name.toLowerCase());
                     return this.allPersonnel.filter(p => !currentNames.includes(p.name.toLowerCase()) && p.name.toLowerCase().includes(this.modalSearch.toLowerCase()));
                 },
-                // NEU: Prüft ob alle Checkboxen gesetzt sind
                 allSelected() { 
                     return this.availableFromPool.length > 0 && this.selectedFromPool.length === this.availableFromPool.length; 
                 }
@@ -323,13 +322,11 @@
                     this.allPersonnel = await r.json(); 
                 },
                 autoSave() { 
-                    if(!this.isAdmin) return;
                     this.saveState = 'saving'; 
                     clearTimeout(saveTimer); 
                     saveTimer = setTimeout(this.performSave, 1000); 
                 },
                 async performSave() {
-                    if(!this.isAdmin && this.sessionId) return; 
                     const data = { 
                         session_id: this.sessionId, 
                         date: this.currentDate, 
@@ -348,7 +345,7 @@
                     setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
                 },
                 async saveAndExit() { 
-                    if(this.isAdmin) await this.performSave(); 
+                    await this.performSave(); 
                     window.location.href = '/static/dashboard.html'; 
                 },
                 setCat(c) { this.category = c; this.autoSave(); },
@@ -368,12 +365,10 @@
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
 
-                // NEU: Logik für Alle Auswählen
                 toggleSelectAll() {
                     if (this.allSelected) {
-                        this.selectedFromPool = []; // Abwählen
+                        this.selectedFromPool = []; 
                     } else {
-                        // Alle Namen aus dem verfügbaren Pool in die Auswahl packen
                         this.selectedFromPool = this.availableFromPool.map(p => p.name);
                     }
                 },
@@ -393,9 +388,6 @@
                     if (modalInstance) modalInstance.hide();
                     
                     this.selectedFromPool = [];
-                    
-                    // WICHTIG: Speichern ja, aber KEIN this.load() danach, 
-                    // damit die Liste nicht direkt wieder wegbricht!
                     await this.performSave();
                 },
 
