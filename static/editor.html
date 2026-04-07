@@ -268,6 +268,7 @@
                 autoSave() { if(!this.isAdmin) return; this.saveState = 'saving'; clearTimeout(saveTimer); saveTimer = setTimeout(this.performSave, 1000); },
                 async performSave() {
                     if(!this.isAdmin && this.sessionId) return; 
+                    this.saveState = 'saving';
                     const data = { 
                         session_id: this.sessionId, date: this.currentDate, group_id: parseInt(this.groupId), 
                         category: this.category, duration: parseFloat(this.duration), description: this.description, 
@@ -275,7 +276,9 @@
                         entries: this.persons.map(x => ({person_id: x.id, is_present: x.is_present, vehicle: x.vehicle, signature: x.signature})) 
                     };
                     const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-                    const rd = await res.json(); this.sessionId = rd.session_id; this.saveState = 'saved';
+                    const rd = await res.json(); 
+                    this.sessionId = rd.session_id; 
+                    this.saveState = 'saved';
                     setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
                 },
                 async saveAndExit() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
@@ -298,18 +301,26 @@
                 async addSelectedPersonnel() {
                     this.selectedFromPool.forEach(name => {
                         const p = this.allPersonnel.find(x => x.name === name);
-                        if(p) this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
+                        if(p) {
+                            if (!this.persons.find(existing => existing.id === p.id)) {
+                                // Wieder auf false gesetzt, wie gewünscht
+                                this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
+                            }
+                        }
                     });
-                    bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
-                    this.selectedFromPool = []; this.autoSave();
+                    
+                    const modalEl = document.getElementById('personnelModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    
+                    this.selectedFromPool = [];
+                    // Wichtig: Sofort speichern ohne Verzögerung
+                    await this.performSave();
                 },
                 async removeFromList(person) {
                     if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
                         clearTimeout(saveTimer);
-                        this.saveState = 'saving';
-                        // Person lokal aus dem Array filtern
                         this.persons = this.persons.filter(p => p.id !== person.id);
-                        // Sofort speichern, damit der Server das neue Array (ohne diese Person) sieht und bereinigt
                         await this.performSave();
                     }
                 }
