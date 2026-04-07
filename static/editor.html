@@ -115,7 +115,7 @@
                         <i class="fa fa-search search-icon"></i>
                         <input type="text" class="form-control search-input" v-model="q" placeholder="Namen suchen...">
                     </div>
-                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" @click="addP" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
+                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#personnelModal" @click="selectedFromPool = []; modalSearch = ''" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
                 </div>
             </div>
 
@@ -130,16 +130,16 @@
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold">{{ p.name }}</span>
                                 <div v-if="isAdmin">
+                                    <button class="btn-icon" @click.stop="editP(p)"><i class="fa fa-pen" style="font-size: 0.7rem;"></i></button>
                                     <button class="btn-icon text-danger" @click.stop="deleteP(p)"><i class="fa fa-trash-alt" style="font-size: 0.7rem;"></i></button>
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-1">
-                                <button v-for="v in vehicles" 
-                                        :key="v.id"
+                                <button v-for="v in ['MZF', 'HLF', 'TLF', 'GWL']" 
                                         class="btn btn-xs border" 
-                                        :class="p.vehicle === v.name ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" 
-                                        @click.stop="isAdmin && setVehicle(p, v.name)"
-                                        :disabled="!isAdmin">{{v.name}}</button>
+                                        :class="p.vehicle === v ? 'bg-danger text-white border-danger' : 'bg-white text-muted'" 
+                                        @click.stop="isAdmin && setVehicle(p, v)"
+                                        :disabled="!isAdmin">{{v}}</button>
                             </div>
                         </div>
                         <div v-if="p.is_present" style="width: 80px;">
@@ -171,6 +171,45 @@
                 </div>
             </div>
         </div>
+
+        <div class="modal fade" id="personnelModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-md">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header bg-dark text-white rounded-top-4">
+                        <h5 class="modal-title fw-bold"><i class="fa fa-user-plus me-2"></i>Personal hinzufügen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group mb-3 border rounded-pill overflow-hidden bg-light">
+                            <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
+                            <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen oder neuen Namen tippen...">
+                        </div>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
+                                <div class="form-check w-100 py-1">
+                                    <input class="form-check-input" type="checkbox" :value="p.name" v-model="selectedFromPool" :id="'pool'+p.id">
+                                    <label class="form-check-label fw-bold ms-2 w-100" :for="'pool'+p.id">{{ p.name }}</label>
+                                </div>
+                            </div>
+                            <div v-if="availableFromPool.length === 0 && modalSearch === ''" class="text-center text-muted py-3">
+                                Alle Personen aus dem Pool sind bereits in der Liste.
+                            </div>
+                        </div>
+                        <div class="mt-3" v-if="modalSearch.length > 2">
+                            <button class="btn btn-sm btn-outline-danger w-100 py-2 rounded-pill" @click="addManualPerson">
+                                <i class="fa fa-plus me-1"></i> "{{ modalSearch }}" neu hinzufügen
+                            </button>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">
+                            {{ selectedFromPool.length }} Hinzufügen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -184,8 +223,9 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
-                    personnelPool: [],
-                    vehicles: [], 
+                    allPersonnel: [],
+                    selectedFromPool: [],
+                    modalSearch: '',
                     topicOptions: [],
                     instrOptions: [],
                     q: '',
@@ -205,6 +245,14 @@
                 filtered() {
                     if (!this.q) return this.persons;
                     return this.persons.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
+                },
+                availableFromPool() {
+                    const currentNames = this.persons.map(p => p.name.toLowerCase());
+                    return this.allPersonnel.filter(p => {
+                        const isNotIncluded = !currentNames.includes(p.name.toLowerCase());
+                        const matchesSearch = p.name.toLowerCase().includes(this.modalSearch.toLowerCase());
+                        return isNotIncluded && matchesSearch;
+                    });
                 }
             },
             async mounted() { 
@@ -214,7 +262,7 @@
                 this.sessionId = p.get('session_id');
                 
                 await this.load();
-                await this.loadVehicles();
+                await this.loadPool();
                 
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
@@ -227,15 +275,9 @@
                 window.addEventListener('resize', this.resizeCanvas);
             },
             methods: {
-                async loadVehicles() {
-                    try {
-                        const res = await fetch('/api/vehicles');
-                        this.vehicles = await res.json();
-                    } catch (e) { console.error("Fahrzeuge Fehler", e); }
-                },
                 async goBack() {
                     if(this.isAdmin) await this.performSave();
-                    window.location.href = '/dashboard';
+                    window.location.href = '/static/dashboard.html';
                 },
                 async promptAdmin() {
                     const p = prompt("Admin PIN eingeben:");
@@ -246,12 +288,17 @@
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ pin: p })
                             });
+
                             if (r.ok) {
                                 this.isAdmin = true;
                                 localStorage.setItem('userRole', 'admin');
                                 location.reload(); 
-                            } else { alert("Falsche PIN!"); }
-                        } catch (e) { alert("Fehler!"); }
+                            } else {
+                                alert("Falsche PIN!");
+                            }
+                        } catch (e) {
+                            alert("Verbindung fehlgeschlagen.");
+                        }
                     }
                 },
                 logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
@@ -265,12 +312,6 @@
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                     const d = await(await fetch(url)).json(); 
                     this.persons = d.persons; 
-                    
-                    try {
-                        const resPool = await fetch('/api/personnel/list');
-                        this.personnelPool = await resPool.json();
-                    } catch(e) { console.error("Pool Fehler", e); }
-
                     if(d.session_id){ 
                         this.sessionId = d.session_id; 
                         this.category = d.category; 
@@ -280,6 +321,12 @@
                         this.currentDate = d.date; 
                         this.leaderSignature = d.leader_signature; 
                     }
+                },
+                async loadPool() {
+                    try {
+                        const r = await fetch('/api/personnel/list');
+                        this.allPersonnel = await r.json();
+                    } catch (e) { console.error("Pool konnte nicht geladen werden"); }
                 },
                 autoSave() { 
                     if(!this.isAdmin) return;
@@ -308,7 +355,7 @@
                 },
                 async saveAndExit() { 
                     if(this.isAdmin) await this.performSave(); 
-                    window.location.href = '/dashboard'; 
+                    window.location.href = '/static/dashboard.html'; 
                 },
                 setCat(c) { this.category = c; this.autoSave(); },
                 togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
@@ -326,38 +373,32 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
-                async addP() { 
-                    const currentNames = this.persons.map(p => p.name);
-                    const available = this.personnelPool.filter(p => !currentNames.includes(p.name));
-                    
-                    if (available.length === 0) {
-                        alert("Alle Personen aus dem Personal-Pool sind bereits in dieser Gruppe.");
-                        return;
-                    }
-
-                    let msg = "Nummer wählen, um Person hinzuzufügen:\n\n";
-                    available.forEach((p, i) => msg += `${i+1}: ${p.name}\n`);
-                    
-                    const choice = prompt(msg);
-                    if (choice) {
-                        const idx = parseInt(choice) - 1;
-                        if (available[idx]) {
-                            const p = available[idx];
-                            await fetch(`/groups/${this.groupId}/persons`, {
-                                method:'POST', 
-                                headers:{'Content-Type':'application/json'}, 
-                                body:JSON.stringify({name: p.name})
-                            });
-                            this.load();
-                        } else { alert("Ungültige Wahl."); }
+                async addManualPerson() {
+                    const n = this.modalSearch.trim();
+                    if(n) {
+                        await fetch(`/groups/${this.groupId}/persons`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})});
+                        await this.load();
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('personnelModal'));
+                        modal.hide();
+                        this.modalSearch = '';
                     }
                 },
-                async deleteP(p) { 
-                    if(confirm("Person aus dieser Gruppe entfernen?")) { 
-                        await fetch(`/persons/${p.id}`, {method:'DELETE'}); 
-                        this.load(); 
+                async addSelectedPersonnel() {
+                    for (const name of this.selectedFromPool) {
+                        await fetch(`/groups/${this.groupId}/persons`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ name: name })
+                        });
                     }
-                }
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('personnelModal'));
+                    modal.hide();
+                    this.selectedFromPool = [];
+                    this.modalSearch = '';
+                    await this.load();
+                },
+                async editP(p) { const n = prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
+                async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }}
             }
         }).mount('#app');
     </script>
