@@ -13,16 +13,14 @@
         :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; }
         body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
         .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
-        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; pointer-events: none; }
-        .save-status.visible { opacity: 1; }
         .editor-card { background: white; border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 20px; }
         .present-row { background-color: #f0fdf4 !important; border-left: 6px solid #198754 !important; }
-        .stat-pill { flex: 1; background: white; padding: 8px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-bottom: 3px solid #ddd; }
-        .search-input { border-radius: 30px; padding-left: 45px; border: 1px solid #eee; height: 48px; }
-        .search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #bbb; }
-        .sig-preview { height: 50px; background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-        .sig-preview img { height: 100%; object-fit: contain; mix-blend-mode: multiply; }
-        .btn-xs { font-size: 0.65rem !important; padding: 3px 8px !important; font-weight: bold; border-radius: 6px; }
+        .btn-xs { font-size: 0.65rem !important; padding: 4px 8px !important; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; background: white; color: #666; }
+        .btn-xs.active { background-color: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
+        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; }
+        .save-status.visible { opacity: 1; }
+        .sig-preview { height: 40px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .sig-preview img { height: 100%; mix-blend-mode: multiply; }
         .floating-buttons { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: center; border-top: 1px solid #eee; z-index: 1000; }
         .btn-main { background: var(--primary-color); color: white; border-radius: 50px; padding: 12px 40px; font-weight: 700; border: none; box-shadow: 0 10px 20px rgba(183, 28, 28, 0.2); }
     </style>
@@ -30,48 +28,39 @@
 <body>
     <div id="app">
         <div class="save-status" :class="{ visible: saving }">
-            <i class="fa fa-circle-notch fa-spin text-primary"></i>
-            <span>Speichere Änderungen...</span>
+            <i class="fa fa-sync fa-spin text-danger"></i> Speichern...
         </div>
 
         <div class="main-content">
             <div class="mb-3 d-flex justify-content-between align-items-center">
                 <button @click="goBack" class="btn btn-link text-danger p-0 fw-bold text-decoration-none">
-                    <i class="fa fa-arrow-left me-2"></i>Abbrechen
+                    <i class="fa fa-arrow-left me-2"></i>Dashboard
                 </button>
                 <div class="badge bg-white text-dark border rounded-pill px-3 py-2 shadow-sm">
-                    <i class="fa fa-shield-halved text-danger me-1"></i> {{ groupName }}
+                    {{ groupName }}
                 </div>
             </div>
             
             <div class="editor-card">
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="small fw-bold text-muted">STICHWORT / THEMA</label>
-                        <input type="text" class="form-control border-0 bg-light rounded-3 fw-bold" v-model="description" @change="autoSave">
+                        <label class="small fw-bold text-muted">THEMA</label>
+                        <input type="text" class="form-control border-0 bg-light fw-bold" v-model="description" @change="autoSave">
                     </div>
                     <div class="col-6">
                         <label class="small fw-bold text-muted">DATUM</label>
-                        <input type="date" class="form-control border-0 bg-light rounded-3" v-model="currentDate" @change="autoSave">
+                        <input type="date" class="form-control border-0 bg-light" v-model="currentDate" @change="autoSave">
                     </div>
                     <div class="col-6">
-                        <label class="small fw-bold text-muted">DAUER (h)</label>
-                        <input type="number" step="0.5" class="form-control border-0 bg-light rounded-3 text-center" v-model="duration" @change="autoSave">
+                        <label class="small fw-bold text-muted">DAUER</label>
+                        <input type="number" step="0.5" class="form-control border-0 bg-light text-center" v-model="duration" @change="autoSave">
                     </div>
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
-                <div class="stat-pill" style="border-color: #198754;"><small class="d-block text-muted" style="font-size: 0.6rem;">ANWESEND</small><span class="fw-bold text-success">{{ presentCount }}</span></div>
-                <div class="stat-pill" style="border-color: #0d6efd;"><small class="d-block text-muted" style="font-size: 0.6rem;">GESAMT</small><span class="fw-bold">{{ persons.length }}</span></div>
-            </div>
-
-            <div class="d-flex gap-2 align-items-center mb-4">
-                <div class="position-relative flex-grow-1">
-                    <i class="fa fa-search search-icon"></i>
-                    <input type="text" class="form-control search-input shadow-sm" v-model="q" placeholder="Namen filtern...">
-                </div>
-                <button class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#personnelModal" style="width:48px; height:48px;">
+            <div class="d-flex gap-2 mb-4">
+                <input type="text" class="form-control rounded-pill px-4 shadow-sm" v-model="q" placeholder="Person suchen...">
+                <button class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#poolModal" style="width:48px; height:48px;">
                     <i class="fa fa-plus"></i>
                 </button>
             </div>
@@ -84,39 +73,39 @@
                     </div>
                     
                     <div class="flex-grow-1">
-                        <div class="fw-bold text-dark">{{ p.name }}</div>
+                        <div class="fw-bold">{{ p.name }}</div>
                         <div class="d-flex flex-wrap gap-1 mt-1">
-                            <button v-for="v in groupVehicles" 
-                                    :key="v"
-                                    class="btn btn-xs border" 
-                                    :class="p.vehicle === v ? 'btn-danger text-white border-danger' : 'bg-white text-muted'" 
-                                    @click="setVehicle(p, v)">
-                                {{ v }}
+                            <button v-for="v in globalVehicles" 
+                                    :key="v.id"
+                                    class="btn btn-xs" 
+                                    :class="p.vehicle === v.name ? 'active' : ''" 
+                                    @click="setVehicle(p, v.name)">
+                                {{ v.name }}
                             </button>
                         </div>
                     </div>
 
-                    <div v-if="p.is_present" style="width: 80px;">
-                        <div class="sig-preview" style="height: 40px;" @click="openSig(p)">
+                    <div v-if="p.is_present" style="width: 70px;">
+                        <div class="sig-preview" @click="openSig(p)">
                             <img v-if="p.signature" :src="p.signature">
-                            <i v-else class="fa fa-pen text-danger" style="font-size: 0.8rem;"></i>
+                            <i v-else class="fa fa-pen text-danger small"></i>
                         </div>
                     </div>
                     
                     <button class="btn text-muted p-1" @click="removePerson(p)">
-                        <i class="fa fa-trash-can"></i>
+                        <i class="fa fa-trash"></i>
                     </button>
                 </div>
             </div>
         </div>
 
         <div class="floating-buttons shadow-lg">
-            <button class="btn-main shadow" @click="saveAndExit">
-                <i class="fa fa-check-double me-2"></i>FERTIGSTELLEN
+            <button class="btn-main shadow" @click="goBack">
+                <i class="fa fa-check me-2"></i>DASHBOARD
             </button>
         </div>
 
-        <div class="modal fade" id="personnelModal" tabindex="-1">
+        <div class="modal fade" id="poolModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content border-0 rounded-4">
                     <div class="modal-header bg-dark text-white rounded-top-4 border-0">
@@ -140,8 +129,7 @@
         <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-body p-4 text-center">
-                        <h6 class="fw-bold mb-3">Unterschrift leisten</h6>
+                    <div class="modal-body p-4">
                         <canvas id="sigCanvas" style="width:100%; height:200px; border:1px dashed #ccc; border-radius: 12px;"></canvas>
                         <div class="d-flex gap-2 mt-3">
                             <button class="btn btn-light flex-grow-1 rounded-pill" @click="clearSig">Löschen</button>
@@ -161,13 +149,12 @@
             data() {
                 return {
                     groupId: null, sessionId: null, groupName: '',
-                    groupVehicles: [], persons: [], pool: [],
+                    globalVehicles: [], persons: [], pool: [],
                     description: '', duration: 2.0, currentDate: new Date().toISOString().split('T')[0],
                     saving: false, q: '', activePerson: null
                 }
             },
             computed: {
-                presentCount() { return this.persons.filter(p => p.is_present).length; },
                 filteredPersons() {
                     if (!this.q) return this.persons;
                     return this.persons.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
@@ -176,43 +163,44 @@
             async mounted() {
                 const params = new URLSearchParams(window.location.search);
                 this.groupId = params.get('group_id');
-                // SessionID aus URL oder Speicher holen (für Reload-Sicherheit)
-                this.sessionId = params.get('session_id') || sessionStorage.getItem('active_session');
+                this.sessionId = params.get('session_id');
 
-                await this.loadAll();
-                
+                // 1. Fahrzeuge laden (Globaler Pfad aus deinem Dashboard!)
+                const vRes = await fetch('/api/vehicles');
+                this.globalVehicles = await vRes.json();
+
+                // 2. Gruppe laden (Korrekt ohne /api/ laut deinem Log)
+                const gRes = await fetch(`/groups/${this.groupId}`);
+                const gData = await gRes.json();
+                this.groupName = gData.name;
+
+                // 3. Bestehende Anwesenheit laden
+                await this.loadAttendance();
+
+                // 4. Personal Pool laden
+                const pRes = await fetch('/api/personnel/list');
+                this.pool = await pRes.json();
+
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
                 sigPad = new SignaturePad(document.getElementById('sigCanvas'));
             },
             methods: {
-                async loadAll() {
-                    // 1. Gruppe & Fahrzeuge laden (Die aus deinem Dashboard Modal!)
-                    const gRes = await fetch(`/api/groups/${this.groupId}`);
-                    const gData = await gRes.json();
-                    this.groupName = gData.name;
-                    this.groupVehicles = gData.vehicles ? (Array.isArray(gData.vehicles) ? gData.vehicles : gData.vehicles.split(',')) : [];
-
-                    // 2. Anwesenheit laden
+                async loadAttendance() {
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
-                    const aRes = await fetch(url);
-                    const aData = await aRes.json();
-                    this.persons = aData.persons || [];
-                    if(aData.session_id) {
-                        this.sessionId = aData.session_id;
-                        sessionStorage.setItem('active_session', aData.session_id);
-                        this.description = aData.description;
-                        this.duration = aData.duration;
-                        this.currentDate = aData.date;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    this.persons = data.persons || [];
+                    if (data.session_id) {
+                        this.sessionId = data.session_id;
+                        this.description = data.description || '';
+                        this.duration = data.duration || 2.0;
+                        this.currentDate = data.date || this.currentDate;
                     }
-
-                    // 3. Gesamten Personal-Pool laden
-                    const pRes = await fetch('/api/personnel/list');
-                    this.pool = await pRes.json();
                 },
                 async autoSave() {
                     this.saving = true;
                     const payload = {
-                        session_id: this.sessionId,
+                        session_id: this.sessionId ? parseInt(this.sessionId) : null,
                         group_id: parseInt(this.groupId),
                         date: this.currentDate,
                         description: this.description,
@@ -224,37 +212,29 @@
                             signature: p.signature
                         }))
                     };
-                    try {
-                        const r = await fetch('/attendance', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(payload)
-                        });
-                        const res = await r.json();
-                        if(res.session_id) {
-                            this.sessionId = res.session_id;
-                            sessionStorage.setItem('active_session', res.session_id);
-                        }
-                    } catch (e) { console.error("Save failed", e); }
-                    setTimeout(() => { this.saving = false; }, 600);
+                    const r = await fetch('/attendance', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+                    const res = await r.json();
+                    if (res.session_id) this.sessionId = res.session_id;
+                    setTimeout(() => { this.saving = false; }, 500);
                 },
                 async addFromPool(p) {
                     if(!this.persons.find(x => x.id === p.id)) {
-                        // Neue Person hinzufügen und sofort speichern
                         this.persons.push({...p, is_present: true, vehicle: '', signature: null});
-                        await this.autoSave();
+                        await this.autoSave(); // Sofort speichern!
                     }
-                    bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
+                    bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
                 },
                 removePerson(p) {
-                    if(confirm(`${p.name} wirklich entfernen?`)) {
-                        this.persons = this.persons.filter(x => x.id !== p.id);
-                        this.autoSave();
-                    }
+                    this.persons = this.persons.filter(x => x.id !== p.id);
+                    this.autoSave();
                 },
                 togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
-                setVehicle(p, v) {
-                    p.vehicle = (p.vehicle === v) ? '' : v;
+                setVehicle(p, vName) {
+                    p.vehicle = (p.vehicle === vName) ? '' : vName;
                     if(p.vehicle) p.is_present = true;
                     this.autoSave();
                 },
@@ -275,16 +255,7 @@
                     sigModal.hide();
                 },
                 clearSig() { sigPad.clear(); },
-                saveAndExit() {
-                    this.autoSave().then(() => {
-                        sessionStorage.removeItem('active_session');
-                        window.location.href = '/static/dashboard.html';
-                    });
-                },
-                goBack() {
-                    sessionStorage.removeItem('active_session');
-                    window.location.href = '/static/dashboard.html';
-                }
+                goBack() { window.location.href = '/static/dashboard.html'; }
             }
         }).mount('#app');
     </script>
