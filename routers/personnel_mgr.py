@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+刻from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
@@ -56,12 +56,17 @@ def update_member(member_id: int, m: PersonnelMember):
     conn = get_db_connection()
     cur = conn.cursor()
     
+    # 1. Vorherigen Namen abrufen, um ihn in der persons-Tabelle abgleichen zu können
+    cur.execute("SELECT name FROM personnel WHERE id=%s", (member_id,))
+    old_name_row = cur.fetchone()
+    old_name = old_name_row[0] if old_name_row else None
+    
     # Konvertierung von leeren Strings zu None für die Datenbank (DATE Felder)
     g26 = m.g26_3_date if m.g26_3_date else None
     bel = m.belastungslauf_date if m.belastungslauf_date else None
     unt = m.unterweisung_date if m.unterweisung_date else None
 
-    # HIER FIX: 'name' wurde zum UPDATE hinzugefügt
+    # Update der Personal-Stammdaten
     sql = """UPDATE personnel SET 
              name=%s,
              is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s, 
@@ -72,6 +77,11 @@ def update_member(member_id: int, m: PersonnelMember):
             g26, bel, unt, member_id)
     
     cur.execute(sql, vals)
+
+    # 2. AUTOMATIK: Wenn der Name geändert wurde, auch in der Gruppenliste (persons) aktualisieren
+    if old_name and old_name != m.name:
+        cur.execute("UPDATE persons SET name=%s WHERE name=%s", (m.name, old_name))
+    
     conn.commit()
     conn.close()
     return {"status": "updated"}
@@ -94,7 +104,6 @@ def get_settings():
     rows = cur.fetchall()
     conn.close()
     res = {row['setting_key']: row['setting_value'] for row in rows}
-    # Standardwerte falls Tabelle leer
     if not res:
         return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12}
     return res
@@ -121,7 +130,6 @@ def init_personnel_db():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Personal-Tabelle
         cur.execute("""
             CREATE TABLE IF NOT EXISTS personnel (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -139,7 +147,6 @@ def init_personnel_db():
             ) ENGINE=InnoDB;
         """)
 
-        # 2. Settings-Tabelle für Fristen
         cur.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 setting_key VARCHAR(50) PRIMARY KEY,
@@ -147,10 +154,7 @@ def init_personnel_db():
             ) ENGINE=InnoDB;
         """)
 
-        # 3. MIGRATION: Namen rüberkopieren
         cur.execute("INSERT IGNORE INTO personnel (name) SELECT DISTINCT name FROM persons")
-        
-        # Standard-Fristen einfügen falls leer
         cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12)")
 
         conn.commit()
