@@ -357,17 +357,34 @@ def get_attendance(id:int, session_id:Optional[int]=None):
 
 @app.post("/attendance")
 def save_attendance(d: AttendanceUpload):
-    c=get_db_connection(); cur=c.cursor()
-    if d.session_id:
-        cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
-        sid = d.session_id
-        cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
-    else:
-        cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
-        sid = cur.lastrowid
-    for e in d.entries: 
-        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
-    c.commit(); c.close(); return {"session_id":sid}
+    c = get_db_connection()
+    cur = c.cursor()
+    try:
+        if d.session_id:
+            cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", 
+                       (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
+            sid = d.session_id
+            cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
+        else:
+            cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
+                       (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
+            sid = cur.lastrowid
+
+        # Sicherheits-Check: Nur Personen speichern, die noch in der DB existieren
+        cur.execute("SELECT id FROM persons")
+        valid_ids = {row[0] for row in cur.fetchall()}
+
+        for e in d.entries: 
+            if e.person_id in valid_ids:
+                cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", 
+                           (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
+        c.commit()
+        return {"session_id": sid}
+    except Exception as err:
+        c.rollback()
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        c.close()
 
 # --- UNTERSCHRIFT & EDITOR VORSCHLÄGE ---
 @app.post("/sessions/{session_id}/leader_signature")
