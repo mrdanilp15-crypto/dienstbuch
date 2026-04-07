@@ -305,12 +305,12 @@
                 },
                 async removeFromList(person) {
                     if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
-                        // 1. Aus dem lokalen Array löschen (filtert Dubletten oder die Person raus)
-                        this.persons = this.persons.filter(p => p !== person);
-                        // 2. Den neuen Stand (ohne die Person) SOFORT zum Server schicken
-                        await this.performSave();
-                        // 3. Optional: Liste neu laden, um 100% sicher zu sein
-                        await this.load();
+                        clearTimeout(saveTimer); // Alten Speicher-Vorgang stoppen
+                        this.saveState = 'saving';
+                        // Wir filtern nach der ID, damit Dubletten sicher gelöscht werden
+                        this.persons = this.persons.filter(p => p.id !== person.id);
+                        await this.performSave(); // Sofort wegschicken
+                        await this.load(); // Stand vom Server bestätigen lassen
                     }
                 }
             }
