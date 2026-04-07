@@ -10,143 +10,136 @@
     <style>
         :root { 
             --fire: #ef4444; --warn: #f59e0b; --safe: #10b981; 
-            --dark: #1e293b; --bg: #f1f5f9; 
+            --dark: #0f172a; --bg: #f8fafc; --accent: #3b82f6;
         }
-        body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--dark); padding-bottom: 80px; }
+        body { background: var(--bg); font-family: 'Inter', system-ui, sans-serif; color: var(--dark); padding-bottom: 80px; }
 
-        /* KACHELN */
+        /* HEADER & STATS */
+        .page-header { background: linear-gradient(135deg, var(--dark) 0%, #1e293b 100%); color: white; padding: 2rem 0; border-radius: 0 0 24px 24px; margin-bottom: 2rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .stat-card {
-            background: white; border-radius: 12px; padding: 1rem;
-            border-left: 4px solid var(--fire); box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            transition: transform 0.2s;
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border-radius: 16px; padding: 1.25rem;
+            border: 1px solid rgba(255,255,255,0.1); transition: 0.3s;
         }
-        .stat-card:hover { transform: translateY(-3px); }
-        .stat-val { font-size: 1.5rem; font-weight: 800; display: block; }
-        .stat-label { font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        .stat-card:hover { background: rgba(255,255,255,0.1); transform: translateY(-3px); }
+        .stat-val { font-size: 1.75rem; font-weight: 800; display: block; line-height: 1; margin-bottom: 0.25rem; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
 
-        /* RESPONSIVE TABLE / CARDS */
-        .main-container { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        /* SEARCH & ADD */
+        .action-card { background: white; border-radius: 16px; border: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .search-input { background: #f1f5f9; border: none; border-radius: 12px; padding: 0.6rem 1rem; }
+
+        /* PERSON CARDS (Desktop) */
+        .person-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+        .person-card { 
+            background: white; border-radius: 16px; padding: 1.5rem; border: 1px solid #e2e8f0;
+            transition: all 0.2s ease-in-out; position: relative; overflow: hidden;
+        }
+        .person-card:hover { box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border-color: #cbd5e1; }
         
-        @media (max-width: 768px) {
-            .desktop-only { display: none; }
-            .person-row { 
-                display: block; padding: 15px; border-bottom: 1px solid #e2e8f0; 
-                background: white; margin-bottom: 10px; border-radius: 12px;
-            }
-            .mobile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-            .mobile-label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 2px; }
+        .name-input { font-weight: 800; border: none; background: transparent; font-size: 1.25rem; color: var(--dark); margin-bottom: 1rem; padding: 0; }
+        .name-input:focus { outline: none; border-bottom: 2px solid var(--fire); }
+
+        /* DATES */
+        .date-section { background: #f8fafc; border-radius: 12px; padding: 1rem; margin-top: 1rem; }
+        .date-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .date-row:last-child { margin-bottom: 0; }
+        .date-label { font-size: 0.75rem; font-weight: 700; color: #64748b; }
+        .date-input { 
+            border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; 
+            font-size: 0.85rem; background: white; width: 130px;
         }
 
-        /* STATUS & DESIGN */
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-        .bg-ok { background: var(--safe); }
-        .bg-warn { background: var(--warn); }
-        .bg-crit { background: var(--fire); animation: pulse-red 2s infinite; }
-        
-        @keyframes pulse-red {
-            0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; }
-        }
+        /* STATUS DOTS */
+        .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .bg-ok { background: var(--safe); box-shadow: 0 0 8px var(--safe); }
+        .bg-warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+        .bg-crit { background: var(--fire); box-shadow: 0 0 8px var(--fire); animation: pulse 1.5s infinite; }
 
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* QUALIFICATIONS */
+        .q-badge-container { display: flex; flex-wrap: wrap; gap: 6px; }
         .btn-q {
-            padding: 5px 8px; font-size: 0.75rem; font-weight: 700; border-radius: 6px;
-            border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s;
+            padding: 6px 10px; font-size: 0.7rem; font-weight: 800; border-radius: 8px;
+            border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s; text-transform: uppercase;
         }
         .q-active { background: var(--dark); color: white; border-color: var(--dark); }
-        .q-inactive { background: #f8fafc; color: #cbd5e1; }
+        .q-inactive { background: #fff; color: #94a3b8; }
+        .q-active:hover { background: var(--fire); border-color: var(--fire); }
 
-        .date-input { 
-            border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; 
-            font-size: 0.85rem; width: 100%; background: #f8fafc;
+        .btn-delete { color: #cbd5e1; transition: 0.2s; }
+        .btn-delete:hover { color: var(--fire); }
+
+        @media (max-width: 768px) {
+            .person-grid { grid-template-columns: 1fr; }
+            .page-header { border-radius: 0; }
         }
-        .name-input { font-weight: 700; border: none; background: transparent; font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
-<div id="app" class="container py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold m-0"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung</h3>
-        <a href="/dashboard" class="btn btn-dark btn-sm rounded-pill px-3">Dashboard</a>
-    </div>
-
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3" v-for="stat in stats" :key="stat.label">
-            <div class="stat-card" :style="{ borderColor: stat.color }">
-                <span class="stat-val">{{ stat.count }}</span>
-                <span class="stat-label">{{ stat.label }}</span>
+<div id="app">
+    <header class="page-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-black m-0"><i class="fa fa-shield-halved me-3"></i>Personal Pro</h2>
+                <a href="/dashboard" class="btn btn-light btn-sm rounded-pill px-4 fw-bold">Zurück</a>
             </div>
-        </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-            <div class="row g-3 align-items-center">
-                <div class="col-12 col-md-4">
-                    <label class="small fw-bold mb-1">Schnellsuche</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light border-0"><i class="fa fa-search"></i></span>
-                        <input type="text" v-model="search" class="form-control border-0 bg-light" placeholder="Name suchen...">
-                    </div>
-                </div>
-                <div class="col-12 col-md-8">
-                    <label class="small fw-bold mb-1">Neues Mitglied hinzufügen</label>
-                    <div class="d-flex gap-2">
-                        <input type="text" v-model="newName" class="form-control" placeholder="Vorname Nachname" @keyup.enter="addPerson">
-                        <button class="btn btn-danger px-4" @click="addPerson"><i class="fa fa-plus"></i></button>
+            <div class="row g-3">
+                <div class="col-6 col-md-3" v-for="stat in stats">
+                    <div class="stat-card">
+                        <span class="stat-val">{{ stat.count }}</span>
+                        <span class="stat-label">{{ stat.label }}</span>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div class="main-container">
-        <div class="row g-0 bg-light p-3 fw-bold small text-muted desktop-only border-bottom">
-            <div class="col-md-3">NAME</div>
-            <div class="col-md-3 text-center">QUALIFIKATIONEN</div>
-            <div class="col-md-2 text-center">G26.3</div>
-            <div class="col-md-2 text-center">BELASTUNG</div>
-            <div class="col-md-2 text-end">AKTION</div>
+    <div class="container">
+        <div class="card action-card mb-5">
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-12 col-md-5">
+                        <div class="position-relative">
+                            <i class="fa fa-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                            <input type="text" v-model="search" class="form-control search-input ps-5" placeholder="Mitglieder filtern...">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-7">
+                        <div class="input-group">
+                            <input type="text" v-model="newName" class="form-control border-0 bg-light" placeholder="Neues Mitglied (Vorname Nachname)" @keyup.enter="addPerson">
+                            <button class="btn btn-danger px-4 fw-bold" @click="addPerson"><i class="fa fa-plus me-2"></i>Hinzufügen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div v-for="p in filteredPersonnel" :key="p.id" class="person-row border-bottom">
-            <div class="row g-2 align-items-center">
-                <div class="col-12 col-md-3">
-                    <input v-model="p.name" @blur="save(p)" class="name-input w-100" placeholder="Name...">
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <div class="d-flex flex-wrap gap-1 justify-content-md-center">
-                        <span v-for="q in qualifications" @click="toggleQ(p, q.id)"
-                              :class="p[q.id] ? 'q-active' : 'q-inactive'" class="btn-q">
-                            {{ q.label }}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="col-12 col-md-4">
-                    <div class="mobile-grid">
-                        <div v-for="field in [{f: 'g26_3_date', l: 'G26.3'}, {f: 'belastungslauf_date', l: 'Belastung'}]">
-                            <span class="mobile-label">{{ field.l }}</span>
-                            <div class="d-flex align-items-center">
-                                <span :class="getStatus(p[field.f], field.f)" class="status-dot"></span>
-                                <input type="date" v-model="p[field.f]" @change="save(p)" class="date-input">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <span class="mobile-label">UVV Unterweisung</span>
-                        <div class="d-flex align-items-center">
-                            <span :class="getStatus(p.unterweisung_date, 'unterweisung_date')" class="status-dot"></span>
-                            <input type="date" v-model="p.unterweisung_date" @change="save(p)" class="date-input">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-12 col-md-2 text-end">
-                    <hr class="d-md-none text-muted">
-                    <button class="btn btn-outline-secondary border-0 btn-sm" @click="deletePerson(p)">
-                        <i class="fa fa-trash-can me-1"></i> <span class="d-md-none">Löschen</span>
+        <div class="person-grid">
+            <div v-for="p in filteredPersonnel" :key="p.id" class="person-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <input v-model="p.name" @blur="save(p)" class="name-input" placeholder="Name...">
+                    <button class="btn btn-link btn-delete p-0" @click="deletePerson(p)">
+                        <i class="fa fa-trash-can"></i>
                     </button>
+                </div>
+
+                <div class="q-badge-container mb-3">
+                    <span v-for="q in qualifications" @click="toggleQ(p, q.id)"
+                          :class="p[q.id] ? 'q-active' : 'q-inactive'" class="btn-q">
+                        {{ q.label }}
+                    </span>
+                </div>
+
+                <div class="date-section">
+                    <div class="date-row" v-for="field in [{f: 'g26_3_date', l: 'G26.3 Untersuchung'}, {f: 'belastungslauf_date', l: 'Belastungslauf'}, {f: 'unterweisung_date', l: 'UVV Unterweisung'}]">
+                        <div class="d-flex align-items-center">
+                            <span :class="getStatus(p[field.f], field.f)" class="status-dot"></span>
+                            <span class="date-label">{{ field.l }}</span>
+                        </div>
+                        <input type="date" v-model="p[field.f]" @change="save(p)" class="date-input">
+                    </div>
                 </div>
             </div>
         </div>
@@ -161,8 +154,8 @@ createApp({
             personnel: [], search: '', newName: '',
             intervals: { g26: 36, belastung: 12, unterweisung: 12 },
             qualifications: [
-                {id: 'is_truppmann', label: 'TM'}, {id: 'is_funk', label: 'FUNK'},
-                {id: 'is_agt', label: 'AGT'}, {id: 'is_maschinist', label: 'MA'},
+                {id: 'is_truppmann', label: 'TM'}, {id: 'is_funk', label: 'Funk'},
+                {id: 'is_agt', label: 'AGT'}, {id: 'is_maschinist', label: 'Ma'},
                 {id: 'is_tf', label: 'TF'}, {id: 'is_gf', label: 'GF'}
             ]
         }
@@ -173,10 +166,10 @@ createApp({
         },
         stats() {
             return [
-                { label: 'Gesamt', count: this.personnel.length, color: '#1e293b' },
-                { label: 'AGT', count: this.personnel.filter(p => p.is_agt).length, color: '#ef4444' },
-                { label: 'Maschinist', count: this.personnel.filter(p => p.is_maschinist).length, color: '#3b82f6' },
-                { label: 'Führung', count: this.personnel.filter(p => p.is_gf || p.is_tf).length, color: '#f59e0b' }
+                { label: 'Gesamtstärke', count: this.personnel.length },
+                { label: 'Atemschutz', count: this.personnel.filter(p => p.is_agt).length },
+                { label: 'Maschinisten', count: this.personnel.filter(p => p.is_maschinist).length },
+                { label: 'Führungskräfte', count: this.personnel.filter(p => p.is_gf || p.is_tf).length }
             ];
         }
     },
@@ -218,7 +211,7 @@ createApp({
             });
         },
         async deletePerson(p) {
-            if(confirm(`${p.name} löschen?`)) { await fetch(`/api/personnel/delete/${p.id}`, { method: 'DELETE' }); this.load(); }
+            if(confirm(`${p.name} wirklich löschen?`)) { await fetch(`/api/personnel/delete/${p.id}`, { method: 'DELETE' }); this.load(); }
         }
     },
     mounted() { this.load(); this.loadSettings(); }
