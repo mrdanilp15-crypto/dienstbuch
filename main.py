@@ -206,7 +206,8 @@ def create_group(g: GroupData):
 def list_personnel_pool():
     try:
         c = get_db_connection(); cur = c.cursor(dictionary=True)
-        cur.execute("SELECT id, name FROM personnel ORDER BY name ASC")
+        # Hier muss die Tabelle 'persons' genutzt werden, da sie die zentrale Namensliste ist
+        cur.execute("SELECT id, name FROM persons ORDER BY name ASC")
         r = cur.fetchall(); c.close(); return r
     except: return []
 
@@ -289,12 +290,18 @@ def get_attendance(id:int, session_id:Optional[int]=None):
     if session_id: 
         cur.execute("SELECT * FROM sessions WHERE id=%s",(session_id,))
         row=cur.fetchone()
+    
     sid = row['id'] if row else 0
+    
+    # KORREKTUR: Wir laden Personen der Gruppe PLUS Personen, die bereits in attendance für diese Session stehen
     sql = """SELECT p.id, p.name, IFNULL(a.is_present,0) as is_present, 
              IFNULL(a.note,'') as note, IFNULL(a.vehicle,'') as vehicle, a.signature 
-             FROM persons p LEFT JOIN attendance a ON p.id=a.person_id AND a.session_id=%s 
-             WHERE p.group_id=%s ORDER BY p.name"""
-    cur.execute(sql, (sid, id)); persons = cur.fetchall()
+             FROM persons p 
+             LEFT JOIN attendance a ON p.id=a.person_id AND a.session_id=%s 
+             WHERE p.group_id=%s OR a.session_id=%s 
+             GROUP BY p.id
+             ORDER BY p.name"""
+    cur.execute(sql, (sid, id, sid)); persons = cur.fetchall()
     for p in persons: 
         p['is_present']=bool(p['is_present'])
         p['signature']=safe_decode(p['signature'])
@@ -321,7 +328,7 @@ def save_attendance(d: AttendanceUpload):
                         (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
             sid = cur.lastrowid
 
-        # Sicherheits-Check & Speichern der Einträge (Löschen von Personen entfernt)
+        # Sicherheits-Check: Wir prüfen nur, ob die IDs existieren
         cur.execute("SELECT id FROM persons")
         valid_ids = {row[0] for row in cur.fetchall()}
 
