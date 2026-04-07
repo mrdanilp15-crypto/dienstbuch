@@ -115,7 +115,7 @@
                         <i class="fa fa-search search-icon"></i>
                         <input type="text" class="form-control search-input" v-model="q" placeholder="Namen suchen...">
                     </div>
-                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" @click="addP" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
+                    <button v-if="isAdmin" class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#personnelModal" @click="selectedFromPool = []; modalSearch = ''" style="width:48px; height:48px;"><i class="fa fa-plus"></i></button>
                 </div>
             </div>
 
@@ -130,8 +130,7 @@
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold">{{ p.name }}</span>
                                 <div v-if="isAdmin">
-                                    <button class="btn-icon" @click.stop="editP(p)"><i class="fa fa-pen" style="font-size: 0.7rem;"></i></button>
-                                    <button class="btn-icon text-danger" @click.stop="deleteP(p)"><i class="fa fa-trash-alt" style="font-size: 0.7rem;"></i></button>
+                                    <button class="btn-icon text-danger" @click.stop="removeFromList(p)"><i class="fa fa-trash-alt" style="font-size: 0.7rem;"></i></button>
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-1">
@@ -162,6 +161,35 @@
             </button>
         </div>
 
+        <div class="modal fade" id="personnelModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-md">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header bg-dark text-white rounded-top-4">
+                        <h5 class="modal-title fw-bold"><i class="fa fa-user-plus me-2"></i>Personal hinzufügen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group mb-3 border rounded-pill overflow-hidden bg-light">
+                            <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
+                            <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen...">
+                        </div>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
+                                <div class="form-check w-100 py-1">
+                                    <input class="form-check-input" type="checkbox" :value="p.name" v-model="selectedFromPool" :id="'pool'+p.id">
+                                    <label class="form-check-label fw-bold ms-2 w-100" :for="'pool'+p.id">{{ p.name }}</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @click="addSelectedPersonnel" :disabled="selectedFromPool.length === 0">Hinzufügen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="sigModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -184,6 +212,9 @@
                     groupId: null,
                     sessionId: null,
                     persons: [],
+                    allPersonnel: [],         // NEU für den Pool
+                    selectedFromPool: [],     // NEU für das Modal
+                    modalSearch: '',          // NEU für das Modal
                     topicOptions: [],
                     instrOptions: [],
                     q: '',
@@ -203,6 +234,11 @@
                 filtered() {
                     if (!this.q) return this.persons;
                     return this.persons.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
+                },
+                // NEU: Berechnet wer im Modal angezeigt wird (Leute die noch nicht in der Liste stehen)
+                availableFromPool() {
+                    const currentNames = this.persons.map(p => p.name.toLowerCase());
+                    return this.allPersonnel.filter(p => !currentNames.includes(p.name.toLowerCase()) && p.name.toLowerCase().includes(this.modalSearch.toLowerCase()));
                 }
             },
             async mounted() { 
@@ -212,6 +248,7 @@
                 this.sessionId = p.get('session_id');
                 
                 await this.load();
+                await this.loadPool(); // NEU
                 
                 const topics = await fetch(`/groups/${this.groupId}/topics`);
                 this.topicOptions = await topics.json();
@@ -271,6 +308,11 @@
                         this.leaderSignature = d.leader_signature; 
                     }
                 },
+                async loadPool() { 
+                    // NEU: Lädt alle Personen aus dem zentralen Personal-Stamm
+                    const r = await fetch('/api/personnel/list'); 
+                    this.allPersonnel = await r.json(); 
+                },
                 autoSave() { 
                     if(!this.isAdmin) return;
                     this.saveState = 'saving'; 
@@ -316,27 +358,34 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
-                async addP() { 
-                    const n = prompt("Name:"); 
-                    if(n) { 
-                        await fetch(`/groups/${this.groupId}/persons`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); 
-                        await this.load(); // WICHTIG: Liste neu laden damit die neue Person in this.persons ist
-                        this.autoSave();   // Danach Speichern
-                    }
+                
+                // NEUE FUNKTIONEN FÜR DAS MODAL STATT DER ALTEN addP, editP, deleteP
+                async addSelectedPersonnel() {
+                    this.selectedFromPool.forEach(name => {
+                        const p = this.allPersonnel.find(x => x.name === name);
+                        if(p) {
+                            if (!this.persons.find(existing => existing.id === p.id)) {
+                                this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
+                            }
+                        }
+                    });
+                    
+                    const modalEl = document.getElementById('personnelModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    
+                    this.selectedFromPool = [];
+                    // Sofort speichern, damit der Server das neue Objekt hat
+                    await this.performSave();
+                    // Liste frisch vom Server laden, damit die IDs und Zustände 100% synchron sind
+                    await this.load(); 
                 },
-                async editP(p) { 
-                    const n = prompt("Name ändern:", p.name); 
-                    if(n) { 
-                        await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); 
-                        await this.load(); 
-                        this.autoSave();
-                    }
-                },
-                async deleteP(p) { 
-                    if(confirm("Löschen?")) { 
-                        await fetch(`/persons/${p.id}`, {method:'DELETE'}); 
-                        await this.load(); 
-                        this.autoSave();
+                async removeFromList(person) {
+                    if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
+                        clearTimeout(saveTimer);
+                        this.saveState = 'saving';
+                        this.persons = this.persons.filter(p => p.id !== person.id);
+                        await this.performSave();
                     }
                 }
             }
