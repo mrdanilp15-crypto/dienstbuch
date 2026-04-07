@@ -306,7 +306,6 @@ def get_attendance(id:int, session_id:Optional[int]=None):
         "leader_signature": safe_decode(row['leader_signature']) if row else None, "persons":persons
     }
 
-# --- GEÄNDERTE SAVE FUNKTION GEGEN DOPPELTE NAMEN ---
 @app.post("/attendance")
 def save_attendance(d: AttendanceUpload):
     c = get_db_connection()
@@ -322,13 +321,7 @@ def save_attendance(d: AttendanceUpload):
                         (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
             sid = cur.lastrowid
 
-        # SYNCHRONISATION: Entferne Personen aus der Gruppe, die im Editor gelöscht wurden
-        sent_person_ids = [e.person_id for e in d.entries]
-        if sent_person_ids:
-            format_strings = ','.join(['%s'] * len(sent_person_ids))
-            cur.execute(f"DELETE FROM persons WHERE group_id = %s AND id NOT IN ({format_strings})", (d.group_id, *sent_person_ids))
-
-        # Sicherheits-Check: Nur für existierende Personen Anwesenheit speichern
+        # Sicherheits-Check & Speichern der Einträge (Löschen von Personen entfernt)
         cur.execute("SELECT id FROM persons")
         valid_ids = {row[0] for row in cur.fetchall()}
 
