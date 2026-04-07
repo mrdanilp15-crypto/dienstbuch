@@ -184,6 +184,18 @@
                             <span class="input-group-text border-0 bg-transparent ps-3"><i class="fa fa-search text-muted"></i></span>
                             <input type="text" v-model="modalSearch" class="form-control border-0 bg-transparent" placeholder="Suchen oder neuen Namen tippen...">
                         </div>
+
+                        <div v-if="availableFromPool.length > 0" class="d-flex align-items-center p-2 mb-2 bg-light rounded-3">
+                            <div class="form-check w-100 py-1">
+                                <input class="form-check-input" type="checkbox" id="selectAllPool" 
+                                       :checked="isAllSelected" 
+                                       @change="toggleSelectAll">
+                                <label class="form-check-label fw-bold ms-2 w-100" for="selectAllPool">
+                                    Alle auswählen ({{ availableFromPool.length }})
+                                </label>
+                            </div>
+                        </div>
+
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div v-for="p in availableFromPool" :key="p.id" class="d-flex align-items-center p-2 border-bottom">
                                 <div class="form-check w-100 py-1">
@@ -253,6 +265,10 @@
                         const matchesSearch = p.name.toLowerCase().includes(this.modalSearch.toLowerCase());
                         return isNotIncluded && matchesSearch;
                     });
+                },
+                isAllSelected() {
+                    return this.availableFromPool.length > 0 && 
+                           this.availableFromPool.every(p => this.selectedFromPool.includes(p.name));
                 }
             },
             async mounted() { 
@@ -396,6 +412,15 @@
                     this.selectedFromPool = [];
                     this.modalSearch = '';
                     await this.load();
+                },
+                toggleSelectAll(event) {
+                    if (event.target.checked) {
+                        const names = this.availableFromPool.map(p => p.name);
+                        this.selectedFromPool = [...new Set([...this.selectedFromPool, ...names])];
+                    } else {
+                        const visibleNames = this.availableFromPool.map(p => p.name);
+                        this.selectedFromPool = this.selectedFromPool.filter(name => !visibleNames.includes(name));
+                    }
                 },
                 async editP(p) { const n = prompt("Name ändern:", p.name); if(n) { await fetch(`/persons/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})}); this.load(); }},
                 async deleteP(p) { if(confirm("Löschen?")) { await fetch(`/persons/${p.id}`, {method:'DELETE'}); this.load(); }}
