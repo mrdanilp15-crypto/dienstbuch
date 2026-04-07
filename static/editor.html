@@ -41,7 +41,8 @@
         <div class="save-status" :class="{ visible: saveState !== 'idle' }">
             <i v-if="saveState === 'saving'" class="fa fa-circle-notch fa-spin text-primary"></i>
             <i v-if="saveState === 'saved'" class="fa fa-check-circle text-success"></i>
-            <span>{{ saveState === 'saving' ? 'Speichert...' : 'Gespeichert' }}</span>
+            <i v-if="saveState === 'error'" class="fa fa-exclamation-triangle text-danger"></i>
+            <span>{{ statusText }}</span>
         </div>
 
         <div class="main-content">
@@ -213,7 +214,7 @@
                     selectedFromPool: [], modalSearch: '', topicOptions: [], instrOptions: [],
                     q: '', category: 'Übung', duration: 2.0, description: '', instructors: '',
                     leaderSignature: null, currentDate: new Date().toISOString().split('T')[0],
-                    saveState: 'idle', activeSigner: null
+                    saveState: 'idle', statusText: '', activeSigner: null
                 }
             },
             computed: { 
@@ -256,30 +257,50 @@
                     c.getContext("2d").scale(r, r); sigPad.clear();
                 },
                 async load() { 
-                    const r = await fetch(`/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`);
-                    const d = await r.json(); this.persons = d.persons; 
-                    if(d.session_id){ 
-                        this.sessionId = d.session_id; this.category = d.category; this.duration = d.duration; 
-                        this.description = d.description; this.instructors = d.instructors; 
-                        this.currentDate = d.date; this.leaderSignature = d.leader_signature; 
-                    }
+                    try {
+                        const r = await fetch(`/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`);
+                        const d = await r.json(); 
+                        this.persons = d.persons || []; 
+                        if(d.session_id){ 
+                            this.sessionId = d.session_id; this.category = d.category || 'Übung'; 
+                            this.duration = d.duration || 2.0; this.description = d.description || ''; 
+                            this.instructors = d.instructors || ''; this.currentDate = d.date; 
+                            this.leaderSignature = d.leader_signature; 
+                        }
+                    } catch(e) { console.error("Load failed", e); }
                 },
                 async loadPool() { const r = await fetch('/api/personnel/list'); this.allPersonnel = await r.json(); },
-                autoSave() { if(!this.isAdmin) return; this.saveState = 'saving'; clearTimeout(saveTimer); saveTimer = setTimeout(this.performSave, 1000); },
+                autoSave() { 
+                    if(!this.isAdmin) return; 
+                    this.saveState = 'saving'; this.statusText = 'Speichert...';
+                    clearTimeout(saveTimer); 
+                    saveTimer = setTimeout(this.performSave, 1000); 
+                },
                 async performSave() {
-                    if(!this.isAdmin && this.sessionId) return; 
-                    this.saveState = 'saving';
+                    if(!this.isAdmin) return; 
+                    this.saveState = 'saving'; this.statusText = 'Speichert...';
                     const data = { 
                         session_id: this.sessionId, date: this.currentDate, group_id: parseInt(this.groupId), 
                         category: this.category, duration: parseFloat(this.duration), description: this.description, 
                         instructors: this.instructors, leader_signature: this.leaderSignature, 
                         entries: this.persons.map(x => ({person_id: x.id, is_present: x.is_present, vehicle: x.vehicle, signature: x.signature})) 
                     };
-                    const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-                    const rd = await res.json(); 
-                    this.sessionId = rd.session_id; 
-                    this.saveState = 'saved';
-                    setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
+                    try {
+                        const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+                        if(res.ok) {
+                            const rd = await res.json(); 
+                            this.sessionId = rd.session_id; 
+                            this.saveState = 'saved'; this.statusText = 'Gespeichert';
+                            setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
+                            return true;
+                        } else {
+                            this.saveState = 'error'; this.statusText = 'Fehler beim Speichern!';
+                            return false;
+                        }
+                    } catch(e) {
+                        this.saveState = 'error'; this.statusText = 'Netzwerkfehler!';
+                        return false;
+                    }
                 },
                 async saveAndExit() { if(this.isAdmin) await this.performSave(); window.location.href = '/static/dashboard.html'; },
                 setCat(c) { this.category = c; this.autoSave(); },
@@ -299,13 +320,13 @@
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
                 async addSelectedPersonnel() {
+                    this.saveState = 'saving';
+                    this.statusText = 'Verarbeite...';
+                    
                     this.selectedFromPool.forEach(name => {
                         const p = this.allPersonnel.find(x => x.name === name);
-                        if(p) {
-                            if (!this.persons.find(existing => existing.id === p.id)) {
-                                // Wieder auf false gesetzt, wie gewünscht
-                                this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
-                            }
+                        if(p && !this.persons.find(existing => existing.id === p.id)) {
+                            this.persons.push({ ...p, is_present: false, vehicle: '', signature: null });
                         }
                     });
                     
@@ -314,14 +335,22 @@
                     if (modalInstance) modalInstance.hide();
                     
                     this.selectedFromPool = [];
-                    // Wichtig: Sofort speichern ohne Verzögerung
-                    await this.performSave();
+                    
+                    // Wir warten kurz, bis Vue den State aktualisiert hat und erzwingen dann das Speichern
+                    await new Promise(r => setTimeout(r, 100));
+                    const success = await this.performSave();
+                    
+                    if(success) {
+                        // Nach dem Speichern laden wir die Liste einmal frisch vom Server, 
+                        // um sicherzugehen, dass alles synchron ist
+                        await this.load();
+                    }
                 },
                 async removeFromList(person) {
                     if(confirm(`${person.name} aus diesem Termin entfernen?`)) {
-                        clearTimeout(saveTimer);
                         this.persons = this.persons.filter(p => p.id !== person.id);
                         await this.performSave();
+                        await this.load(); // Refresh
                     }
                 }
             }
