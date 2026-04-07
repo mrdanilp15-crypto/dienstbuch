@@ -43,12 +43,10 @@ def get_db_connection():
     )
 
 def init_db_extensions():
-    """Prüft und ergänzt die Datenbank-Tabellen automatisch um Qualifikationen und Einstellungen."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Qualifikations-Spalten in der Tabelle 'persons'
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
@@ -64,14 +62,10 @@ def init_db_extensions():
         for col_name, col_type in required_columns:
             try:
                 cur.execute(f"ALTER TABLE persons ADD COLUMN {col_name} {col_type}")
-                print(f"Spalte {col_name} wurde hinzugefügt.")
             except mysql.connector.Error as err:
-                if err.errno == 1060: # Spalte existiert bereits
-                    pass 
-                else:
-                    print(f"Fehler bei Spalte {col_name}: {err}")
+                if err.errno == 1060: pass 
+                else: print(f"Fehler bei Spalte {col_name}: {err}")
         
-        # 2. Einstellungen-Tabelle für Intervalle
         cur.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 setting_key VARCHAR(50) PRIMARY KEY,
@@ -79,19 +73,13 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         
-        # Standard-Intervalle einfügen, falls noch nicht vorhanden
-        default_settings = [
-            ('int_g26', 36),
-            ('int_belastung', 12),
-            ('int_unterweisung', 12)
-        ]
+        default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12)]
         for key, val in default_settings:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
 
         conn.commit()
         cur.close()
         conn.close()
-        print("--- DATENBANK ERWEITERUNGEN & SETTINGS GEPRÜFT ---")
     except Exception as e:
         print(f"Fehler bei DB-Erweiterung: {e}")
 
@@ -101,12 +89,7 @@ def init_db():
         try:
             conn = get_db_connection()
             cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS groups_table (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL
-                ) ENGINE=InnoDB;
-            """)
+            cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS persons (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -115,12 +98,7 @@ def init_db():
                     FOREIGN KEY (group_id) REFERENCES groups_table(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB;
             """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS vehicles (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL
-                ) ENGINE=InnoDB;
-            """)
+            cur.execute("CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -150,17 +128,13 @@ def init_db():
             conn.commit()
             cur.close()
             conn.close()
-            print("--- DATENBANK INITIALISIERT ---")
-            
             init_db_extensions()
             break
         except Exception as e:
-            print(f"Datenbank-Verbindung fehlgeschlagen (Versuch {i+1}/{max_retries}): {e}")
             time.sleep(5)
 
 init_db()
 
-# --- HILFSFUNKTIONEN ---
 def safe_decode(value):
     if isinstance(value, bytes): return value.decode('utf-8')
     return value
@@ -177,7 +151,7 @@ class AttendanceUpload(BaseModel):
     leader_signature: Optional[str] = None; entries: List[EntryDto]
 class GroupData(BaseModel): name: str
 
-# --- ROUTEN FÜR HTML SEITEN ---
+# --- ROUTEN ---
 @app.get("/", response_class=FileResponse)
 def get_login(): return FileResponse("static/login.html")
 @app.get("/dashboard", response_class=FileResponse)
@@ -191,7 +165,6 @@ def get_personnel_page(): return FileResponse("static/personnel.html")
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
-# --- API ENDPUNKTE ---
 @app.get("/api/info")
 async def get_info():
     remote_version = CURRENT_VERSION
@@ -200,11 +173,7 @@ async def get_info():
         with urllib.request.urlopen(v_url, timeout=2) as response:
             remote_version = response.read().decode('utf-8').strip()
     except: pass
-    return {
-        "version": CURRENT_VERSION, "remote_version": remote_version,
-        "update_available": remote_version != CURRENT_VERSION,
-        "town": TOWN_NAME
-    }
+    return {"version": CURRENT_VERSION, "remote_version": remote_version, "update_available": remote_version != CURRENT_VERSION, "town": TOWN_NAME}
 
 @app.post("/api/login")
 async def login(data: dict, response: Response):
@@ -221,7 +190,6 @@ async def verify_admin(data: dict):
     if ADMIN_PIN and p == ADMIN_PIN: return {"success": True}
     raise HTTPException(status_code=401, detail="PIN falsch!")
 
-# --- GRUPPEN & PERSONEN ---
 @app.get("/groups")
 def get_groups():
     c=get_db_connection(); cur=c.cursor(dictionary=True)
@@ -236,38 +204,23 @@ def create_group(g: GroupData):
 
 @app.get("/api/personnel/list")
 def list_personnel_pool():
-    """Holt die Liste aller verfügbaren Personen aus der Personal-Verwaltung."""
     try:
-        c = get_db_connection()
-        cur = c.cursor(dictionary=True)
+        c = get_db_connection(); cur = c.cursor(dictionary=True)
         cur.execute("SELECT id, name FROM personnel ORDER BY name ASC")
-        r = cur.fetchall()
-        c.close()
-        return r
-    except Exception as e:
-        print(f"Fehler beim Laden des Personal-Pools: {e}")
-        return []
+        r = cur.fetchall(); c.close(); return r
+    except: return []
 
 @app.post("/groups/{group_id}/persons")
 def add_person(group_id: int, p: PersonData):
-    try:
-        c = get_db_connection(); cur = c.cursor()
-        cur.execute("INSERT INTO persons (group_id, name) VALUES (%s, %s)", (group_id, p.name))
-        c.commit(); cur.close(); c.close()
-        return {"status": "person added"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("INSERT INTO persons (group_id, name) VALUES (%s, %s)", (group_id, p.name))
+    c.commit(); c.close(); return {"status": "person added"}
 
 @app.put("/persons/{id}")
 def update_person(id: int, p: PersonData):
-    """Ermöglicht das Umbenennen von Personen direkt im Editor."""
-    try:
-        c = get_db_connection(); cur = c.cursor()
-        cur.execute("UPDATE persons SET name=%s WHERE id=%s", (p.name, id))
-        c.commit(); cur.close(); c.close()
-        return {"status": "updated"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("UPDATE persons SET name=%s WHERE id=%s", (p.name, id))
+    c.commit(); c.close(); return {"status": "updated"}
 
 @app.delete("/groups/{id}")
 def delete_group(id: int):
@@ -281,7 +234,6 @@ def delete_person(id: int):
     cur.execute("DELETE FROM persons WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
-# --- FAHRZEUG VERWALTUNG API ---
 @app.get("/api/vehicles")
 def get_vehicles():
     c = get_db_connection(); cur = c.cursor(dictionary=True)
@@ -300,7 +252,6 @@ def delete_vehicle(id: int):
     cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
-# --- SESSIONS & STATS ---
 @app.delete("/sessions/{id}")
 def delete_session(id: int):
     c = get_db_connection(); cur = c.cursor()
@@ -355,6 +306,7 @@ def get_attendance(id:int, session_id:Optional[int]=None):
         "leader_signature": safe_decode(row['leader_signature']) if row else None, "persons":persons
     }
 
+# --- GEÄNDERTE SAVE FUNKTION GEGEN DOPPELTE NAMEN ---
 @app.post("/attendance")
 def save_attendance(d: AttendanceUpload):
     c = get_db_connection()
@@ -362,22 +314,28 @@ def save_attendance(d: AttendanceUpload):
     try:
         if d.session_id:
             cur.execute("UPDATE sessions SET date=%s, category=%s, duration=%s, description=%s, instructors=%s, leader_signature=%s WHERE id=%s", 
-                       (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
+                        (d.date, d.category, d.duration, d.description, d.instructors, d.leader_signature, d.session_id))
             sid = d.session_id
             cur.execute("DELETE FROM attendance WHERE session_id=%s", (sid,))
         else:
             cur.execute("INSERT INTO sessions (date, group_id, category, duration, description, instructors, leader_signature) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
-                       (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
+                        (d.date, d.group_id, d.category, d.duration, d.description, d.instructors, d.leader_signature))
             sid = cur.lastrowid
 
-        # Sicherheits-Check: Nur Personen speichern, die noch in der DB existieren
+        # SYNCHRONISATION: Entferne Personen aus der Gruppe, die im Editor gelöscht wurden
+        sent_person_ids = [e.person_id for e in d.entries]
+        if sent_person_ids:
+            format_strings = ','.join(['%s'] * len(sent_person_ids))
+            cur.execute(f"DELETE FROM persons WHERE group_id = %s AND id NOT IN ({format_strings})", (d.group_id, *sent_person_ids))
+
+        # Sicherheits-Check: Nur für existierende Personen Anwesenheit speichern
         cur.execute("SELECT id FROM persons")
         valid_ids = {row[0] for row in cur.fetchall()}
 
         for e in d.entries: 
             if e.person_id in valid_ids:
                 cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s,%s,%s,%s,%s,%s)", 
-                           (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
+                            (sid, e.person_id, e.is_present, e.note, e.vehicle, e.signature))
         c.commit()
         return {"session_id": sid}
     except Exception as err:
@@ -386,7 +344,6 @@ def save_attendance(d: AttendanceUpload):
     finally:
         c.close()
 
-# --- UNTERSCHRIFT & EDITOR VORSCHLÄGE ---
 @app.post("/sessions/{session_id}/leader_signature")
 async def save_leader_sig(session_id: int, data: dict):
     sig = data.get("signature")
@@ -406,7 +363,6 @@ def get_instructors(group_id: int):
     cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors IS NOT NULL LIMIT 50", (group_id,))
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
-# --- REPORTS ---
 @app.get("/sessions/{session_id}/report", response_class=HTMLResponse)
 def single_report(session_id: int):
     c=get_db_connection(); cur=c.cursor(dictionary=True)
@@ -422,8 +378,7 @@ def single_report(session_id: int):
 def year_report(group_id: int, year: int):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM groups_table WHERE id=%s", (group_id,))
-    gname_res = cur.fetchone()
-    gname = gname_res['name'] if gname_res else "Unbekannt"
+    gname_res = cur.fetchone(); gname = gname_res['name'] if gname_res else "Unbekannt"
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (group_id, year))
     max_s = cur.fetchone()['total'] or 0
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.group_id=%s AND YEAR(s.date)=%s ORDER BY s.date ASC, s.id ASC", (group_id, year))
@@ -439,9 +394,7 @@ def year_report(group_id: int, year: int):
         cat_sums[cat] += float(s['duration'])
         for p in persons:
             if p['name'] not in p_stats: p_stats[p['name']] = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0, "total_h": 0.0, "p": 0}
-            if p['is_present']:
-                p_stats[p['name']]["p"] += 1; p_stats[p['name']][cat] += float(s['duration']); p_stats[p['name']]["total_h"] += float(s['duration'])
+            if p['is_present']: p_stats[p['name']]["p"] += 1; p_stats[p['name']][cat] += float(s['duration']); p_stats[p['name']]["total_h"] += float(s['duration'])
     for n in p_stats: p_stats[n]['q'] = round((p_stats[n]['p'] / max_s) * 100) if max_s > 0 else 0
     html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, TOWN_NAME)
-    c.close()
-    return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
+    c.close(); return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
