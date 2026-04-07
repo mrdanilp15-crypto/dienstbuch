@@ -3,90 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Editor | Digitales Dienstbuch</title>
+    <title>Dienstbuch Editor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; }
-        body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 100px; }
-        
-        /* Dashboard-Style Header */
-        .header-bar { background: white; border-bottom: 3px solid var(--primary-color); padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        
-        .main-content { padding: 10px; max-width: 800px; margin: 0 auto; }
-        
-        .editor-card { background: white; border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 15px; }
-        .present-row { border-left: 5px solid #198754 !important; background-color: #f8fff9 !important; }
-        
-        /* Buttons wie im Dashboard */
-        .btn-fire { background: var(--primary-color); color: white; border-radius: 10px; font-weight: bold; border: none; }
-        .btn-fire:hover { background: #8e1616; color: white; }
-        
-        .btn-xs { font-size: 0.75rem; padding: 2px 8px; border-radius: 5px; border: 1px solid #ddd; background: white; margin-right: 4px; margin-bottom: 4px; }
-        .btn-xs.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-        
-        .save-status { position: fixed; bottom: 85px; right: 20px; background: white; padding: 5px 15px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-size: 0.8rem; display: none; z-index: 1000; }
-        .save-status.visible { display: block; }
-
-        .sig-box { width: 60px; height: 35px; background: #eee; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .sig-box img { height: 100%; }
-
-        .floating-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: center; z-index: 1000; }
+        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise: #0d6efd; --incident: #dc3545; --misc: #ffc107; }
+        body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
+        .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
+        .editor-card { background: white; border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 20px; position: relative; }
+        .present-row { background-color: #f0fdf4 !important; border-left: 6px solid #198754 !important; }
+        .btn-xs { font-size: 0.65rem !important; padding: 4px 8px !important; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; background: white; color: #666; }
+        .btn-xs.active { background-color: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
+        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; pointer-events: none; }
+        .save-status.visible { opacity: 1; }
+        .floating-buttons { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: center; border-top: 1px solid #eee; z-index: 1000; }
+        .btn-main { background: var(--primary-color); color: white; border-radius: 50px; padding: 12px 40px; font-weight: 700; border: none; box-shadow: 0 10px 20px rgba(183, 28, 28, 0.2); }
+        .sig-preview { height: 40px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .sig-preview img { height: 100%; mix-blend-mode: multiply; }
     </style>
 </head>
 <body>
     <div id="app">
-        <div class="header-bar d-flex justify-content-between align-items-center">
-            <h5 class="m-0 fw-bold text-danger"><i class="fa fa-edit me-2"></i>Dienstbuch-Editor</h5>
-            <div class="badge bg-danger rounded-pill">{{ groupName }}</div>
-        </div>
-
         <div class="save-status" :class="{ visible: saving }">
-            <i class="fa fa-spinner fa-spin text-danger"></i> Speichert...
+            <i class="fa fa-sync fa-spin text-danger"></i> Speichern...
         </div>
 
         <div class="main-content">
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+                <button @click="goBack" class="btn btn-link text-danger p-0 fw-bold text-decoration-none">
+                    <i class="fa fa-arrow-left me-2"></i>Dashboard
+                </button>
+                <div class="badge bg-white text-dark border rounded-pill px-3 py-2 shadow-sm">
+                    {{ groupName }}
+                </div>
+            </div>
+            
             <div class="editor-card">
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="small fw-bold text-muted">THEMA / STICHWORT</label>
-                        <input type="text" class="form-control" v-model="description" @change="autoSave">
+                        <label class="small fw-bold text-muted">THEMA</label>
+                        <input type="text" class="form-control border-0 bg-light fw-bold" v-model="description" @change="autoSave">
                     </div>
                     <div class="col-6">
                         <label class="small fw-bold text-muted">DATUM</label>
-                        <input type="date" class="form-control" v-model="currentDate" @change="autoSave">
+                        <input type="date" class="form-control border-0 bg-light" v-model="currentDate" @change="autoSave">
                     </div>
                     <div class="col-6">
-                        <label class="small fw-bold text-muted">STUNDEN</label>
-                        <input type="number" step="0.5" class="form-control text-center" v-model="duration" @change="autoSave">
+                        <label class="small fw-bold text-muted">DAUER</label>
+                        <input type="number" step="0.5" class="form-control border-0 bg-light text-center" v-model="duration" @change="autoSave">
                     </div>
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
-                <div class="input-group">
-                    <span class="input-group-text bg-white border-end-0"><i class="fa fa-search text-muted"></i></span>
-                    <input type="text" class="form-control border-start-0" v-model="q" placeholder="Person suchen...">
-                </div>
-                <button class="btn btn-fire" data-bs-toggle="modal" data-bs-target="#poolModal">
-                    <i class="fa fa-user-plus"></i>
+            <div class="d-flex gap-2 mb-4">
+                <input type="text" class="form-control rounded-pill px-4 shadow-sm" v-model="q" placeholder="Person suchen...">
+                <button class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#poolModal" style="width:48px; height:48px;">
+                    <i class="fa fa-plus"></i>
                 </button>
             </div>
 
-            <div v-for="p in filteredPersons" :key="p.id" class="editor-card py-2 px-3" :class="{'present-row': p.is_present}">
+            <div v-for="p in filteredPersons" :key="p.id" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
                 <div class="d-flex align-items-center gap-3">
                     <div @click="togglePresence(p)" style="cursor: pointer;">
-                        <i v-if="p.is_present" class="fa-solid fa-check-circle text-success fs-3"></i>
-                        <i v-else class="fa-regular fa-circle text-secondary fs-3"></i>
+                        <i v-if="p.is_present" class="fa-solid fa-circle-check text-success fs-2"></i>
+                        <i v-else class="fa-regular fa-circle text-secondary fs-2"></i>
                     </div>
                     
                     <div class="flex-grow-1">
                         <div class="fw-bold">{{ p.name }}</div>
-                        <div class="d-flex flex-wrap mt-1">
-                            <button v-for="v in vehicles" 
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            <button v-for="v in globalVehicles" 
                                     :key="v.id"
                                     class="btn btn-xs" 
                                     :class="p.vehicle === v.name ? 'active' : ''" 
@@ -96,37 +85,40 @@
                         </div>
                     </div>
 
-                    <div v-if="p.is_present" class="sig-box" @click="openSig(p)">
-                        <img v-if="p.signature" :src="p.signature">
-                        <i v-else class="fa fa-pen text-muted small"></i>
+                    <div v-if="p.is_present" style="width: 70px;">
+                        <div class="sig-preview" @click="openSig(p)">
+                            <img v-if="p.signature" :src="p.signature">
+                            <i v-else class="fa fa-pen text-danger small"></i>
+                        </div>
                     </div>
                     
-                    <button class="btn btn-link text-muted p-0" @click="removePerson(p)">
-                        <i class="fa fa-times-circle"></i>
+                    <button class="btn text-muted p-1" @click="removePerson(p)">
+                        <i class="fa fa-trash"></i>
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="floating-nav">
-            <button class="btn btn-fire px-5 shadow" @click="goBack">
-                <i class="fa fa-save me-2"></i>DASHBOARD VERLASSEN
+        <div class="floating-buttons shadow-lg">
+            <button class="btn-main shadow" @click="goBack">
+                <i class="fa fa-check me-2"></i>FERTIG
             </button>
         </div>
 
         <div class="modal fade" id="poolModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered modal-sm">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h6 class="modal-title fw-bold">Personal wählen</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-content border-0 rounded-4">
+                    <div class="modal-header bg-dark text-white rounded-top-4 border-0">
+                        <h6 class="modal-title fw-bold">Personal hinzufügen</h6>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body p-0" style="max-height: 350px; overflow-y: auto;">
+                    <div class="modal-body p-0" style="max-height: 400px; overflow-y: auto;">
                         <div class="list-group list-group-flush">
                             <button v-for="ap in pool" :key="ap.id" 
                                     @click="addFromPool(ap)"
-                                    class="list-group-item list-group-item-action d-flex justify-content-between">
-                                {{ ap.name }} <i class="fa fa-plus text-danger"></i>
+                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 px-4">
+                                <span>{{ ap.name }}</span>
+                                <i class="fa fa-plus-circle text-danger"></i>
                             </button>
                         </div>
                     </div>
@@ -136,12 +128,12 @@
 
         <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-body p-3">
-                        <canvas id="sigCanvas" style="width:100%; height:200px; border:1px solid #ddd; border-radius: 5px;"></canvas>
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-body p-4">
+                        <canvas id="sigCanvas" style="width:100%; height:200px; border:1px dashed #ccc; border-radius: 12px;"></canvas>
                         <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-light flex-grow-1" @click="clearSig">Löschen</button>
-                            <button class="btn btn-fire flex-grow-1" @click="saveSig">OK</button>
+                            <button class="btn btn-light flex-grow-1 rounded-pill" @click="clearSig">Löschen</button>
+                            <button class="btn btn-primary flex-grow-1 rounded-pill" @click="saveSig">OK</button>
                         </div>
                     </div>
                 </div>
@@ -151,13 +143,13 @@
 
     <script>
         const { createApp } = Vue;
-        let sigPad = null, sModal = null;
+        let sigPad = null, sigModal = null;
 
         createApp({
             data() {
                 return {
                     groupId: null, sessionId: null, groupName: '',
-                    vehicles: [], persons: [], pool: [],
+                    globalVehicles: [], persons: [], pool: [],
                     description: '', duration: 2.0, currentDate: new Date().toISOString().split('T')[0],
                     saving: false, q: '', activePerson: null
                 }
@@ -173,45 +165,45 @@
                 this.groupId = params.get('group_id');
                 this.sessionId = params.get('session_id');
 
-                // 1. Fahrzeuge laden (Pfad aus Dashboard)
+                // 1. Fahrzeuge laden (Global)
                 const vRes = await fetch('/api/vehicles');
-                this.vehicles = await vRes.json();
+                this.globalVehicles = await vRes.json();
 
-                // 2. Gruppe laden
+                // 2. Gruppenname
                 const gRes = await fetch('/groups');
                 const groups = await gRes.json();
                 const g = groups.find(x => x.id == this.groupId);
                 if(g) this.groupName = g.name;
 
                 // 3. Bestehende Daten laden
-                await this.loadData();
+                await this.loadAttendance();
 
                 // 4. Pool laden
                 const pRes = await fetch('/api/personnel/list');
                 this.pool = await pRes.json();
 
-                sModal = new bootstrap.Modal(document.getElementById('sigModal'));
+                sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
                 sigPad = new SignaturePad(document.getElementById('sigCanvas'));
             },
             methods: {
-                async loadData() {
+                async loadAttendance() {
                     let url = `/groups/${this.groupId}/attendance`;
                     if(this.sessionId) url += `?session_id=${this.sessionId}`;
-                    
                     const res = await fetch(url);
-                    const d = await res.json();
+                    const data = await res.json();
                     
-                    if(d.session_id) {
-                        this.sessionId = d.session_id;
-                        this.description = d.description || '';
-                        this.duration = d.duration || 2.0;
-                        this.currentDate = d.date || this.currentDate;
-                        this.persons = d.persons || [];
+                    // WICHTIG: Wir laden die Personen IMMER, auch wenn session_id noch fehlt
+                    this.persons = data.persons || [];
+                    if (data.session_id) {
+                        this.sessionId = data.session_id;
+                        this.description = data.description || '';
+                        this.duration = data.duration || 2.0;
+                        this.currentDate = data.date || this.currentDate;
                     }
                 },
                 async autoSave() {
                     this.saving = true;
-                    // WICHTIG: payload muss exakt zur main.py (BaseModel AttendancePayload) passen
+                    // Payload exakt für main.py AttendancePayload
                     const payload = {
                         session_id: this.sessionId ? parseInt(this.sessionId) : null,
                         group_id: parseInt(this.groupId),
@@ -220,9 +212,9 @@
                         duration: parseFloat(this.duration),
                         entries: this.persons.map(p => ({
                             person_id: p.id,
-                            is_present: p.is_present,
+                            is_present: !!p.is_present,
                             vehicle: p.vehicle || '',
-                            note: p.vehicle || '', // Wir senden vehicle als note, da main.py notes braucht
+                            note: p.vehicle || '', // note wird in main.py genutzt
                             signature: p.signature || null
                         }))
                     };
@@ -234,46 +226,54 @@
                             body: JSON.stringify(payload)
                         });
                         const res = await r.json();
-                        
-                        // Hier ist der Fix: session_id vom Server übernehmen!
-                        if(res.session_id && !this.sessionId) {
+                        if (res.session_id && !this.sessionId) {
                             this.sessionId = res.session_id;
-                            const newUrl = window.location.pathname + `?group_id=${this.groupId}&session_id=${this.sessionId}`;
+                            // URL updaten damit Reload funktioniert
+                            const newUrl = `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`;
                             window.history.replaceState({}, '', newUrl);
                         }
-                    } catch(e) { console.error(e); }
-                    setTimeout(() => { this.saving = false; }, 500);
+                    } catch(e) { console.error("Save failed", e); }
+                    setTimeout(() => { this.saving = false; }, 400);
                 },
-                async addFromPool(p) {
-                    if(!this.persons.find(x => x.id === p.id)) {
-                        this.persons.push({...p, is_present: true, vehicle: '', signature: null});
+                async addFromPool(ap) {
+                    if(!this.persons.find(x => x.id === ap.id)) {
+                        this.persons.push({
+                            id: ap.id,
+                            name: ap.name,
+                            is_present: true,
+                            vehicle: '',
+                            signature: null
+                        });
                         await this.autoSave();
                     }
                     bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
                 },
                 removePerson(p) {
-                    if(confirm(p.name + " entfernen?")) {
-                        this.persons = this.persons.filter(x => x.id !== p.id);
-                        this.autoSave();
-                    }
+                    this.persons = this.persons.filter(x => x.id !== p.id);
+                    this.autoSave();
                 },
                 togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
-                setVehicle(p, v) {
-                    p.vehicle = (p.vehicle === v) ? '' : v;
+                setVehicle(p, vName) {
+                    p.vehicle = (p.vehicle === vName) ? '' : vName;
                     if(p.vehicle) p.is_present = true;
                     this.autoSave();
                 },
-                openSig(p) { this.activePerson = p; sModal.show(); setTimeout(() => {
-                    const c = document.getElementById('sigCanvas');
-                    c.width = c.offsetWidth; c.height = c.offsetHeight;
-                    sigPad.clear();
-                }, 200); },
+                openSig(p) {
+                    this.activePerson = p;
+                    sigModal.show();
+                    setTimeout(() => {
+                        const c = document.getElementById('sigCanvas');
+                        c.width = c.offsetWidth; c.height = c.offsetHeight;
+                        sigPad.clear();
+                        if(p.signature) sigPad.fromDataURL(p.signature);
+                    }, 200);
+                },
                 saveSig() {
                     if(!sigPad.isEmpty()) {
                         this.activePerson.signature = sigPad.toDataURL();
                         this.autoSave();
                     }
-                    sModal.hide();
+                    sigModal.hide();
                 },
                 clearSig() { sigPad.clear(); },
                 goBack() { window.location.href = '/static/dashboard.html'; }
