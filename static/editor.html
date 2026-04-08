@@ -10,275 +10,335 @@
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise: #0d6efd; --incident: #dc3545; --misc: #ffc107; }
+        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; }
         body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
-        .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
-        .editor-card { background: white; border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 20px; position: relative; }
-        .present-row { background-color: #f0fdf4 !important; border-left: 6px solid #198754 !important; }
-        .btn-xs { font-size: 0.65rem !important; padding: 4px 8px !important; font-weight: bold; border-radius: 6px; border: 1px solid #dee2e6; background: white; color: #666; }
-        .btn-xs.active { background-color: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
-        .save-status { position: fixed; top: 15px; right: 15px; z-index: 2000; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; opacity: 0; transition: 0.3s; pointer-events: none; }
-        .save-status.visible { opacity: 1; }
-        .floating-buttons { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: center; border-top: 1px solid #eee; z-index: 1000; }
-        .btn-main { background: var(--primary-color); color: white; border-radius: 50px; padding: 12px 40px; font-weight: 700; border: none; box-shadow: 0 10px 20px rgba(183, 28, 28, 0.2); }
-        .sig-preview { height: 40px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .sig-preview img { height: 100%; mix-blend-mode: multiply; }
+        .header-bar { background: white; border-bottom: 3px solid var(--primary-color); padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stats-badge { padding: 8px 15px; border-radius: 10px; font-weight: bold; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+        .bg-presence { background: #e3f2fd; color: #0d47a1; }
+        .bg-absence { background: #ffebee; color: #b71c1c; }
+        .bg-total { background: #f5f5f5; color: #424242; }
+        .person-card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; transition: 0.2s; }
+        .person-card.present { border-left: 5px solid #2e7d32; }
+        .person-card.absent { border-left: 5px solid #c62828; opacity: 0.8; }
+        .btn-signature { background: #f8f9fa; border: 1px dashed #ccc; color: #666; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .btn-signature.signed { background: #e8f5e9; border-style: solid; border-color: #2e7d32; color: #2e7d32; }
+        .leader-signature-box { border: 2px dashed #b71c1c; color: #b71c1c; background: #fff; cursor: pointer; padding: 10px; border-radius: 10px; text-align: center; }
+        .leader-signature-box.signed { border-style: solid; border-color: #2e7d32; color: #2e7d32; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; border-top: 2px solid #ddd; z-index: 1000; }
+        .pool-item { cursor: pointer; padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; }
+        .pool-item:hover { background: #f0f0f0; }
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="save-status" :class="{ visible: saving }">
-            <i class="fa fa-sync fa-spin text-danger"></i> Speichern...
-        </div>
-
-        <div class="main-content">
-            <div class="mb-3 d-flex justify-content-between align-items-center">
-                <button @click="goBack" class="btn btn-link text-danger p-0 fw-bold text-decoration-none">
-                    <i class="fa fa-arrow-left me-2"></i>Dashboard
+<div id="app" class="container-fluid p-0">
+    <div class="header-bar sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <button @click="goBack" class="btn btn-outline-secondary btn-sm"><i class="fa fa-arrow-left"></i></button>
+            <h5 class="m-0 fw-bold">{{ groupName }}</h5>
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#poolModal">
+                    <i class="fa fa-user-plus"></i> Pool
                 </button>
-                <div class="badge bg-white text-dark border rounded-pill px-3 py-2 shadow-sm">
-                    {{ groupName }}
-                </div>
             </div>
-            
-            <div class="editor-card">
-                <div class="row g-3">
+        </div>
+        
+        <div class="d-flex gap-2 justify-content-center">
+            <div class="stats-badge bg-presence">
+                <i class="fa fa-check-circle"></i> {{ stats.present }}
+            </div>
+            <div class="stats-badge bg-absence">
+                <i class="fa fa-times-circle"></i> {{ stats.absent }}
+            </div>
+            <div class="stats-badge bg-total">
+                <i class="fa fa-users"></i> {{ persons.length }}
+            </div>
+        </div>
+    </div>
+
+    <div class="p-3">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="small text-muted">Datum</label>
+                        <input type="date" v-model="date" class="form-control" @change="autoSave">
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-muted">Dauer (h)</label>
+                        <input type="number" step="0.5" v-model="duration" class="form-control" @input="autoSave">
+                    </div>
                     <div class="col-12">
-                        <label class="small fw-bold text-muted">THEMA</label>
-                        <input type="text" class="form-control border-0 bg-light fw-bold" v-model="description" @change="autoSave">
-                    </div>
-                    <div class="col-6">
-                        <label class="small fw-bold text-muted">DATUM</label>
-                        <input type="date" class="form-control border-0 bg-light" v-model="currentDate" @change="autoSave">
-                    </div>
-                    <div class="col-6">
-                        <label class="small fw-bold text-muted">DAUER</label>
-                        <input type="number" step="0.5" class="form-control border-0 bg-light text-center" v-model="duration" @change="autoSave">
+                        <label class="small text-muted">Thema / Beschreibung</label>
+                        <input type="text" v-model="description" class="form-control" placeholder="z.B. Atemschutzübung" @input="autoSave">
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="d-flex gap-2 mb-4">
-                <input type="text" class="form-control rounded-pill px-4 shadow-sm" v-model="q" placeholder="Person suchen...">
-                <button class="btn btn-danger rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#poolModal" style="width:48px; height:48px;">
-                    <i class="fa fa-plus"></i>
+        <div v-for="p in sortedPersons" :key="p.id" class="person-card" :class="p.is_present ? 'present' : 'absent'">
+            <div class="d-flex justify-content-between align-items-center">
+                <div @click="togglePresence(p)" style="cursor:pointer; flex-grow: 1;">
+                    <div class="fw-bold">{{ p.name }}</div>
+                    <div class="small text-muted" v-if="p.vehicle">{{ p.vehicle }}</div>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button @click="openSig(p)" class="btn btn-sm btn-signature" :class="{signed: p.signature}">
+                        <i class="fa" :class="p.signature ? 'fa-check' : 'fa-pen'"></i>
+                    </button>
+                    <button @click="removePerson(p)" class="btn btn-sm text-danger"><i class="fa fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="mt-2 d-flex gap-1 flex-wrap">
+                <button v-for="v in vehicles" :key="v.id" 
+                        @click="setVehicle(p, v.name)"
+                        class="btn btn-xxs py-0 px-2 border"
+                        :class="p.vehicle === v.name ? 'btn-primary' : 'btn-light'"
+                        style="font-size: 0.7rem;">
+                    {{ v.name }}
                 </button>
             </div>
+        </div>
 
-            <div v-for="p in filteredPersons" :key="p.id" class="editor-card py-3 px-3 mb-2" :class="{'present-row': p.is_present}">
-                <div class="d-flex align-items-center gap-3">
-                    <div @click="togglePresence(p)" style="cursor: pointer;">
-                        <i v-if="p.is_present" class="fa-solid fa-circle-check text-success fs-2"></i>
-                        <i v-else class="fa-regular fa-circle text-secondary fs-2"></i>
-                    </div>
-                    
-                    <div class="flex-grow-1">
-                        <div class="fw-bold">{{ p.name }}</div>
-                        <div class="d-flex flex-wrap gap-1 mt-1">
-                            <button v-for="v in globalVehicles" 
-                                    :key="v.id"
-                                    class="btn btn-xs" 
-                                    :class="p.vehicle === v.name ? 'active' : ''" 
-                                    @click="setVehicle(p, v.name)">
-                                {{ v.name }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div v-if="p.is_present" style="width: 70px;">
-                        <div class="sig-preview" @click="openSig(p)">
-                            <img v-if="p.signature" :src="p.signature">
-                            <i v-else class="fa fa-pen text-danger small"></i>
-                        </div>
-                    </div>
-                    
-                    <button class="btn text-muted p-1" @click="removePerson(p)">
-                        <i class="fa fa-trash"></i>
-                    </button>
+        <div class="card shadow-sm border-0 mt-4 mb-3">
+            <div class="card-header bg-dark text-white fw-bold">Übungsleitung / Verantwortlicher</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="small text-muted">Name der Übungsleitung</label>
+                    <input type="text" v-model="instructors" class="form-control" placeholder="Name eintragen" @input="autoSave">
                 </div>
-            </div>
-        </div>
-
-        <div class="floating-buttons shadow-lg">
-            <button class="btn-main shadow" @click="goBack">
-                <i class="fa fa-check me-2"></i>FERTIG
-            </button>
-        </div>
-
-        <div class="modal fade" id="poolModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered modal-sm">
-                <div class="modal-content border-0 rounded-4">
-                    <div class="modal-header bg-dark text-white rounded-top-4 border-0">
-                        <h6 class="modal-title fw-bold">Personal hinzufügen</h6>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-0" style="max-height: 400px; overflow-y: auto;">
-                        <div class="list-group list-group-flush">
-                            <button v-for="ap in pool" :key="ap.id" 
-                                    @click="addFromPool(ap)"
-                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 px-4">
-                                <span>{{ ap.name }}</span>
-                                <i class="fa fa-plus-circle text-danger"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="modal fade" id="sigModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-body p-4">
-                        <canvas id="sigCanvas" style="width:100%; height:200px; border:1px dashed #ccc; border-radius: 12px;"></canvas>
-                        <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-light flex-grow-1 rounded-pill" @click="clearSig">Löschen</button>
-                            <button class="btn btn-primary flex-grow-1 rounded-pill" @click="saveSig">OK</button>
-                        </div>
+                <div @click="openLeaderSig" class="leader-signature-box" :class="{signed: leaderSignature}">
+                    <img v-if="leaderSignature" :src="leaderSignature" style="max-height: 80px; mix-blend-mode: multiply;">
+                    <div v-else>
+                        <i class="fa fa-pen fa-2x mb-2"></i><br>
+                        Hier unterschreiben
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        const { createApp } = Vue;
-        let sigPad = null, sigModal = null;
+    <div class="bottom-nav d-flex gap-2">
+        <button @click="saveAndExit" class="btn btn-success flex-grow-1 fw-bold">
+            <i class="fa fa-save me-2"></i> Speichern & Schließen
+        </button>
+    </div>
 
-        createApp({
-            data() {
+    <div class="modal fade" id="poolModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Personal-Pool</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="p-2 border-bottom d-flex gap-2">
+                    <input type="text" v-model="poolSearch" class="form-control" placeholder="Suchen...">
+                    <button @click="selectAllPool" class="btn btn-outline-primary btn-sm text-nowrap">Alle an</button>
+                </div>
+                <div class="modal-body p-0">
+                    <div v-for="p in filteredPool" :key="p.id" class="pool-item" @click="p.selected = !p.selected">
+                        <input type="checkbox" v-model="p.selected" class="form-check-input">
+                        <span>{{ p.name }}</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button @click="addSelectedFromPool" class="btn btn-primary w-100">Auswahl hinzufügen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="sigModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5>Unterschrift: {{ sigModalTitle }}</h5>
+                </div>
+                <div class="modal-body p-0 bg-light d-flex flex-column">
+                    <canvas id="sigCanvas" class="flex-grow-1 w-100" style="touch-action: none;"></canvas>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button @click="clearSig" class="btn btn-outline-secondary">Löschen</button>
+                    <div>
+                        <button data-bs-dismiss="modal" class="btn btn-secondary me-2">Abbrechen</button>
+                        <button @click="saveSig" class="btn btn-primary">Übernehmen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let sigPad, sigModal;
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                groupId: new URLSearchParams(window.location.search).get('group_id'),
+                sessionId: new URLSearchParams(window.location.search).get('session_id'),
+                groupName: 'Lade...',
+                date: '',
+                description: '',
+                duration: 2.0,
+                instructors: '', // NEU: Name der Leitung
+                leaderSignature: null, // NEU: Unterschrift der Leitung
+                persons: [],
+                vehicles: [],
+                pool: [],
+                poolSearch: '',
+                activePerson: null,
+                isSigningLeader: false // NEU: Unterscheidet Person/Leitung im Modal
+            }
+        },
+        computed: {
+            stats() {
                 return {
-                    groupId: null, sessionId: null, groupName: '',
-                    globalVehicles: [], persons: [], pool: [],
-                    description: '', duration: 2.0, currentDate: new Date().toISOString().split('T')[0],
-                    saving: false, q: '', activePerson: null
+                    present: this.persons.filter(p => p.is_present).length,
+                    absent: this.persons.filter(p => !p.is_present).length
                 }
             },
-            computed: {
-                filteredPersons() {
-                    if (!this.q) return this.persons;
-                    return this.persons.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
-                }
+            sortedPersons() {
+                return [...this.persons].sort((a, b) => a.name.localeCompare(b.name));
             },
-            async mounted() {
-                const params = new URLSearchParams(window.location.search);
-                this.groupId = params.get('group_id');
-                this.sessionId = params.get('session_id');
-
-                // 1. Fahrzeuge laden (Global)
-                const vRes = await fetch('/api/vehicles');
-                this.globalVehicles = await vRes.json();
-
-                // 2. Gruppenname
-                const gRes = await fetch('/groups');
-                const groups = await gRes.json();
+            filteredPool() {
+                const s = this.poolSearch.toLowerCase();
+                return this.pool.filter(p => p.name.toLowerCase().includes(s));
+            },
+            sigModalTitle() {
+                if(this.isSigningLeader) return "Übungsleitung: " + (this.instructors || "");
+                return this.activePerson?.name || "";
+            }
+        },
+        methods: {
+            async load() {
+                const groups = await fetch('/groups').then(r => r.json());
                 const g = groups.find(x => x.id == this.groupId);
                 if(g) this.groupName = g.name;
 
-                // 3. Bestehende Daten laden
-                await this.loadAttendance();
+                this.vehicles = await fetch('/api/vehicles').then(r => r.json());
+                
+                const poolData = await fetch('/api/personnel/list').then(r => r.json());
+                this.pool = poolData.map(p => ({...p, selected: false}));
 
-                // 4. Pool laden
-                const pRes = await fetch('/api/personnel/list');
-                this.pool = await pRes.json();
-
-                sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                sigPad = new SignaturePad(document.getElementById('sigCanvas'));
+                const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
+                const data = await fetch(url).then(r => r.json());
+                
+                this.date = data.date;
+                this.description = data.description;
+                this.duration = data.duration;
+                this.instructors = data.instructors || ''; // NEU laden
+                this.leaderSignature = data.leader_signature || null; // NEU laden
+                this.persons = data.persons || [];
+                if(data.session_id) this.sessionId = data.session_id;
             },
-            methods: {
-                async loadAttendance() {
-                    let url = `/groups/${this.groupId}/attendance`;
-                    if(this.sessionId) url += `?session_id=${this.sessionId}`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    
-                    // WICHTIG: Wir laden die Personen IMMER, auch wenn session_id noch fehlt
-                    this.persons = data.persons || [];
-                    if (data.session_id) {
-                        this.sessionId = data.session_id;
-                        this.description = data.description || '';
-                        this.duration = data.duration || 2.0;
-                        this.currentDate = data.date || this.currentDate;
-                    }
-                },
-                async autoSave() {
-                    this.saving = true;
-                    // Payload exakt für main.py AttendancePayload
-                    const payload = {
-                        session_id: this.sessionId ? parseInt(this.sessionId) : null,
-                        group_id: parseInt(this.groupId),
-                        date: this.currentDate,
-                        description: this.description,
-                        duration: parseFloat(this.duration),
-                        entries: this.persons.map(p => ({
-                            person_id: p.id,
-                            is_present: !!p.is_present,
-                            vehicle: p.vehicle || '',
-                            note: p.vehicle || '', // note wird in main.py genutzt
-                            signature: p.signature || null
-                        }))
-                    };
-
-                    try {
-                        const r = await fetch('/attendance', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(payload)
-                        });
-                        const res = await r.json();
-                        if (res.session_id && !this.sessionId) {
-                            this.sessionId = res.session_id;
-                            // URL updaten damit Reload funktioniert
-                            const newUrl = `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`;
-                            window.history.replaceState({}, '', newUrl);
-                        }
-                    } catch(e) { console.error("Save failed", e); }
-                    setTimeout(() => { this.saving = false; }, 400);
-                },
-                async addFromPool(ap) {
-                    if(!this.persons.find(x => x.id === ap.id)) {
-                        this.persons.push({
-                            id: ap.id,
-                            name: ap.name,
-                            is_present: true,
-                            vehicle: '',
-                            signature: null
-                        });
-                        await this.autoSave();
-                    }
-                    bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
-                },
-                removePerson(p) {
+            // ... (Bestandene Methoden: togglePresence, setVehicle, removePerson, selectAllPool, addSelectedFromPool)
+            togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
+            setVehicle(p, vName) {
+                p.vehicle = (p.vehicle === vName) ? '' : vName;
+                if(p.vehicle) p.is_present = true;
+                this.autoSave();
+            },
+            removePerson(p) {
+                if(confirm(p.name + " entfernen?")) {
                     this.persons = this.persons.filter(x => x.id !== p.id);
                     this.autoSave();
-                },
-                togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
-                setVehicle(p, vName) {
-                    p.vehicle = (p.vehicle === vName) ? '' : vName;
-                    if(p.vehicle) p.is_present = true;
-                    this.autoSave();
-                },
-                openSig(p) {
-                    this.activePerson = p;
-                    sigModal.show();
-                    setTimeout(() => {
-                        const c = document.getElementById('sigCanvas');
-                        c.width = c.offsetWidth; c.height = c.offsetHeight;
-                        sigPad.clear();
-                        if(p.signature) sigPad.fromDataURL(p.signature);
-                    }, 200);
-                },
-                saveSig() {
-                    if(!sigPad.isEmpty()) {
-                        this.activePerson.signature = sigPad.toDataURL();
-                        this.autoSave();
+                }
+            },
+            selectAllPool() {
+                const allSelected = this.filteredPool.every(p => p.selected);
+                this.filteredPool.forEach(p => p.selected = !allSelected);
+            },
+            async addSelectedFromPool() {
+                const selected = this.pool.filter(p => p.selected);
+                selected.forEach(sp => {
+                    if(!this.persons.find(x => x.id === sp.id)) {
+                        this.persons.push({
+                            id: sp.id, name: sp.name, is_present: true, 
+                            note: '', vehicle: '', signature: null
+                        });
                     }
-                    sigModal.hide();
-                },
-                clearSig() { sigPad.clear(); },
-                goBack() { window.location.href = '/static/dashboard.html'; }
-            }
-        }).mount('#app');
-    </script>
+                });
+                this.pool.forEach(p => p.selected = false);
+                bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
+                await this.autoSave();
+            },
+
+            async autoSave() {
+                const payload = {
+                    session_id: this.sessionId ? parseInt(this.sessionId) : null,
+                    group_id: parseInt(this.groupId),
+                    date: this.date,
+                    description: this.description,
+                    duration: parseFloat(this.duration),
+                    category: "Übung",
+                    instructors: this.instructors, // NEU senden
+                    leader_signature: this.leaderSignature, // NEU senden
+                    entries: this.persons.map(p => ({
+                        person_id: p.id,
+                        is_present: p.is_present,
+                        note: p.note || "",
+                        vehicle: p.vehicle || "",
+                        signature: p.signature
+                    }))
+                };
+                const res = await fetch('/attendance', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                }).then(r => r.json());
+                
+                if(res.session_id && !this.sessionId) {
+                    this.sessionId = res.session_id;
+                    window.history.replaceState({}, '', `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`);
+                }
+            },
+            openSig(p) {
+                this.activePerson = p;
+                this.isSigningLeader = false; // Person unterschreibt
+                this.prepareSigModal(p.signature);
+            },
+            openLeaderSig() {
+                this.activePerson = null;
+                this.isSigningLeader = true; // Leitung unterschreibt
+                this.prepareSigModal(this.leaderSignature);
+            },
+            prepareSigModal(existingSig) {
+                sigModal.show();
+                setTimeout(() => {
+                    const canvas = document.getElementById('sigCanvas');
+                    canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+                    sigPad.clear();
+                    if(existingSig) sigPad.fromDataURL(existingSig);
+                }, 200);
+            },
+            saveSig() {
+                if(!sigPad.isEmpty()) {
+                    const sigData = sigPad.toDataURL();
+                    if(this.isSigningLeader) {
+                        this.leaderSignature = sigData; // Übungsleitung
+                    } else {
+                        this.activePerson.signature = sigData; // Person
+                        this.activePerson.is_present = true;
+                    }
+                    this.autoSave();
+                } else if(this.isSigningLeader && sigPad.isEmpty()) {
+                    // Falls Leitung löscht & speichert -> Unterschrift entfernen
+                    this.leaderSignature = null;
+                    this.autoSave();
+                }
+                sigModal.hide();
+            },
+            clearSig() { sigPad.clear(); },
+            saveAndExit() { window.location.href = '/static/dashboard.html'; },
+            goBack() { window.location.href = '/static/dashboard.html'; }
+        },
+        mounted() {
+            this.load();
+            sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
+            const canvas = document.getElementById('sigCanvas');
+            sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+        }
+    }).mount('#app');
+</script>
 </body>
 </html>
