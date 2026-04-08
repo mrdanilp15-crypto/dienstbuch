@@ -104,7 +104,7 @@
                 <label class="small text-muted fw-bold">THEMA / BESCHREIBUNG</label>
                 <input list="topicList" class="form-control" v-model="description" @input="autoSave" placeholder="Was wurde gemacht?">
                 <datalist id="topicList">
-                    <option v-for="t in topicOptions" :value="t"></option>
+                    <option v-for="t in topicOptions" :key="t" :value="t"></option>
                 </datalist>
             </div>
 
@@ -112,7 +112,7 @@
                 <label class="small text-muted fw-bold">ÜBUNGSLEITUNG / AUSBILDER</label>
                 <input list="instrList" class="form-control" v-model="instructors" @input="autoSave" placeholder="Name(n)...">
                 <datalist id="instrList">
-                    <option v-for="i in instrOptions" :value="i"></option>
+                    <option v-for="i in instrOptions" :key="i" :value="i"></option>
                 </datalist>
             </div>
         </div>
@@ -167,14 +167,14 @@
                 </div>
 
                 <div class="ms-2 d-flex align-items-center gap-2">
-                    <button v-if="p.signature" class="btn btn-sm btn-link text-muted p-0" @click="clearP(p)">
+                    <button v-if="p.signature" class="btn btn-sm btn-link text-muted p-0" @click.stop="clearP(p)">
                         <i class="fas fa-eraser"></i>
                     </button>
-                    <div class="sig-box" @click="openSig(p)">
+                    <div class="sig-box" @click.stop="openSig(p)">
                         <img v-if="p.signature" :src="p.signature">
                         <i v-else class="fas fa-signature text-muted"></i>
                     </div>
-                    <button v-if="isAdmin" class="btn btn-sm text-danger" @click="removePerson(p)">
+                    <button v-if="isAdmin" class="btn btn-sm text-danger" @click.stop="removePerson(p)">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -205,27 +205,19 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" class="form-control mb-3" v-model="poolSearch" placeholder="Name suchen...">
-                    
-                    <div class="d-flex justify-content-between mb-2">
-                        <button class="btn btn-sm btn-outline-secondary" @click="selectAllPool">Alle an/aus</button>
+                    <div class="d-flex gap-2 mb-3">
+                        <input type="text" class="form-control" v-model="poolSearch" placeholder="Name suchen...">
+                        <button class="btn btn-outline-secondary text-nowrap" @click="selectAllPool">Alle an/aus</button>
                     </div>
-
                     <div class="list-group list-group-flush border rounded" style="max-height: 400px; overflow-y: auto;">
                         <div v-for="p in filteredPool" :key="p.id" class="pool-item" @click="p.selected = !p.selected">
                             <input type="checkbox" class="form-check-input me-3" v-model="p.selected" @click.stop>
                             <span class="fw-semibold">{{p.name}}</span>
                         </div>
-                        <div v-if="filteredPool.length === 0" class="p-4 text-center text-muted italic">
-                            Alle Personen bereits hinzugefügt oder keine Übereinstimmung.
-                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Abbrechen</button>
-                    <button type="button" class="btn btn-primary px-4" @click="addSelectedFromPool">
-                        Auswahl hinzufügen
-                    </button>
+                    <button type="button" class="btn btn-primary px-4" @click="addSelectedFromPool">Hinzufügen</button>
                 </div>
             </div>
         </div>
@@ -235,11 +227,9 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-body p-3 text-center">
-                    <h6 class="fw-bold mb-3">Bitte hier unterschreiben</h6>
                     <canvas id="sigCanvas"></canvas>
                     <div class="d-flex gap-2 mt-3">
                         <button class="btn btn-outline-secondary flex-fill" @click="clearModal">Löschen</button>
-                        <button class="btn btn-secondary flex-fill" @click="closeSig">Abbrechen</button>
                         <button class="btn btn-primary flex-fill" @click="saveSig">Speichern</button>
                     </div>
                 </div>
@@ -255,30 +245,17 @@
     createApp({
         data() {
             return {
-                isAdmin: false,
-                groupId: null,
-                sessionId: null,
-                globalVehicles: [],
-                persons: [],
-                pool: [],
-                topicOptions: [],
-                instrOptions: [],
-                q: '',
-                poolSearch: '',
-                category: 'Übung',
-                duration: 2.0,
-                description: '',
-                instructors: '',
-                leaderSignature: null,
+                isAdmin: false, groupId: null, sessionId: null,
+                globalVehicles: [], persons: [], pool: [],
+                topicOptions: [], instrOptions: [],
+                q: '', poolSearch: '', category: 'Übung', duration: 2.0,
+                description: '', instructors: '', leaderSignature: null,
                 currentDate: new Date().toISOString().split('T')[0],
-                saveState: 'idle',
-                activeSigner: null
+                saveState: 'idle', activeSigner: null
             }
         },
-        computed: { 
-            presentCount() { 
-                return this.persons.filter(p => p.is_present).length; 
-            },
+        computed: {
+            presentCount() { return this.persons.filter(p => p.is_present).length; },
             filtered() {
                 let list = [...this.persons];
                 if (this.q) list = list.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
@@ -286,147 +263,90 @@
             },
             filteredPool() {
                 const s = this.poolSearch.toLowerCase();
-                const addedIds = this.persons.map(p => String(p.id || p.person_id || ''));
-                const addedNames = this.persons.map(p => p.name.toLowerCase());
-                
                 return this.pool.filter(p => {
-                    const matchesSearch = p.name.toLowerCase().includes(s);
-                    const idAlreadyInList = addedIds.includes(String(p.id));
-                    const nameAlreadyInList = addedNames.includes(p.name.toLowerCase());
-                    return matchesSearch && !idAlreadyInList && !nameAlreadyInList;
+                    // Prüfen, ob die Person schon in der Liste existiert (via ID oder Name als Fallback)
+                    const exists = this.persons.find(x => String(x.id || x.person_id) === String(p.id) || x.name === p.name);
+                    return p.name.toLowerCase().includes(s) && !exists;
                 });
             }
         },
-
-        async mounted() { 
+        async mounted() {
             this.isAdmin = (localStorage.getItem('userRole') === 'admin');
             const p = new URLSearchParams(window.location.search);
             this.groupId = p.get('group_id');
             this.sessionId = p.get('session_id');
             
             try {
-                const vRes = await fetch('/api/vehicles');
-                this.globalVehicles = await vRes.json();
-
+                const vRes = await fetch('/api/vehicles'); this.globalVehicles = await vRes.json();
+            } catch(e) {}
+            
+            try {
                 const pRes = await fetch('/api/personnel/list');
                 const pData = await pRes.json();
-                this.pool = pData.map(member => ({...member, selected: false}));
+                this.pool = pData.map(m => ({...m, selected: false}));
+            } catch(e) {}
 
-                await this.load();
-                
-                const topics = await fetch(`/groups/${this.groupId}/topics`);
-                this.topicOptions = await topics.json();
-                const instrs = await fetch(`/groups/${this.groupId}/instructors`);
-                this.instrOptions = await instrs.json();
-            } catch (e) { console.error("Initialization Error:", e); }
+            await this.load();
+            
+            try {
+                const topics = await fetch(`/groups/${this.groupId}/topics`); this.topicOptions = await topics.json();
+                const instrs = await fetch(`/groups/${this.groupId}/instructors`); this.instrOptions = await instrs.json();
+            } catch(e) {}
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-            const canvas = document.getElementById('sigCanvas');
-            sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
-            window.addEventListener('resize', this.resizeCanvas);
+            sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'rgb(255, 255, 255)' });
         },
-
         methods: {
-            async goBack() {
-                if(this.isAdmin) await this.performSave();
-                window.location.href = '/static/dashboard.html';
-            },
-            async promptAdmin() {
-                const p = prompt("Admin PIN eingeben:");
-                if (p) {
-                    try {
-                        const r = await fetch('/api/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ pin: p })
-                        });
-                        if (r.ok) {
-                            this.isAdmin = true;
-                            localStorage.setItem('userRole', 'admin');
-                            location.reload(); 
-                        } else { alert("Falsche PIN!"); }
-                    } catch (e) { alert("Verbindung fehlgeschlagen."); }
-                }
-            },
-            logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); },
-            resizeCanvas() {
-                const canvas = document.getElementById('sigCanvas'); if (!canvas) return;
-                const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                canvas.width = canvas.offsetWidth * ratio; canvas.height = canvas.offsetHeight * ratio;
-                canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
-            },
-            async load() { 
+            async load() {
+                if(!this.groupId) return;
                 const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                 try {
-                    const response = await fetch(url);
-                    const d = await response.json(); 
-                    const seen = new Set();
-                    this.persons = (d.persons || []).map(p => ({
-                        ...p, id: p.id || p.person_id
-                    })).filter(p => {
-                        if (seen.has(p.name)) return false;
-                        seen.add(p.name);
-                        return true;
-                    });
-                    if(d.session_id){ 
-                        this.sessionId = d.session_id; this.category = d.category; 
-                        this.duration = d.duration; this.description = d.description; 
-                        this.instructors = d.instructors; this.currentDate = d.date; 
-                        this.leaderSignature = d.leader_signature; 
+                    const res = await fetch(url);
+                    const d = await res.json();
+                    if(d.persons) {
+                        this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id }));
                     }
-                } catch(e) { console.error("Load Error:", e); }
+                    if(d.session_id) {
+                        this.sessionId = d.session_id; this.category = d.category || 'Übung';
+                        this.duration = d.duration || 2.0; this.description = d.description || '';
+                        this.instructors = d.instructors || ''; this.currentDate = d.date || this.currentDate;
+                        this.leaderSignature = d.leader_signature;
+                    }
+                } catch(e) { console.error("Load Error", e); }
             },
-            autoSave() { 
+            autoSave() {
                 if(!this.isAdmin) return;
-                this.saveState = 'saving'; 
-                clearTimeout(saveTimer); 
-                saveTimer = setTimeout(this.performSave, 1500); 
+                this.saveState = 'saving';
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(this.performSave, 1000);
             },
             async performSave() {
-                if(!this.isAdmin && this.sessionId) return; 
-                const data = { 
-                    session_id: this.sessionId ? parseInt(this.sessionId) : null, 
-                    date: this.currentDate, group_id: parseInt(this.groupId), 
-                    category: this.category || "Übung", duration: parseFloat(this.duration), 
-                    description: this.description || "", instructors: this.instructors || "", 
-                    leader_signature: this.leaderSignature || null, 
-                    entries: this.persons.map(x => ({
-                        person_id: parseInt(x.id || x.person_id), 
-                        is_present: !!x.is_present, vehicle: x.vehicle || "", 
-                        note: "", signature: x.signature || null
-                    })) 
+                if(!this.groupId) return;
+                const data = {
+                    session_id: this.sessionId ? parseInt(this.sessionId) : null,
+                    date: this.currentDate, group_id: parseInt(this.groupId),
+                    category: this.category, duration: parseFloat(this.duration),
+                    description: this.description, instructors: this.instructors,
+                    leader_signature: this.leaderSignature,
+                    entries: this.persons.map(p => ({
+                        person_id: p.id || p.person_id, is_present: !!p.is_present,
+                        vehicle: p.vehicle || "", signature: p.signature || null, note: p.note || ""
+                    }))
                 };
                 try {
-                    const res = await fetch('/attendance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-                    const rd = await res.json(); 
+                    const res = await fetch('/attendance', {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify(data)
+                    });
+                    const rd = await res.json();
                     if(rd.session_id && !this.sessionId) {
-                        this.sessionId = rd.session_id; 
+                        this.sessionId = rd.session_id;
                         window.history.replaceState({}, '', `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`);
                     }
                     this.saveState = 'saved';
-                    setTimeout(() => { if(this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
-                } catch(e) { console.error(e); this.saveState = 'idle'; }
+                    setTimeout(() => this.saveState = 'idle', 2000);
+                } catch(e) { console.error("Save Error", e); this.saveState = 'idle'; }
             },
-            async saveAndExit() { 
-                if(this.isAdmin) await this.performSave(); 
-                window.location.href = '/static/dashboard.html'; 
-            },
-            setCat(c) { this.category = c; this.autoSave(); },
-            togglePresence(p) { p.is_present = !p.is_present; if(!p.is_present) p.signature = null; this.autoSave(); },
-            setVehicle(p,v) { p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
-            openSig(target) { this.activeSigner = target; sigModal.show(); setTimeout(this.resizeCanvas, 200); },
-            saveSig() { 
-                if(!sigPad.isEmpty()){ 
-                    const data = sigPad.toDataURL();
-                    if(this.activeSigner === 'LEADER') this.leaderSignature = data;
-                    else { this.activeSigner.signature = data; this.activeSigner.is_present = true; }
-                }
-                sigModal.hide(); this.autoSave();
-            },
-            clearModal() { sigPad.clear(); },
-            clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
-            clearP(p) { p.signature = null; this.autoSave(); },
-            closeSig() { sigModal.hide(); },
             removePerson(p) {
                 if(confirm(p.name + " wirklich entfernen?")) {
                     const targetId = String(p.id || p.person_id);
@@ -451,7 +371,46 @@
                 this.pool.forEach(p => p.selected = false);
                 bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
                 if(this.isAdmin) this.autoSave();
-            }
+            },
+            togglePresence(p) { p.is_present = !p.is_present; this.autoSave(); },
+            setVehicle(p,v) { p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
+            setCat(c) { this.category = c; this.autoSave(); },
+            openSig(t) { 
+                this.activeSigner = t; 
+                sigModal.show(); 
+                setTimeout(() => {
+                    const c = document.getElementById('sigCanvas');
+                    c.width = c.offsetWidth; c.height = c.offsetHeight; 
+                    sigPad.clear();
+                    // Wenn wir eine Unterschrift neu öffnen, lade die alte, falls vorhanden
+                    if(t !== 'LEADER' && t.signature) {
+                        sigPad.fromDataURL(t.signature);
+                    } else if (t === 'LEADER' && this.leaderSignature) {
+                        sigPad.fromDataURL(this.leaderSignature);
+                    }
+                }, 200); 
+            },
+            saveSig() {
+                if(!sigPad.isEmpty()) {
+                    const data = sigPad.toDataURL();
+                    if(this.activeSigner === 'LEADER') this.leaderSignature = data;
+                    else { this.activeSigner.signature = data; this.activeSigner.is_present = true; }
+                    this.autoSave();
+                }
+                sigModal.hide(); 
+            },
+            clearModal() { sigPad.clear(); },
+            clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
+            clearP(p) { p.signature = null; this.autoSave(); },
+            goBack() { window.location.href = '/static/dashboard.html'; },
+            saveAndExit() { this.performSave().then(() => this.goBack()); },
+            promptAdmin() {
+                const p = prompt("PIN:");
+                if(p === "1122") { 
+                    this.isAdmin = true; localStorage.setItem('userRole', 'admin'); location.reload();
+                }
+            },
+            logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); }
         }
     }).mount('#app');
 </script>
