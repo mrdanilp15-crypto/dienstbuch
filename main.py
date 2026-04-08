@@ -335,32 +335,41 @@ async def save_attendance(payload: AttendanceUpload):
             )
             session_id = cur.lastrowid
 
-        # 2. Alte Anwesenheit löschen
+        # 2. Alte Anwesenheit löschen (für diese spezifische Session)
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
 
+        # --- NEU: SYNCHRONISATION DER GRUPPENLISTE (Das Lösch-Gegenstück) ---
+        # Wir holen uns alle IDs, die vom Editor geschickt wurden
+        received_ids = [entry.person_id for entry in payload.entries]
+        
+        if received_ids:
+            # Wir löschen alle Personen aus der Tabelle 'persons', 
+            # die zu dieser Gruppe gehören, aber NICHT in der Liste vom Editor standen.
+            format_strings = ','.join(['%s'] * len(received_ids))
+            sql = f"DELETE FROM persons WHERE group_id = %s AND id NOT IN ({format_strings})"
+            cur.execute(sql, (payload.group_id, *received_ids))
+        # -------------------------------------------------------------------
+
         for entry in payload.entries:
-            # --- DER FIX: Existiert die Person in der Gruppe (Tabelle 'persons')? ---
+            # Existiert die Person in der Gruppe?
             cur.execute("SELECT id FROM persons WHERE id = %s", (entry.person_id,))
             exists = cur.fetchone()
 
             actual_id = entry.person_id
 
             if not exists:
-                # Falls die ID nicht in 'persons' ist, suchen wir den Namen im Pool
+                # Falls neu aus dem Pool hinzugefügt:
                 cur.execute("SELECT name FROM personnel WHERE id = %s", (entry.person_id,))
                 pool_person = cur.fetchone()
                 
                 if pool_person:
-                    # Person in die Gruppe kopieren, damit der Foreign Key zufrieden ist
                     cur.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", 
                                 (pool_person['name'], payload.group_id))
                     actual_id = cur.lastrowid
-                    print(f"Person {pool_person['name']} wurde Gruppe {payload.group_id} hinzugefügt.")
                 else:
-                    print(f"Konnte Person mit ID {entry.person_id} weder in persons noch in personnel finden.")
                     continue
 
-            # 3. Jetzt sicher speichern
+            # 3. Anwesenheit speichern
             cur.execute(
                 """INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) 
                    VALUES (%s, %s, %s, %s, %s, %s)""",
