@@ -321,61 +321,57 @@ async def save_attendance(payload: AttendanceUpload):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        # 1. Sessions Tabelle: Wir speichern/aktualisieren alle Felder aus deinem Modell
+        # 1. Session speichern/updaten
         if payload.session_id:
-            query = """
-                UPDATE sessions 
-                SET date=%s, description=%s, duration=%s, category=%s, instructors=%s 
-                WHERE id=%s
-            """
-            cur.execute(query, (
-                payload.date, 
-                payload.description, 
-                payload.duration, 
-                payload.category, 
-                payload.instructors, 
-                payload.session_id
-            ))
+            cur.execute(
+                "UPDATE sessions SET date=%s, description=%s, duration=%s, category=%s, instructors=%s WHERE id=%s",
+                (payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.session_id)
+            )
             session_id = payload.session_id
         else:
-            query = """
-                INSERT INTO sessions (group_id, date, description, duration, category, instructors) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cur.execute(query, (
-                payload.group_id, 
-                payload.date, 
-                payload.description, 
-                payload.duration, 
-                payload.category, 
-                payload.instructors
-            ))
+            cur.execute(
+                "INSERT INTO sessions (group_id, date, description, duration, category, instructors) VALUES (%s, %s, %s, %s, %s, %s)",
+                (payload.group_id, payload.date, payload.description, payload.duration, payload.category, payload.instructors)
+            )
             session_id = cur.lastrowid
 
-        # 2. Alte Anwesenheiten für diese Session löschen
+        # 2. Alte Anwesenheit löschen
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
 
-        # 3. Neue Einträge aus payload.entries (EntryDto) speichern
         for entry in payload.entries:
+            # --- DER FIX: Existiert die Person in der Gruppe (Tabelle 'persons')? ---
+            cur.execute("SELECT id FROM persons WHERE id = %s", (entry.person_id,))
+            exists = cur.fetchone()
+
+            actual_id = entry.person_id
+
+            if not exists:
+                # Falls die ID nicht in 'persons' ist, suchen wir den Namen im Pool
+                cur.execute("SELECT name FROM personnel WHERE id = %s", (entry.person_id,))
+                pool_person = cur.fetchone()
+                
+                if pool_person:
+                    # Person in die Gruppe kopieren, damit der Foreign Key zufrieden ist
+                    cur.execute("INSERT INTO persons (name, group_id) VALUES (%s, %s)", 
+                                (pool_person['name'], payload.group_id))
+                    actual_id = cur.lastrowid
+                    print(f"Person {pool_person['name']} wurde Gruppe {payload.group_id} hinzugefügt.")
+                else:
+                    print(f"Konnte Person mit ID {entry.person_id} weder in persons noch in personnel finden.")
+                    continue
+
+            # 3. Jetzt sicher speichern
             cur.execute(
-                """INSERT INTO attendance 
-                   (session_id, person_id, is_present, note, vehicle, signature) 
+                """INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) 
                    VALUES (%s, %s, %s, %s, %s, %s)""",
-                (
-                    session_id, 
-                    entry.person_id, 
-                    1 if entry.is_present else 0, 
-                    entry.note or "", 
-                    entry.vehicle or "", 
-                    entry.signature
-                )
+                (session_id, actual_id, 1 if entry.is_present else 0, entry.note or "", entry.vehicle or "", entry.signature)
             )
         
         conn.commit()
         return {"status": "success", "session_id": session_id}
     except Exception as e:
         conn.rollback()
-        print(f"DEBUG FEHLER: {str(e)}") # Schau hier ins Log, falls es noch hakt!
+        print(f"DEBUG FEHLER: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
