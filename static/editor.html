@@ -57,6 +57,7 @@
         #sigCanvas { border: 1px solid #ccc; width: 100%; height: 250px; touch-action: none; background: white; }
         .pool-item { cursor: pointer; padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
         .pool-item:hover { background: #f0f7ff; }
+        [v-cloak] { display: none; }
     </style>
 </head>
 <body>
@@ -238,7 +239,7 @@
                     <canvas id="sigCanvas"></canvas>
                     <div class="d-flex gap-2 mt-3">
                         <button class="btn btn-outline-secondary flex-fill" @click="clearModal">Löschen</button>
-                        <button class="btn btn-secondary flex-fill" @click="closeSig text-white">Abbrechen</button>
+                        <button class="btn btn-secondary flex-fill" @click="closeSig">Abbrechen</button>
                         <button class="btn btn-primary flex-fill" @click="saveSig">Speichern</button>
                     </div>
                 </div>
@@ -285,7 +286,6 @@
             },
             filteredPool() {
                 const s = this.poolSearch.toLowerCase();
-                // 1. Alle IDs und Namen sammeln, die bereits im Eintrag sind
                 const addedIds = this.persons.map(p => String(p.id || p.person_id || ''));
                 const addedNames = this.persons.map(p => p.name.toLowerCase());
                 
@@ -304,19 +304,21 @@
             this.groupId = p.get('group_id');
             this.sessionId = p.get('session_id');
             
-            const vRes = await fetch('/api/vehicles');
-            this.globalVehicles = await vRes.json();
+            try {
+                const vRes = await fetch('/api/vehicles');
+                this.globalVehicles = await vRes.json();
 
-            const pRes = await fetch('/api/personnel/list');
-            const pData = await pRes.json();
-            this.pool = pData.map(member => ({...member, selected: false}));
+                const pRes = await fetch('/api/personnel/list');
+                const pData = await pRes.json();
+                this.pool = pData.map(member => ({...member, selected: false}));
 
-            await this.load();
-            
-            const topics = await fetch(`/groups/${this.groupId}/topics`);
-            this.topicOptions = await topics.json();
-            const instrs = await fetch(`/groups/${this.groupId}/instructors`);
-            this.instrOptions = await instrs.json();
+                await this.load();
+                
+                const topics = await fetch(`/groups/${this.groupId}/topics`);
+                this.topicOptions = await topics.json();
+                const instrs = await fetch(`/groups/${this.groupId}/instructors`);
+                this.instrOptions = await instrs.json();
+            } catch (e) { console.error("Initialization Error:", e); }
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
             const canvas = document.getElementById('sigCanvas');
@@ -342,9 +344,7 @@
                             this.isAdmin = true;
                             localStorage.setItem('userRole', 'admin');
                             location.reload(); 
-                        } else {
-                            alert("Falsche PIN!");
-                        }
+                        } else { alert("Falsche PIN!"); }
                     } catch (e) { alert("Verbindung fehlgeschlagen."); }
                 }
             },
@@ -360,25 +360,18 @@
                 try {
                     const response = await fetch(url);
                     const d = await response.json(); 
-                    
                     const seen = new Set();
-                    // Normalisierung: Jede Person bekommt eine einheitliche .id Eigenschaft
                     this.persons = (d.persons || []).map(p => ({
-                        ...p,
-                        id: p.id || p.person_id
+                        ...p, id: p.id || p.person_id
                     })).filter(p => {
                         if (seen.has(p.name)) return false;
                         seen.add(p.name);
                         return true;
                     });
-
                     if(d.session_id){ 
-                        this.sessionId = d.session_id; 
-                        this.category = d.category; 
-                        this.duration = d.duration; 
-                        this.description = d.description; 
-                        this.instructors = d.instructors; 
-                        this.currentDate = d.date; 
+                        this.sessionId = d.session_id; this.category = d.category; 
+                        this.duration = d.duration; this.description = d.description; 
+                        this.instructors = d.instructors; this.currentDate = d.date; 
                         this.leaderSignature = d.leader_signature; 
                     }
                 } catch(e) { console.error("Load Error:", e); }
@@ -393,19 +386,14 @@
                 if(!this.isAdmin && this.sessionId) return; 
                 const data = { 
                     session_id: this.sessionId ? parseInt(this.sessionId) : null, 
-                    date: this.currentDate, 
-                    group_id: parseInt(this.groupId), 
-                    category: this.category || "Übung", 
-                    duration: parseFloat(this.duration), 
-                    description: this.description || "", 
-                    instructors: this.instructors || "", 
+                    date: this.currentDate, group_id: parseInt(this.groupId), 
+                    category: this.category || "Übung", duration: parseFloat(this.duration), 
+                    description: this.description || "", instructors: this.instructors || "", 
                     leader_signature: this.leaderSignature || null, 
                     entries: this.persons.map(x => ({
                         person_id: parseInt(x.id || x.person_id), 
-                        is_present: !!x.is_present, 
-                        vehicle: x.vehicle || "", 
-                        note: "", 
-                        signature: x.signature || null
+                        is_present: !!x.is_present, vehicle: x.vehicle || "", 
+                        note: "", signature: x.signature || null
                     })) 
                 };
                 try {
@@ -456,11 +444,7 @@
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
                     if(!exists) {
                         this.persons.push({
-                            id: sp.id, 
-                            name: sp.name, 
-                            is_present: true, 
-                            vehicle: '', 
-                            signature: null
+                            id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null
                         });
                     }
                 });
