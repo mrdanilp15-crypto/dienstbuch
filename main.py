@@ -317,38 +317,65 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
         conn.close()
 
 @app.post("/attendance")
-async def save_attendance(payload: AttendanceUpload): # <--- Nutzt jetzt dein Model
+async def save_attendance(payload: AttendanceUpload):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        # 1. Session erstellen oder updaten
+        # 1. Sessions Tabelle: Wir speichern/aktualisieren alle Felder aus deinem Modell
         if payload.session_id:
-            cur.execute(
-                "UPDATE sessions SET date=%s, description=%s, duration=%s WHERE id=%s",
-                (payload.date, payload.description, payload.duration, payload.session_id)
-            )
+            query = """
+                UPDATE sessions 
+                SET date=%s, description=%s, duration=%s, category=%s, instructors=%s 
+                WHERE id=%s
+            """
+            cur.execute(query, (
+                payload.date, 
+                payload.description, 
+                payload.duration, 
+                payload.category, 
+                payload.instructors, 
+                payload.session_id
+            ))
             session_id = payload.session_id
         else:
-            cur.execute(
-                "INSERT INTO sessions (group_id, date, description, duration) VALUES (%s, %s, %s, %s)",
-                (payload.group_id, payload.date, payload.description, payload.duration)
-            )
+            query = """
+                INSERT INTO sessions (group_id, date, description, duration, category, instructors) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            cur.execute(query, (
+                payload.group_id, 
+                payload.date, 
+                payload.description, 
+                payload.duration, 
+                payload.category, 
+                payload.instructors
+            ))
             session_id = cur.lastrowid
 
-        # 2. Alte Einträge löschen (Clean Slate)
+        # 2. Alte Anwesenheiten für diese Session löschen
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
 
-        # 3. Personen neu eintragen
+        # 3. Neue Einträge aus payload.entries (EntryDto) speichern
         for entry in payload.entries:
             cur.execute(
-                "INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",
-                (session_id, entry.person_id, 1 if entry.is_present else 0, entry.note, entry.vehicle, entry.signature)
+                """INSERT INTO attendance 
+                   (session_id, person_id, is_present, note, vehicle, signature) 
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (
+                    session_id, 
+                    entry.person_id, 
+                    1 if entry.is_present else 0, 
+                    entry.note or "", 
+                    entry.vehicle or "", 
+                    entry.signature
+                )
             )
         
         conn.commit()
         return {"status": "success", "session_id": session_id}
     except Exception as e:
         conn.rollback()
+        print(f"DEBUG FEHLER: {str(e)}") # Schau hier ins Log, falls es noch hakt!
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
