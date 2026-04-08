@@ -297,7 +297,7 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
                 session_data = row
                 session_data['date'] = str(session_data['date'])
 
-        # LEFT JOIN: Lädt alle Personen der Gruppe, auch wenn sie noch nicht gespeichert wurden
+        # LEFT JOIN lädt alle Personen der Gruppe + vorhandene Anwesenheiten
         query = """
             SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, 
                    COALESCE(a.note, '') as note, COALESCE(a.vehicle, '') as vehicle, a.signature 
@@ -317,10 +317,11 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
         conn.close()
 
 @app.post("/attendance")
-async def save_attendance(payload: AttendancePayload):
+async def save_attendance(payload: AttendanceUpload): # <--- Nutzt jetzt dein Model
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
+        # 1. Session erstellen oder updaten
         if payload.session_id:
             cur.execute(
                 "UPDATE sessions SET date=%s, description=%s, duration=%s WHERE id=%s",
@@ -334,8 +335,10 @@ async def save_attendance(payload: AttendancePayload):
             )
             session_id = cur.lastrowid
 
-        # WICHTIG: Erst löschen, dann neu schreiben (Clean Slate)
+        # 2. Alte Einträge löschen (Clean Slate)
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
+
+        # 3. Personen neu eintragen
         for entry in payload.entries:
             cur.execute(
                 "INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",
@@ -350,7 +353,6 @@ async def save_attendance(payload: AttendancePayload):
     finally:
         cur.close()
         conn.close()
-
 
 @app.post("/sessions/{session_id}/leader_signature")
 async def save_leader_sig(session_id: int, data: dict):
