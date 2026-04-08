@@ -354,9 +354,10 @@
         </div>
     </div>
 
-    <script>
+<script>
         const { createApp } = Vue;
         let sigPad = null, sigModal = null, infoModal = null, vehicleModal = null;
+        
         createApp({
             data() {
                 return {
@@ -383,15 +384,14 @@
                 }
             },
             async mounted() {
+                // Initialer Check des Admin-Status aus dem Speicher
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
+                
                 await this.fetchInfo();
                 await this.loadGroups();
                 
-                // Banner check beim Start und Intervall (alle 5 Min)
                 this.checkGlobalInfo(); 
-                setInterval(() => {
-                    this.checkGlobalInfo();
-                }, 300000);
+                setInterval(() => { this.checkGlobalInfo(); }, 300000);
 
                 if (this.isAdmin) { await this.loadVehicles(); }
                 
@@ -416,6 +416,41 @@
                 if(vehEl) { vehicleModal = new bootstrap.Modal(vehEl); }
             },
             methods: {
+                // --- ADMIN LOGIC (KORRIGIERT) ---
+                async promptAdmin() {
+                    const p = prompt("Admin PIN / Passwort eingeben:");
+                    if (p) {
+                        try {
+                            const r = await fetch('/api/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pin: p })
+                            });
+
+                            if (r.ok) {
+                                localStorage.setItem('userRole', 'admin');
+                                this.isAdmin = true;
+                                // Seite neu laden, um alle Admin-Funktionen (Löschen, Fahrzeuge etc.) zu aktivieren
+                                location.reload(); 
+                            } else {
+                                alert("Falsche PIN / Passwort!");
+                            }
+                        } catch (e) {
+                            alert("Verbindung zum Server fehlgeschlagen.");
+                        }
+                    }
+                },
+                logoutAdminOnly() {
+                    localStorage.removeItem('userRole');
+                    this.isAdmin = false;
+                    location.reload();
+                },
+                fullLogout() {
+                    localStorage.clear();
+                    window.location.href = "/";
+                },
+
+                // --- RESTLICHE FUNKTIONEN ---
                 async checkGlobalInfo() {
                     const INFO_URL = "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/info.txt";
                     try {
@@ -549,6 +584,12 @@
                         await this.loadVehicles();
                     }
                 },
+                async deleteSession(s) {
+                    if(confirm("Eintrag wirklich löschen?")) {
+                        await fetch(`/sessions/${s.id}`, { method: 'DELETE' });
+                        this.loadData();
+                    }
+                },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 openReport(s) { window.open(`/sessions/${s.id}/report`, '_blank'); },
                 showAbout() { if(infoModal) infoModal.show(); },
@@ -561,22 +602,7 @@
                     });
                     if (r.ok) { sigModal.hide(); this.loadData(); }
                 },
-                clearSig() { if(sigPad) sigPad.clear(); },
-                promptAdmin() {
-                    const pw = prompt("Admin Passwort eingeben:");
-                    if(pw === "admin112") { // Beispiel-PW
-                        localStorage.setItem('userRole', 'admin');
-                        location.reload();
-                    }
-                },
-                logoutAdminOnly() {
-                    localStorage.removeItem('userRole');
-                    location.reload();
-                },
-                fullLogout() {
-                    localStorage.clear();
-                    window.location.href = "/";
-                }
+                clearSig() { if(sigPad) sigPad.clear(); }
             }
         }).mount('#app');
     </script>
