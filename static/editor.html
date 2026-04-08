@@ -239,11 +239,22 @@
                     if (this.q) list = list.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
                     return list.sort((a, b) => a.name.localeCompare(b.name));
                 },
-                filteredPool() {
-                    const s = this.poolSearch.toLowerCase();
-                    return this.pool.filter(p => p.name.toLowerCase().includes(s));
-                }
-            },
+            filteredPool() {
+                const s = this.poolSearch.toLowerCase();
+    
+    // 1. Alle IDs sammeln, die bereits im Eintrag (in der Liste) sind
+    // Wir wandeln sie in Strings um, damit der Vergleich (ID 5 vs "5") sicher klappt
+                const addedIds = this.persons.map(p => String(p.id));
+    
+    // 2. Den Pool filtern
+            return this.pool.filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(s);
+                const notYetAdded = !addedIds.includes(String(p.id));
+        
+        // Nur anzeigen, wenn der Name zur Suche passt UND die Person noch nicht hinzugefügt wurde
+                return matchesSearch && notYetAdded;
+            });
+        },
             async mounted() { 
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
                 const p = new URLSearchParams(window.location.search);
