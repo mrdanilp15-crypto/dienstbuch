@@ -204,7 +204,7 @@
         </div>
     </div>
 
-    <script>
+<script>
         const { createApp } = Vue;
         let sigPad = null, sigModal = null, saveTimer = null;
 
@@ -232,29 +232,31 @@
                 }
             },
             computed: { 
-                presentCount() { return this.persons.filter(p => p.is_present).length; },
-                absentCount() { return this.persons.length - this.presentCount; },
+                presentCount() { 
+                    return this.persons.filter(p => p.is_present).length; 
+                },
+                absentCount() { 
+                    return this.persons.length - this.presentCount; 
+                },
                 filtered() {
                     let list = [...this.persons];
                     if (this.q) list = list.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
                     return list.sort((a, b) => a.name.localeCompare(b.name));
                 },
-            filteredPool() {
-                const s = this.poolSearch.toLowerCase();
-    
-    // 1. Alle IDs sammeln, die bereits im Eintrag (in der Liste) sind
-    // Wir wandeln sie in Strings um, damit der Vergleich (ID 5 vs "5") sicher klappt
-                const addedIds = this.persons.map(p => String(p.id));
-    
-    // 2. Den Pool filtern
-            return this.pool.filter(p => {
-                const matchesSearch = p.name.toLowerCase().includes(s);
-                const notYetAdded = !addedIds.includes(String(p.id));
-        
-        // Nur anzeigen, wenn der Name zur Suche passt UND die Person noch nicht hinzugefügt wurde
-                return matchesSearch && notYetAdded;
-            });
-        },
+                filteredPool() {
+                    const s = this.poolSearch.toLowerCase();
+                    // 1. Alle IDs sammeln, die bereits im Eintrag sind
+                    const addedIds = this.persons.map(p => String(p.id));
+                    
+                    // 2. Den Pool filtern (Suche + Check ob noch nicht hinzugefügt)
+                    return this.pool.filter(p => {
+                        const matchesSearch = p.name.toLowerCase().includes(s);
+                        const notYetAdded = !addedIds.includes(String(p.id));
+                        return matchesSearch && notYetAdded;
+                    });
+                }
+            }, // <-- Hier war die Klammer wichtig, um 'computed' abzuschließen!
+
             async mounted() { 
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
                 const p = new URLSearchParams(window.location.search);
@@ -320,7 +322,6 @@
                     const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                     const d = await(await fetch(url)).json(); 
                     
-                    // FIX: Dubletten beim Laden ignorieren
                     const seen = new Set();
                     this.persons = (d.persons || []).filter(p => {
                         if (seen.has(p.name)) return false;
@@ -397,16 +398,12 @@
                 clearLeaderSig() { this.leaderSignature = null; this.autoSave(); },
                 clearP(p) { p.signature = null; this.autoSave(); },
                 closeSig() { sigModal.hide(); },
-
-                // FIX: Korrektes Löschen der Person
                 removePerson(p) {
                     if(confirm(p.name + " wirklich entfernen?")) {
                         this.persons = this.persons.filter(x => String(x.id) !== String(p.id));
                         this.autoSave();
                     }
                 },
-
-                // NEU: Pool Funktionen
                 selectAllPool() {
                     const allSelected = this.filteredPool.every(p => p.selected);
                     this.filteredPool.forEach(p => p.selected = !allSelected);
@@ -414,9 +411,7 @@
                 async addSelectedFromPool() {
                     const selected = this.pool.filter(p => p.selected);
                     selected.forEach(sp => {
-                        // FIX: Vergleicht ID und Name, um Doppelgänger zu verhindern
                         const exists = this.persons.find(x => String(x.id) === String(sp.id) || x.name === sp.name);
-                        
                         if(!exists) {
                             this.persons.push({
                                 id: sp.id, 
@@ -427,7 +422,6 @@
                             });
                         }
                     });
-                    
                     this.pool.forEach(p => p.selected = false);
                     bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
                     if(this.isAdmin) this.autoSave();
