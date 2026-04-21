@@ -22,8 +22,13 @@
         }
 
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        .btn-cat { border: 2px solid transparent; opacity: 0.6; transition: 0.3s; font-weight: bold; }
-        .btn-cat.active { opacity: 1; border-color: rgba(0,0,0,0.2); transform: scale(1.05); }
+        
+        .btn-cat { border: 2px solid transparent; opacity: 0.5; transition: 0.3s; font-weight: bold; color: #666; }
+        .btn-cat:hover { opacity: 0.8; }
+        
+        .btn-cat-Übung.active { background-color: var(--exercise) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
+        .btn-cat-Einsatz.active { background-color: var(--incident) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
+        .btn-cat-Sonstiges.active { background-color: var(--misc) !important; color: black !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
         
         .person-row { 
             display: flex; align-items: center; padding: 12px; 
@@ -95,7 +100,7 @@
                 <button v-for="cat in ['Übung', 'Einsatz', 'Sonstiges']" 
                         :key="cat"
                         @click="setCat(cat)"
-                        :class="['btn', 'flex-fill', 'btn-cat', category === cat ? 'active bg-dark text-white' : 'bg-light']">
+                        :class="['btn', 'flex-fill', 'btn-cat', 'btn-cat-' + cat, category === cat ? 'active' : 'bg-light']">
                     {{cat}}
                 </button>
             </div>
@@ -264,7 +269,6 @@
             filteredPool() {
                 const s = this.poolSearch.toLowerCase();
                 return this.pool.filter(p => {
-                    // Prüfen, ob die Person schon in der Liste existiert (via ID oder Name als Fallback)
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(p.id) || x.name === p.name);
                     return p.name.toLowerCase().includes(s) && !exists;
                 });
@@ -306,10 +310,13 @@
                     if(d.persons) {
                         this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id }));
                     }
-                    if(d.session_id) {
-                        this.sessionId = d.session_id; this.category = d.category || 'Übung';
-                        this.duration = d.duration || 2.0; this.description = d.description || '';
-                        this.instructors = d.instructors || ''; this.currentDate = d.date || this.currentDate;
+                    if(d.session_id || d.id) {
+                        this.sessionId = d.session_id || d.id; 
+                        if (d.category) { this.category = d.category; }
+                        this.duration = d.duration || 2.0; 
+                        this.description = d.description || '';
+                        this.instructors = d.instructors || ''; 
+                        this.currentDate = d.date || this.currentDate;
                         this.leaderSignature = d.leader_signature;
                     }
                 } catch(e) { console.error("Load Error", e); }
@@ -363,9 +370,7 @@
                 selected.forEach(sp => {
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
                     if(!exists) {
-                        this.persons.push({
-                            id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null
-                        });
+                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null });
                     }
                 });
                 this.pool.forEach(p => p.selected = false);
@@ -382,7 +387,6 @@
                     const c = document.getElementById('sigCanvas');
                     c.width = c.offsetWidth; c.height = c.offsetHeight; 
                     sigPad.clear();
-                    // Wenn wir eine Unterschrift neu öffnen, lade die alte, falls vorhanden
                     if(t !== 'LEADER' && t.signature) {
                         sigPad.fromDataURL(t.signature);
                     } else if (t === 'LEADER' && this.leaderSignature) {
@@ -404,10 +408,24 @@
             clearP(p) { p.signature = null; this.autoSave(); },
             goBack() { window.location.href = '/static/dashboard.html'; },
             saveAndExit() { this.performSave().then(() => this.goBack()); },
-            promptAdmin() {
+            async promptAdmin() {
                 const p = prompt("PIN:");
-                if(p === "1122") { 
-                    this.isAdmin = true; localStorage.setItem('userRole', 'admin'); location.reload();
+                if (!p) return;
+                try {
+                    const res = await fetch('/api/verify_admin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin: p })
+                    });
+                    if (res.ok) {
+                        this.isAdmin = true;
+                        localStorage.setItem('userRole', 'admin');
+                        location.reload();
+                    } else {
+                        alert("PIN falsch!");
+                    }
+                } catch (e) {
+                    alert("Verbindung zum Server fehlgeschlagen.");
                 }
             },
             logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); }
