@@ -312,12 +312,13 @@
                     }
                     if(d.session_id || d.id) {
                         this.sessionId = d.session_id || d.id; 
-                        if (d.category) { this.category = d.category; }
+                        this.category = d.category || 'Übung';
                         this.duration = d.duration || 2.0; 
                         this.description = d.description || '';
                         this.instructors = d.instructors || ''; 
                         this.currentDate = d.date || this.currentDate;
-                        this.leaderSignature = d.leader_signature;
+                        // Erkennt beide Varianten (Dashboard-Name & Backend-Name)
+                        this.leaderSignature = d.leader_signature || d.signature || null;
                     }
                 } catch(e) { console.error("Load Error", e); }
             },
