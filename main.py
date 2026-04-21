@@ -289,15 +289,27 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        session_data = {"session_id": session_id, "description": "", "duration": 2.0, "date": datetime.now().strftime("%Y-%m-%d")}
+        session_data = {
+            "session_id": session_id, 
+            "description": "", 
+            "duration": 2.0, 
+            "category": "Übung",
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "leader_signature": None # Standardwert
+        }
+        
         if session_id:
-            cur.execute("SELECT id as session_id, description, duration, date FROM sessions WHERE id = %s", (session_id,))
+            # leader_signature und category zur Abfrage hinzugefügt
+            cur.execute("SELECT id as session_id, description, duration, date, category, leader_signature FROM sessions WHERE id = %s", (session_id,))
             row = cur.fetchone()
             if row:
                 session_data = row
                 session_data['date'] = str(session_data['date'])
+                # Wichtig: Signature für das Frontend decodieren
+                if session_data.get('leader_signature'):
+                    session_data['leader_signature'] = safe_decode(session_data['leader_signature'])
 
-        # LEFT JOIN lädt alle Personen der Gruppe + vorhandene Anwesenheiten
+        # ... (Rest der Funktion mit den Personen bleibt gleich)
         query = """
             SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, 
                    COALESCE(a.note, '') as note, COALESCE(a.vehicle, '') as vehicle, a.signature 
