@@ -291,11 +291,15 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
     try:
         session_data = {"session_id": session_id, "description": "", "duration": 2.0, "date": datetime.now().strftime("%Y-%m-%d")}
         if session_id:
-            cur.execute("SELECT id as session_id, description, duration, date FROM sessions WHERE id = %s", (session_id,))
+            # HIER WURDE 'category' HINZUGEFÜGT
+            cur.execute("SELECT id as session_id, description, duration, date, category FROM sessions WHERE id = %s", (session_id,))
             row = cur.fetchone()
             if row:
                 session_data = row
                 session_data['date'] = str(session_data['date'])
+                # Falls category in der DB NULL ist, setzen wir einen Standardwert
+                if not session_data.get('category'):
+                    session_data['category'] = "Übung"
 
         # LEFT JOIN lädt alle Personen der Gruppe + vorhandene Anwesenheiten
         query = """
