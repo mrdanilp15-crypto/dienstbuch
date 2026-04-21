@@ -45,6 +45,21 @@
         .btn-icon { background: transparent; border: none; padding: 6px; color: #ccc; transition: 0.2s; }
         .btn-icon:hover { color: var(--primary-color); background: #f8f9fa; border-radius: 8px; }
 
+        /* --- INFO BANNER SYSTEM --- */
+        .github-banner {
+            color: white; padding: 12px 20px; text-align: center; font-weight: 700;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: none; 
+            animation: slideDown 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            z-index: 9999; position: relative; border-bottom: 2px solid rgba(0,0,0,0.1);
+        }
+        .github-banner a { color: white; text-decoration: underline; font-weight: 800; margin-left: 5px; }
+        .banner-blau { background: linear-gradient(90deg, #2563eb, #3b82f6); } 
+        .banner-grün { background: linear-gradient(90deg, #059669, #10b981); } 
+        .banner-rot  { background: linear-gradient(90deg, #dc2626, #ef4444); } 
+        .banner-gelb { background: linear-gradient(90deg, #d97706, #f59e0b); color: #000 !important; }
+        .banner-gelb a { color: #000 !important; }
+        @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
         @media (max-width: 991px) { 
             .app-container { flex-direction: column; } 
             .sidebar { display: none !important; } 
@@ -56,6 +71,11 @@
 </head>
 <body>
     <div id="app">
+        <div id="infoBanner" class="github-banner">
+            <i id="bannerIcon" class="fa fa-circle-info me-2"></i> 
+            <span id="bannerText"></span>
+        </div>
+
         <div class="mobile-nav shadow-sm sticky-top">
             <button class="btn btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
                 <i class="fa fa-bars text-danger"></i>
@@ -80,10 +100,18 @@
                         <i class="fa fa-plus-circle me-2"></i> Neuer Eintrag
                     </button>
                     
-                    <label v-if="isAdmin" class="text-muted small fw-bold text-uppercase mb-3 d-block">Admin-Optionen</label>
-                    <button v-if="isAdmin" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2" @click="addGroup" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen
-                    </button>
+                    <div v-if="isAdmin">
+                        <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Admin-Optionen</label>
+                        <a href="/personal" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-decoration-none text-center d-block">
+                            <i class="fa fa-user-shield me-2"></i> Personal & Qualis
+                        </a>
+                        <button class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2" @click="addGroup" data-bs-dismiss="offcanvas">
+                            <i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen
+                        </button>
+                        <button class="btn btn-outline-dark w-100 mb-3 rounded-pill fw-bold py-2" @click="manageVehicles">
+                            <i class="fa fa-truck me-2"></i> Fahrzeuge verwalten
+                        </button>
+                    </div>
 
                     <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none py-2 text-center">
                         <i class="fa fa-sticky-note me-2"></i> Notizen öffnen
@@ -128,9 +156,17 @@
                 </div>
 
                 <div class="p-3 bg-light border-top">
-                    <button v-if="isAdmin" class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup">
-                        <i class="fa fa-plus-circle me-1"></i> Neue Liste (Gruppe)
-                    </button>
+                    <div v-if="isAdmin" class="mb-2">
+                        <a href="/personal" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block shadow-sm">
+                            <i class="fa fa-user-shield me-1"></i> Personalverwaltung
+                        </a>
+                        <button class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup">
+                            <i class="fa fa-plus-circle me-1"></i> Neue Liste
+                        </button>
+                        <button class="btn btn-outline-dark btn-sm w-100 mb-2 rounded-pill fw-bold" @click="manageVehicles">
+                            <i class="fa fa-truck me-1"></i> Fahrzeuge
+                        </button>
+                    </div>
                     
                     <a href="/notizen" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block">
                         <i class="fa fa-sticky-note me-1"></i> Notizen
@@ -242,6 +278,39 @@
             </div>
         </div>
 
+        <div class="modal fade" id="vehicleModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header border-bottom py-3">
+                        <h5 class="modal-title fw-bold"><i class="fa fa-truck me-2"></i>Fahrzeuge verwalten</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="mb-4">
+                            <label class="small fw-bold text-muted text-uppercase mb-2">Vorhandene Fahrzeuge</label>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <span v-for="v in vehicles" :key="v.id" class="badge bg-light text-dark border p-2 d-flex align-items-center rounded-pill">
+                                    {{ v.name }}
+                                    <i class="fa fa-times-circle ms-2 text-danger" style="cursor:pointer" @click="deleteVehicle(v.id)"></i>
+                                </span>
+                                <div v-if="vehicles.length === 0" class="text-muted small italic">Keine Fahrzeuge angelegt.</div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div>
+                            <label class="small fw-bold text-muted text-uppercase mb-2">Neues Fahrzeug hinzufügen</label>
+                            <div class="input-group">
+                                <input type="text" v-model="newVehicleName" class="form-control rounded-start-pill ps-3" placeholder="z.B. HLF 20" @keyup.enter="addVehicle">
+                                <button class="btn btn-danger rounded-end-pill px-3" @click="addVehicle">
+                                    <i class="fa fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="infoModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg text-center mx-3">
@@ -285,9 +354,10 @@
         </div>
     </div>
 
-    <script>
+<script>
         const { createApp } = Vue;
-        let sigPad = null, sigModal = null, infoModal = null;
+        let sigPad = null, sigModal = null, infoModal = null, vehicleModal = null;
+        
         createApp({
             data() {
                 return {
@@ -301,7 +371,9 @@
                     showRanking: false,
                     catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
                     projectInfo: { version: "?.??", remote: "?.??", update_available: false, town: "" },
-                    activeS: null
+                    activeS: null,
+                    vehicles: [],
+                    newVehicleName: ''
                 }
             },
             computed: {
@@ -312,15 +384,23 @@
                 }
             },
             async mounted() {
+                // Initialer Check des Admin-Status aus dem Speicher
                 this.isAdmin = (localStorage.getItem('userRole') === 'admin');
+                
                 await this.fetchInfo();
                 await this.loadGroups();
+                
+                this.checkGlobalInfo(); 
+                setInterval(() => { this.checkGlobalInfo(); }, 300000);
+
+                if (this.isAdmin) { await this.loadVehicles(); }
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
                 
                 const sigEl = document.getElementById('sigModal');
                 const infoEl = document.getElementById('infoModal');
+                const vehEl = document.getElementById('vehicleModal');
                 
                 if(sigEl) { 
                     sigModal = new bootstrap.Modal(sigEl);
@@ -333,8 +413,81 @@
                     });
                 }
                 if(infoEl) { infoModal = new bootstrap.Modal(infoEl); }
+                if(vehEl) { vehicleModal = new bootstrap.Modal(vehEl); }
             },
             methods: {
+                // --- ADMIN LOGIC (KORRIGIERT) ---
+                async promptAdmin() {
+                    const p = prompt("Admin PIN / Passwort eingeben:");
+                    if (p) {
+                        try {
+                            const r = await fetch('/api/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pin: p })
+                            });
+
+                            if (r.ok) {
+                                localStorage.setItem('userRole', 'admin');
+                                this.isAdmin = true;
+                                // Seite neu laden, um alle Admin-Funktionen (Löschen, Fahrzeuge etc.) zu aktivieren
+                                location.reload(); 
+                            } else {
+                                alert("Falsche PIN / Passwort!");
+                            }
+                        } catch (e) {
+                            alert("Verbindung zum Server fehlgeschlagen.");
+                        }
+                    }
+                },
+                logoutAdminOnly() {
+                    localStorage.removeItem('userRole');
+                    this.isAdmin = false;
+                    location.reload();
+                },
+                fullLogout() {
+                    localStorage.clear();
+                    window.location.href = "/";
+                },
+
+                // --- RESTLICHE FUNKTIONEN ---
+                async checkGlobalInfo() {
+                    const INFO_URL = "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/info.txt";
+                    try {
+                        const response = await fetch(INFO_URL + "?t=" + new Date().getTime());
+                        if (!response.ok) return;
+                        let text = await response.text();
+                        text = text.trim();
+                        if (text.length < 2) return;
+
+                        const banner = document.getElementById('infoBanner');
+                        const bannerText = document.getElementById('bannerText');
+                        const bannerIcon = document.getElementById('bannerIcon');
+
+                        let colorClass = 'banner-blau';
+                        let iconClass = 'fa-circle-info';
+                        let cleanText = text;
+
+                        if (text.startsWith("GRÜN:")) {
+                            colorClass = 'banner-grün'; iconClass = 'fa-check-circle';
+                            cleanText = text.replace("GRÜN:", "").trim();
+                        } else if (text.startsWith("ROT:")) {
+                            colorClass = 'banner-rot'; iconClass = 'fa-heart';
+                            cleanText = text.replace("ROT:", "").trim();
+                        } else if (text.startsWith("GELB:")) {
+                            colorClass = 'banner-gelb'; iconClass = 'fa-triangle-exclamation';
+                            cleanText = text.replace("GELB:", "").trim();
+                        } else if (text.startsWith("BLAU:")) {
+                            colorClass = 'banner-blau'; iconClass = 'fa-circle-info';
+                            cleanText = text.replace("BLAU:", "").trim();
+                        }
+
+                        bannerText.innerHTML = cleanText;
+                        banner.className = 'github-banner ' + colorClass;
+                        bannerIcon.className = 'fa ' + iconClass + ' me-2';
+                        banner.style.display = 'block';
+                    } catch (e) { console.log("Banner-Fetch failed"); }
+                },
                 async fetchInfo() {
                     try {
                         const r = await fetch('/api/info');
@@ -408,6 +561,35 @@
                         await this.loadGroups();
                     }
                 },
+                async loadVehicles() {
+                    const res = await fetch('/api/vehicles');
+                    this.vehicles = await res.json();
+                },
+                manageVehicles() {
+                    if(vehicleModal) vehicleModal.show();
+                },
+                async addVehicle() {
+                    if (!this.newVehicleName) return;
+                    await fetch('/api/vehicles', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: this.newVehicleName })
+                    });
+                    this.newVehicleName = '';
+                    await this.loadVehicles();
+                },
+                async deleteVehicle(id) {
+                    if (confirm("Fahrzeug wirklich löschen?")) {
+                        await fetch(`/api/vehicles/${id}`, { method: 'DELETE' });
+                        await this.loadVehicles();
+                    }
+                },
+                async deleteSession(s) {
+                    if(confirm("Eintrag wirklich löschen?")) {
+                        await fetch(`/sessions/${s.id}`, { method: 'DELETE' });
+                        this.loadData();
+                    }
+                },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 openReport(s) { window.open(`/sessions/${s.id}/report`, '_blank'); },
                 showAbout() { if(infoModal) infoModal.show(); },
@@ -420,34 +602,7 @@
                     });
                     if (r.ok) { sigModal.hide(); this.loadData(); }
                 },
-                clearSig() { if(sigPad) sigPad.clear(); },
-                async deleteSession(s) {
-                    if (confirm("Eintrag löschen?")) {
-                        await fetch(`/sessions/${s.id}`, { method: 'DELETE' });
-                        this.loadData();
-                    }
-                },
-                async promptAdmin() {
-                    const p = prompt("Admin PIN:");
-                    if (p) {
-                        const r = await fetch('/api/verify_admin', {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({pin: p})
-                        });
-                        if ((await r.json()).success) {
-                            localStorage.setItem('userRole', 'admin');
-                            location.reload();
-                        } else { alert("Falsch!"); }
-                    }
-                },
-                logoutAdminOnly() { 
-                    localStorage.setItem('userRole', 'user'); 
-                    location.reload(); 
-                },
-                fullLogout() { 
-                    localStorage.clear(); 
-                    window.location.href = '/'; 
-                }
+                clearSig() { if(sigPad) sigPad.clear(); }
             }
         }).mount('#app');
     </script>
