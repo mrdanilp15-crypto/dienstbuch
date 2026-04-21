@@ -254,9 +254,10 @@
                 globalVehicles: [], persons: [], pool: [],
                 topicOptions: [], instrOptions: [],
                 q: '', poolSearch: '', category: 'Übung', duration: 2.0,
-                description: '', instructors: '', leaderSignature: null,
+                description: '', instructors: '', leaderSignature: null, // Die Vue-Variable
                 currentDate: new Date().toISOString().split('T')[0],
-                saveState: 'idle', activeSigner: null
+                saveState: 'idle', activeSigner: null,
+                isLoading: true // Neu: Schutz gegen vorzeitiges Auto-Save
             }
         },
         computed: {
@@ -290,7 +291,9 @@
                 this.pool = pData.map(m => ({...m, selected: false}));
             } catch(e) {}
 
+            // Erst laden, dann isLoading auf false setzen
             await this.load();
+            this.isLoading = false; 
             
             try {
                 const topics = await fetch(`/groups/${this.groupId}/topics`); this.topicOptions = await topics.json();
@@ -307,9 +310,13 @@
                 try {
                     const res = await fetch(url);
                     const d = await res.json();
+                    
+                    console.log("Geladene Daten vom Server:", d); // DEBUG-LOG
+
                     if(d.persons) {
                         this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id }));
                     }
+
                     if(d.session_id || d.id) {
                         this.sessionId = d.session_id || d.id; 
                         this.category = d.category || 'Übung';
@@ -317,28 +324,39 @@
                         this.description = d.description || '';
                         this.instructors = d.instructors || ''; 
                         this.currentDate = d.date || this.currentDate;
-                        // Erkennt beide Varianten (Dashboard-Name & Backend-Name)
+                        
+                        // KORREKTUR: Explizite Zuweisung der Unterschrift
+                        // Wir nehmen leader_signature vom Backend und speichern es in leaderSignature (Vue)
                         this.leaderSignature = d.leader_signature || d.signature || null;
+                        
+                        console.log("Gesetzte Unterschrift im Editor:", this.leaderSignature ? "Vorhanden" : "Leer");
                     }
                 } catch(e) { console.error("Load Error", e); }
             },
             autoSave() {
-                if(!this.isAdmin) return;
+                // Verhindert Speichern, während die Daten noch geladen werden oder wenn kein Admin
+                if(!this.isAdmin || this.isLoading) return; 
                 this.saveState = 'saving';
                 clearTimeout(saveTimer);
                 saveTimer = setTimeout(this.performSave, 1000);
             },
             async performSave() {
-                if(!this.groupId) return;
+                if(!this.groupId || this.isLoading) return;
                 const data = {
                     session_id: this.sessionId ? parseInt(this.sessionId) : null,
-                    date: this.currentDate, group_id: parseInt(this.groupId),
-                    category: this.category, duration: parseFloat(this.duration),
-                    description: this.description, instructors: this.instructors,
-                    leader_signature: this.leaderSignature,
+                    date: this.currentDate, 
+                    group_id: parseInt(this.groupId),
+                    category: this.category, 
+                    duration: parseFloat(this.duration),
+                    description: this.description, 
+                    instructors: this.instructors,
+                    leader_signature: this.leaderSignature, // Wird hier korrekt mitgeschickt
                     entries: this.persons.map(p => ({
-                        person_id: p.id || p.person_id, is_present: !!p.is_present,
-                        vehicle: p.vehicle || "", signature: p.signature || null, note: p.note || ""
+                        person_id: p.id || p.person_id, 
+                        is_present: !!p.is_present,
+                        vehicle: p.vehicle || "", 
+                        signature: p.signature || null, 
+                        note: p.note || ""
                     }))
                 };
                 try {
@@ -355,6 +373,7 @@
                     setTimeout(() => this.saveState = 'idle', 2000);
                 } catch(e) { console.error("Save Error", e); this.saveState = 'idle'; }
             },
+            // ... (Restliche Methoden: removePerson, selectAllPool, etc. bleiben gleich) ...
             removePerson(p) {
                 if(confirm(p.name + " wirklich entfernen?")) {
                     const targetId = String(p.id || p.person_id);
@@ -398,8 +417,12 @@
             saveSig() {
                 if(!sigPad.isEmpty()) {
                     const data = sigPad.toDataURL();
-                    if(this.activeSigner === 'LEADER') this.leaderSignature = data;
-                    else { this.activeSigner.signature = data; this.activeSigner.is_present = true; }
+                    if(this.activeSigner === 'LEADER') {
+                        this.leaderSignature = data;
+                    } else { 
+                        this.activeSigner.signature = data; 
+                        this.activeSigner.is_present = true; 
+                    }
                     this.autoSave();
                 }
                 sigModal.hide(); 
