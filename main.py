@@ -333,34 +333,33 @@ async def save_attendance(payload: AttendanceUpload):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        # 1. Session speichern/updaten
+        # 1. Session speichern/updaten - JETZT MIT leader_signature
         if payload.session_id:
             cur.execute(
-                "UPDATE sessions SET date=%s, description=%s, duration=%s, category=%s, instructors=%s WHERE id=%s",
-                (payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.session_id)
+                """UPDATE sessions 
+                   SET date=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s 
+                   WHERE id=%s""",
+                (payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature, payload.session_id)
             )
             session_id = payload.session_id
         else:
             cur.execute(
-                "INSERT INTO sessions (group_id, date, description, duration, category, instructors) VALUES (%s, %s, %s, %s, %s, %s)",
-                (payload.group_id, payload.date, payload.description, payload.duration, payload.category, payload.instructors)
+                """INSERT INTO sessions (group_id, date, description, duration, category, instructors, leader_signature) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (payload.group_id, payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature)
             )
             session_id = cur.lastrowid
 
         # 2. Alte Anwesenheit löschen (für diese spezifische Session)
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
 
-        # --- NEU: SYNCHRONISATION DER GRUPPENLISTE (Das Lösch-Gegenstück) ---
-        # Wir holen uns alle IDs, die vom Editor geschickt wurden
+        # --- SYNCHRONISATION DER GRUPPENLISTE ---
         received_ids = [entry.person_id for entry in payload.entries]
-        
         if received_ids:
-            # Wir löschen alle Personen aus der Tabelle 'persons', 
-            # die zu dieser Gruppe gehören, aber NICHT in der Liste vom Editor standen.
             format_strings = ','.join(['%s'] * len(received_ids))
             sql = f"DELETE FROM persons WHERE group_id = %s AND id NOT IN ({format_strings})"
             cur.execute(sql, (payload.group_id, *received_ids))
-        # -------------------------------------------------------------------
+        # ----------------------------------------
 
         for entry in payload.entries:
             # Existiert die Person in der Gruppe?
