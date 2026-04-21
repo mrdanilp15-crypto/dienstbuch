@@ -295,21 +295,21 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
             "duration": 2.0, 
             "category": "Übung",
             "date": datetime.now().strftime("%Y-%m-%d"),
-            "leader_signature": None # Standardwert
+            "leader_signature": None,
+            "instructors": ""
         }
         
         if session_id:
-            # leader_signature und category zur Abfrage hinzugefügt
-            cur.execute("SELECT id as session_id, description, duration, date, category, leader_signature FROM sessions WHERE id = %s", (session_id,))
+            # FIX: category und leader_signature zum SELECT hinzugefügt
+            cur.execute("SELECT id as session_id, description, duration, date, category, leader_signature, instructors FROM sessions WHERE id = %s", (session_id,))
             row = cur.fetchone()
             if row:
                 session_data = row
                 session_data['date'] = str(session_data['date'])
-                # Wichtig: Signature für das Frontend decodieren
+                # FIX: Unterschrift für das Frontend decodieren
                 if session_data.get('leader_signature'):
                     session_data['leader_signature'] = safe_decode(session_data['leader_signature'])
 
-        # ... (Rest der Funktion mit den Personen bleibt gleich)
         query = """
             SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, 
                    COALESCE(a.note, '') as note, COALESCE(a.vehicle, '') as vehicle, a.signature 
@@ -324,6 +324,45 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
             p['is_present'] = bool(p['is_present'])
 
         return {**session_data, "persons": persons}
+    finally:
+        cur.close()
+        conn.close()
+
+@app.post("/attendance")
+async def save_attendance(data: AttendanceExport):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if data.session_id:
+            # FIX: leader_signature wird hier beim Speichern aus dem Editor mit berücksichtigt
+            query = """
+                UPDATE sessions 
+                SET date=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s 
+                WHERE id=%s
+            """
+            cur.execute(query, (data.date, data.description, data.duration, data.category, data.instructors, data.leader_signature, data.session_id))
+            session_id = data.session_id
+        else:
+            query = """
+                INSERT INTO sessions (group_id, date, description, duration, category, instructors, leader_signature) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cur.execute(query, (data.group_id, data.date, data.description, data.duration, data.category, data.instructors, data.leader_signature))
+            session_id = cur.lastrowid
+
+        # Bestehende Anwesenheit löschen und neu schreiben
+        cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
+        for entry in data.entries:
+            cur.execute("""
+                INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (session_id, entry.person_id, entry.is_present, entry.note, entry.vehicle, entry.signature))
+        
+        conn.commit()
+        return {"status": "success", "session_id": session_id}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
         conn.close()
