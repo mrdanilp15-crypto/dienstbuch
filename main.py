@@ -329,45 +329,6 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
         conn.close()
 
 @app.post("/attendance")
-async def save_attendance(data: AttendanceExport):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        if data.session_id:
-            # FIX: leader_signature wird hier beim Speichern aus dem Editor mit berücksichtigt
-            query = """
-                UPDATE sessions 
-                SET date=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s 
-                WHERE id=%s
-            """
-            cur.execute(query, (data.date, data.description, data.duration, data.category, data.instructors, data.leader_signature, data.session_id))
-            session_id = data.session_id
-        else:
-            query = """
-                INSERT INTO sessions (group_id, date, description, duration, category, instructors, leader_signature) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            cur.execute(query, (data.group_id, data.date, data.description, data.duration, data.category, data.instructors, data.leader_signature))
-            session_id = cur.lastrowid
-
-        # Bestehende Anwesenheit löschen und neu schreiben
-        cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
-        for entry in data.entries:
-            cur.execute("""
-                INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (session_id, entry.person_id, entry.is_present, entry.note, entry.vehicle, entry.signature))
-        
-        conn.commit()
-        return {"status": "success", "session_id": session_id}
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cur.close()
-        conn.close()
-
-@app.post("/attendance")
 async def save_attendance(payload: AttendanceUpload):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
