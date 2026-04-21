@@ -23,12 +23,12 @@
 
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
         
-        /* Korrektur der Kategorie-Farben */
-        .btn-cat { border: 2px solid transparent; opacity: 0.6; transition: 0.3s; font-weight: bold; }
+        .btn-cat { border: 2px solid transparent; opacity: 0.5; transition: 0.3s; font-weight: bold; color: #666; }
         .btn-cat:hover { opacity: 0.8; }
-        .btn-cat-Übung.active { background-color: var(--exercise) !important; color: white !important; border-color: rgba(0,0,0,0.1); opacity: 1; transform: scale(1.05); }
-        .btn-cat-Einsatz.active { background-color: var(--incident) !important; color: white !important; border-color: rgba(0,0,0,0.1); opacity: 1; transform: scale(1.05); }
-        .btn-cat-Sonstiges.active { background-color: var(--misc) !important; color: black !important; border-color: rgba(0,0,0,0.1); opacity: 1; transform: scale(1.05); }
+        
+        .btn-cat-Übung.active { background-color: var(--exercise) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
+        .btn-cat-Einsatz.active { background-color: var(--incident) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
+        .btn-cat-Sonstiges.active { background-color: var(--misc) !important; color: black !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
         
         .person-row { 
             display: flex; align-items: center; padding: 12px; 
@@ -312,12 +312,7 @@
                     }
                     if(d.session_id || d.id) {
                         this.sessionId = d.session_id || d.id; 
-                        
-                        // Korrektur: Kategorie explizit aus den geladenen Daten setzen
-                        if (d.category) {
-                            this.category = d.category;
-                        }
-                        
+                        if (d.category) { this.category = d.category; }
                         this.duration = d.duration || 2.0; 
                         this.description = d.description || '';
                         this.instructors = d.instructors || ''; 
@@ -375,9 +370,7 @@
                 selected.forEach(sp => {
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
                     if(!exists) {
-                        this.persons.push({
-                            id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null
-                        });
+                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null });
                     }
                 });
                 this.pool.forEach(p => p.selected = false);
@@ -415,10 +408,24 @@
             clearP(p) { p.signature = null; this.autoSave(); },
             goBack() { window.location.href = '/static/dashboard.html'; },
             saveAndExit() { this.performSave().then(() => this.goBack()); },
-            promptAdmin() {
+            async promptAdmin() {
                 const p = prompt("PIN:");
-                if(p === "1122") { 
-                    this.isAdmin = true; localStorage.setItem('userRole', 'admin'); location.reload();
+                if (!p) return;
+                try {
+                    const res = await fetch('/api/verify_admin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin: p })
+                    });
+                    if (res.ok) {
+                        this.isAdmin = true;
+                        localStorage.setItem('userRole', 'admin');
+                        location.reload();
+                    } else {
+                        alert("PIN falsch!");
+                    }
+                } catch (e) {
+                    alert("Verbindung zum Server fehlgeschlagen.");
                 }
             },
             logoutAdmin() { localStorage.setItem('userRole', 'user'); location.reload(); }
