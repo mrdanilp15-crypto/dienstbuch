@@ -1,2 +1,2 @@
-ROT: Unterstütze die Entwicklung mit einer Spende: <a href='https://paypal.me/Breteax' target='_blank'>Hier klicken</a>
+BLAU: Unterstütze die Entwicklung mit einer Spende: <a href='https://paypal.me/Breteax' target='_blank'>Hier klicken</a>
 
