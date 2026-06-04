@@ -196,6 +196,16 @@ def get_groups():
     cur.execute("SELECT * FROM groups_table ORDER BY name")
     r=cur.fetchall(); c.close(); return r
 
+@app.put("/groups/{id}")
+def update_group(id: int, g: GroupData):
+    c = get_db_connection()
+    cur = c.cursor()
+    cur.execute("UPDATE groups_table SET name=%s WHERE id=%s", (g.name, id))
+    c.commit()
+    cur.close()
+    c.close()
+    return {"status": "updated"}
+
 @app.post("/groups")
 def create_group(g: GroupData):
     c=get_db_connection(); cur=c.cursor()
