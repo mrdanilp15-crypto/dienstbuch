@@ -313,7 +313,42 @@ def api_logout(response: Response):
     response.delete_cookie("session_token")
     return {"status": "success"}
 
+# --- NEU: SELBSTSTÄNDIGE PASSWORTÄNDERUNG FÜR JEDEN USER ---
+@app.put("/api/auth/change-password")
+def user_change_self_password(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        
+    old_pw = data.get("old_password")
+    new_pw = data.get("new_password")
+    
+    if not old_pw or not new_pw or len(new_pw.strip()) < 4:
+        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz (min. 4 Zeichen)!")
+        
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    # Aktuellen Passwort-Hash aus der DB holen
+    cur.execute("SELECT password_hash FROM users WHERE username = %s", (user["username"],))
+    db_user = cur.fetchone()
+    
+    if not db_user or not verify_password(db_user['password_hash'], old_pw):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Das aktuelle Passwort ist nicht korrekt!")
+        
+    # Neues Passwort hashen und wegschreiben
+    new_hash = hash_password(new_pw.strip())
+    cur.execute("UPDATE users SET password_hash = %s WHERE username = %s", (new_hash, user["username"]))
+    conn.commit()
+    
+    cur.close()
+    conn.close()
+    return {"status": "success", "detail": "Passwort erfolgreich aktualisiert"}
+
 # --- BENUTZERKONTENVERWALTUNG (NUR FÜR ADMINS) ---
+
 @app.get("/api/users/list")
 def list_users(request: Request):
     user = get_current_user(request)
