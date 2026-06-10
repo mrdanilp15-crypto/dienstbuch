@@ -1,114 +1,153 @@
-import sqlite3
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+import mysql.connector
+from typing import Optional
 import os
-from datetime import datetime
-from fastapi import APIRouter, HTTPException
 
-# ADMIN_PIN aus der Portainer Umgebungsvariable
-ADMIN_PIN = os.getenv("ADMIN_PIN") 
+router = APIRouter(prefix="/api/notes", tags=["Notes"])
 
-class NotesManager:
-    def __init__(self, db_path='data/notes.db'):
-        # Erstellt den Ordner, falls er im Volume noch nicht existiert
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.db_path = db_path
-        self._init_db()
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-    def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+def get_db_connection():
+    return mysql.connector.connect(
+        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
+    )
 
-    def _init_db(self):
-        """Erstellt Tabellen und fügt fehlende Spalten automatisch hinzu."""
-        with self._get_connection() as conn:
-            # Basistabellen
-            conn.execute('CREATE TABLE IF NOT EXISTS categories (name TEXT PRIMARY KEY, password TEXT)')
-            conn.execute('''CREATE TABLE IF NOT EXISTS notes 
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, 
-                             category TEXT, color TEXT DEFAULT "default")''')
-            
-            # Sicherheits-Check: Spalten einzeln nachrüsten, falls sie fehlen
-            cursor = conn.execute("PRAGMA table_info(notes)")
-            cols = [c[1] for c in cursor.fetchall()]
-            
-            upgrades = [
-                ("pinned", "INTEGER DEFAULT 0"),
-                ("isTodo", "INTEGER DEFAULT 0"),
-                ("completed", "INTEGER DEFAULT 0"),
-                ("author", "TEXT DEFAULT ''"),
-                ("created_at", "TEXT DEFAULT ''")
-            ]
-            
-            for col_name, col_type in upgrades:
-                if col_name not in cols:
-                    try:
-                        conn.execute(f"ALTER TABLE notes ADD COLUMN {col_name} {col_type}")
-                    except:
-                        pass # Spalte existiert evtl. schon
-            
-            conn.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Allgemein')")
-            conn.commit()
+def init_notes_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            visibility VARCHAR(50) DEFAULT 'private',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
-db = NotesManager()
-router = APIRouter()
+init_notes_db()
 
-@router.get("/api/notes")
-async def get_notes():
-    try:
-        with db._get_connection() as conn:
-            res = conn.execute("SELECT * FROM notes ORDER BY pinned DESC, id DESC").fetchall()
-            return [dict(r) for r in res]
-    except Exception as e:
-        return []
+class NoteCreate(BaseModel):
+    title: str
+    content: str
+    visibility: str # 'private', 'public', 'admin', 'geratewart'
 
-@router.post("/api/notes")
-async def add_note(n: dict):
-    now = datetime.now().strftime("%d.%m.%Y %H:%M")
-    with db._get_connection() as conn:
-        cursor = conn.execute(
-            "INSERT INTO notes (title, content, category, color, pinned, isTodo, completed, author, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (n.get('title',''), n.get('content',''), n.get('category','Allgemein'), 
-             n.get('color','default'), n.get('pinned',0), n.get('isTodo',0), 0, n.get('author',''), now)
-        )
-        return {"id": cursor.lastrowid}
+def get_user_from_request(request: Request):
+    from main import get_current_user
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    return user
 
-@router.put("/api/notes/{nid}")
-async def update_note(nid: int, n: dict):
-    with db._get_connection() as conn:
-        conn.execute(
-            "UPDATE notes SET title=?, content=?, category=?, color=?, pinned=?, isTodo=?, completed=?, author=? WHERE id=?",
-            (n.get('title',''), n.get('content',''), n.get('category','Allgemein'), 
-             n.get('color','default'), n.get('pinned',0), n.get('isTodo',0), n.get('completed',0), n.get('author',''), nid)
-        )
-    return {"ok": True}
+@router.get("")
+def list_notes(request: Request):
+    user = get_user_from_request(request)
+    username = user["username"]
+    role = user["role"]
+    
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    query = """
+        SELECT id, username, title, content, visibility, 
+               DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted 
+        FROM notes 
+        WHERE username = %s
+           OR visibility = 'public'
+           OR (visibility = 'admin' AND %s = 'admin')
+           OR (visibility = 'geratewart' AND %s IN ('geratewart', 'admin'))
+        ORDER BY created_at DESC
+    """
+    cur.execute(query, (username, role, role))
+    notes = cur.fetchall()
+    cur.close()
+    conn.close()
+    return notes
 
-@router.delete("/api/notes/{nid}")
-async def del_note(nid: int):
-    with db._get_connection() as conn:
-        conn.execute("DELETE FROM notes WHERE id=?", (nid,))
-    return {"ok": True}
+@router.post("")
+def create_note(data: NoteCreate, request: Request):
+    user = get_user_from_request(request)
+    
+    if data.visibility == "admin" and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Nur Admins dürfen Admin-Notizen erstellen!")
+        
+    conn = get_db_connection()
+    cur = conn.cursor()
+    query = "INSERT INTO notes (username, title, content, visibility) VALUES (%s, %s, %s, %s)"
+    cur.execute(query, (user["username"], data.title.strip(), data.content.strip(), data.visibility))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "success"}
 
-@router.get("/api/categories")
-async def get_cats():
-    with db._get_connection() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM categories").fetchall()]
+# --- NEU: ROUTE ZUM ÄNDERN VORHANDENER NOTIZEN ---
+@router.put("/{note_id}")
+def update_note(note_id: int, data: NoteCreate, request: Request):
+    user = get_user_from_request(request)
+    username = user["username"]
+    
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    # Prüfen, ob die Notiz existiert
+    cur.execute("SELECT username FROM notes WHERE id = %s", (note_id,))
+    note = cur.fetchone()
+    
+    if not note:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+        
+    # Datensicherheit: Nur der echte Ersteller darf den Inhalt modifizieren
+    if note["username"] != username:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Nur der Ersteller darf diese Notiz bearbeiten!")
+        
+    if data.visibility == "admin" and user["role"] != "admin":
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Nur Admins dürfen Sichtbarkeit auf Admin setzen!")
+        
+    query = "UPDATE notes SET title = %s, content = %s, visibility = %s WHERE id = %s"
+    cur.execute(query, (data.title.strip(), data.content.strip(), data.visibility, note_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "success"}
 
-@router.post("/api/categories")
-async def add_cat(c: dict):
-    with db._get_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO categories (name, password) VALUES (?,?)", (c['name'], c.get('password', '')))
-    return {"ok": True}
-
-@router.delete("/api/categories/{name}")
-async def del_cat(name: str):
-    with db._get_connection() as conn:
-        conn.execute("DELETE FROM notes WHERE category=?", (name,))
-        conn.execute("DELETE FROM categories WHERE name=?", (name,))
-        conn.commit()
-    return {"ok": True}
-
-@router.post("/api/admin/login")
-async def admin_login(req: dict):
-    if str(req.get("pin")) == ADMIN_PIN:
-        return {"status": "success", "role": "admin"}
-    raise HTTPException(status_code=401)
+@router.delete("/{note_id}")
+def delete_note(note_id: int, request: Request):
+    user = get_user_from_request(request)
+    
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username, visibility FROM notes WHERE id = %s", (note_id,))
+    note = cur.fetchone()
+    
+    if not note:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+        
+    can_delete = (
+        user["username"] == note["username"] or 
+        user["role"] == "admin" or 
+        (user["role"] == "geratewart" and note["visibility"] == "geratewart")
+    )
+    
+    if not can_delete:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Keine Berechtigung zum Löschen")
+        
+    cur.execute("DELETE FROM notes WHERE id = %s", (note_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "success"}
