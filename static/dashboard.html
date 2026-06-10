@@ -21,14 +21,7 @@
         .mobile-nav { display: none; background: white; border-bottom: 1px solid #e0e0e0; padding: 10px 15px; align-items: center; justify-content: space-between; z-index: 1100; position: sticky; top: 0; }
         .mobile-select { min-width: 160px; max-width: 200px; border: 2px solid var(--primary-color) !important; color: var(--primary-color) !important; font-weight: bold !important; }
         
-        .year-select-custom { 
-            width: 115px !important; 
-            padding-right: 35px !important; 
-            border: 0 !important;
-            background-color: white !important;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
+        .year-select-custom { width: 115px !important; padding-right: 35px !important; border: 0 !important; background-color: white !important; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .stat-card { border: none; border-radius: 18px; color: white; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); height: 100%; }
         .stat-label { font-size: 0.75rem; text-transform: uppercase; font-weight: bold; opacity: 0.9; }
         .stat-val { font-size: 1.6rem; font-weight: 900; margin: 0; }
@@ -40,42 +33,25 @@
         .session-item { background: white; border-radius: 20px !important; border: none !important; margin-bottom: 15px; padding: 18px 25px; box-shadow: 0 3px 12px rgba(0,0,0,0.04); transition: all 0.2s ease; cursor: pointer; }
         .sig-wrapper { border: 2px dashed #ddd; background: white; border-radius: 15px; overflow: hidden; height: 250px; position: relative; }
         #sigCanvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
-        .paypal-btn { background: #0070ba; color: white !important; transition: 0.3s; text-decoration: none; display: inline-block; width: 100%; }
         .btn-xs { padding: 4px 12px; font-size: 0.7rem; border-radius: 50px; font-weight: bold; }
         .btn-icon { background: transparent; border: none; padding: 6px; color: #ccc; transition: 0.2s; }
         .btn-icon:hover { color: var(--primary-color); background: #f8f9fa; border-radius: 8px; }
 
-        /* --- INFO BANNER SYSTEM --- */
-        .github-banner {
-            color: white; padding: 12px 20px; text-align: center; font-weight: 700;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: none; 
-            animation: slideDown 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-            z-index: 9999; position: relative; border-bottom: 2px solid rgba(0,0,0,0.1);
-        }
-        .github-banner a { color: white; text-decoration: underline; font-weight: 800; margin-left: 5px; }
-        .banner-blau { background: linear-gradient(90deg, #2563eb, #3b82f6); } 
-        .banner-grün { background: linear-gradient(90deg, #059669, #10b981); } 
-        .banner-rot  { background: linear-gradient(90deg, #dc2626, #ef4444); } 
-        .banner-gelb { background: linear-gradient(90deg, #d97706, #f59e0b); color: #000 !important; }
-        .banner-gelb a { color: #000 !important; }
-        @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Statusfarben für BOS Funk */
+        .status-1 { background-color: #2563eb !important; color: white; }
+        .status-2 { background-color: #16a34a !important; color: white; }
+        .status-3 { background-color: #eab308 !important; color: #000 !important; }
+        .status-4 { background-color: #dc2626 !important; color: white; }
+        .status-6 { background-color: #475569 !important; color: white; }
 
-        @media (max-width: 991px) { 
-            .app-container { flex-direction: column; } 
-            .sidebar { display: none !important; } 
-            .mobile-nav { display: flex; } 
-            body { overflow: auto; } 
-            .main-content { padding: 20px; } 
-        }
+        [v-cloak] { display: none !important; }
+        @media (max-width: 991px) { .app-container { flex-direction: column; } .sidebar { display: none !important; } .mobile-nav { display: flex; } body { overflow: auto; } .main-content { padding: 20px; } }
     </style>
 </head>
 <body>
-    <div id="app">
-        <div id="infoBanner" class="github-banner">
-            <i id="bannerIcon" class="fa fa-circle-info me-2"></i> 
-            <span id="bannerText"></span>
-        </div>
+    <div id="app" v-cloak>
 
+        <!-- Mobile Nav -->
         <div class="mobile-nav shadow-sm sticky-top">
             <button class="btn btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
                 <i class="fa fa-bars text-danger"></i>
@@ -88,6 +64,7 @@
             </div>
         </div>
 
+        <!-- Offcanvas Mobile Menu -->
         <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu">
             <div class="offcanvas-header border-bottom">
                 <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>MENÜ</h5>
@@ -96,55 +73,29 @@
             <div class="offcanvas-body d-flex flex-column">
                 <div class="mb-4">
                     <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Einträge</label>
-                    <button class="btn btn-danger w-100 mb-3 rounded-pill fw-bold py-2 shadow-sm" @click="createNew" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-plus-circle me-2"></i> Neuer Eintrag
-                    </button>
-                    
+                    <button class="btn btn-danger w-100 mb-3 rounded-pill fw-bold py-2 shadow-sm" @click="createNew" data-bs-dismiss="offcanvas"><i class="fa fa-plus-circle me-2"></i> Neuer Eintrag</button>
                     <div v-if="isAdmin">
                         <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Admin-Optionen</label>
-                        <a href="/personal" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-decoration-none text-center d-block">
-                            <i class="fa fa-user-shield me-2"></i> Personal & Qualis
-                        </a>
-                        <button class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2" @click="addGroup" data-bs-dismiss="offcanvas">
-                            <i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen
-                        </button>
-                        <button class="btn btn-outline-dark w-100 mb-3 rounded-pill fw-bold py-2" @click="manageVehicles">
-                            <i class="fa fa-truck me-2"></i> Fahrzeuge verwalten
-                        </button>
+                        <a href="/personal" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-decoration-none text-center d-block"><i class="fa fa-user-shield me-2"></i> Personal & Qualis</a>
+                        <button class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2" @click="addGroup" data-bs-dismiss="offcanvas"><i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen</button>
+                        <button class="btn btn-outline-dark w-100 mb-3 rounded-pill fw-bold py-2" @click="manageVehicles" data-bs-dismiss="offcanvas"><i class="fa fa-truck me-2"></i> Fahrzeuge verwalten</button>
                     </div>
-
-                    <a href="/notizen" target="_blank" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none py-2 text-center">
-                        <i class="fa fa-sticky-note me-2"></i> Notizen öffnen
-                    </a>
+                    <a href="/notizen" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none py-2 text-center"><i class="fa fa-sticky-note me-2"></i> Notizen öffnen</a>
                 </div>
-                
                 <div class="mt-auto border-top pt-4 text-center">
-                    <button v-if="!isAdmin" class="btn btn-primary w-100 rounded-pill mb-2 fw-bold shadow-sm" @click="promptAdmin" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-lock me-2"></i> Admin Login
-                    </button>
-                    <button v-else class="btn btn-dark w-100 rounded-pill mb-2 fw-bold shadow-sm" @click="logoutAdminOnly" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-unlock me-2"></i> Admin Logout
-                    </button>
-                    
-                    <button class="btn btn-outline-dark w-100 rounded-pill mb-4 fw-bold" @click="fullLogout" data-bs-dismiss="offcanvas">
-                        <i class="fa fa-sign-out-alt me-2"></i> Abmelden / Logout
-                    </button>
-
-                    <div class="bg-light p-3 rounded-4 border">
-                        <small class="text-danger fw-bold d-block mb-1 text-uppercase">FEUERWEHR {{ projectInfo.town }}</small>
-                        <small class="text-muted d-block fw-bold" style="font-size: 0.7rem;">v{{ projectInfo.version }}</small>
-                    </div>
+                    <div class="mb-3 text-muted small fw-bold"><i class="fa fa-user me-1"></i> {{ username }} ({{ role }})</div>
+                    <button class="btn btn-outline-dark w-100 rounded-pill mb-4 fw-bold" @click="fullLogout" data-bs-dismiss="offcanvas"><i class="fa fa-sign-out-alt me-2"></i> Abmelden</button>
                 </div>
             </div>
         </div>
 
         <div class="app-container">
+            <!-- Sidebar Desktop -->
             <div class="sidebar">
                 <div class="p-4 text-center border-bottom bg-light">
                     <h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4>
                     <small class="text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 1px;">DIGITALES DIENSTBUCH</small>
                 </div>
-                
                 <div class="flex-grow-1 overflow-y-auto pt-2">
                     <div v-for="g in groups" :key="g.id" class="group-item" :class="{active: selectedGroup?.id === g.id}" @click="selectGroup(g)">
                         <span>{{ g.name }}</span>
@@ -154,54 +105,22 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="p-3 bg-light border-top">
                     <div v-if="isAdmin" class="mb-2">
-                        <a href="/personal" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block shadow-sm">
-                            <i class="fa fa-user-shield me-1"></i> Personalverwaltung
-                        </a>
-                        <button class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup">
-                            <i class="fa fa-plus-circle me-1"></i> Neue Liste
-                        </button>
-                        <button class="btn btn-outline-dark btn-sm w-100 mb-2 rounded-pill fw-bold" @click="manageVehicles">
-                            <i class="fa fa-truck me-1"></i> Fahrzeuge
-                        </button>
+                        <a href="/personal" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block shadow-sm"><i class="fa fa-user-shield me-1"></i> Personalverwaltung</a>
+                        <button class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup"><i class="fa fa-plus-circle me-1"></i> Neue Liste</button>
+                        <button class="btn btn-outline-dark btn-sm w-100 mb-2 rounded-pill fw-bold" @click="manageVehicles"><i class="fa fa-truck me-1"></i> Fahrzeuge</button>
                     </div>
-                    
-                    <a href="/notizen" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block">
-                        <i class="fa fa-sticky-note me-1"></i> Notizen
-                    </a>
-                    
-                    <button class="btn btn-outline-info btn-sm w-100 mb-3 rounded-pill fw-bold" @click="showAbout">
-                        <i class="fa fa-info-circle me-1"></i> Projekt Info
-                    </button>
-                    
+                    <a href="/notizen" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block"><i class="fa fa-sticky-note me-1"></i> Notizen</a>
                     <div class="border-top pt-3">
-                        <button v-if="!isAdmin" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm fw-bold mb-2" @click="promptAdmin">
-                            <i class="fa fa-lock me-1"></i> Admin Login
-                        </button>
-                        <button v-else class="btn btn-dark btn-sm w-100 rounded-pill shadow-sm fw-bold mb-2" @click="logoutAdminOnly">
-                            <i class="fa fa-unlock me-1"></i> Admin Logout
-                        </button>
-                        
-                        <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold" @click="fullLogout">
-                            <i class="fa fa-sign-out-alt me-1"></i> Abmelden
-                        </button>
-                    </div>
-                    
-                    <div class="text-center mt-3 pt-2 border-top">
-                        <small class="text-danger d-block fw-bold text-uppercase" style="font-size: 0.7rem;">{{ projectInfo.town }}</small>
-                        <small class="text-muted d-block fw-bold" style="font-size: 0.6rem;">v{{ projectInfo.version }}</small>
+                        <div class="text-center text-muted small fw-bold mb-2"><i class="fa fa-user me-1"></i> {{ username }}</div>
+                        <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Abmelden</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Main Content Area -->
             <div class="main-content">
-                <div v-if="projectInfo.update_available" class="alert alert-warning shadow-sm mb-4 rounded-4 d-flex justify-content-between align-items-center border-start border-4 border-warning">
-                    <div><i class="fa fa-cloud-download-alt me-2 text-warning"></i><strong>Update v{{ projectInfo.remote }}</strong> bereit!</div>
-                    <button class="btn btn-sm btn-dark rounded-pill px-3" @click="fullLogout">Laden</button>
-                </div>
-
                 <div v-if="selectedGroup">
                     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
                         <div class="flex-grow-1">
@@ -209,17 +128,33 @@
                             <div class="d-flex align-items-center mt-2 flex-wrap gap-2">
                                 <span class="badge bg-danger px-3 rounded-pill shadow-sm">Jahr {{ selectedYear }}</span>
                                 <select v-model="selectedYear" class="form-select form-select-sm rounded-pill year-select-custom shadow-sm" @change="loadData">
-                                    <option v-for="y in [2024,2025,2026]" :value="y">{{ y }}</option>
+                                    <option v-for="y in [2024,2025,2026,2027]" :value="y">{{ y }}</option>
                                 </select>
                             </div>
                         </div>
                         <div class="d-flex gap-2 align-items-center">
-                            <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm">
-                                <i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht
-                            </a>
-                            <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew">
-                                <i class="fa fa-plus me-1"></i> Neuer Eintrag
-                            </button>
+                            <a :href="`/groups/${selectedGroup.id}/print_view?year=${selectedYear}`" target="_blank" class="btn btn-white border shadow-sm rounded-pill px-3 fw-bold btn-sm"><i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht</a>
+                            <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Neuer Eintrag</button>
+                        </div>
+                    </div>
+
+                    <!-- --- NEUE LIVE STATUSTAFEL IM COCKPIT --- -->
+                    <div class="card border-0 shadow-sm rounded-4 mb-4 p-3 bg-white">
+                        <h6 class="fw-bold text-uppercase small text-secondary mb-3"><i class="fa fa-radio me-2 text-danger"></i>BOS Funk-Statusübersicht</h6>
+                        <div class="row g-2">
+                            <div v-for="v in vehicles" :key="v.id" class="col-6 col-sm-4 col-md-3">
+                                <div class="p-2 border rounded-3 d-flex align-items-center justify-content-between bg-light shadow-sm">
+                                    <div class="text-truncate me-1">
+                                        <div class="fw-bold text-dark small text-truncate">{{ v.name }}</div>
+                                        <div class="text-muted text-truncate" style="font-size: 0.65rem;">{{ v.radio_name || 'Ohne Kennung' }}</div>
+                                    </div>
+                                    <select v-model="v.status" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'"
+                                            :class="['form-select form-select-sm p-1 border-0 fw-bold rounded text-center text-white w-auto shadow-sm', 'status-' + v.status]"
+                                            style="font-size: 0.8rem; min-width: 42px; cursor: pointer;">
+                                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -229,6 +164,7 @@
                         <div class="col-4"><div class="stat-card text-dark" style="background: var(--misc-color);"><div class="stat-label">Sonst.</div><div class="stat-val">{{catStats.Sonstiges}}h</div></div></div>
                     </div>
 
+                    <!-- Top Ranking Table -->
                     <div class="card rank-card">
                         <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center" @click="showRanking = !showRanking" style="cursor:pointer">
                             <h6 class="m-0 fw-bold text-uppercase small text-secondary"><i class="fa fa-trophy text-warning me-2"></i>Top Ranking</h6>
@@ -238,9 +174,7 @@
                             <table class="table table-hover mb-0 align-middle">
                                 <thead>
                                     <tr class="text-muted small text-uppercase" style="font-size: 0.65rem;">
-                                        <th>Rang</th>
-                                        <th>Name</th>
-                                        <th class="text-end">Stunden</th>
+                                        <th>Rang</th><th>Name</th><th class="text-end">Stunden</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -254,6 +188,7 @@
                         </div>
                     </div>
 
+                    <!-- Session Items List -->
                     <div v-for="s in sessions" :key="s.id" class="session-item" @click="loadSession(s)">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="d-flex gap-3 align-items-center">
@@ -269,69 +204,74 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-xs btn-outline-danger" @click.stop="openReport(s)">Bericht</button>
-                                <button v-if="isAdmin" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Unterschrift</button>
+                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-dark" @click.stop="openSig(s)">Unterschrift</button>
                                 <button v-if="isAdmin" class="btn-icon text-danger ms-1" @click.stop="deleteSession(s)"><i class="fa fa-trash-alt"></i></button>
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
 
+        <!-- EXTENDED VEHICLE MODAL -->
         <div class="modal fade" id="vehicleModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header border-bottom py-3">
-                        <h5 class="modal-title fw-bold"><i class="fa fa-truck me-2"></i>Fahrzeuge verwalten</h5>
+                    <div class="modal-header border-bottom py-3 bg-light rounded-top-4">
+                        <h5 class="modal-title fw-bold text-danger"><i class="fa fa-truck-fast me-2"></i>Erweitertes Fuhrpark- & Fristenmanagement</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body p-4">
-                        <div class="mb-4">
-                            <label class="small fw-bold text-muted text-uppercase mb-2">Vorhandene Fahrzeuge</label>
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <span v-for="v in vehicles" :key="v.id" class="badge bg-light text-dark border p-2 d-flex align-items-center rounded-pill">
-                                    {{ v.name }}
-                                    <i class="fa fa-times-circle ms-2 text-danger" style="cursor:pointer" @click="deleteVehicle(v.id)"></i>
-                                </span>
-                                <div v-if="vehicles.length === 0" class="text-muted small italic">Keine Fahrzeuge angelegt.</div>
+                    <div class="modal-body p-4 bg-white" style="max-height: 70vh; overflow-y: auto;">
+                        
+                        <div v-if="isAdmin" class="bg-light p-3 rounded-4 mb-4 border">
+                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block"><i class="fa fa-plus-circle me-1"></i> Fahrzeug hinzufügen</label>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Typ / Modell</label><input type="text" v-model="newVehicle.name" class="form-control form-control-sm" placeholder="z.B. HLF 20"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Funkrufname</label><input type="text" v-model="newVehicle.radio_name" class="form-control form-control-sm" placeholder="z.B. Florian 40/1"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Kilometerstand</label><input type="number" v-model="newVehicle.milage" class="form-control form-control-sm" placeholder="KM"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Nächste HU / TÜV</label><input type="date" v-model="newVehicle.tuv_date" class="form-control form-control-sm"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Sicherheitsprüfung (SP)</label><input type="date" v-model="newVehicle.sp_date" class="form-control form-control-sm"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Nächste Wartung</label><input type="date" v-model="newVehicle.next_service" class="form-control form-control-sm"></div>
+                                <div class="col-12 text-end mt-2"><button class="btn btn-danger btn-sm rounded-pill px-4 fw-bold" @click="addVehicleAdvanced">Fahrzeug registrieren</button></div>
                             </div>
                         </div>
-                        <hr>
-                        <div>
-                            <label class="small fw-bold text-muted text-uppercase mb-2">Neues Fahrzeug hinzufügen</label>
-                            <div class="input-group">
-                                <input type="text" v-model="newVehicleName" class="form-control rounded-start-pill ps-3" placeholder="z.B. HLF 20" @keyup.enter="addVehicle">
-                                <button class="btn btn-danger rounded-end-pill px-3" @click="addVehicle">
-                                    <i class="fa fa-plus"></i>
-                                </button>
+
+                        <hr class="text-muted opacity-25">
+                        <label class="small fw-bold text-muted text-uppercase mb-3 mt-1">Aktueller Fuhrparkstatus</label>
+
+                        <div class="row g-3">
+                            <div class="col-12 p-3 border rounded-3 bg-light shadow-sm" v-for="v in vehicles" :key="v.id">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <label class="small text-muted fw-bold d-block mb-0" style="font-size:0.65rem">MODELL & KENNLINIE</label>
+                                        <input type="text" v-model="v.name" class="form-control form-control-sm fw-bold border-0 bg-white mb-1" @change="saveVehicleEdit(v)" :disabled="!isAdmin">
+                                        <input type="text" v-model="v.radio_name" class="form-control form-control-sm text-muted border-0 bg-white" @change="saveVehicleEdit(v)" :disabled="!isAdmin" placeholder="Funkrufname...">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold d-block mb-0" style="font-size:0.65rem">KILOMETERSTAND</label>
+                                        <input type="number" v-model="v.milage" class="form-control form-control-sm" @change="saveVehicleEdit(v)" :disabled="!isAdmin">
+                                    </div>
+                                    <div class="col-md-5 text-end pt-2">
+                                        <span class="badge bg-white border text-dark p-2 rounded shadow-sm me-1 small">HU: <b :class="isOverdue(v.tuv_date)?'text-danger':'text-success'">{{v.tuv_date || 'Kein'}}</b></span>
+                                        <span v-if="v.sp_date" class="badge bg-white border text-dark p-2 rounded shadow-sm me-1 small">SP: <b :class="isOverdue(v.sp_date)?'text-danger':'text-success'">{{v.sp_date}}</b></span>
+                                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger border-0 ms-2" @click="deleteVehicle(v.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-2 pt-2 border-top small" v-if="isAdmin">
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">HU ÄNDERN</label><input type="date" v-model="v.tuv_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">SP ÄNDERN</label><input type="date" v-model="v.sp_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">WARTUNG ÄNDERN</label><input type="date" v-model="v.next_service" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="modal fade" id="infoModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg text-center mx-3">
-                    <div class="modal-body p-4 p-md-5">
-                        <i class="fa fa-fire-extinguisher text-danger mb-4" style="font-size: 3.5rem;"></i>
-                        <h3 class="fw-bold mb-1">Dienstbuch Online</h3>
-                        <p class="text-muted small mb-4">Version {{ projectInfo.version }}</p>
-                        <div class="bg-light p-4 rounded-4 mb-4 text-start small border">
-                            <div class="mb-2 d-flex justify-content-between"><strong>Entwickler:</strong> <span>Daniel Hegemann</span></div>
-                            <div class="mb-3 d-flex justify-content-between"><strong>Kontakt:</strong> <a href="mailto:d.hege@icloud.com" class="text-danger fw-bold text-decoration-none">E-Mail</a></div>
-                            <hr>
-                            <a href="https://www.paypal.com/paypalme/breteax" target="_blank" class="paypal-btn rounded-pill fw-bold py-3 shadow-sm text-center text-white">
-                                <i class="fab fa-paypal me-2"></i> Kaffeekasse
-                            </a>
-                        </div>
-                        <button class="btn btn-dark rounded-pill px-5 fw-bold w-100 py-3" data-bs-dismiss="modal">Schließen</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+        <!-- SIG MODAL -->
         <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg mx-3">
@@ -340,9 +280,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-3">
-                        <div class="sig-wrapper shadow-inner border">
-                            <canvas id="sigCanvas"></canvas>
-                        </div>
+                        <div class="sig-wrapper border"><canvas id="sigCanvas"></canvas></div>
                         <p class="text-center text-muted mt-2 small">Bitte im weißen Feld unterschreiben</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-between pt-0">
@@ -352,254 +290,111 @@
                 </div>
             </div>
         </div>
+
     </div>
 
-<script>
+    <script>
         const { createApp } = Vue;
-        let sigPad = null, sigModal = null, infoModal = null, vehicleModal = null;
+        let sigPad = null, sigModal = null, vehicleModal = null;
         
         createApp({
             data() {
                 return {
-                    isAdmin: false,
-                    groups: [],
-                    selectedGroup: null,
-                    mobileSelectedId: null,
-                    sessionsList: [],
-                    selectedYear: new Date().getFullYear(),
-                    ranking: [],
-                    showRanking: false,
-                    catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 },
-                    projectInfo: { version: "?.??", remote: "?.??", update_available: false, town: "" },
-                    activeS: null,
+                    ready: false, isAdmin: false, username: '', role: '',
+                    groups: [], selectedGroup: null, mobileSelectedId: null,
+                    sessionsList: [], selectedYear: new Date().getFullYear(),
+                    ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
                     vehicles: [],
-                    newVehicleName: ''
+                    newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' }
                 }
             },
             computed: {
-                sessions() { 
-                    return this.sessionsList
-                        .filter(s => new Date(s.date).getFullYear() === this.selectedYear)
-                        .sort((a, b) => new Date(b.date) - new Date(a.date)); 
-                }
+                sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => new Date(b.date) - new Date(a.date)); }
             },
             async mounted() {
-                // Initialer Check des Admin-Status aus dem Speicher
-                this.isAdmin = (localStorage.getItem('userRole') === 'admin');
+                try {
+                    const authRes = await fetch('/api/auth/me', { credentials: 'include' });
+                    if (!authRes.ok) { window.location.href = '/'; return; }
+                    const authData = await authRes.json();
+                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role;
+                } catch (e) { window.location.href = '/'; return; }
                 
-                await this.fetchInfo();
                 await this.loadGroups();
-                
-                this.checkGlobalInfo(); 
-                setInterval(() => { this.checkGlobalInfo(); }, 300000);
-
-                if (this.isAdmin) { await this.loadVehicles(); }
+                await this.loadVehicles();
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
-                
                 const sigEl = document.getElementById('sigModal');
-                const infoEl = document.getElementById('infoModal');
                 const vehEl = document.getElementById('vehicleModal');
                 
                 if(sigEl) { 
                     sigModal = new bootstrap.Modal(sigEl);
                     sigEl.addEventListener('shown.bs.modal', () => {
                         const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                        canvas.width = canvas.offsetWidth * ratio;
-                        canvas.height = canvas.offsetHeight * ratio;
-                        canvas.getContext("2d").scale(ratio, ratio);
-                        sigPad.clear();
+                        canvas.width = canvas.offsetWidth * ratio; canvas.height = canvas.offsetHeight * ratio;
+                        canvas.getContext("2d").scale(ratio, ratio); sigPad.clear();
                     });
                 }
-                if(infoEl) { infoModal = new bootstrap.Modal(infoEl); }
                 if(vehEl) { vehicleModal = new bootstrap.Modal(vehEl); }
+                this.ready = true;
             },
             methods: {
-                // --- ADMIN LOGIC (KORRIGIERT) ---
-                async promptAdmin() {
-                    const p = prompt("Admin PIN / Passwort eingeben:");
-                    if (p) {
-                        try {
-                            const r = await fetch('/api/login', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ pin: p })
-                            });
-
-                            if (r.ok) {
-                                localStorage.setItem('userRole', 'admin');
-                                this.isAdmin = true;
-                                // Seite neu laden, um alle Admin-Funktionen (Löschen, Fahrzeuge etc.) zu aktivieren
-                                location.reload(); 
-                            } else {
-                                alert("Falsche PIN / Passwort!");
-                            }
-                        } catch (e) {
-                            alert("Verbindung zum Server fehlgeschlagen.");
-                        }
-                    }
-                },
-                logoutAdminOnly() {
-                    localStorage.removeItem('userRole');
-                    this.isAdmin = false;
-                    location.reload();
-                },
-                fullLogout() {
-                    localStorage.clear();
-                    window.location.href = "/";
-                },
-
-                // --- RESTLICHE FUNKTIONEN ---
-                async checkGlobalInfo() {
-                    const INFO_URL = "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/info.txt";
-                    try {
-                        const response = await fetch(INFO_URL + "?t=" + new Date().getTime());
-                        if (!response.ok) return;
-                        let text = await response.text();
-                        text = text.trim();
-                        if (text.length < 2) return;
-
-                        const banner = document.getElementById('infoBanner');
-                        const bannerText = document.getElementById('bannerText');
-                        const bannerIcon = document.getElementById('bannerIcon');
-
-                        let colorClass = 'banner-blau';
-                        let iconClass = 'fa-circle-info';
-                        let cleanText = text;
-
-                        if (text.startsWith("GRÜN:")) {
-                            colorClass = 'banner-grün'; iconClass = 'fa-check-circle';
-                            cleanText = text.replace("GRÜN:", "").trim();
-                        } else if (text.startsWith("ROT:")) {
-                            colorClass = 'banner-rot'; iconClass = 'fa-heart';
-                            cleanText = text.replace("ROT:", "").trim();
-                        } else if (text.startsWith("GELB:")) {
-                            colorClass = 'banner-gelb'; iconClass = 'fa-triangle-exclamation';
-                            cleanText = text.replace("GELB:", "").trim();
-                        } else if (text.startsWith("BLAU:")) {
-                            colorClass = 'banner-blau'; iconClass = 'fa-circle-info';
-                            cleanText = text.replace("BLAU:", "").trim();
-                        }
-
-                        bannerText.innerHTML = cleanText;
-                        banner.className = 'github-banner ' + colorClass;
-                        bannerIcon.className = 'fa ' + iconClass + ' me-2';
-                        banner.style.display = 'block';
-                    } catch (e) { console.log("Banner-Fetch failed"); }
-                },
-                async fetchInfo() {
-                    try {
-                        const r = await fetch('/api/info');
-                        if (r.ok) { this.projectInfo = await r.json(); }
-                    } catch(e) { console.error(e); }
-                },
+                async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/'; },
                 async loadGroups() {
                     try {
-                        const res = await fetch('/groups');
-                        this.groups = await res.json();
-                        if (this.groups.length > 0) {
-                            const lastId = localStorage.getItem('lastSelectedGroupId');
-                            this.selectGroup(this.groups.find(g => g.id == lastId) || this.groups[0]);
-                        }
-                    } catch(e) { console.error(e); }
+                        const res = await fetch('/groups', { credentials: 'include' }); this.groups = await res.json();
+                        if (this.groups.length > 0) { const lastId = localStorage.getItem('lastSelectedGroupId'); this.selectGroup(this.groups.find(g => g.id == lastId) || this.groups[0]); }
+                    } catch(e) {}
                 },
-                selectGroup(g) {
-                    this.selectedGroup = g;
-                    this.mobileSelectedId = g.id;
-                    localStorage.setItem('lastSelectedGroupId', g.id);
-                    this.loadData();
-                },
-                onMobileGroupChange() {
-                    const g = this.groups.find(x => x.id == this.mobileSelectedId);
-                    if(g) this.selectGroup(g);
-                },
+                selectGroup(g) { this.selectedGroup = g; this.mobileSelectedId = g.id; localStorage.setItem('lastSelectedGroupId', g.id); this.loadData(); },
+                onMobileGroupChange() { const g = this.groups.find(x => x.id == this.mobileSelectedId); if(g) this.selectGroup(g); },
                 async loadData() {
                     if (!this.selectedGroup) return;
-                    const [res, sRes] = await Promise.all([
-                        fetch(`/groups/${this.selectedGroup.id}/sessions`),
-                        fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`)
-                    ]);
-                    this.sessionsList = await res.json();
-                    this.ranking = (await sRes.json()).persons;
-                    this.calcStats();
+                    const [res, sRes] = await Promise.all([fetch(`/groups/${this.selectedGroup.id}/sessions`, { credentials: 'include' }), fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`, { credentials: 'include' })]);
+                    this.sessionsList = await res.json(); this.ranking = (await sRes.json()).persons; this.calcStats();
                 },
                 calcStats() {
                     const s = { Übung: 0, Einsatz: 0, Sonstiges: 0 };
-                    this.sessions.forEach(x => { if (s[x.category] !== undefined) s[x.category] += x.duration; });
+                    this.sessions.forEach(x => { if (s[x.category] !== undefined) s[x.category] += parseFloat(x.duration); });
                     this.catStats = s;
                 },
-                createNew() { 
-                    if(!this.selectedGroup) return;
-                    window.location.href = `/editor?group_id=${this.selectedGroup.id}`; 
+                async loadVehicles() { const res = await fetch('/api/vehicles', { credentials: 'include' }); this.vehicles = await res.json(); },
+                manageVehicles() { if(vehicleModal) vehicleModal.show(); },
+                isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
+                async quickStatusChange(v) {
+                    await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) });
+                },
+                async addVehicleAdvanced() {
+                    if(!this.newVehicle.name) return;
+                    await fetch('/api/vehicles', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newVehicle) });
+                    this.newVehicle = { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' };
+                    await this.loadVehicles();
+                },
+                async saveVehicleEdit(v) {
+                    await fetch(`/api/vehicles/${v.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(v) });
+                },
+                async deleteVehicle(id) {
+                    if (confirm("Fahrzeug aus Flotte löschen?")) { await fetch(`/api/vehicles/${id}`, { method: 'DELETE', credentials: 'include' }); await this.loadVehicles(); }
                 },
                 async addGroup() {
-                    const name = prompt("Name der neuen Liste (Gruppe):");
-                    if (name) {
-                        const r = await fetch('/groups', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({name: name})
-                        });
-                        if(r.ok) await this.loadGroups();
-                    }
+                    const name = prompt("Name der neuen Gruppe:");
+                    if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); }
                 },
                 async editGroup(g) {
                     const name = prompt("Neuer Name:", g.name);
-                    if (name && name !== g.name) {
-                        await fetch(`/groups/${g.id}`, {
-                            method: 'PUT',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({name: name})
-                        });
-                        await this.loadGroups();
-                    }
+                    if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); }
                 },
                 async deleteGroup(g) {
-                    if (confirm(`Liste "${g.name}" wirklich löschen?`)) {
-                        await fetch(`/groups/${g.id}`, { method: 'DELETE' });
-                        await this.loadGroups();
-                    }
+                    if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); }
                 },
-                async loadVehicles() {
-                    const res = await fetch('/api/vehicles');
-                    this.vehicles = await res.json();
-                },
-                manageVehicles() {
-                    if(vehicleModal) vehicleModal.show();
-                },
-                async addVehicle() {
-                    if (!this.newVehicleName) return;
-                    await fetch('/api/vehicles', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: this.newVehicleName })
-                    });
-                    this.newVehicleName = '';
-                    await this.loadVehicles();
-                },
-                async deleteVehicle(id) {
-                    if (confirm("Fahrzeug wirklich löschen?")) {
-                        await fetch(`/api/vehicles/${id}`, { method: 'DELETE' });
-                        await this.loadVehicles();
-                    }
-                },
-                async deleteSession(s) {
-                    if(confirm("Eintrag wirklich löschen?")) {
-                        await fetch(`/sessions/${s.id}`, { method: 'DELETE' });
-                        this.loadData();
-                    }
-                },
+                async deleteSession(s) { if(confirm("Eintrag löschen?")) { await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' }); this.loadData(); } },
+                createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 openReport(s) { window.open(`/sessions/${s.id}/report`, '_blank'); },
-                showAbout() { if(infoModal) infoModal.show(); },
                 openSig(s) { this.activeS = s; if(sigModal) sigModal.show(); },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
-                    const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({signature: sigPad.toDataURL()})
-                    });
+                    const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
                     if (r.ok) { sigModal.hide(); this.loadData(); }
                 },
                 clearSig() { if(sigPad) sigPad.clear(); }
