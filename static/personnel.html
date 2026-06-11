@@ -33,7 +33,6 @@
         .status-jugend { background: #e0f2fe; color: #0369a1; }
         .status-ehren { background: #fef3c7; color: #b45309; }
 
-        /* Stil für Haupt-Pills */
         .main-pills .nav-link { color: #64748b; font-weight: 700; border-radius: 10px; padding: 10px 20px; border: 1px solid #e2e8f0; background: white; transition: 0.2s; }
         .main-pills .nav-link.active { background: var(--dark) !important; color: white !important; }
 
@@ -79,6 +78,9 @@
             </li>
             <li class="nav-item">
                 <button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link shadow-sm text-danger" id="logs-tab" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab" @click="loadAuditLogs"><i class="fa fa-history me-1"></i>Sicherheits-Logbuch</button>
             </li>
         </ul>
 
@@ -132,7 +134,7 @@
                 </div>
             </div>
 
-            <!-- REITER 2: LOGIN-ACCOUNTS & LIVE RECHTE & PASSWORD-RESET -->
+            <!-- REITER 2: LOGIN-ACCOUNTS & LIVE RECHTE -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-md-4">
@@ -141,6 +143,13 @@
                             <form @submit.prevent="createUser">
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Benutzername</label><input type="text" v-model="newUser.username" class="form-control bg-light border-0 rounded-3" required></div>
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Passwort</label><input type="password" v-model="newUser.password" class="form-control bg-light border-0 rounded-3" required></div>
+                                <div class="mb-3">
+                                    <label class="small fw-bold text-muted mb-1">Zugeordneter Kamerad</label>
+                                    <select v-model="newUser.personnel_id" class="form-select bg-light border-0 rounded-3" required>
+                                        <option :value="null" disabled>-- Bitte wählen --</option>
+                                        <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                    </select>
+                                </div>
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Rolle</label>
                                     <select v-model="newUser.role" class="form-select bg-light border-0 rounded-3">
                                         <option value="mannschaft">Mannschaft (Leserechte)</option>
@@ -159,10 +168,20 @@
                             <h5 class="fw-bold mb-3">Aktive Profile</h5>
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light"><tr><th>Benutzername</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Benutzername</th><th>Kameraden-Verknüpfung (Editierbar)</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
                                     <tbody>
                                         <tr v-for="u in users" :key="u.id">
-                                            <td class="fw-bold">{{ u.username }}</td>
+                                            <td class="fw-bold">
+                                                {{ u.username }}
+                                                <span v-if="u.is_first_login" class="badge bg-warning text-dark font-monospace ms-2" style="font-size:0.55rem;">PW-Wechsel erzwungen</span>
+                                            </td>
+                                            <td>
+                                                <!-- SMART: Live änderbares Zuordnungs-Dropdown direkt in der Zeile -->
+                                                <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm bg-light border-0 fw-semibold">
+                                                    <option :value="null">Keine Verknüpfung</option>
+                                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                                </select>
+                                            </td>
                                             <td>
                                                 <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 w-auto rounded-pill px-3 bg-light fw-bold">
                                                     <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
@@ -177,6 +196,26 @@
                                 </table>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REITER 3: REVISIONS-LOGBUCH -->
+            <div class="tab-pane fade" id="pane-logs" role="tabpanel">
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <h5 class="fw-bold mb-3"><i class="fa fa-history text-danger me-2"></i>System-Protokoll (Revisionssicher)</h5>
+                    <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light sticky-top"><tr><th>Zeitstempel</th><th>Nutzer</th><th>Aktion</th><th>Details</th></tr></thead>
+                            <tbody>
+                                <tr v-for="l in auditLogs" :key="l.id" style="font-size: 0.85rem;">
+                                    <td class="text-muted font-monospace">{{ l.date_formatted }}</td>
+                                    <td><span class="badge bg-dark">{{ l.username }}</span></td>
+                                    <td class="fw-bold text-uppercase" style="font-size: 0.75rem;">{{ l.action }}</td>
+                                    <td class="text-secondary">{{ l.details }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -239,7 +278,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 2: LEHRGÄNGE -->
+                        <!-- TAB 2: LEHRGÄNGE & LIZENZEN -->
                         <div class="tab-pane fade" id="tab-qual">
                             <h6 class="fw-bold text-danger mb-3"><i class="fa fa-graduation-cap me-2"></i>Feuerwehr-Lehrgänge</h6>
                             <div class="row g-2 mb-4">
@@ -261,7 +300,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 3: TAUGBLICHKEIT -->
+                        <!-- TAB 3: TAUGBLICHKEIT & UNTERSUCHUNGEN -->
                         <div class="tab-pane fade" id="tab-health">
                             <div class="alert alert-warning small py-2"><i class="fa fa-info-circle me-1"></i> Statusfarben basieren auf den Fristen.</div>
                             <div class="row g-3">
@@ -274,7 +313,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 4: EHRUNGEN -->
+                        <!-- TAB 4: EHRUNGEN & SCHNELLVORLAGEN -->
                         <div class="tab-pane fade" id="tab-honors">
                             <div class="mb-2">
                                 <label class="small fw-bold text-muted d-block mb-1">Schnellvorlagen einfügen:</label>
@@ -306,7 +345,7 @@ createApp({
     data() {
         return {
             personnel: [], search: '', filterStatus: '', activePerson: null, modalInstance: null, cacheBuster: Date.now(),
-            intervals: { g26: 36, belastung: 12, unterweisung: 12 },
+            intervals: { g26: 36, belastung: 12, unterweisung: 12 }, auditLogs: [],
             ranks: [
                 'Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
                 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)',
@@ -322,7 +361,7 @@ createApp({
                 {id: 'is_tf', label: 'Truppführer (TF)'}, {id: 'is_gf', label: 'Gruppenführer (GF)'}
             ],
             users: [],
-            newUser: { username: '', password: '', role: 'mannschaft' }
+            newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null }
         }
     },
     computed: {
@@ -341,12 +380,28 @@ createApp({
             const r = await fetch('/api/personnel/settings', { credentials: 'include' }); const d = await r.json();
             if(d.int_g26) this.intervals.g26 = d.int_g26; if(d.int_belastung) this.intervals.belastung = d.int_belastung; if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung;
         },
+        async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
+        async loadAuditLogs() { const res = await fetch('/api/audit/logs', { credentials: 'include' }); if (res.ok) this.auditLogs = await res.json(); },
+        getPersonnelName(id) { if(!id) return 'Keine Verknüpfung'; const p = this.personnel.find(x => x.id == id); return p ? p.name : 'Unbekannt'; },
         getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
         getHealthStatus(dateStr, field) {
             if(!dateStr) return '';
             const months = field.includes('g26') ? this.intervals.g26 : (field.includes('belastung') ? this.intervals.belastung : this.intervals.unterweisung);
             const diff = (new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24 * 30.44);
             if(diff >= months) return 'bg-crit'; if(diff >= months - 3) return 'bg-warn'; return 'bg-ok';
+        },
+        generateRandomPassword() {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; let pw = "";
+            for (let i = 0; i < 8; i++) { pw += chars.charAt(Math.floor(Math.random() * chars.length)); } return pw;
+        },
+        async changePasswordPrompt(user) {
+            const sug = this.generateRandomPassword();
+            const newPassword = prompt(`Neues Kennwort für '${user.username}' vergeben (Passwort-Wechsel wird erzwungen):`, sug);
+            if (newPassword && newPassword.trim() !== "") {
+                const res = await fetch(`/api/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: newPassword.trim() }) });
+                if (res.ok) alert(`Das Passwort wurde überschrieben!\nTemporärer Zugang: ${newPassword.trim()}`);
+                await this.loadUsers();
+            }
         },
         addTemplate(title) { const text = `${new Date().getFullYear()}: ${title}\n`; this.activePerson.honors = (this.activePerson.honors || '') + text; },
         openNewMemberModal() {
@@ -358,6 +413,16 @@ createApp({
         },
         async editMember(p) { this.activePerson = { ...p, honors: 'Lade Akte...', profile_picture: '' }; this.modalInstance.show(); const r = await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' }); if(r.ok) { this.activePerson = await r.json(); } },
         onAvatarChange(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { this.activePerson.profile_picture = event.target.result; }; reader.readAsDataURL(file); },
+        async createUser() {
+            const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) });
+            if (res.ok) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); }
+        },
+        async updateUserRole(user) { await fetch(`/api/users/${user.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: user.role }) }); },
+        async updateUserPersonnelId(user) {
+            await fetch(`/api/users/${user.id}/personnel`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: user.personnel_id }) });
+            this.loadUsers();
+        },
+        async deleteUser(user) { if (confirm("Konto löschen?")) { await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
         async saveActiveMember() {
             if(!this.activePerson.name) return alert("Name darf nicht leer sein!");
             const payload = { ...this.activePerson };
@@ -367,23 +432,7 @@ createApp({
             await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
             this.load(); this.modalInstance.hide();
         },
-        async deleteActiveMember() { if(confirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } },
-        
-        // --- USERS SECTION ---
-        async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
-        async changePasswordPrompt(user) {
-            const newPassword = prompt(`Neues Passwort für '${user.username}' vergeben:`);
-            if (newPassword) {
-                const res = await fetch(`/api/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: newPassword }) });
-                if (res.ok) alert("Das Passwort wurde erfolgreich geändert!");
-            }
-        },
-        async createUser() {
-            const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) });
-            if (res.ok) { this.newUser = { username: '', password: '', role: 'mannschaft' }; await this.loadUsers(); }
-        },
-        async updateUserRole(user) { await fetch(`/api/users/${user.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: user.role }) }); },
-        async deleteUser(user) { if (confirm("Zugang permanent entziehen?")) { await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } }
+        async deleteActiveMember() { if(confirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
     },
     mounted() { this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
 }).mount('#app');
