@@ -798,3 +798,52 @@ def year_report(group_id: int, year: int):
     html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, TOWN_NAME)
     c.close()
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
+
+# --- GRUPPENÜBERGREIFENDE STUNDENBERECHNUNG FÜR DAS NUTZER-COCKPIT ---
+@app.get("/api/users/me/stats")
+def get_my_global_fire_stats(year: int, request: Request):
+    user = get_current_user(request)
+    if not user: 
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    # 1. Ermittle den Klarnamen des angemeldeten Accounts aus der Personalakte
+    cur.execute("""
+        SELECT p.name 
+        FROM users u 
+        JOIN personnel p ON u.personnel_id = p.id 
+        WHERE u.username = %s
+    """, (user["username"],))
+    res = cur.fetchone()
+    
+    if not res:
+        cur.close()
+        conn.close()
+        return {"hours": 0, "count": 0}
+        
+    klarnat_name = res["name"]
+    
+    # 2. Berechne alle geleisteten Stunden und Dienste über JEDE Gruppe hinweg für das gewählte Jahr
+    query = """
+        SELECT 
+            COALESCE(SUM(s.duration), 0) as total_hours,
+            COUNT(DISTINCT s.id) as present_count
+        FROM attendance a
+        JOIN sessions s ON a.session_id = s.id
+        JOIN persons p ON a.person_id = p.id
+        WHERE p.name = %s 
+          AND YEAR(s.date) = %s 
+          AND a.is_present = 1
+    """
+    cur.execute(query, (klarnat_name, year))
+    stats = cur.fetchone()
+    
+    cur.close()
+    conn.close()
+    
+    return {
+        "hours": float(stats["total_hours"]) if stats else 0.0,
+        "count": stats["present_count"] if stats else 0
+    }
