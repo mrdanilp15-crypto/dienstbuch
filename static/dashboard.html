@@ -61,7 +61,6 @@
 <body>
     <div id="app" v-cloak v-show="ready">
 
-        <!-- Mobile Nav -->
         <div class="mobile-nav shadow-sm sticky-top">
             <button class="btn btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
                 <i class="fa fa-bars text-danger"></i>
@@ -74,7 +73,6 @@
             </div>
         </div>
 
-        <!-- Offcanvas Mobile Menu -->
         <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu">
             <div class="offcanvas-header border-bottom">
                 <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>MENÜ</h5>
@@ -104,7 +102,6 @@
         </div>
 
         <div class="app-container">
-            <!-- Sidebar Desktop -->
             <div class="sidebar">
                 <div class="p-4 text-center border-bottom bg-light">
                     <h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4>
@@ -130,17 +127,15 @@
                     <div class="border-top pt-3">
                         <div class="profile-trigger" @click="openSelfPasswordModal">
                             <div class="text-dark small fw-bold mb-1"><i class="fa fa-user-circle me-1 text-danger"></i> {{ username }}</div>
-                            <span class="text-muted fw-semibold" style="font-size: 0.65rem; text-decoration: underline;">Profil & Dienststunden</span>
+                            <span class="text-muted" style="font-size: 0.65rem; text-decoration: underline; display:block;">Profil & Dienststunden</span>
                         </div>
                         <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold mt-2" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Abmelden</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Main Content Area -->
             <div class="main-content">
                 
-                <!-- Systemmeldungen / Schwarzes Brett -->
                 <div v-for="b in visibleBroadcasts" :key="b.id" :class="['broadcast-card p-3 mb-3 d-flex justify-content-between align-items-center', b.is_mandatory ? 'mandatory' : '']">
                     <div class="d-flex align-items-start gap-3">
                         <div :class="['broadcast-icon-box', b.is_mandatory ? 'bg-danger-soft' : 'bg-warning-soft']">
@@ -259,7 +254,6 @@
             </div>
         </div>
 
-        <!-- MODAL: VEHICLES (FRISTEN-LOGIK WIEDER VOLLSTÄNDIG) -->
         <div class="modal fade" id="vehicleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -297,10 +291,9 @@
                                     <div class="col-md-5 text-end pt-2">
                                         <span class="badge bg-white border text-dark p-2 rounded shadow-sm me-1 small">HU: <b :class="isOverdue(v.tuv_date)?'text-danger':'text-success'">{{v.tuv_date || 'Kein'}}</b></span>
                                         <span v-if="v.sp_date" class="badge bg-white border text-dark p-2 rounded shadow-sm me-1 small">SP: <b :class="isOverdue(v.sp_date)?'text-danger':'text-success'">{{v.sp_date}}</b></span>
-                                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger border-0 ms-2" @click="deleteVehicle(v.id)"><i class="fa fa-trash"></i></button>
+                                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger border-0 ms-2" @click="deleteVehicle(v.id)"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>
-                                <!-- REPARIERT: Hier ist der Bearbeitungs-Block für HU, SP und Wartung für jedes Auto wieder da -->
                                 <div class="row g-2 mt-2 pt-2 border-top small" v-if="isAdmin">
                                     <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">HU ÄNDERN</label><input type="date" v-model="v.tuv_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
                                     <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">SP ÄNDERN</label><input type="date" v-model="v.sp_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
@@ -313,7 +306,6 @@
             </div>
         </div>
 
-        <!-- MODAL: PROFILE & PASSWORD SELF-SERVICE / COCKPIT -->
         <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -327,7 +319,7 @@
                         </div>
                         
                         <div v-if="!isFirstLoginBlock" class="bg-light p-3 rounded-4 mb-4 border text-center shadow-sm">
-                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Eigene Dienstbeteiligung im Jahr {{ selectedYear }}</label>
+                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Eigene Jahres-Gesamtleistung (Alle Gruppen) im Jahr {{ selectedYear }}</label>
                             <div class="row mt-2">
                                 <div class="col-6 border-end">
                                     <span class="h3 fw-black text-danger d-block m-0">{{ personalStats.hours }}h</span>
@@ -335,7 +327,7 @@
                                 </div>
                                 <div class="col-6">
                                     <span class="h3 fw-black text-primary d-block m-0">{{ personalStats.count }}</span>
-                                    <small class="text-muted small fw-semibold">Anwesenheiten</small>
+                                    <small class="text-muted small fw-semibold">Besuchte Dienste</small>
                                 </div>
                             </div>
                         </div>
@@ -351,7 +343,6 @@
             </div>
         </div>
 
-        <!-- MODAL: BROADCAST -->
         <div class="modal fade" id="broadcastModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -361,7 +352,7 @@
                     </div>
                     <div class="modal-body p-4 bg-white">
                         <form @submit.prevent="submitBroadcast">
-                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Betreff / Thema</label><input type="text" v-model="newBroadcast.title" class="form-control rounded-3" placeholder="z.B. Sicherheitsunterweisung UVV" required></div>
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Betreff / Thema</label><input type="text" v-model="newBroadcast.title" class="form-control rounded-3" placeholder="z.B. Wichtige UVV Unterweisung" required></div>
                             <div class="mb-3"><label class="small fw-bold text-muted mb-1">Inhalt</label><textarea v-model="newBroadcast.content" class="form-control rounded-3" rows="4" placeholder="Nachrichtentext..." required></textarea></div>
                             <div class="form-check form-switch mb-3 bg-light p-2 border rounded ps-5">
                                 <input class="form-check-input" type="checkbox" id="bcMandatory" v-model="newBroadcast.is_mandatory">
@@ -374,7 +365,6 @@
             </div>
         </div>
 
-        <!-- MODAL: SIGNATURE -->
         <div class="modal fade" id="sigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg mx-3">
@@ -413,8 +403,7 @@
                     activeBroadcasts: [],
                     newBroadcast: { title: '', content: '', is_mandatory: false },
                     isFirstLoginBlock: false,
-                    personalStats: { hours: 0, count: 0 },
-                    personnelId: null
+                    personalStats: { hours: 0, count: 0 }
                 }
             },
             computed: {
@@ -427,7 +416,6 @@
                     if (!authRes.ok) { window.location.href = '/'; return; }
                     const authData = await authRes.json();
                     this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role;
-                    this.personnelId = authData.personnel_id;
                     this.isFirstLoginBlock = !!authData.is_first_login;
                 } catch (e) { window.location.href = '/'; return; }
                 
@@ -459,7 +447,7 @@
                     if (!this.selectedGroup) return;
                     const [res, sRes] = await Promise.all([fetch(`/groups/${this.selectedGroup.id}/sessions`, { credentials: 'include' }), fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`, { credentials: 'include' })]);
                     this.sessionsList = await res.json(); this.ranking = (await sRes.json()).persons; this.calcStats();
-                    this.extractPersonalStats();
+                    this.fetchPersonalStats(); // Holt die eigenen Stunden gruppenübergreifend direkt aus der DB
                 },
                 calcStats() {
                     const s = { Übung: 0, Einsatz: 0, Sonstiges: 0 };
@@ -487,15 +475,14 @@
                         } catch(e) {}
                     }
                 },
-                extractPersonalStats() {
-                    if(!this.ranking || !this.personnelId) return;
-                    const match = this.ranking.find(p => parseInt(p.person_id) === parseInt(this.personnelId));
-                    if(match) {
-                        this.personalStats.hours = match.total_hours;
-                        this.personalStats.count = match.present_count;
-                    } else {
-                        this.personalStats.hours = 0; this.personalStats.count = 0;
-                    }
+                // SMART FIX: Holt die persönlichen Jahresstunden gruppenunabhängig live über den neuen Backend-Endpunkt
+                async fetchPersonalStats() {
+                    try {
+                        const res = await fetch('/api/users/me/stats?year=' + this.selectedYear, { credentials: 'include' });
+                        if (res.ok) {
+                            this.personalStats = await res.json();
+                        }
+                    } catch(e) { console.error("Fehler beim Abruf der persönlichen Statistik:", e); }
                 },
                 manageVehicles() { if(vehicleModal) vehicleModal.show(); },
                 openBroadcastModal() { if(broadcastModal) broadcastModal.show(); },
@@ -509,7 +496,7 @@
                         }
                     } catch(e) {}
                 },
-                openSelfPasswordModal() { this.selfPwData = { old_password: '', new_password: '', confirm_password: '' }; this.extractPersonalStats(); if(selfPasswordModal) selfPasswordModal.show(); },
+                openSelfPasswordModal() { this.selfPwData = { old_password: '', new_password: '', confirm_password: '' }; this.fetchPersonalStats(); if(selfPasswordModal) selfPasswordModal.show(); },
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
                     try {
