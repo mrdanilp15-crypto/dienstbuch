@@ -37,6 +37,10 @@
         .person-row:last-child { border-bottom: none; }
         .person-row.absent { background-color: #fff5f5; opacity: 0.8; }
         
+        /* Blutrote Fristenwarnung im Original-Layout */
+        .person-row.g26-expired-alert { background-color: #fef2f2 !important; border-left: 4px solid var(--primary-color); }
+        .g26-crit-text { color: var(--primary-color) !important; font-weight: bold; font-size: 0.75rem; display: block; margin-top: 2px; }
+
         .name-area { flex-grow: 1; min-width: 0; }
         .name-text { font-weight: 600; font-size: 1.05rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
@@ -154,7 +158,8 @@
                 <input type="text" class="form-control form-control-sm" v-model="q" placeholder="Suchen...">
             </div>
             
-            <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present}">
+            <!-- --- DIE INTEGRIERTE G26.3 OPTIK-WARNUNG --- -->
+            <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
                 <div class="me-3">
                     <input type="checkbox" class="form-check-input" style="transform: scale(1.3)" 
                            :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
@@ -168,6 +173,9 @@
                 
                 <div class="name-area" @click="togglePresence(p)">
                     <span class="name-text">{{p.name}}</span>
+                    <!-- Rote Textwarnung unter dem Namen -->
+                    <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzverbot!</span>
+                    
                     <div class="d-flex gap-1 mt-1 overflow-auto pb-1" v-if="globalVehicles.length">
                         <button v-for="v in globalVehicles" 
                                 :key="v.id"
@@ -261,7 +269,7 @@
         data() {
             return {
                 isAdmin: false, 
-                isReadOnly: false, // Flag für Mannschaftsschutz
+                isReadOnly: false, 
                 groupId: null, 
                 sessionId: null,
                 globalVehicles: [], persons: [], pool: [],
@@ -290,14 +298,13 @@
             }
         },
         async mounted() {
-            // Cookie-basierte Sitzung vom Backend laden
             try {
                 const authRes = await fetch('/api/auth/me', { credentials: 'include' });
                 if (!authRes.ok) { window.location.href = '/'; return; }
                 const authData = await authRes.json();
                 
                 this.isAdmin = (authData.role === 'admin');
-                this.isReadOnly = (authData.role === 'mannschaft'); // Mannschaft schreibschützen
+                this.isReadOnly = (authData.role === 'mannschaft'); 
             } catch (e) {
                 window.location.href = '/';
                 return;
@@ -394,7 +401,7 @@
                 selected.forEach(sp => {
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
                     if(!exists) {
-                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null, personnel_id: sp.id, has_picture: sp.has_picture });
+                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null, personnel_id: sp.id, has_picture: sp.has_picture, g26_expired: sp.g26_expired });
                     }
                 });
                 this.pool.forEach(p => p.selected = false);
