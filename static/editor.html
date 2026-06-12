@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstbuch Editor</title>
+    <title>FeuerwehrHub - Protokollierung</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=7.0">
@@ -12,40 +12,42 @@
 <body>
     <div id="app" v-cloak>
         <div class="bg-white p-3 border-bottom shadow-sm sticky-top d-flex justify-content-between align-items-center">
-            <h5 class="m-0 fw-bold text-dark"><i class="fa fa-pen-nib text-danger me-2"></i>Eintrag schreiben</h5>
+            <h5 class="m-0 fw-bold text-dark"><i class="fa fa-pen-nib text-danger me-2"></i>Dienstbucheintrag verfassen / korrigieren</h5>
             <button class="btn btn-sm btn-outline-dark rounded-pill px-3" @click="goBack">Abbrechen</button>
         </div>
 
-        <div class="container py-4" style="max-width: 850px;">
+        <div class="container py-4" style="max-width: 850px; padding-bottom: 120px;">
             <div class="card p-4 shadow-sm border-0 mb-4">
                 <div class="row g-3">
-                    <div class="col-md-4"><label class="small fw-bold">Datum</label><input type="date" v-model="form.date" class="form-control"></div>
-                    <div class="col-md-4"><label class="small fw-bold">Kategorie</label><select v-model="form.category" class="form-select"><option value="Übung">Übung</option><option value="Einsatz">Einsatz</option><option value="Sonstiges">Sonstiges</option></select></div>
-                    <div class="col-md-4"><label class="small fw-bold">Dauer (h)</label><input type="number" step="0.5" v-model="form.duration" class="form-control"></div>
-                    <div class="col-md-12"><label class="small fw-bold">Thema (Vorwahl möglich)</label><input type="text" v-model="form.description" class="form-control" list="topicPresets">
+                    <div class="col-md-4"><label class="small fw-bold mb-1">Dienstdatum</label><input type="date" v-model="form.date" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold mb-1">Dienstkategorie</label><select v-model="form.category" class="form-select"><option value="Übung">Übungsdienst</option><option value="Einsatz">Einsatzbericht</option><option value="Sonstiges">Sonstiges / Verein</option></select></div>
+                    <div class="col-md-4"><label class="small fw-bold mb-1">Stundendauer</label><input type="number" step="0.5" v-model="form.duration" class="form-control"></div>
+                    <div class="col-md-12"><label class="small fw-bold mb-1">Ausbildungsschwerpunkt / Einsatzstichwort</label>
+                        <input type="text" v-model="form.description" class="form-control" list="topicPresets" placeholder="z.B. Atemschutznotfall-Übung">
                         <datalist id="topicPresets"><option v-for="t in presets.topics" :value="t"></option></datalist>
                     </div>
-                    <div class="col-md-12"><label class="small fw-bold">Leitung</label><input type="text" v-model="form.instructors" class="form-control" list="leaderPresets">
+                    <div class="col-md-12"><label class="small fw-bold mb-1">Einsatzleiter / Ausbilder</label>
+                        <input type="text" v-model="form.instructors" class="form-control" list="leaderPresets">
                         <datalist id="leaderPresets"><option v-for="l in presets.leaders" :value="l"></option></datalist>
                     </div>
                 </div>
             </div>
 
             <div class="card p-0 overflow-hidden shadow-sm border-0">
-                <table class="table mb-0">
-                    <thead class="table-light"><tr><th>Name</th><th class="text-center">Anwesend</th><th>Fahrzeug</th></tr></thead>
+                <table class="table mb-0 align-middle">
+                    <thead class="table-light"><tr><th>Kamerad (Stammakte)</th><th class="text-center">Anwesend</th><th>Fahrzeug-Zuweisung</th></tr></thead>
                     <tbody>
                         <tr v-for="p in persons" :key="p.personnel_id">
-                            <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.rank }}</small></td>
-                            <td class="text-center"><input type="checkbox" v-model="p.is_present" class="form-check-input"></td>
-                            <td><select v-model="p.vehicle" class="form-select form-select-sm"><option value="">--</option><option v-for="v in globalVehicles" :value="v.name">{{ v.name }}</option></select></td>
+                            <td><b>{{ p.name }}</b> <br/><small class="text-muted font-monospace">{{ p.rank || 'Feuerwehrmann' }}</small></td>
+                            <td class="text-center"><input type="checkbox" v-model="p.is_present" class="form-check-input" style="transform:scale(1.2)"></td>
+                            <td><select v-model="p.vehicle" class="form-select form-select-sm" style="font-weight:600;"><option value="">Keine Zuweisung</option><option v-for="v in globalVehicles" :value="v.name">{{ v.name }}</option></select></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div class="fixed-bottom bg-white p-3 border-top shadow-lg"><button class="btn btn-dark w-100 py-3 fw-bold rounded-pill" @click="save">DIENSTBUCH SPEICHERN</button></div>
+        <div class="fixed-bottom bg-white p-3 border-top shadow-lg"><button class="btn btn-dark w-100 py-3 fw-bold rounded-pill shadow" @click="save">DIENSTBUCHEINTRAG REVISIONS-SICHER SPEICHERN</button></div>
     </div>
 
     <script>
@@ -63,15 +65,15 @@
                 this.groupId = p.get('group_id'); this.sessionId = p.get('session_id');
                 this.globalVehicles = await (await fetch('/api/vehicles')).json();
                 const d = await (await fetch(`/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`)).json();
-                this.persons = d.persons; this.presets = d.presets;
+                this.persons = d.persons; if (d.presets) { this.presets = d.presets; }
                 if(d.session_id) { 
                     this.form = { date: d.date, category: d.category, duration: d.duration, description: d.description, instructors: d.instructors };
                 } else { this.form.date = new Date().toISOString().split('T')[0]; }
             },
             methods: {
-                goBack() { window.location.href = '/'; },
+                goBack() { window.location.href = '/dashboard'; },
                 async save() {
-                    const payload = { ...this.form, session_id: this.sessionId, group_id: this.groupId, entries: this.persons.map(p => ({ person_id: p.personnel_id, is_present: p.is_present, vehicle: p.vehicle })) };
+                    const payload = { ...this.form, session_id: this.sessionId ? parseInt(this.sessionId) : null, group_id: parseInt(this.groupId), entries: this.persons.map(p => ({ person_id: p.personnel_id, is_present: p.is_present, vehicle: p.vehicle })) };
                     await fetch('/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
                     this.goBack();
                 }
