@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FeuerwehrHub - Cockpit</title>
+    <title>Digitales Dienstbuch</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css?v=2.30">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
@@ -13,93 +14,469 @@
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
-        
-        <div class="mobile-nav shadow-sm">
-            <button class="btn btn-light rounded-circle" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu"><i class="fa fa-bars text-danger"></i></button>
-            <div class="fw-bold text-dark">FEUERWEHR HUB</div>
-            <select v-model="mobileSelectedId" class="form-select form-select-sm w-auto rounded-pill" @change="onMobileGroupChange">
+
+        <div class="mobile-nav shadow-sm sticky-top">
+            <button class="btn btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
+                <i class="fa fa-bars text-danger"></i>
+            </button>
+            <div class="fw-bold text-danger d-none d-sm-block">DIENSTBUCH</div>
+            <select v-model="mobileSelectedId" class="form-select form-select-sm rounded-pill border-danger fw-bold text-danger w-auto" @change="onMobileGroupChange">
                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
             </select>
         </div>
 
+        <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu">
+            <div class="offcanvas-header border-bottom">
+                <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>MENÜ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body d-flex flex-column">
+                <div class="mb-4">
+                    <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Einträge</label>
+                    <button class="btn btn-danger w-100 mb-3 rounded-pill fw-bold py-2 shadow-sm" @click="createNew" data-bs-dismiss="offcanvas"><i class="fa fa-plus-circle me-2"></i> Neuer Eintrag</button>
+                    <div v-if="isAdmin">
+                        <label class="text-muted small fw-bold text-uppercase mb-3 d-block">Admin-Optionen</label>
+                        <a href="/personal" class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-decoration-none text-center d-block"><i class="fa fa-user-shield me-2"></i> Personal & Logins</a>
+                        <button class="btn btn-outline-danger w-100 mb-3 rounded-pill fw-bold py-2 text-start" @click="addGroup" data-bs-dismiss="offcanvas"><i class="fa fa-folder-plus me-2"></i> Neue Liste anlegen</button>
+                        <button class="btn btn-outline-dark w-100 mb-3 rounded-pill fw-bold py-2 text-start" @click="manageVehicles" data-bs-dismiss="offcanvas"><i class="fa fa-truck me-2"></i> Fahrzeuge verwalten</button>
+                        <button class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold py-2 text-start" @click="openBroadcastModal" data-bs-dismiss="offcanvas"><i class="fa fa-bullhorn me-2"></i> Systemmeldung verfassen</button>
+                    </div>
+                    <a href="/notizen" class="btn btn-outline-primary w-100 mb-3 rounded-pill fw-bold text-decoration-none py-2 text-center"><i class="fa fa-sticky-note me-2"></i> Notizen öffnen</a>
+                </div>
+                <div class="mt-auto border-top pt-4 text-center">
+                    <div class="profile-trigger d-inline-block px-3" @click="openSelfPasswordModal" data-bs-dismiss="offcanvas">
+                        <div class="mb-1 text-muted small fw-bold"><i class="fa fa-user-circle me-1 text-danger"></i> {{ username }} ({{ role.toUpperCase() }})</div>
+                        <span class="btn btn-sm btn-outline-secondary rounded-pill" style="font-size:0.65rem;">Profil & Dienststunden</span>
+                    </div>
+                    <button class="btn btn-outline-dark w-100 rounded-pill mb-4 mt-3 fw-bold" @click="fullLogout" data-bs-dismiss="offcanvas"><i class="fa fa-sign-out-alt me-2"></i> Abmelden</button>
+                </div>
+            </div>
+        </div>
+
         <div class="app-container">
-            <!-- Sidebar Desktop -->
             <div class="sidebar">
                 <div class="p-4 text-center border-bottom bg-light">
-                    <h4 class="m-0 fw-black text-dark">FEUERWEHR<span class="text-danger">HUB</span></h4>
+                    <h4 class="m-0 fw-bold text-danger">FEUERWEHR</h4>
+                    <small class="text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 1px;">DIGITALES DIENSTBUCH</small>
                 </div>
-                <div class="flex-grow-1 overflow-y-auto">
+                <div class="flex-grow-1 overflow-y-auto pt-2">
                     <div v-for="g in groups" :key="g.id" class="group-item" :class="{active: selectedGroup?.id === g.id}" @click="selectGroup(g)">
                         <span>{{ g.name }}</span>
+                        <div v-if="isAdmin" class="d-flex gap-1">
+                            <button class="btn btn-sm text-secondary p-1 border-0 bg-transparent" @click.stop="editGroup(g)"><i class="fa fa-edit"></i></button>
+                            <button class="btn btn-sm text-danger p-1 border-0 bg-transparent" @click.stop="deleteGroup(g)"><i class="fa fa-trash-alt"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="p-3 bg-light border-top">
-                    <a href="/personal" v-if="isAdmin" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block">Personalverwaltung</a>
-                    <a href="/notizen" class="btn btn-outline-primary btn-sm w-100 rounded-pill fw-bold text-decoration-none text-center d-block">Notizen & Mängel</a>
-                    <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold mt-3" @click="fullLogout">Abmelden</button>
+                    <div v-if="isAdmin" class="mb-2">
+                        <a href="/personal" class="btn btn-danger btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block shadow-sm"><i class="fa fa-user-shield me-1"></i> Personalverwaltung</a>
+                        <button class="btn btn-outline-danger btn-sm w-100 mb-2 rounded-pill fw-bold" @click="addGroup"><i class="fa fa-plus-circle me-1"></i> Neue Liste</button>
+                        <button class="btn btn-outline-dark btn-sm w-100 mb-2 rounded-pill fw-bold" @click="manageVehicles"><i class="fa fa-truck me-1"></i> Fahrzeuge</button>
+                        <button class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold" @click="openBroadcastModal"><i class="fa fa-bullhorn me-1"></i> Systemmeldung</button>
+                    </div>
+                    <a href="/notizen" class="btn btn-outline-primary btn-sm w-100 mb-2 rounded-pill fw-bold text-decoration-none text-center d-block"><i class="fa fa-sticky-note me-1"></i> Notizen</a>
+                    <div class="border-top pt-3">
+                        <div class="profile-trigger" @click="openSelfPasswordModal">
+                            <div class="text-dark small fw-bold mb-1"><i class="fa fa-user-circle me-1 text-danger"></i> {{ username }}</div>
+                            <span class="text-muted" style="font-size: 0.65rem; text-decoration: underline; display:block;">Profil & Dienststunden</span>
+                        </div>
+                        <button class="btn btn-outline-dark btn-sm w-100 rounded-pill fw-bold mt-2" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i> Abmelden</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Content -->
             <div class="main-content">
+                <div v-for="b in visibleBroadcasts" :key="b.id" :class="['broadcast-card p-3 mb-3 d-flex justify-content-between align-items-center', b.is_mandatory ? 'mandatory' : '']">
+                    <div class="d-flex align-items-start gap-3">
+                        <div :class="['broadcast-icon-box p-2 rounded-3 text-center', b.is_mandatory ? 'bg-danger text-white' : 'bg-warning text-dark']" style="width:40px; height:40px;">
+                            <i :class="['fa', b.is_mandatory ? 'fa-exclamation-triangle' : 'fa-bullhorn']"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                <span v-if="b.is_mandatory" class="badge bg-danger text-uppercase font-monospace px-2" style="font-size:0.55rem;">Lesepflicht</span>
+                                <span v-else class="badge bg-warning text-dark text-uppercase font-monospace px-2" style="font-size:0.55rem;">Bekanntmachung</span>
+                                <small class="text-muted fw-bold"><i class="fa fa-calendar-alt me-1"></i>{{ b.datum }}</small>
+                                <small class="text-muted fw-bold"><i class="fa fa-user me-1"></i>Leitung: {{ b.autor }}</small>
+                            </div>
+                            <h5 class="fw-bold text-dark m-0 mb-1" style="letter-spacing: -0.3px;">{{ b.title }}</h5>
+                            <p class="text-secondary m-0 small lh-base" style="white-space: pre-wrap;">{{ b.content }}</p>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-shrink-0 ms-3">
+                        <button :class="['btn btn-sm rounded-pill font-monospace fw-bold px-3 py-1.5', b.is_mandatory ? 'btn-danger shadow-sm' : 'btn-outline-secondary']" @click="markBroadcastAsRead(b)">
+                            <i class="fa fa-check-circle me-1"></i> Gelesen
+                        </button>
+                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger rounded-circle p-0 d-flex align-items-center justify-content-center" @click="deleteBroadcast(b)" style="width: 32px; height: 32px;">
+                            <i class="fa fa-trash-alt" style="font-size: 0.8rem;"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <div v-if="selectedGroup">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h1 class="fw-black m-0 text-dark">{{ selectedGroup.name }}</h1>
-                        <button class="btn btn-danger rounded-pill fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Neuer Eintrag</button>
+                    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+                        <div class="flex-grow-1">
+                            <h1 class="fw-bold m-0" style="font-size: 2.2rem; letter-spacing: -1px;">{{ selectedGroup.name }}</h1>
+                            <div class="d-flex align-items-center mt-2 flex-wrap gap-2">
+                                <span class="badge bg-danger px-3 rounded-pill shadow-sm">Jahr {{ selectedYear }}</span>
+                                <select v-model="selectedYear" class="form-select form-select-sm rounded-pill year-select-custom shadow-sm" style="width:115px;" @change="loadData">
+                                    <option v-for="y in [2024,2025,2026,2027]" :value="y">{{ y }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <a :href="'/groups/' + selectedGroup.id + '/print_view?year=' + selectedYear" target="_blank" class="btn btn-white border bg-white shadow-sm rounded-pill px-3 fw-bold btn-sm">
+                                <i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht PDF
+                            </a>
+                            <button class="btn btn-danger rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Neuer Eintrag</button>
+                        </div>
                     </div>
 
-                    <!-- BOS Statusübersicht -->
-                    <div class="card">
-                        <h6 class="fw-bold text-uppercase small text-muted mb-3"><i class="fa fa-radio me-2 text-danger"></i>Funk-Statusübersicht</h6>
+                    <div class="card p-4 mb-4">
+                        <h6 class="fw-bold text-uppercase small text-secondary mb-3"><i class="fa fa-radio me-2 text-danger"></i>Live BOS Funkstatus-Tableau</h6>
                         <div class="row g-2">
-                            <div v-for="v in vehicles" :key="v.id" class="col-md-3 col-6">
-                                <div class="p-2 border rounded-3 d-flex align-items-center justify-content-between bg-light">
-                                    <div class="text-truncate">
+                            <div v-for="v in vehicles" :key="v.id" class="col-6 col-sm-4 col-md-3">
+                                <div class="p-2 border rounded-3 d-flex align-items-center justify-content-between bg-light shadow-sm">
+                                    <div class="text-truncate me-1">
                                         <div class="fw-bold text-dark small text-truncate">{{ v.name }}</div>
-                                        <div class="text-muted" style="font-size:0.65rem;">{{ v.radio_name || 'Keine Kennung' }}</div>
+                                        <div class="text-muted text-truncate" style="font-size: 0.65rem;">{{ v.radio_name || 'Ohne Kennung' }}</div>
                                     </div>
-                                    <span :class="['badge p-2 text-white font-monospace rounded', v.status == 2 ? 'bg-success' : 'bg-danger']">Status {{ v.status }}</span>
+                                    <select v-model="v.status" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'"
+                                            :class="['form-select form-select-sm p-1 border-0 fw-bold rounded text-center text-white w-auto shadow-sm status-' + v.status]"
+                                            style="font-size: 0.8rem; min-width: 44px; cursor: pointer;">
+                                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Protokolle -->
-                    <h5 class="fw-bold text-dark mb-3 mt-4">Letzte Dienstprotokolle</h5>
-                    <div v-for="s in sessions" :key="s.id" class="card" @click="loadSession(s)" style="cursor:pointer;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-primary rounded-pill mb-1">{{ s.category }}</span>
-                                <div class="fw-bold text-dark">{{ s.description }}</div>
-                                <small class="text-muted"><i class="fa fa-clock me-1"></i>{{ s.duration }} Std. — Ausbilder: {{ s.instructors }}</small>
+                    <div class="row g-3 mb-4 text-center">
+                        <div class="col-4"><div class="p-3 border-0 rounded-4 text-white shadow-sm" style="background: #0d6efd;"><div class="small text-uppercase fw-bold opacity-75">Übung</div><div class="h3 fw-black m-0 mt-1">{{catStats.Übung}}h</div></div></div>
+                        <div class="col-4"><div class="p-3 border-0 rounded-4 text-white shadow-sm" style="background: #dc3545;"><div class="small text-uppercase fw-bold opacity-75">Einsatz</div><div class="h3 fw-black m-0 mt-1">{{catStats.Einsatz}}h</div></div></div>
+                        <div class="col-4"><div class="p-3 border-0 rounded-4 text-dark shadow-sm" style="background: #ffc107;"><div class="small text-uppercase fw-bold opacity-75">Sonst.</div><div class="h3 fw-black m-0 mt-1">{{catStats.Sonstiges}}h</div></div></div>
+                    </div>
+
+                    <div class="card mb-4 overflow-hidden">
+                        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center" @click="showRanking = !showRanking" style="cursor:pointer">
+                            <h6 class="m-0 fw-bold text-uppercase small text-secondary"><i class="fa fa-trophy text-warning me-2"></i>Dienststunden-Ranking</h6>
+                            <i class="fa text-muted small" :class="showRanking?'fa-chevron-up':'fa-chevron-down'"></i>
+                        </div>
+                        <div v-show="showRanking" class="table-responsive px-3 pb-3">
+                            <table class="table table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr class="text-muted small text-uppercase" style="font-size: 0.65rem;">
+                                        <th>Rang</th><th>Name</th><th class="text-end">Gesamtstunden</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(p, i) in ranking" :key="p.id">
+                                        <td style="width: 50px;">
+                                            <span class="badge rounded-circle bg-dark d-flex align-items-center justify-content-center" style="width:26px; height:26px;">{{i+1}}</span>
+                                        </td>
+                                        <td><span class="fw-bold text-dark">{{ p.name }}</span></td>
+                                        <td class="text-end"><span class="badge bg-light text-dark rounded-pill border px-3 py-1.5">{{ p.total_hours }}h</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div v-for="s in sessions" :key="s.id" class="session-item p-3 mb-2" @click="loadSession(s)" style="cursor:pointer;">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex gap-3 align-items-center">
+                                <div class="text-center bg-light rounded-4 p-2 border" style="min-width: 55px;">
+                                    <div class="fw-bold text-danger h5 m-0">{{ s.date.split('-')[2] }}</div>
+                                    <div class="small text-muted fw-bold" style="font-size: 0.6rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
+                                </div>
+                                <div>
+                                    <span class="badge rounded-pill mb-1 small" :class="s.category==='Einsatz'?'bg-danger':'bg-primary'">{{ s.category }}</span>
+                                    <div class="fw-bold text-dark">{{ s.description }}</div>
+                                    <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1"></i>{{ s.duration }} Stunden — Ausbilder: {{ s.instructors }}</small>
+                                </div>
                             </div>
-                            <i class="fa fa-chevron-right text-muted"></i>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-xs btn-outline-danger rounded-pill" @click.stop="openReport(s)">Bericht</button>
+                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-dark rounded-pill" @click.stop="openSig(s)">Handzeichen</button>
+                                <button v-if="isAdmin" class="btn border-0 bg-transparent text-danger ms-1" @click.stop="deleteSession(s)"><i class="fa fa-trash-alt"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="vehicleModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header border-bottom py-3 bg-light rounded-top-4">
+                        <h5 class="modal-title fw-bold text-danger"><i class="fa fa-truck-fast me-2"></i>Fuhrpark- & Fristenmanagement</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 bg-white" style="max-height: 70vh; overflow-y: auto;">
+                        <div v-if="isAdmin" class="bg-light p-3 rounded-4 mb-4 border">
+                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block"><i class="fa fa-plus-circle me-1"></i> Fahrzeug hinzufügen</label>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Typ / Modell</label><input type="text" v-model="newVehicle.name" class="form-control form-control-sm" placeholder="z.B. HLF 20"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Funkrufname</label><input type="text" v-model="newVehicle.radio_name" class="form-control form-control-sm" placeholder="z.B. Florian 40/1"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Kilometerstand</label><input type="number" v-model="newVehicle.milage" class="form-control form-control-sm" placeholder="KM"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Nächste HU / TÜV</label><input type="date" v-model="newVehicle.tuv_date" class="form-control form-control-sm"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Sicherheitsprüfung (SP)</label><input type="date" v-model="newVehicle.sp_date" class="form-control form-control-sm"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Nächste Wartung</label><input type="date" v-model="newVehicle.next_service" class="form-control form-control-sm"></div>
+                                <div class="col-12 text-end mt-2"><button class="btn btn-danger btn-sm rounded-pill px-4 fw-bold" @click="addVehicleAdvanced">Fahrzeug registrieren</button></div>
+                            </div>
+                        </div>
+                        <label class="small fw-bold text-muted text-uppercase mb-3 mt-1">Fahrzeugstämme & Prüfzyklen</label>
+                        <div class="row g-3">
+                            <div class="col-12 p-3 border rounded-3 bg-light shadow-sm" v-for="v in vehicles" :key="v.id">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <input type="text" v-model="v.name" class="form-control form-control-sm fw-bold border-0 bg-white mb-1 shadow-sm" @change="saveVehicleEdit(v)" :disabled="!isAdmin">
+                                        <input type="text" v-model="v.radio_name" class="form-control form-control-sm text-muted border-0 bg-white shadow-sm" @change="saveVehicleEdit(v)" :disabled="!isAdmin" placeholder="Funkrufname...">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold d-block mb-1" style="font-size:0.65rem">KILOMETERSTAND</label>
+                                        <input type="number" v-model="v.milage" class="form-control form-control-sm" @change="saveVehicleEdit(v)" :disabled="!isAdmin">
+                                    </div>
+                                    <div class="col-md-5 text-end pt-2">
+                                        <span class="badge bg-white border text-dark p-2 rounded shadow-sm me-1">HU: <b :class="isOverdue(v.tuv_date)?'text-danger':'text-success'">{{v.tuv_date || 'Kein'}}</b></span>
+                                        <span v-if="v.sp_date" class="badge bg-white border text-dark p-2 rounded shadow-sm me-1">SP: <b :class="isOverdue(v.sp_date)?'text-danger':'text-success'">{{v.sp_date}}</b></span>
+                                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger border-0 ms-2" @click="deleteVehicle(v.id)"><i class="fa fa-trash-alt"></i></button>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-2 pt-2 border-top small" v-if="isAdmin">
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">HU MODIFIZIEREN</label><input type="date" v-model="v.tuv_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">SP MODIFIZIEREN</label><input type="date" v-model="v.sp_date" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                    <div class="col-md-4"><label style="font-size:0.65rem" class="fw-bold text-muted">WARTUNGSTAG</label><input type="date" v-model="v.next_service" class="form-control form-control-sm" @change="saveVehicleEdit(v)"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header border-bottom py-3 bg-light rounded-top-4">
+                        <h5 class="modal-title fw-bold text-dark"><i class="fa fa-user-gear me-2 text-danger"></i>Mein Profil & Dienstkonto</h5>
+                        <button v-if="!isFirstLoginBlock" type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 bg-white">
+                        <div v-if="isFirstLoginBlock" class="alert alert-danger small rounded-3 mb-3 fw-bold">
+                            <i class="fa fa-exclamation-triangle me-2"></i> Initial-Passwort aktiv! Bitte ändere dein Passwort ab, um das Cockpit freizuschalten.
+                        </div>
+                        <div v-if="!isFirstLoginBlock" class="bg-light p-3 rounded-4 mb-4 border text-center shadow-sm">
+                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Eigene Jahres-Gesamtleistung (Alle Abteilungen) im Jahr {{ selectedYear }}</label>
+                            <div class="row mt-2">
+                                <div class="col-6 border-end">
+                                    <span class="h3 fw-black text-danger d-block m-0">{{ personalStats.hours }}h</span>
+                                    <small class="text-muted small fw-semibold">Geleistete Stunden</small>
+                                </div>
+                                <div class="col-6">
+                                    <span class="h3 fw-black text-primary d-block m-0">{{ personalStats.count }}</span>
+                                    <small class="text-muted small fw-semibold">Besuchte Dienste</small>
+                                </div>
+                            </div>
+                        </div>
+                        <form @submit.prevent="submitSelfPassword">
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Aktuelles Passwort</label><input type="password" v-model="selfPwData.old_password" class="form-control rounded-3 bg-light border-0" required></div>
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Neues Passwort</label><input type="password" v-model="selfPwData.new_password" class="form-control rounded-3 bg-light border-0" placeholder="Mindestens 4 Zeichen" required></div>
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Neues Passwort wiederholen</label><input type="password" v-model="selfPwData.confirm_password" class="form-control rounded-3 bg-light border-0" required></div>
+                            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-bold py-2 mt-2 shadow-sm">Änderung speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="broadcastModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg">
+                    <div class="modal-header border-bottom py-3 bg-light rounded-top-4">
+                        <h5 class="modal-title fw-bold text-dark"><i class="fa fa-bullhorn me-2 text-primary"></i>Systemmeldung verfassen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 bg-white">
+                        <form @submit.prevent="submitBroadcast">
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Betreff / Thema</label><input type="text" v-model="newBroadcast.title" class="form-control rounded-3" placeholder="z.B. Wichtige UVV Unterweisung" required></div>
+                            <div class="mb-3"><label class="small fw-bold text-muted mb-1">Inhalt</label><textarea v-model="newBroadcast.content" class="form-control rounded-3" rows="4" placeholder="Nachrichtentext..." required></textarea></div>
+                            <div class="form-check form-switch mb-3 bg-light p-2 border rounded ps-5">
+                                <input class="form-check-input" type="checkbox" id="bcMandatory" v-model="newBroadcast.is_mandatory">
+                                <label class="form-check-label small fw-bold text-danger" for="bcMandatory">Lesepflicht erzwingen (Roter Querbalken)</label>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 mt-2 shadow-sm">Senden</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="sigModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 rounded-4 shadow-lg mx-3">
+                    <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-uppercase small text-muted">Digitale Unterschrift Leitung</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="sig-wrapper"><canvas id="sigCanvas"></canvas></div>
+                        <p class="text-center text-muted mt-2 small">Bitte im weißen Feld unterschreiben</p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-between pt-0">
+                        <button class="btn btn-sm btn-light rounded-pill px-3 border" @click="clearSig">Löschen</button>
+                        <button class="btn btn-sm btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveSig">Speichern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
         const { createApp } = Vue;
+        let sigPad = null, sigModal = null, vehicleModal = null, selfPasswordModal = null, broadcastModal = null;
+        
         createApp({
-            data() { return { ready: false, isAdmin: false, username: '', role: '', groups: [], selectedGroup: null, mobileSelectedId: null, sessionsList: [], selectedYear: new Date().getFullYear(), vehicles: [] } },
-            computed: { sessions() { return this.sessionsList.sort((a, b) => new Date(b.date) - new Date(a.date)); } },
+            data() {
+                return {
+                    ready: false, isAdmin: false, username: '', role: '',
+                    groups: [], selectedGroup: null, mobileSelectedId: null,
+                    sessionsList: [], selectedYear: new Date().getFullYear(),
+                    ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
+                    vehicles: [],
+                    newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' },
+                    selfPwData: { old_password: '', new_password: '', confirm_password: '' },
+                    activeBroadcasts: [],
+                    newBroadcast: { title: '', content: '', is_mandatory: false },
+                    isFirstLoginBlock: false,
+                    personalStats: { hours: 0, count: 0 }
+                }
+            },
+            computed: {
+                sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => new Date(b.date) - new Date(a.date)); },
+                visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); }
+            },
             async mounted() {
-                const auth = await (await fetch('/api/auth/me')).json();
-                this.isAdmin = (auth.role === 'admin'); this.username = auth.username; this.role = auth.role;
-                this.groups = await (await fetch('/groups')).json();
-                this.vehicles = await (await fetch('/api/vehicles')).json();
-                if (this.groups.length > 0) this.selectGroup(this.groups[0]);
+                try {
+                    const authRes = await fetch('/api/auth/me', { credentials: 'include' });
+                    if (!authRes.ok) { window.location.href = '/'; return; }
+                    const authData = await authRes.json();
+                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role;
+                    this.isFirstLoginBlock = !!authData.is_first_login;
+                } catch (e) { window.location.href = '/'; return; }
+                
+                await this.loadGroups();
+                await this.loadVehicles();
+                await this.loadBroadcasts();
+                
+                const canvas = document.getElementById('sigCanvas');
+                if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
+                sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
+                vehicleModal = new bootstrap.Modal(document.getElementById('vehicleModal'));
+                selfPasswordModal = new bootstrap.Modal(document.getElementById('selfPasswordModal'));
+                broadcastModal = new bootstrap.Modal(document.getElementById('broadcastModal'));
+                
                 this.ready = true;
+                if (this.isFirstLoginBlock) { setTimeout(() => { selfPasswordModal.show(); }, 400); }
             },
             methods: {
-                selectGroup(g) { this.selectedGroup = g; this.mobileSelectedId = g.id; this.loadData(); },
-                async loadData() { this.sessionsList = await (await fetch(`/groups/${this.selectedGroup.id}/sessions`)).json(); },
-                createNew() { window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
+                async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/'; },
+                async loadGroups() {
+                    try {
+                        const res = await fetch('/groups', { credentials: 'include' }); this.groups = await res.json();
+                        if (this.groups.length > 0) { const lastId = localStorage.getItem('lastSelectedGroupId'); this.selectGroup(this.groups.find(g => g.id == lastId) || this.groups[0]); }
+                    } catch(e) {}
+                },
+                selectGroup(g) { this.selectedGroup = g; this.mobileSelectedId = g.id; localStorage.setItem('lastSelectedGroupId', g.id); this.loadData(); },
+                onMobileGroupChange() { const g = this.groups.find(x => x.id == this.mobileSelectedId); if(g) this.selectGroup(g); },
+                async loadData() {
+                    if (!this.selectedGroup) return;
+                    const [res, sRes] = await Promise.all([fetch(`/groups/${this.selectedGroup.id}/sessions`, { credentials: 'include' }), fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`, { credentials: 'include' })]);
+                    this.sessionsList = await res.json(); this.ranking = (await sRes.json()).persons; this.calcStats();
+                    this.fetchPersonalStats();
+                },
+                calcStats() {
+                    const s = { Übung: 0, Einsatz: 0, Sonstiges: 0 };
+                    this.sessions.forEach(x => { if (s[x.category] !== undefined) s[x.category] += parseFloat(x.duration); });
+                    this.catStats = s;
+                },
+                async loadVehicles() { const res = await fetch('/api/vehicles', { credentials: 'include' }); this.vehicles = await res.json(); },
+                async loadBroadcasts() {
+                    try {
+                        const res = await fetch('/api/broadcasts/active', { credentials: 'include' });
+                        if(res.ok) this.activeBroadcasts = await res.json();
+                    } catch(e) {}
+                },
+                async markBroadcastAsRead(b) {
+                    try {
+                        const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
+                        if(res.ok) { this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id); }
+                    } catch(e) {}
+                },
+                async deleteBroadcast(b) {
+                    if(confirm("Diese Systemmeldung permanent aus der Datenbank löschen?")) {
+                        try {
+                            const res = await fetch(`/api/broadcasts/${b.id}`, { method: 'DELETE', credentials: 'include' });
+                            if(res.ok) { this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id); }
+                        } catch(e) {}
+                    }
+                },
+                async fetchPersonalStats() {
+                    try {
+                        const res = await fetch('/api/users/me/stats?year=' + this.selectedYear, { credentials: 'include' });
+                        if (res.ok) { this.personalStats = await res.json(); }
+                    } catch(e) { console.error("Fehler beim Abruf der persönlichen Statistik:", e); }
+                },
+                manageVehicles() { if(vehicleModal) vehicleModal.show(); },
+                openBroadcastModal() { if(broadcastModal) broadcastModal.show(); },
+                async submitBroadcast() {
+                    try {
+                        const res = await fetch('/api/broadcasts', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBroadcast) });
+                        if(res.ok) {
+                            broadcastModal.hide();
+                            this.newBroadcast = { title: '', content: '', is_mandatory: false };
+                            await this.loadBroadcasts();
+                        }
+                    } catch(e) {}
+                },
+                openSelfPasswordModal() { this.selfPwData = { old_password: '', new_password: '', confirm_password: '' }; this.fetchPersonalStats(); if(selfPasswordModal) selfPasswordModal.show(); },
+                async submitSelfPassword() {
+                    if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
+                    try {
+                        const res = await fetch('/api/auth/change-password', {
+                            method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                            body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password })
+                        });
+                        if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
+                    } catch(e) { alert("Netzwerkfehler."); }
+                },
+                isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
+                async quickStatusChange(v) { await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) }); },
+                async addVehicleAdvanced() {
+                    if(!this.newVehicle.name) return;
+                    await fetch('/api/vehicles', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newVehicle) });
+                    this.newVehicle = { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' };
+                    await this.loadVehicles();
+                },
+                async saveVehicleEdit(v) { await fetch(`/api/vehicles/${v.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(v) }); },
+                async deleteVehicle(id) { if (confirm("Fahrzeug aus Flotte löschen?")) { await fetch(`/api/vehicles/${id}`, { method: 'DELETE', credentials: 'include' }); await this.loadVehicles(); } },
+                async addGroup() { const name = prompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
+                async editGroup(g) { const name = prompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
+                async deleteGroup(g) { if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
+                async deleteSession(s) { if(confirm("Eintrag löschen?")) { await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' }); this.loadData(); } },
+                createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
-                async fullLogout() { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/'; }
+                openReport(s) { window.open('/sessions/' + s.id + '/report', '_blank'); },
+                openSig(s) { this.activeS = s; if(sigModal) sigModal.show(); },
+                async saveSig() {
+                    if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
+                    const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
+                    if (r.ok) { sigModal.hide(); this.loadData(); }
+                },
+                clearSig() { if(sigPad) sigPad.clear(); }
             }
         }).mount('#app');
     </script>
