@@ -6,7 +6,7 @@
     <title>FeuerwehrHub - Leitstand</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=6.1">
+    <link rel="stylesheet" href="/static/style.css?v=6.5">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
@@ -17,27 +17,34 @@
             <div class="sidebar d-none d-lg-flex">
                 <div class="sidebar-header"><h4 class="m-0 fw-bold text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4></div>
                 <div class="flex-grow-1 overflow-y-auto">
-                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand</div>
+                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand Zentrale</div>
                     <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user"></i> Mein Bereich</div>
                     <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Lager & Inventar</div>
-                    <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users"></i> Personal</div>
-                    <div class="menu-link" :class="{active: currentTab === 'technik'}" @click="currentTab = 'technik'"><i class="fa fa-truck-ramp-box"></i> Technik</div>
-                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-building-shield"></i> Verein</div>
+                    <div class="menu-link" :class="{active: currentTab === 'technik'}" @click="currentTab = 'technik'"><i class="fa fa-truck-ramp-box"></i> Technik & Fuhrpark</div>
+                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-building-shield"></i> Vereinskalender</div>
                 </div>
-                <div class="p-3 bg-light border-top text-center"><button class="btn btn-sm btn-dark w-100 rounded-pill" @click="triggerLogout">Abmelden</button></div>
+                <div class="p-3 bg-light border-top text-center"><button class="btn btn-sm btn-outline-danger w-100 rounded-pill fw-bold" @click="triggerLogout">Abmelden</button></div>
+            </div>
+
+            <div class="mobile-nav d-lg-none w-100 d-flex justify-content-between align-items-center p-3 bg-white border-bottom">
+                <button class="btn btn-outline-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobMenu"><i class="fa fa-bars"></i></button>
+                <div class="fw-bold text-dark fs-5">FEUERWEHR<span class="text-danger">HUB</span></div>
             </div>
 
             <div class="main-content">
                 
                 <div v-if="currentTab === 'leitstand'">
-                    <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Führungs-Leitstand</h2><button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor">Dienstbuch schreiben</button></div>
-                    
+                    <div class="d-flex justify-content-between mb-4 flex-wrap gap-2">
+                        <h2 class="fw-bold text-dark m-0">Führungs-Leitstand</h2>
+                        <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="goToEditor"><i class="fa fa-plus me-1"></i> Dienstbuch schreiben</button>
+                    </div>
+
                     <div class="card mb-4 bg-white">
                         <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statustableau</h6>
                         <div class="row g-2">
                             <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
                                 <div class="p-3 border rounded-3 d-flex align-items-center justify-content-between bg-light shadow-sm">
-                                    <div class="text-truncate"><div class="fw-bold">{{ v.name }}</div><small class="text-muted">{{ v.radio_name }}</small></div>
+                                    <div class="text-truncate"><div class="fw-bold text-dark">{{ v.name }}</div><small class="text-muted font-monospace">{{ v.radio_name || 'Ohne Kennung' }}</small></div>
                                     <div class="d-flex gap-1">
                                         <button class="status-btn s-2 shadow-sm" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
                                         <button class="status-btn s-4 shadow-sm" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
@@ -46,24 +53,66 @@
                             </div>
                         </div>
                     </div>
+
+                    <h5 class="fw-bold text-dark mb-3"><i class="fa fa-book text-muted me-2"></i>Letzte Dienstberichte</h5>
+                    <div v-for="s in sessions" :key="s.id" class="card shadow-sm p-3 mb-3 border-start border-4" style="border-left-color: var(--fh-exercise) !important; cursor: pointer;" @click="openEditor(s.id)">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="badge bg-primary mb-1 px-2">{{ s.category }}</span>
+                                <h5 class="fw-bold text-dark m-0">{{ s.description }}</h5>
+                                <small class="text-muted fw-semibold">{{ s.date }} — Dauer: {{ s.duration }} Std.</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-dark rounded-pill fw-bold"><i class="fa fa-edit me-1"></i> Bearbeiten</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="currentTab === 'meinbereich'">
+                    <h2 class="fw-bold text-dark mb-4">Mein Bereich</h2>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="card bg-white h-100 shadow-sm border-0">
+                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-id-card text-danger me-2"></i>Persönliche Dienstakte</h5>
+                                <div v-if="identity.profile && identity.profile.personnel_name" class="fs-6">
+                                    <p class="mb-2"><b>Klarname:</b> {{ identity.profile.personnel_name }}</p>
+                                    <p class="mb-2"><b>Atemschutzgeräteträger:</b> <span class="badge" :class="identity.profile.is_agt ? 'bg-success':'bg-secondary'">{{ identity.profile.is_agt ? 'Zulassung Aktiv':'Nein' }}</span></p>
+                                    <p class="mb-2"><b>Maschinist:</b> <span class="badge" :class="identity.profile.is_maschinist ? 'bg-success':'bg-secondary'">{{ identity.profile.is_maschinist ? 'Ja':'Nein' }}</span></p>
+                                    <p class="mb-2"><b>G26.3 Untersuchung gültig bis:</b> <span class="fw-bold text-primary">{{ identity.profile.g26 || 'Kein Datum' }}</span></p>
+                                </div>
+                                <div v-else class="alert alert-warning small fw-bold">Dein Account ist mit keiner Personalakte verknüpft. Bitte den Admin um Zuweisung in der Personalverwaltung.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-white h-100 shadow-sm border-0">
+                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-shirt text-danger me-2"></i>Persönliche Schutzausrüstung (PSA)</h5>
+                                <table class="table table-sm">
+                                    <thead><tr><th>Gegenstand</th><th>Größe / Typ</th><th>Zustand</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>Überjacke S-Gard</td><td>52 / XL</td><td>Einsatzbereit</td></tr>
+                                        <tr><td>Feuerwehrhelm Schuberth</td><td>H2</td><td>Einsatzbereit</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Lager & Inventar</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal"><i class="fa fa-plus"></i> Artikel anlegen</button></div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2 class="fw-bold text-dark m-0">Lager & Inventar</h2>
+                        <button class="btn btn-dark rounded-pill fw-bold px-3 shadow-sm" @click="openInvModal"><i class="fa fa-plus me-1"></i> Artikel einbuchen</button>
+                    </div>
                     <div class="card p-0 overflow-hidden shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand</th><th>Menge</th><th>Mindest.</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
-                                    <td class="fw-bold">{{ i.item_name }}</td>
-                                    <td><span class="badge bg-light text-dark border px-2">{{ i.amount }} {{ i.unit }}</span></td>
-                                    <td class="text-muted">{{ i.min_amount }}</td>
+                                    <td class="fw-bold text-dark fs-6">{{ i.item_name }}</td>
+                                    <td><span class="badge bg-light text-dark border px-2 py-1 fs-6 shadow-sm">{{ i.amount }} {{ i.unit }}</span></td>
+                                    <td class="text-muted fw-bold">{{ i.min_amount }}</td>
                                     <td><span class="badge bg-secondary">{{ i.location }}</span></td>
-                                    <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Kritisch':'OK' }}</span></td>
-                                    <td class="text-end">
-                                        <button class="btn btn-sm text-primary bg-transparent border-0" @click="editInv(i)"><i class="fa fa-edit"></i></button>
-                                        <button class="btn btn-sm text-danger bg-transparent border-0" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button>
-                                    </td>
+                                    <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Nachbestellen':'OK' }}</span></td>
+                                    <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -71,49 +120,86 @@
                 </div>
 
                 <div v-if="currentTab === 'technik'">
-                    <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Mängelboard</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openDefectModal"><i class="fa fa-wrench"></i> Defekt melden</button></div>
-                    <div class="kanban-board">
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-danger">Neu erfasst</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'neu')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-danger">
-                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-secondary">{{ n.priority }}</span>
-                                    <div><button class="btn btn-sm text-primary p-0 border-0 me-2" @click="editNote(n)"><i class="fa fa-edit"></i></button><button class="btn btn-sm text-danger p-0 border-0" @click="delNote(n.id)"><i class="fa fa-trash-alt"></i></button></div>
+                    
+                    <ul class="nav nav-tabs mb-4 bg-light p-1 rounded-3 border-0" role="tablist">
+                        <li class="nav-item flex-fill"><button class="nav-link active text-center py-2 fw-bold text-dark border-0 bg-transparent" data-bs-toggle="tab" data-bs-target="#sub-kanban">Mängel-Kanbanboard</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link text-center py-2 fw-bold text-dark border-0 bg-transparent" data-bs-toggle="tab" data-bs-target="#sub-fuhrpark">Fahrzeugverwaltung</button></li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="sub-kanban">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="fw-bold m-0 text-dark">Defekte & Reparaturen</h4>
+                                <button class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openDefectModal"><i class="fa fa-wrench me-1"></i> Mangel melden</button>
+                            </div>
+                            <div class="kanban-board">
+                                <div class="kanban-col shadow-sm">
+                                    <div class="kanban-col-title text-danger">Neu erfasst</div>
+                                    <div v-for="n in notes.filter(x => x.kanban_status === 'neu')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-danger">
+                                        <span class="badge bg-secondary mb-2 w-auto">{{ n.priority }}</span>
+                                        <h6 class="fw-bold text-dark m-0">{{ n.title }}</h6>
+                                        <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
+                                        <button class="btn btn-sm btn-outline-dark w-100 fw-bold" @click="moveKanban(n.id, 'arbeit')">In Arbeit ➔</button>
+                                    </div>
                                 </div>
-                                <h6 class="fw-bold m-0">{{ n.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
-                                <button class="btn btn-sm btn-outline-dark fw-bold w-100" @click="moveKanban(n.id, 'arbeit')">In Arbeit ➔</button>
+                                <div class="kanban-col shadow-sm">
+                                    <div class="kanban-col-title text-warning">In Reparatur</div>
+                                    <div v-for="n in notes.filter(x => x.kanban_status === 'arbeit')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-warning">
+                                        <h6 class="fw-bold text-dark m-0">{{ n.title }}</h6>
+                                        <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
+                                        <button class="btn btn-sm btn-success text-white fw-bold w-100" @click="moveKanban(n.id, 'erledigt')">Behoben ➔</button>
+                                    </div>
+                                </div>
+                                <div class="kanban-col shadow-sm">
+                                    <div class="kanban-col-title text-success">Erledigt</div>
+                                    <div v-for="n in notes.filter(x => x.kanban_status === 'erledigt')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm opacity-75 border-start border-4 border-success">
+                                        <h6 class="fw-bold text-dark m-0 text-decoration-line-through">{{ n.title }}</h6>
+                                        <button class="btn btn-sm text-danger p-0 mt-2 fw-bold bg-transparent border-0" @click="delNote(n.id)"><i class="fa fa-trash-alt"></i> Löschen</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-warning">In Reparatur</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'arbeit')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-warning">
-                                <h6 class="fw-bold m-0">{{ n.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
-                                <button class="btn btn-sm btn-success text-white fw-bold w-100" @click="moveKanban(n.id, 'erledigt')">Behoben ➔</button>
+
+                        <div class="tab-pane fade" id="sub-fuhrpark">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="fw-bold m-0 text-dark">Fahrzeug-Register</h4>
+                                <button class="btn btn-dark rounded-pill fw-bold shadow-sm" @click="openVehModal"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button>
                             </div>
-                        </div>
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-success">Erledigt</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'erledigt')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm opacity-75 border-start border-4 border-success">
-                                <h6 class="fw-bold m-0 text-decoration-line-through">{{ n.title }}</h6>
-                                <button class="btn btn-sm text-danger p-0 mt-2 fw-bold bg-transparent border-0" @click="delNote(n.id)"><i class="fa fa-trash-alt"></i> Löschen</button>
+                            <div class="card p-0 overflow-hidden shadow-sm">
+                                <table class="table align-middle mb-0">
+                                    <thead class="table-light"><tr><th>Fahrzeugtyp</th><th>Funkrufname</th><th>HU / TÜV</th><th>SP Frist</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="v in vehicles" :key="v.id">
+                                            <td class="fw-bold text-dark fs-6">{{ v.name }}</td>
+                                            <td class="text-muted font-monospace">{{ v.radio_name || '-' }}</td>
+                                            <td><span class="badge bg-dark">{{ v.tuv_date || 'Kein Datum' }}</span></td>
+                                            <td><span class="badge bg-secondary">{{ v.sp_date || 'Kein Datum' }}</span></td>
+                                            <td class="fw-bold">{{ v.milage }} km</td>
+                                            <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div v-if="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Vereinskalender</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal"><i class="fa fa-calendar-plus"></i> Termin anlegen</button></div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2 class="fw-bold text-dark m-0">Vereinskalender</h2>
+                        <button class="btn btn-danger rounded-pill fw-bold px-3 shadow-sm" @click="openEventModal"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button>
+                    </div>
                     <div class="card p-0 overflow-hidden shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="e in events" :key="e.id">
-                                    <td class="fw-bold text-danger">{{ e.date_formatted }}</td>
-                                    <td class="fw-bold">{{ e.title }}</td>
-                                    <td>{{ e.responsible }}</td>
+                                    <td class="fw-bold font-monospace text-danger fs-6">{{ e.date_formatted }}</td>
+                                    <td class="fw-bold fs-5 text-dark">{{ e.title }}</td>
+                                    <td class="text-muted">{{ e.responsible }}</td>
                                     <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
+                                <tr v-if="events.length === 0"><td colspan="4" class="text-center text-muted py-4 fw-bold">Aktuell keine Vereinsveranstaltungen geplant.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -125,15 +211,15 @@
         <div class="modal fade" id="defectModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header bg-light"><h5 class="modal-title fw-bold">Mangel bearbeiten</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Mangel melden</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                     <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted">Gerät</label><input type="text" v-model="newNote.title" class="form-control" required></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted">Beschreibung</label><textarea v-model="newNote.content" class="form-control" rows="4" required></textarea></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted">Priorität</label>
-                            <select v-model="newNote.priority" class="form-select"><option value="normal">Normal</option><option value="kritisch">🚨 KRITISCH</option></select>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Gerät / Fahrzeug</label><input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. LF 10 TS kaputt" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Fehlerbeschreibung</label><textarea v-model="newNote.content" class="form-control" rows="4" required></textarea></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Dringlichkeit</label>
+                            <select v-model="newNote.priority" class="form-select"><option value="normal">Normal</option><option value="kritisch">🚨 KRITISCH (Atemschutzgefahr / Fahrzeug außer Dienst)</option></select>
                         </div>
                     </div>
-                    <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 w-100" @click="submitKanban">Speichern</button></div>
+                    <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 w-100" @click="submitKanban">Schaden eintragen</button></div>
                 </div>
             </div>
         </div>
@@ -141,19 +227,19 @@
         <div class="modal fade" id="invModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content shadow-lg border-0 rounded-4">
-                    <div class="modal-header bg-light"><h5 class="modal-title fw-bold">Artikel bearbeiten</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Artikel einbuchen</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                     <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted">Material Name</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Material Name</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
                         <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted">Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div>
-                            <div class="col-6"><label class="small fw-bold text-muted">Mindestbestand</label><input type="number" v-model="newInv.min_amount" class="form-control"></div>
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Aktuelle Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div>
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Mindestbestand</label><input type="number" v-model="newInv.min_amount" class="form-control"></div>
                         </div>
                         <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted">Einheit</label><input type="text" v-model="newInv.unit" class="form-control" placeholder="Stück..."></div>
-                            <div class="col-6"><label class="small fw-bold text-muted">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div>
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Einheit</label><input type="text" v-model="newInv.unit" class="form-control" placeholder="Stück..."></div>
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Lagerort</label><input type="text" v-model="newInv.location" class="form-control" placeholder="Zentrallager..."></div>
                         </div>
                     </div>
-                    <div class="modal-footer border-0"><button class="btn btn-dark rounded-pill fw-bold px-4 w-100" @click="submitInv">Speichern</button></div>
+                    <div class="modal-footer border-0"><button class="btn btn-dark rounded-pill fw-bold px-4 w-100" @click="submitInv">Ins System aufnehmen</button></div>
                 </div>
             </div>
         </div>
@@ -161,13 +247,30 @@
         <div class="modal fade" id="eventModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content shadow-lg border-0 rounded-4">
-                    <div class="modal-header bg-light"><h5 class="modal-title fw-bold">Neuer Termin</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Neuer Vereinstermin</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                     <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted">Datum</label><input type="date" v-model="newEvent.date" class="form-control" required></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted">Titel</label><input type="text" v-model="newEvent.title" class="form-control" required></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted">Verantwortlich</label><input type="text" v-model="newEvent.responsible" class="form-control"></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Datum</label><input type="date" v-model="newEvent.date" class="form-control" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Titel / Veranstaltung</label><input type="text" v-model="newEvent.title" class="form-control" placeholder="z.B. Floriansfest" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Verantwortlich</label><input type="text" v-model="newEvent.responsible" class="form-control" placeholder="z.B. Vorstand"></div>
                     </div>
                     <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 w-100" @click="submitEvent">Termin eintragen</button></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="vehModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content shadow-lg border-0 rounded-4">
+                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Fahrzeug anlegen</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body p-4">
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Typ (z.B. HLF 20)</label><input type="text" v-model="newVeh.name" class="form-control" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" required></div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Nächste HU / TÜV</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div>
+                            <div class="col-6"><label class="small fw-bold text-muted mb-1">SP Frist</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0"><button class="btn btn-dark rounded-pill fw-bold px-4 w-100" @click="submitVeh">Fahrzeug registrieren</button></div>
                 </div>
             </div>
         </div>
@@ -176,17 +279,20 @@
 
     <script>
         const { createApp } = Vue;
-        let defectModal = null, invModal = null, eventModal = null;
+        let defectModal = null, invModal = null, eventModal = null, vehModal = null;
 
         createApp({
             data() {
                 return {
-                    ready: false, currentTab: 'leitstand', identity: { username: '', role: '', profile: null },
-                    groups: [], selectedGroupId: null, sessions: [], vehicles: [], notes: [], inventory: [], events: [],
+                    ready: false, currentTab: 'leitstand',
+                    identity: { username: '', role: '', profile: null },
+                    groups: [], selectedGroupId: null,
+                    sessions: [], vehicles: [], notes: [], inventory: [], events: [],
                     
-                    newNote: { id: null, title: '', content: '', visibility: 'public', priority: 'normal' },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', status: 'OK' },
-                    newEvent: { date: '', title: '', responsible: '' }
+                    newNote: { title: '', content: '', visibility: 'public', priority: 'normal' },
+                    newInv: { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', status: 'OK' },
+                    newEvent: { date: '', title: '', responsible: '' },
+                    newVeh: { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }
                 }
             },
             async mounted() {
@@ -203,22 +309,25 @@
                     
                     if(this.groups.length > 0) {
                         this.selectedGroupId = this.groups[0].id;
-                        this.sessions = await (await fetch(`/groups/${this.selectedGroupId}/sessions`)).json();
+                        await this.loadGroupSessions();
                     }
                     
                     defectModal = new bootstrap.Modal(document.getElementById('defectModal'));
                     invModal = new bootstrap.Modal(document.getElementById('invModal'));
                     eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+                    vehModal = new bootstrap.Modal(document.getElementById('vehModal'));
+                    
                     this.ready = true;
                 } catch(e) { window.location.href = '/login'; }
             },
             methods: {
+                async loadGroupSessions() { this.sessions = await (await fetch(`/groups/${this.selectedGroupId}/sessions`)).json(); },
                 goToEditor() { if(this.selectedGroupId) window.location.href = `/editor?group_id=${this.selectedGroupId}`; },
+                openEditor(id) { if(this.selectedGroupId) window.location.href = `/editor?group_id=${this.selectedGroupId}&session_id=${id}`; },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                // Kanban (Mit Bearbeiten-Funktion)
-                openDefectModal() { this.newNote = { id: null, title: '', content: '', visibility: 'public', priority: 'normal' }; defectModal.show(); },
-                editNote(n) { this.newNote = { ...n }; defectModal.show(); },
+                // Mängel-Kanban
+                openDefectModal() { this.newNote = { title: '', content: '', visibility: 'public', priority: 'normal' }; defectModal.show(); },
                 async submitKanban() {
                     const r = await fetch('/api/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newNote) });
                     if(r.ok) { defectModal.hide(); this.notes = await (await fetch('/api/notes')).json(); }
@@ -228,18 +337,17 @@
                     this.notes = await (await fetch('/api/notes')).json();
                 },
                 async delNote(id) {
-                    if(confirm("Eintrag löschen?")) { await fetch(`/api/notes/${id}`, { method:'DELETE' }); this.notes = await (await fetch('/api/notes')).json(); }
+                    if(confirm("Diesen Defekt aus dem System löschen?")) { await fetch(`/api/notes/${id}`, { method:'DELETE' }); this.notes = await (await fetch('/api/notes')).json(); }
                 },
 
-                // Lager (Mit Bearbeiten-Funktion)
-                openInvModal() { this.newInv = { id: null, item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', status: 'OK' }; invModal.show(); },
-                editInv(i) { this.newInv = { ...i }; invModal.show(); },
+                // Lager
+                openInvModal() { this.newInv = { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', status: 'OK' }; invModal.show(); },
                 async submitInv() {
                     await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv) });
                     invModal.hide(); this.inventory = await (await fetch('/api/inventory')).json();
                 },
                 async delInv(id) {
-                    if(confirm("Artikel löschen?")) { await fetch(`/api/inventory/${id}`, { method:'DELETE' }); this.inventory = await (await fetch('/api/inventory')).json(); }
+                    if(confirm("Artikel entfernen?")) { await fetch(`/api/inventory/${id}`, { method:'DELETE' }); this.inventory = await (await fetch('/api/inventory')).json(); }
                 },
 
                 // Verein
@@ -252,10 +360,18 @@
                     if(confirm("Termin absagen?")) { await fetch(`/api/events/${id}`, { method:'DELETE' }); this.events = await (await fetch('/api/events')).json(); }
                 },
 
-                // Technik (Fahrzeuge)
+                // Technik / Fuhrpark
+                openVehModal() { this.newVeh = { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }; vehModal.show(); },
+                async submitVeh() {
+                    await fetch('/api/vehicles', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newVeh) });
+                    vehModal.hide(); this.vehicles = await (await fetch('/api/vehicles')).json();
+                },
                 async setVehicleStatus(v, s) {
                     v.status = s;
                     await fetch(`/api/vehicles/${v.id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: s}) });
+                },
+                async delVeh(id) {
+                    if(confirm("Fahrzeug ausmustern?")) { await fetch(`/api/vehicles/${id}`, { method:'DELETE' }); this.vehicles = await (await fetch('/api/vehicles')).json(); }
                 }
             }
         }).mount('#app');
