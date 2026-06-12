@@ -1,32 +1,40 @@
-/* --- FEUERWEHRHUB UNIFIED BRANDING --- */
+/* --- FEUERWEHRHUB UNIFIED BRANDING & RESPONSIVE FIXES --- */
 :root {
-    --fh-dark: #0f172a;       /* Edles Schiefergrau für Header/Sidebar */
-    --fh-bg: #f8fafc;         /* Weicher, moderner Hintergrund */
-    --fh-card-bg: #ffffff;    /* Reine weiße Kartenkomponenten */
-    --fh-border: #e2e8f0;     /* Dezente Trennlinien */
-    --fh-text-main: #1e293b;  /* Gut lesbarer Fließtext */
-    --fh-text-muted: #64748b; /* Für Untertitel und Metadaten */
+    --fh-dark: #0f172a;
+    --fh-bg: #f8fafc;
+    --fh-card-bg: #ffffff;
+    --fh-border: #e2e8f0;
+    --fh-text-main: #1e293b;
+    --fh-text-muted: #64748b;
     
-    /* Taktische Signal-Farbpalette */
-    --fh-fire: #b71c1c;       /* Feuerwehr-Abendrot für Primäraktionen */
-    --fh-exercise: #2563eb;   /* Klares Blau für Übungsdienste */
-    --fh-incident: #dc2626;   /* Signalrot für Realeinsätze */
-    --fh-misc: #d97706;       /* Warmes Bernstein für Sonstiges */
-    --fh-safe: #16a34a;       /* Sattes Grün für gültige Fristen */
+    --fh-fire: #b71c1c;
+    --fh-exercise: #2563eb;
+    --fh-incident: #dc2626;
+    --fh-misc: #d97706;
+    --fh-safe: #16a34a;
 }
 
-/* Base Reset */
+/* Base Reset & Layout-Sicherung */
+* {
+    box-sizing: border-box;
+}
+
 body {
     background-color: var(--fh-bg);
     color: var(--fh-text-main);
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
     letter-spacing: -0.2px;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
 }
 
-/* --- APP LAYOUT CONTAINER --- */
+/* --- APP LAYOUT (VERHINDERT MOBIL-MIX) --- */
 .app-container {
     display: flex;
-    height: 100dvh;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -48,53 +56,57 @@ body {
     scroll-behavior: smooth;
 }
 
-/* --- MODERN HUB CARDS --- */
+/* Navigation-Bar für Mobilgeräte */
+.mobile-nav {
+    display: none;
+    background: var(--fh-card-bg);
+    border-bottom: 1px solid var(--fh-border);
+    padding: 10px 15px;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 1010;
+}
+
+/* --- RESPONSIVE GRIDS & FLEX CARDS --- */
 .card, .note-card, .member-card {
     background: var(--fh-card-bg) !important;
     border: 1px solid var(--fh-border) !important;
     border-radius: 16px !important;
-    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 2px 4px -1px rgba(15, 23, 42, 0.01) !important;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.02) !important;
     transition: all 0.2s ease-in-out !important;
+    height: auto !important; /* Verhindert das Abschneiden von Inhalten */
 }
 
-.card:hover, .note-card:hover, .member-card:hover {
-    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05) !important;
-    transform: translateY(-2px);
-    border-color: #cbd5e1 !important;
+/* Personal-Raster fixieren gegen Überlappung */
+.person-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
 }
 
-/* Header-Balken für Unterseiten (Notizen/Akte) */
-.page-header {
-    background: linear-gradient(135deg, var(--fh-dark) 0%, #1e293b 100%);
-    color: white;
-    padding: 1.5rem 0;
-    border-radius: 0 0 20px 20px;
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
-    margin-bottom: 2rem;
+/* --- ANWESENHEITS-ZEILEN (EDITOR FIX) --- */
+.person-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap; /* Erlaubt Umbruch auf Handys statt Quetschen */
+    gap: 1rem;
 }
 
-/* --- KATEGORIEN & BADGES --- */
-.badge-vis {
-    font-size: 0.65rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 50px;
+.name-area {
+    flex: 1;
+    min-width: 180px; /* Garantiert Platz für den Klarnamen */
 }
-.vis-public { background: #dcfce7; color: #15803d; }
-.vis-private { background: #dbeafe; color: #1d4ed8; }
-.vis-admin { background: #fee2e2; color: #b91c1c; }
-.vis-geratewart { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 
-/* Taktische Funk-Status-Selects */
+/* --- STATUS & FUNK --- */
 .status-select {
     font-size: 0.85rem;
     font-weight: 700;
     border-radius: 8px;
     border: none;
     text-align: center;
-    padding: 4px 8px;
+    padding: 6px 10px;
     color: white;
+    min-width: 46px;
 }
 .status-1 { background-color: #3b82f6 !important; }
 .status-2 { background-color: var(--fh-safe) !important; }
@@ -102,7 +114,7 @@ body {
 .status-4 { background-color: var(--fh-incident) !important; }
 .status-6 { background-color: var(--fh-text-muted) !important; }
 
-/* --- SIDEBAR LIST-ITEMS --- */
+/* --- SIDEBAR ELEMENTE --- */
 .group-item {
     padding: 14px 20px;
     cursor: pointer;
@@ -110,16 +122,10 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: all 0.15s;
     border-bottom: 1px solid #f1f5f9;
     color: var(--fh-text-main);
     font-weight: 500;
 }
-
-.group-item:hover {
-    background: #f8fafc;
-}
-
 .group-item.active {
     border-left-color: var(--fh-fire);
     background: #fff5f5;
@@ -127,74 +133,42 @@ body {
     font-weight: 700;
 }
 
-/* --- FRISTEN & WARNUNGEN --- */
-.g26-expired-alert {
-    border-left: 4px solid var(--fh-fire) !important;
-    background-color: #fff5f5 !important;
+/* --- BREAKPOINT: STRUPFE TRENNUNG MOBIL VS DESKTOP --- */
+@media (max-width: 991px) {
+    .app-container {
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+    }
+    .sidebar {
+        display: none !important; /* Versteckt Desktop-Sidebar auf dem Handy */
+    }
+    .mobile-nav {
+        display: flex !important; /* Zeigt obere Leiste nur auf Mobilgeräten */
+        position: sticky;
+        top: 0;
+    }
+    .main-content {
+        padding: 1rem;
+        overflow-y: visible;
+    }
+    .person-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .person-row .ms-2 {
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
 }
 
-.g26-crit-text {
-    color: var(--fh-fire) !important;
-    font-weight: 700;
-    font-size: 0.75rem;
-}
-
-/* --- AVATARS & SIGNATURES --- */
-.editor-avatar, .avatar-container {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    background: #f1f5f9;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--fh-border);
-}
-.editor-avatar img, .avatar-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.sig-box {
-    width: 75px;
-    height: 42px;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    background: #f8fafc;
-    overflow: hidden;
-}
-.sig-box img { max-width: 100%; max-height: 100%; }
-
-/* --- UI COMPONENTS --- */
-.btn-danger {
-    background-color: var(--fh-fire) !important;
-    border-color: var(--fh-fire) !important;
-}
-.btn-danger:hover {
-    background-color: #9a1616 !important;
-}
-
-.filter-pill {
-    font-weight: 600;
-    font-size: 0.85rem;
-    border-radius: 20px;
-    padding: 6px 16px;
-    border: 1px solid var(--fh-border);
-    background: white;
-    color: var(--fh-text-muted);
-    transition: all 0.2s;
-}
-.filter-pill.active {
-    background: var(--fh-dark) !important;
-    color: white !important;
-    border-color: var(--fh-dark);
-}
-
-/* Hide VUE before compilierung */
+/* Sonstige globale Helfer */
+.g26-expired-alert { border-left: 4px solid var(--fh-fire) !important; background-color: #fff5f5 !important; }
+.g26-crit-text { color: var(--fh-fire) !important; font-weight: 700; font-size: 0.75rem; }
+.badge-vis { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 50px; }
+.vis-public { background: #dcfce7; color: #15803d; }
+.vis-private { background: #dbeafe; color: #1d4ed8; }
+.vis-admin { background: #fee2e2; color: #b91c1c; }
+.vis-geratewart { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 [v-cloak] { display: none !important; }
