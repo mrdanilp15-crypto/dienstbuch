@@ -1,15 +1,15 @@
-/* --- FEUERWEHRHUB LIGHT ENTERPRISE PACK --- */
+/* --- FEUERWEHRHUB UNIFIED LIGHT THEME --- */
 :root {
-    --fh-bg: #f8fafc;
-    --fh-sidebar-bg: #ffffff;
-    --fh-card-bg: #ffffff;
-    --fh-border: #cbd5e1;
-    --fh-text-dark: #0f172a;
-    --fh-text-muted: #64748b;
-    --fh-fire: #ef4444;
-    --fh-exercise: #2563eb;
-    --fh-safe: #10b981;
-    --fh-warn: #f59e0b;
+    --fh-bg: #f8fafc;           /* Hellgrau für den Inhaltsbereich */
+    --fh-sidebar-bg: #ffffff;   /* Weiß für das Navigationstableau */
+    --fh-card-bg: #ffffff;      /* Weiß für alle Boxen */
+    --fh-border: #cbd5e1;       /* Scharfkantige, saubere Trennlinien */
+    --fh-text-dark: #0f172a;    /* Tiefes Anthrazit für die Lesbarkeit */
+    --fh-text-muted: #64748b;   /* Graublau für sekundäre Texte */
+    --fh-fire: #dc2626;         /* Signalrot */
+    --fh-exercise: #2563eb;     /* Übungsblau */
+    --fh-safe: #16a34a;         /* Fristengrün */
+    --fh-warn: #ea580c;         /* Warnorange */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,20 +28,20 @@ body {
     width: 100vw;
 }
 
-/* Feste linke Navigation */
+/* Feste linke Sidebar */
 .sidebar {
-    width: 290px;
+    width: 280px;
     background: var(--fh-sidebar-bg);
-    border-right: 2px solid var(--fh-border);
+    border-right: 1px solid var(--fh-border);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.02);
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.01);
 }
 
 .sidebar-header {
     padding: 1.5rem;
-    border-bottom: 2px solid var(--fh-border);
+    border-bottom: 1px solid var(--fh-border);
     background: #f1f5f9;
     text-align: center;
 }
@@ -52,6 +52,7 @@ body {
     padding: 2.5rem;
 }
 
+/* Navigationspunkte */
 .menu-link {
     display: flex;
     align-items: center;
@@ -68,54 +69,50 @@ body {
 .menu-link:hover { background: #f8fafc; color: var(--fh-text-dark); }
 .menu-link.active { background: #fee2e2; color: var(--fh-fire); border-left-color: var(--fh-fire); }
 
-/* Hellgraue Inhaltskarten */
+/* Weiße Applikationskarten */
 .card {
     background: var(--fh-card-bg) !important;
-    border: 2px solid var(--fh-border) !important;
+    border: 1px solid var(--fh-border) !important;
     border-radius: 12px !important;
     padding: 1.5rem !important;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04) !important;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03) !important;
 }
 
 .form-control, .form-select {
     background-color: #ffffff !important;
     color: var(--fh-text-dark) !important;
-    border: 2px solid var(--fh-border) !important;
+    border: 1px solid var(--fh-border) !important;
     font-weight: 600 !important;
 }
 .form-control:focus, .form-select:focus {
     border-color: var(--fh-fire) !important;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
 }
 
 .table { color: var(--fh-text-dark) !important; }
-.table th { color: var(--fh-text-muted) !important; border-bottom: 2px solid var(--fh-border) !important; font-weight: 700; }
+.table th { color: var(--fh-text-muted) !important; border-bottom: 2px solid var(--fh-border) !important; }
 .table td { border-bottom: 1px solid #edf2f7 !important; }
 
-/* Taktisches Statustableau */
+/* Taktisches Tableau */
 .status-btn {
-    border: 2px solid var(--fh-border);
+    border: 1px solid var(--fh-border);
     font-weight: 800;
     width: 40px; height: 34px;
     border-radius: 6px;
     background: #ffffff;
     color: var(--fh-text-muted);
-    transition: 0.15s;
 }
-.status-btn.active.s-2 { background-color: var(--fh-safe) !important; color: white !important; border-color: var(--fh-safe); }
-.status-btn.active.s-4 { background-color: var(--fh-fire) !important; color: white !important; border-color: var(--fh-fire); }
+.status-btn.active.s-2 { background-color: var(--fh-safe) !important; color: white !important; }
+.status-btn.active.s-4 { background-color: var(--fh-fire) !important; color: white !important; }
 
-/* In-App Dokumentenkapsel */
+/* In-App Dokumentenkapsel (Zero Popup Policy) */
 .modal-fullscreen-kapsel { max-width: 95vw; width: 95vw; height: 88vh; margin: 3vh auto; }
-.modal-iframe-render { width: 100%; height: 72vh; border: 2px solid var(--fh-border); border-radius: 8px; background: white; }
+.modal-iframe-render { width: 100%; height: 72vh; border: 1px solid var(--fh-border); border-radius: 8px; background: white; }
 
-/* Kanbanboard Spalten */
+/* Kanban Board Spalten */
 .kanban-board { display: flex; gap: 1.25rem; overflow-x: auto; padding-bottom: 1rem; }
 .kanban-col { flex: 1; min-width: 310px; background: #f1f5f9; border-radius: 12px; padding: 1.25rem; border: 2px solid var(--fh-border); }
 .kanban-col-title { font-weight: 800; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--fh-border); }
-
-.avatar-container, .editor-avatar { width: 44px; height: 44px; border-radius: 8px; overflow: hidden; border: 1px solid var(--fh-border); background: #f1f5f9; }
-.avatar-container img, .editor-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 [v-cloak] { display: none !important; }
