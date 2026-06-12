@@ -3,42 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dienstbuch Editor</title>
+    <title>FeuerwehrHub - Dienstbuch Protokoll</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css?v=2.30">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        .header-bar { background: white; border-bottom: 3px solid var(--fh-fire); padding: 10px 15px; position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .btn-cat { border: 2px solid transparent; opacity: 0.5; transition: 0.3s; font-weight: bold; color: #666; }
-        .btn-cat:hover { opacity: 0.8; }
-        .btn-cat-Übung.active { background-color: var(--fh-exercise) !important; color: white !important; opacity: 1; transform: scale(1.02); }
-        .btn-cat-Einsatz.active { background-color: var(--fh-incident) !important; color: white !important; opacity: 1; transform: scale(1.02); }
-        .btn-cat-Sonstiges.active { background-color: var(--fh-misc) !important; color: black !important; opacity: 1; transform: scale(1.02); }
-        .vehicle-btn { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #64748b; font-weight:600; }
+        body { padding-bottom: 120px; }
+        .btn-cat { border: 1px solid var(--fh-border); color: var(--fh-text-muted); font-weight: bold; background: rgba(255,255,255,0.02); transition: 0.2s; }
+        .btn-cat-Übung.active { background-color: var(--fh-exercise) !important; color: white !important; }
+        .btn-cat-Einsatz.active { background-color: var(--fh-incident) !important; color: white !important; }
+        .btn-cat-Sonstiges.active { background-color: var(--fh-misc) !important; color: black !important; }
+        .vehicle-btn { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; border: 1px solid var(--fh-border); background: #111827; color: var(--fh-text-muted); font-weight: 600; }
         .vehicle-btn.active { background: var(--fh-fire) !important; color: white !important; border-color: var(--fh-fire); }
         .save-indicator { position: fixed; bottom: 85px; right: 20px; z-index: 999; }
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; z-index: 1000; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--fh-nav-bg); padding: 15px; border-top: 1px solid var(--fh-border); display: flex; gap: 10px; z-index: 1000; }
     </style>
 </head>
 <body>
 
 <div id="app" v-cloak>
-    <div class="header-bar">
-        <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @click="goBack"><i class="fas fa-chevron-left me-1"></i> Zurück</button>
-        <h5 class="m-0 fw-bold">Dienstbuch Protokoll-Editor</h5>
-        <div>
-            <span v-if="isReadOnly" class="badge bg-secondary"><i class="fa fa-eye me-1"></i> Schreibgeschützt</span>
-            <span v-else-if="isAdmin" class="badge bg-danger">Admin</span>
-            <span v-else class="badge bg-primary">User</span>
+    <!-- HORIZONTALE TOP-NAVBAR -->
+    <nav class="navbar-top">
+        <div class="navbar-brand-row">
+            <div class="brand-left">
+                <div class="brand-logo">FH</div>
+                <div>
+                    <div class="brand-title">FeuerwehrHub</div>
+                    <div class="brand-subtitle">Feuerwehrverwaltung</div>
+                </div>
+            </div>
+            <div class="brand-right">
+                <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" @click="goBack"><i class="fas fa-chevron-left me-1"></i> Zurück</button>
+            </div>
         </div>
-    </div>
+        <div class="navbar-menu-row">
+            <div class="nav-links">
+                <a href="/dashboard" class="nav-link-item">Startseite</a>
+                <a href="/personal" v-if="isAdmin" class="nav-link-item">Personal</a>
+                <a href="/notizen" class="nav-link-item">Technik & Geräte</a>
+                <div class="text-muted mx-2" style="opacity:0.2">|</div>
+                <span class="badge bg-secondary font-monospace text-uppercase" style="font-size:0.65rem;">Modus: {{ isReadOnly ? 'Schreibgeschützt' : 'Editor' }}</span>
+            </div>
+        </div>
+    </nav>
 
-    <div class="main-content mx-auto" style="max-width: 900px; padding-bottom: 140px;">
-        <div class="card p-4">
-            <div class="row g-2 mb-3">
+    <!-- CONTENT BODY -->
+    <div class="main-content">
+        <div class="card">
+            <div class="row g-3 mb-3">
                 <div class="col-6">
                     <label class="small text-muted fw-bold mb-1">DATUM</label>
                     <input type="date" class="form-control rounded-3" v-model="currentDate" @change="autoSave" :disabled="isReadOnly">
@@ -51,27 +67,31 @@
 
             <label class="small text-muted fw-bold mb-1">KATEGORIE</label>
             <div class="d-flex gap-2 mb-3">
-                <button v-for="cat in ['Übung', 'Einsatz', 'Sonstiges']" :key="cat" @click="setCat(cat)" :class="['btn', 'flex-fill', 'btn-cat', 'btn-cat-' + cat, category === cat ? 'active' : 'bg-light']">{{cat}}</button>
+                <button v-for="cat in ['Übung', 'Einsatz', 'Sonstiges']" 
+                        :key="cat" @click="setCat(cat)"
+                        :class="['btn', 'flex-fill', 'btn-cat', 'btn-cat-' + cat, category === cat ? 'active' : '']">
+                    {{cat}}
+                </button>
             </div>
 
             <div class="mb-3">
                 <label class="small text-muted fw-bold mb-1">THEMA / BESCHREIBUNG</label>
-                <input list="topicList" class="form-control rounded-3" v-model="description" @input="autoSave" placeholder="Ausbildungsinhalt..." :disabled="isReadOnly">
+                <input list="topicList" class="form-control rounded-3" v-model="description" @input="autoSave" placeholder="Was wurde ausgebildet?" :disabled="isReadOnly">
                 <datalist id="topicList"><option v-for="t in topicOptions" :key="t" :value="t"></option></datalist>
             </div>
 
             <div class="mb-0">
                 <label class="small text-muted fw-bold mb-1">ÜBUNGSLEITUNG / AUSBILDER</label>
-                <input list="instrList" class="form-control rounded-3" v-model="instructors" @input="autoSave" placeholder="Name(n)..." :disabled="isReadOnly">
+                <input list="instrList" class="form-control rounded-3" v-model="instructors" @input="autoSave" placeholder="Name..." :disabled="isReadOnly">
                 <datalist id="instrList"><option v-for="i in instrOptions" :key="i" :value="i"></option></datalist>
             </div>
         </div>
 
-        <div class="card p-4 mb-3">
+        <div class="card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="small text-muted fw-bold d-block">BESTÄTIGUNG ÜBUNGSLEITUNG</span>
-                    <small v-if="!leaderSignature" class="text-danger fw-bold">Handzeichen fehlt</small>
+                    <span class="small text-muted fw-bold d-block">FREIGABE / GEGENZEICHNUNG</span>
+                    <small v-if="!leaderSignature" class="text-danger fw-bold">Unterschrift ausstehend</small>
                     <small v-else class="text-success fw-bold">Erfasst <i class="fas fa-check"></i></small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -84,35 +104,35 @@
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center px-1 mb-2 mt-4">
-            <h6 class="m-0 fw-bold text-dark">Anwesenheit ({{presentCount}}/{{persons.length}})</h6>
-            <button v-if="!isReadOnly" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" style="background:var(--fh-fire);" data-bs-toggle="modal" data-bs-target="#poolModal"><i class="fas fa-plus me-1"></i> Personen hinzufügen</button>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-4 px-1">
+            <h5 class="fw-bold text-white m-0">Mannschafts-Anwesenheit ({{presentCount}}/{{persons.length}})</h5>
+            <button v-if="!isReadOnly" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" @click="autoSave" data-bs-toggle="modal" data-bs-target="#poolModal"><i class="fas fa-plus me-1"></i> Kameraden laden</button>
         </div>
 
-        <div class="card overflow-hidden p-0">
-            <div class="p-2 bg-light border-bottom">
-                <input type="text" class="form-control form-control-sm rounded-2" v-model="q" placeholder="Suchen...">
+        <div class="card p-0 overflow-hidden">
+            <div class="p-2 border-bottom" style="background: rgba(0,0,0,0.15)">
+                <input type="text" class="form-control form-control-sm border-secondary shadow-sm" v-model="q" placeholder="Mannschaft durchsuchen...">
             </div>
             
-            <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
+            <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row border-secondary" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
                 <div class="d-flex align-items-center gap-3 flex-grow-1">
-                    <input type="checkbox" class="form-check-input" style="transform: scale(1.2)" :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
-                    <div class="editor-avatar shadow-sm">
+                    <input type="checkbox" class="form-check-input border-secondary" style="transform: scale(1.2)" :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
+                    <div class="editor-avatar shadow-sm border-secondary">
                         <img :src="p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'">
                     </div>
-                    <div class="name-area" @click="togglePresence(p)" style="cursor:pointer;">
-                        <span class="fw-bold text-dark">{{p.name}}</span>
-                        <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzverbot!</span>
+                    <div class="name-area">
+                        <span class="fw-bold text-white fs-5">{{p.name}}</span>
+                        <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzgeräteträger-Verbot!</span>
                         
-                        <div class="d-flex gap-1 mt-2 overflow-auto pb-1" v-if="globalVehicles.length">
-                            <button v-for="v in globalVehicles" :key="v.id" @click.stop="setVehicle(p, v.name)" :class="['vehicle-btn', p.vehicle === v.name ? 'active' : '']">{{v.name}}</button>
+                        <div class="d-flex flex-wrap gap-1 mt-2" v-if="globalVehicles.length">
+                            <button v-for="v in globalVehicles" :key="v.id" @click.stop="setVehicle(p, v.name)" :class="['vehicle-btn', p.vehicle === v.name ? 'active' : '']" :disabled="isReadOnly">{{v.name}}</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="ms-2 d-flex align-items-center gap-2 flex-shrink-0">
                     <button v-if="p.signature && !isReadOnly" class="btn btn-sm text-muted p-1 border-0 bg-transparent" @click.stop="clearP(p)"><i class="fas fa-eraser"></i></button>
-                    <div class="sig-box shadow-sm" @click.stop="openSig(p)">
+                    <div class="sig-box shadow-sm border-secondary" @click.stop="openSig(p)">
                         <img v-if="p.signature" :src="p.signature">
                         <i v-else class="fas fa-signature text-muted"></i>
                     </div>
@@ -122,47 +142,50 @@
         </div>
     </div>
 
+    <!-- Live Speicherampel -->
     <div class="save-indicator" v-if="!isReadOnly">
-        <span v-if="saveState === 'saving'" class="badge bg-warning text-dark p-2 shadow-sm"><i class="fas fa-sync fa-spin me-1"></i> Speichert...</span>
-        <span v-if="saveState === 'saved'" class="badge bg-success p-2 shadow-sm"><i class="fas fa-check me-1"></i> Änderungen gesichert</span>
+        <span v-if="saveState === 'saving'" class="badge bg-warning text-dark p-2 shadow-sm"><i class="fas fa-sync fa-spin me-1"></i> Cloud-Sync...</span>
+        <span v-if="saveState === 'saved'" class="badge bg-success p-2 shadow-sm"><i class="fas fa-check me-1"></i> Daten gesichert</span>
     </div>
 
     <div class="bottom-nav">
-        <button class="btn btn-dark flex-fill py-2.5 fw-bold rounded-pill" @click="saveAndExit">{{ isReadOnly ? 'EDITOR BEENDEN' : 'BEENDEN & PROTOKOLL SCHLIESSEN' }}</button>
+        <button class="btn btn-danger w-100 py-2.5 fw-bold rounded-pill shadow" @click="saveAndExit">{{ isReadOnly ? 'EDITOR BEENDEN' : 'GEGENZEICHNEN & SCHLIESSEN' }}</button>
     </div>
 
+    <!-- MODAL KAMERADEN POOL -->
     <div class="modal fade" id="poolModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-            <div class="modal-content border-0 rounded-4 shadow">
-                <div class="modal-header bg-light border-0 pb-0">
-                    <h5 class="modal-title fw-bold">Mannschaft laden</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border border-secondary text-white rounded-4">
+                <div class="modal-header border-bottom border-secondary bg-black">
+                    <h5 class="modal-title fw-bold">Mannschaft nachnominieren</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="d-flex gap-2 mb-3">
-                        <input type="text" class="form-control rounded-3" v-model="poolSearch" placeholder="Name suchen...">
-                        <button class="btn btn-outline-secondary text-nowrap rounded-3 fw-bold" @click="selectAllPool">Alle toggeln</button>
+                        <input type="text" class="form-control" v-model="poolSearch" placeholder="Name filtern...">
+                        <button class="btn btn-outline-light text-nowrap fw-bold btn-sm rounded-3" @click="selectAllPool">Alle wählen</button>
                     </div>
-                    <div class="list-group list-group-flush border rounded-3 overflow-y-auto" style="max-height: 380px;">
-                        <div v-for="p in filteredPool" :key="p.id" class="pool-item d-flex align-items-center p-2 border-bottom" @click="p.selected = !p.selected" style="cursor:pointer;">
-                            <input type="checkbox" class="form-check-input me-3" v-model="p.selected" @click.stop>
-                            <span class="fw-semibold text-dark">{{p.name}}</span>
+                    <div class="list-group list-group-flush border border-secondary rounded-3 overflow-y-auto bg-black" style="max-height: 350px;">
+                        <div v-for="p in filteredPool" :key="p.id" class="list-group-item d-flex align-items-center p-2 bg-transparent text-white border-bottom border-secondary" @click="p.selected = !p.selected" style="cursor:pointer;">
+                            <input type="checkbox" class="form-check-input me-3 border-secondary" v-model="p.selected" @click.stop>
+                            <span class="fw-semibold">{{p.name}}</span>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0"><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" style="background:var(--fh-fire);" @click="addSelectedFromPool">Hinzufügen</button></div>
+                <div class="modal-footer border-0"><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @click="addSelectedFromPool">Übernehmen</button></div>
             </div>
         </div>
     </div>
 
+    <!-- SIGNIERPAD -->
     <div class="modal fade" id="sigModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 rounded-4">
+            <div class="modal-content bg-dark border border-secondary text-white rounded-4">
                 <div class="modal-body p-4 text-center">
                     <div class="sig-wrapper mb-3"><canvas id="sigCanvas"></canvas></div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-outline-secondary flex-fill rounded-pill" @click="clearModal">Löschen</button>
-                        <button class="btn btn-danger flex-fill rounded-pill fw-bold shadow-sm" style="background:var(--fh-fire);" @click="saveSig">Speichern</button>
+                        <button class="btn btn-danger flex-fill rounded-pill fw-bold shadow-sm" @click="saveSig">Sichern</button>
                     </div>
                 </div>
             </div>
@@ -252,7 +275,7 @@
                     this.saveState = 'saved'; setTimeout(() => this.saveState = 'idle', 2000);
                 } catch(e) { this.saveState = 'idle'; }
             },
-            removePerson(p) { if(this.isReadOnly) return; if(confirm(p.name + " entfernen?")) { this.persons = this.persons.filter(x => String(x.id || x.person_id) !== String(p.id || p.person_id)); this.autoSave(); } },
+            removePerson(p) { if(this.isReadOnly) return; if(confirm(p.name + " wirklich entfernen?")) { this.persons = this.persons.filter(x => String(x.id || x.person_id) !== String(p.id || p.person_id)); this.autoSave(); } },
             selectAllPool() { if(this.isReadOnly) return; const allSelected = this.filteredPool.every(p => p.selected); this.filteredPool.forEach(p => p.selected = !allSelected); },
             async addSelectedFromPool() {
                 if(this.isReadOnly) return;
