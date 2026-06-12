@@ -3,66 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal-Management Pro</title>
+    <title>FeuerwehrHub - Personalverwaltung</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <style>
-        :root { 
-            --fire: #ef4444; --warn: #f59e0b; --safe: #10b981; 
-            --dark: #0f172a; --bg: #f8fafc; --accent: #3b82f6;
-        }
-        body { background: var(--bg); font-family: 'Inter', system-ui, sans-serif; color: var(--dark); padding-bottom: 80px; }
-
-        .page-header { background: linear-gradient(135deg, var(--dark) 0%, #1e293b 100%); color: white; padding: 2rem 0; border-radius: 0 0 24px 24px; margin-bottom: 2rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .stat-card { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 1.25rem; border: 1px solid rgba(255,255,255,0.1); }
-        .stat-val { font-size: 1.75rem; font-weight: 800; display: block; color: white; }
-        .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; }
-
-        .person-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
-        .member-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.25rem; transition: 0.2s; cursor: pointer; position: relative; }
-        .member-card:hover { box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: #cbd5e1; }
-        
-        .avatar-container { width: 65px; height: 65px; border-radius: 12px; background: #e2e8f0; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #f1f5f9; }
-        .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
-        
-        .badge-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 20px; }
-        .status-aktiv { background: #dcfce7; color: #15803d; }
-        .status-passiv { background: #f1f5f9; color: #475569; }
-        .status-jugend { background: #e0f2fe; color: #0369a1; }
-        .status-ehren { background: #fef3c7; color: #b45309; }
-
-        .main-pills .nav-link { color: #64748b; font-weight: 700; border-radius: 10px; padding: 10px 20px; border: 1px solid #e2e8f0; background: white; transition: 0.2s; }
-        .main-pills .nav-link.active { background: var(--dark) !important; color: white !important; }
-
-        .nav-tabs .nav-link { color: #64748b; font-weight: 600; border: none; padding: 10px 15px; }
-        .nav-tabs .nav-link.active { color: var(--fire); border-bottom: 3px solid var(--fire); background: transparent; }
-        .modal-avatar-upload { width: 120px; height: 120px; border-radius: 16px; background: #f1f5f9; border: 2px dashed #cbd5e1; overflow: hidden; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .modal-avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
-
-        .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-        .bg-ok { background: var(--safe); } .bg-warn { background: var(--warn); } .bg-crit { background: var(--fire); }
-
-        .template-badge { cursor: pointer; transition: 0.2s; font-size: 0.75rem; }
-        .template-badge:hover { filter: brightness(0.9); }
-        [v-cloak] { display: none !important; }
-    </style>
 </head>
 <body>
 
 <div id="app" v-cloak>
-    <header class="page-header">
+    <header class="page-header shadow-sm">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="fw-black m-0"><i class="fa fa-users me-3"></i>Personalverwaltung Pro</h2>
+                <h2 class="fw-black m-0 text-white tracking-tight"><i class="fa fa-users me-3"></i>Personalverwaltung Pro</h2>
                 <a href="/dashboard" class="btn btn-light btn-sm rounded-pill px-4 fw-bold">Dashboard</a>
             </div>
             <div class="row g-3">
                 <div class="col-6 col-md-3" v-for="s in stats">
-                    <div class="stat-card">
-                        <span class="stat-val">{{ s.count }}</span>
-                        <span class="stat-label">{{ s.label }}</span>
+                    <div class="p-3 bg-white bg-opacity-10 rounded-3 border border-white border-opacity-10">
+                        <span class="stat-val h3 m-0 fw-black text-white d-block">{{ s.count }}</span>
+                        <span class="text-white-50 small fw-bold text-uppercase" style="font-size:0.65rem;">{{ s.label }}</span>
                     </div>
                 </div>
             </div>
@@ -70,187 +31,151 @@
     </header>
 
     <div class="container">
-        
-        <!-- Hauptsteuerung-Pills -->
+        <!-- Register-Umschalter -->
         <ul class="nav main-pills gap-2 mb-4 border-0" id="mainAdminTabs" role="tablist">
-            <li class="nav-item">
-                <button class="nav-link active shadow-sm" id="personnel-tab" data-bs-toggle="tab" data-bs-target="#pane-personnel" type="button" role="tab">Kameraden & Qualifikationen</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link shadow-sm text-danger" id="logs-tab" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab" @click="loadAuditLogs"><i class="fa fa-history me-1"></i>Sicherheits-Logbuch</button>
-            </li>
+            <li class="nav-item"><button class="nav-link active shadow-sm" id="personnel-tab" data-bs-toggle="tab" data-bs-target="#pane-personnel" type="button" role="tab">Kameraden & Qualifikationen</button></li>
+            <li class="nav-item"><button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button></li>
+            <li class="nav-item"><button class="nav-link shadow-sm text-danger" id="logs-tab" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab" @click="loadAuditLogs"><i class="fa fa-history me-1"></i>Logbuch</button></li>
         </ul>
 
-        <div class="tab-content" id="mainAdminTabsContent">
-            
-            <!-- REITER 1: MANNSCHAFT & DIGITALE AKTEN -->
+        <div class="tab-content">
+            <!-- REITER 1: KADERSTÄRKE -->
             <div class="tab-pane fade show active" id="pane-personnel" role="tabpanel">
-                <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-body p-3">
-                        <div class="row g-2">
-                            <div class="col-md-5">
-                                <input type="text" v-model="search" class="form-control border-0 bg-light rounded-3" placeholder="Suchen nach Name, Dienstgrad...">
-                            </div>
-                            <div class="col-md-4">
-                                <select v-model="filterStatus" class="form-select border-0 bg-light rounded-3">
-                                    <option value="">Alle Mitgliedschaften</option>
-                                    <option value="Aktiv">Aktive Einsatzabteilung</option>
-                                    <option value="Passiv">Passive / Fördernde</option>
-                                    <option value="Jugend">Jugendfeuerwehr</option>
-                                    <option value="Ehrenabteilung">Ehrenabteilung</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-danger w-100 rounded-3 fw-bold" @click="openNewMemberModal"><i class="fa fa-plus me-2"></i>Neues Mitglied</button>
-                            </div>
+                <div class="card p-3 mb-4">
+                    <div class="row g-2">
+                        <div class="col-md-5"><input type="text" v-model="search" class="form-control border-0 bg-light rounded-3" placeholder="Suchen..."></div>
+                        <div class="col-md-4">
+                            <select v-model="filterStatus" class="form-select border-0 bg-light rounded-3">
+                                <option value="">Alle Abteilungen</option>
+                                <option value="Aktiv">Aktive Einsatzabteilung</option>
+                                <option value="Passiv">Passive / Fördernde</option>
+                                <option value="Jugend">Jugendfeuerwehr</option>
+                                <option value="Ehrenabteilung">Ehrenabteilung</option>
+                            </select>
                         </div>
+                        <div class="col-md-3"><button class="btn btn-danger w-100 rounded-3 fw-bold" @click="openNewMemberModal"><i class="fa fa-plus me-2"></i>Neues Mitglied</button></div>
                     </div>
                 </div>
 
                 <div class="person-grid">
-                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3" @click="editMember(p)">
-                        <div class="avatar-container">
-                            <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'" alt="Profilbild">
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <h6 class="fw-bold m-0">{{ p.name }}</h6>
-                                <span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span>
-                            </div>
-                            <small class="text-muted d-block mt-1">{{ p.rank || 'Kein Dienstgrad' }}</small>
+                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3 p-3 bg-white" @click="editMember(p)">
+                        <div class="avatar-container shadow-sm"><img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'"></div>
+                        <div class="flex-grow-1 min-width-0">
+                            <div class="d-flex justify-content-between align-items-center mb-1"><h6 class="fw-bold m-0 text-dark text-truncate">{{ p.name }}</h6><span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span></div>
+                            <small class="text-muted fw-semibold d-block">{{ p.rank || 'Kein Dienstgrad' }}</small>
                             <div class="d-flex flex-wrap gap-1 mt-2">
-                                <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem; padding: 3px 5px;">GF</span>
-                                <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem; padding: 3px 5px;">TF</span>
-                                <span v-if="p.is_agt" class="badge bg-dark font-monospace" style="font-size:0.55rem; padding: 3px 5px;">AGT</span>
-                                <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem; padding: 3px 5px;">MA</span>
-                                <span v-if="p.lic_b || p.lic_be" class="badge bg-info text-dark font-monospace" style="font-size:0.55rem; padding: 3px 5px;">PKW</span>
-                                <span v-if="p.lic_c || p.lic_ce" class="badge bg-primary font-monospace" style="font-size:0.55rem; padding: 3px 5px;">LKW</span>
+                                <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem;">GF</span>
+                                <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem;">TF</span>
+                                <span v-if="p.is_agt" class="badge bg-dark font-monospace text-white" style="font-size:0.55rem;">AGT</span>
+                                <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem;">MA</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- REITER 2: LOGIN-ACCOUNTS & LIVE RECHTE -->
+            <!-- REITER 2: LOGIN PROFILE -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-md-4">
-                        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                            <h5 class="fw-bold mb-3 text-danger"><i class="fa fa-user-plus me-2"></i>Zugang erstellen</h5>
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold mb-3 text-dark">Zugang erstellen</h5>
                             <form @submit.prevent="createUser">
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Benutzername</label><input type="text" v-model="newUser.username" class="form-control bg-light border-0 rounded-3" required></div>
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Passwort</label><input type="password" v-model="newUser.password" class="form-control bg-light border-0 rounded-3" required></div>
                                 <div class="mb-3">
-                                    <label class="small fw-bold text-muted mb-1">Zugeordneter Kamerad</label>
+                                    <label class="small fw-bold text-muted mb-1">Kameraden-Verknüpfung</label>
                                     <select v-model="newUser.personnel_id" class="form-select bg-light border-0 rounded-3" required>
-                                        <option :value="null" disabled>-- Bitte wählen --</option>
+                                        <option :value="null" disabled>-- Auswählen --</option>
                                         <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                     </select>
                                 </div>
-                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Rolle</label>
+                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Berechtigungsstufe</label>
                                     <select v-model="newUser.role" class="form-select bg-light border-0 rounded-3">
                                         <option value="mannschaft">Mannschaft (Leserechte)</option>
                                         <option value="user">User (Eintragen)</option>
-                                        <option value="geratewart">Gerätewart (Meldungen)</option>
+                                        <option value="geratewart">Gerätewart</option>
                                         <option value="admin">Admin (Vollzugriff)</option>
                                     </select>
                                 </div>
-                                <button type="submit" class="btn btn-danger w-100 rounded-3 fw-bold py-2">Freischalten</button>
+                                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow-sm">Zugang freischalten</button>
                             </form>
                         </div>
                     </div>
-
                     <div class="col-md-8">
-                        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                            <h5 class="fw-bold mb-3">Aktive Profile</h5>
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light"><tr><th>Benutzername</th><th>Kameraden-Verknüpfung (Editierbar)</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
-                                    <tbody>
-                                        <tr v-for="u in users" :key="u.id">
-                                            <td class="fw-bold">
-                                                {{ u.username }}
-                                                <span v-if="u.is_first_login" class="badge bg-warning text-dark font-monospace ms-2" style="font-size:0.55rem;">PW-Wechsel erzwungen</span>
-                                            </td>
-                                            <td>
-                                                <!-- SMART: Live änderbares Zuordnungs-Dropdown direkt in der Zeile -->
-                                                <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm bg-light border-0 fw-semibold">
-                                                    <option :value="null">Keine Verknüpfung</option>
-                                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 w-auto rounded-pill px-3 bg-light fw-bold">
-                                                    <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
-                                                </select>
-                                            </td>
-                                            <td class="text-end">
-                                                <button class="btn btn-sm btn-outline-warning rounded-circle me-1" @click="changePasswordPrompt(u)" title="Passwort überschreiben"><i class="fa fa-key"></i></button>
-                                                <button class="btn btn-sm btn-outline-danger rounded-circle" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold mb-3 text-dark">Aktive Systemzugriffe</h5>
+                            <table class="table align-middle table-hover">
+                                <thead><tr><th>Nutzer</th><th>Akte</th><th>Rechte</th><th class="text-end">Aktion</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="u in users" :key="u.id">
+                                        <td class="fw-bold text-dark">{{ u.username }}</td>
+                                        <td>
+                                            <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm border-0 bg-light fw-semibold shadow-sm rounded-2">
+                                                <option :value="null">Keine</option>
+                                                <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 rounded-pill px-3 bg-light fw-bold">
+                                                <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
+                                            </select>
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm text-warning me-1 p-1 border-0" @click="changePasswordPrompt(u)"><i class="fa fa-key"></i></button>
+                                            <button class="btn btn-sm text-danger p-1 border-0" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- REITER 3: REVISIONS-LOGBUCH -->
+            <!-- REITER 3: LOGS -->
             <div class="tab-pane fade" id="pane-logs" role="tabpanel">
-                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                    <h5 class="fw-bold mb-3"><i class="fa fa-history text-danger me-2"></i>System-Protokoll (Revisionssicher)</h5>
-                    <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
-                        <table class="table table-sm table-hover align-middle mb-0">
-                            <thead class="table-light sticky-top"><tr><th>Zeitstempel</th><th>Nutzer</th><th>Aktion</th><th>Details</th></tr></thead>
-                            <tbody>
-                                <tr v-for="l in auditLogs" :key="l.id" style="font-size: 0.85rem;">
-                                    <td class="text-muted font-monospace">{{ l.date_formatted }}</td>
-                                    <td><span class="badge bg-dark">{{ l.username }}</span></td>
-                                    <td class="fw-bold text-uppercase" style="font-size: 0.75rem;">{{ l.action }}</td>
-                                    <td class="text-secondary">{{ l.details }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="card p-4 bg-white">
+                    <table class="table table-sm table-hover font-monospace" style="font-size:0.85rem;">
+                        <thead><tr><th>Zeitpunkt</th><th>Konto</th><th>Aktion</th><th>Details</th></tr></thead>
+                        <tbody>
+                            <tr v-for="l in auditLogs" :key="l.id">
+                                <td class="text-muted">{{ l.date_formatted }}</td>
+                                <td><span class="badge bg-dark">{{ l.username }}</span></td>
+                                <td class="fw-bold text-uppercase" style="font-size:0.75rem;">{{ l.action }}</td>
+                                <td class="text-secondary">{{ l.details }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-
         </div>
     </div>
 
-    <!-- DAS KOMPLETTE DIGITALE PERSONALAKTEN MODAL -->
+    <!-- MODAL: STAMMAKTE -->
     <div class="modal fade" id="memberModal" data-bs-backdrop="static" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4">
-                <div class="modal-header bg-dark text-white rounded-top-4">
-                    <h5 class="modal-title fw-bold"><i class="fa fa-id-card me-2"></i>Digitale Personalakte</h5>
+                <div class="modal-header bg-dark text-white rounded-top-4 py-3">
+                    <h5 class="modal-title fw-bold"><i class="fa fa-id-card me-2 text-danger"></i>Digitale Stammakte</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" v-if="activePerson">
                     <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom">
-                        <div class="modal-avatar-upload" @click="$refs.fileInput.click()">
-                            <img :src="activePerson.profile_picture || (activePerson.has_picture ? '/api/personnel/avatar/' + activePerson.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF')" alt="Upload">
+                        <div class="modal-avatar-upload shadow-sm" @click="$refs.fileInput.click()">
+                            <img :src="activePerson.profile_picture || (activePerson.has_picture ? '/api/personnel/avatar/' + activePerson.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF')">
                             <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
                         </div>
                         <div class="flex-grow-1">
-                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold border-0 bg-light mb-2" placeholder="Vorname Nachname">
+                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold border-0 bg-light mb-2 shadow-sm" placeholder="Name Name">
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <select v-model="activePerson.membership_status" class="form-select form-select-sm">
-                                        <option value="Aktiv">Aktiver Dienst</option>
-                                        <option value="Passiv">Passiv / Fördernd</option>
-                                        <option value="Jugend">Jugendfeuerwehr</option>
-                                        <option value="Ehrenabteilung">Ehrenabteilung</option>
+                                    <select v-model="activePerson.membership_status" class="form-select form-select-sm border-0 bg-light shadow-sm">
+                                        <option value="Aktiv">Aktiver Dienst</option><option value="Passiv">Passiv</option><option value="Jugend">Jugendabteilung</option><option value="Ehrenabteilung">Ehrenabteilung</option>
                                     </select>
                                 </div>
                                 <div class="col-6">
-                                    <select v-model="activePerson.rank" class="form-select form-select-sm">
-                                        <option value="">-- Dienstgrad wählen --</option>
+                                    <select v-model="activePerson.rank" class="form-select form-select-sm border-0 bg-light shadow-sm">
                                         <option v-for="r in ranks" :value="r">{{ r }}</option>
                                     </select>
                                 </div>
@@ -258,85 +183,52 @@
                         </div>
                     </div>
 
-                    <ul class="nav nav-tabs mb-3 border-bottom-0" role="tablist">
-                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-base">Stammdaten</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-qual">Qualifikationen & Lizenzen</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-health">Tauglichkeit & Atemschutz</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-honors">Ehrungen & Notizen</button></li>
+                    <ul class="nav nav-tabs mb-3 border-0 bg-light p-1 rounded-3" role="tablist">
+                        <li class="nav-item flex-fill"><button class="nav-link active w-100 text-center py-2" data-bs-toggle="tab" data-bs-target="#tab-base">Stammdaten</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100 text-center py-2" data-bs-toggle="tab" data-bs-target="#tab-qual">Lehrgänge & Führerschein</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100 text-center py-2" data-bs-toggle="tab" data-bs-target="#tab-health">Atemschutz & UVV</button></li>
                     </ul>
 
-                    <div class="tab-content">
-                        <!-- TAB 1: STAMMDATEN -->
+                    <div class="tab-content pt-2">
                         <div class="tab-pane fade show active" id="tab-base">
                             <div class="row g-3">
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Geburtsdatum</label><input type="date" v-model="activePerson.birth_date" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Eintrittsdatum</label><input type="date" v-model="activePerson.entry_date" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Dienstausweis-Nr.</label><input type="text" v-model="activePerson.badge_number" class="form-control" placeholder="Ausweis ID..."></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Telefonnummer</label><input type="text" v-model="activePerson.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
-                                <div class="col-md-12"><label class="small fw-bold text-muted">E-Mail-Adresse</label><input type="email" v-model="activePerson.email" class="form-control" placeholder="name@beispiel.de"></div>
-                                <div class="col-md-12"><label class="small fw-bold text-muted">Adresse</label><textarea v-model="activePerson.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Geburtsdatum</label><input type="date" v-model="activePerson.birth_date" class="form-control"></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Eintrittsdatum</label><input type="date" v-model="activePerson.entry_date" class="form-control"></div>
+                                <div class="col-md-12"><label class="small fw-bold text-muted mb-1">E-Mail</label><input type="email" v-model="activePerson.email" class="form-control" placeholder="name@beispiel.de"></div>
                             </div>
                         </div>
 
-                        <!-- TAB 2: LEHRGÄNGE & LIZENZEN -->
                         <div class="tab-pane fade" id="tab-qual">
-                            <h6 class="fw-bold text-danger mb-3"><i class="fa fa-graduation-cap me-2"></i>Feuerwehr-Lehrgänge</h6>
-                            <div class="row g-2 mb-4">
-                                <div class="col-6 col-md-4" v-for="q in qualifications">
+                            <h6 class="fw-bold text-danger mb-2 font-monospace" style="font-size:0.75rem;">AUSBILDUNGSSTUFE</h6>
+                            <div class="row g-2">
+                                <div class="col-md-4" v-for="q in qualifications">
                                     <div class="form-check form-switch p-2 border rounded bg-light ps-5">
                                         <input class="form-check-input" type="checkbox" :id="q.id" v-model="activePerson[q.id]">
                                         <label class="form-check-label fw-bold small" :for="q.id">{{ q.label }}</label>
                                     </div>
                                 </div>
                             </div>
-                            <h6 class="fw-bold text-primary mb-3"><i class="fa fa-id-card-clip me-2"></i>Führerscheinklassen</h6>
-                            <div class="row g-2">
-                                <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
-                                    <div class="form-check border p-2 rounded text-center bg-light">
-                                        <input type="checkbox" :id="l.id" v-model="activePerson[l.id]" class="form-check-input float-none me-2">
-                                        <label :for="l.id" class="fw-bold small">{{ l.n }}</label>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
-                        <!-- TAB 3: TAUGBLICHKEIT & UNTERSUCHUNGEN -->
                         <div class="tab-pane fade" id="tab-health">
-                            <div class="alert alert-warning small py-2"><i class="fa fa-info-circle me-1"></i> Statusfarben basieren auf den Fristen.</div>
                             <div class="row g-3">
-                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Jährlicher Belastungslauf (Kriechstrecke)'}, {f: 'unterweisung_date', l: 'UVV Sicherheitsunterweisung'}]">
-                                    <div class="p-3 border rounded-3 bg-light d-flex justify-content-between align-items-center">
-                                        <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold small">{{ f.l }}</span></div>
-                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm">
+                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Untersuchung (Atemschutz)'}, {f: 'belastungslauf_date', l: 'Belastungslauf Kriechstrecke'}, {f: 'unterweisung_date', l: 'UVV Sicherheitsunterweisung'}]">
+                                    <div class="p-3 border rounded-3 bg-white d-flex justify-content-between align-items-center shadow-sm">
+                                        <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold text-dark small">{{ f.l }}</span></div>
+                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm border-0 bg-light font-monospace fw-bold">
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- TAB 4: EHRUNGEN & SCHNELLVORLAGEN -->
-                        <div class="tab-pane fade" id="tab-honors">
-                            <div class="mb-2">
-                                <label class="small fw-bold text-muted d-block mb-1">Schnellvorlagen einfügen:</label>
-                                <div class="d-flex flex-wrap gap-2 mb-3">
-                                    <span v-for="t in templates" class="badge bg-secondary template-badge py-2 px-3 rounded-pill" @click="addTemplate(t)"><i class="fa fa-plus me-1"></i> {{ t }}</span>
-                                </div>
-                            </div>
-                            <label class="small fw-bold text-muted">Ehrungen, Lehrgänge & Werdegang</label>
-                            <textarea v-model="activePerson.honors" class="form-control font-monospace" rows="6" placeholder="Einträge hier sammeln..."></textarea>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 bg-light rounded-bottom-4 d-flex justify-content-between">
-                    <button type="button" class="btn btn-link text-danger fw-bold" @click="deleteActiveMember"><i class="fa fa-trash me-1"></i> Löschen</button>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="button" class="btn btn-danger rounded-3 px-4 fw-bold" @click="saveActiveMember">Akte speichern</button>
-                    </div>
+                    <button type="button" class="btn btn-link text-danger fw-bold text-decoration-none" @click="deleteActiveMember"><i class="fa fa-trash me-1"></i> Löschen</button>
+                    <div class="d-flex gap-2"><button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveActiveMember">Akte sichern</button></div>
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 
 <script>
@@ -346,93 +238,35 @@ createApp({
         return {
             personnel: [], search: '', filterStatus: '', activePerson: null, modalInstance: null, cacheBuster: Date.now(),
             intervals: { g26: 36, belastung: 12, unterweisung: 12 }, auditLogs: [],
-            ranks: [
-                'Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
-                'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)',
-                'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)'
-            ],
-            templates: [
-                "10 Jahre Dienstzeit", "25 Jahre (Silbernes Ehrenzeichen)", "40 Jahre (Goldenes Ehrenzeichen)",
-                "Leistungsabzeichen Bronze", "Leistungsabzeichen Silber", "Leistungsabzeichen Gold"
-            ],
-            qualifications: [
-                {id: 'is_truppmann', label: 'Truppmann (TM)'}, {id: 'is_funk', label: 'Sprechfunker'},
-                {id: 'is_agt', label: 'Atemschutzgeräteträger'}, {id: 'is_maschinist', label: 'Maschinist'},
-                {id: 'is_tf', label: 'Truppführer (TF)'}, {id: 'is_gf', label: 'Gruppenführer (GF)'}
-            ],
-            users: [],
-            newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null }
+            ranks: ['Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)', 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)', 'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbmeister (HBM)'],
+            qualifications: [{id: 'is_truppmann', label: 'Truppmann'}, {id: 'is_funk', label: 'Sprechfunker'}, {id: 'is_agt', label: 'Atemschutzgeräteträger'}, {id: 'is_maschinist', label: 'Maschinist'}, {id: 'is_tf', label: 'Truppführer'}, {id: 'is_gf', label: 'Gruppenführer'}],
+            users: [], newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null }
         }
     },
     computed: {
-        filteredPersonnel() {
-            return this.personnel.filter(p => {
-                const matchesSearch = p.name.toLowerCase().includes(this.search.toLowerCase()) || (p.rank && p.rank.toLowerCase().includes(this.search.toLowerCase()));
-                const matchesStatus = !this.filterStatus || p.membership_status === this.filterStatus;
-                return matchesSearch && matchesStatus;
-            });
-        },
-        stats() { return [ { label: 'Gesamtstärke', count: this.personnel.length }, { label: 'Einsatzabteilung', count: this.personnel.filter(p => p.membership_status === 'Aktiv').length }, { label: 'Atemschutz (AGT)', count: this.personnel.filter(p => p.is_agt && p.membership_status === 'Aktiv').length } ]; }
+        filteredPersonnel() { return this.personnel.filter(p => (!this.search || p.name.toLowerCase().includes(this.search.toLowerCase())) && (!this.filterStatus || p.membership_status === this.filterStatus)); },
+        stats() { return [ { label: 'Gesamtkader', count: this.personnel.length }, { label: 'Einsatzabteilung', count: this.personnel.filter(p => p.membership_status === 'Aktiv').length }, { label: 'Atemschutz (AGT)', count: this.personnel.filter(p => p.is_agt && p.membership_status === 'Aktiv').length } ]; }
     },
     methods: {
-        async load() { const r = await fetch('/api/personnel/list', { credentials: 'include' }); this.personnel = await r.json(); this.cacheBuster = Date.now(); },
-        async loadSettings() {
-            const r = await fetch('/api/personnel/settings', { credentials: 'include' }); const d = await r.json();
-            if(d.int_g26) this.intervals.g26 = d.int_g26; if(d.int_belastung) this.intervals.belastung = d.int_belastung; if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung;
-        },
-        async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
-        async loadAuditLogs() { const res = await fetch('/api/audit/logs', { credentials: 'include' }); if (res.ok) this.auditLogs = await res.json(); },
-        getPersonnelName(id) { if(!id) return 'Keine Verknüpfung'; const p = this.personnel.find(x => x.id == id); return p ? p.name : 'Unbekannt'; },
-        getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
-        getHealthStatus(dateStr, field) {
-            if(!dateStr) return '';
-            const months = field.includes('g26') ? this.intervals.g26 : (field.includes('belastung') ? this.intervals.belastung : this.intervals.unterweisung);
-            const diff = (new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24 * 30.44);
-            if(diff >= months) return 'bg-crit'; if(diff >= months - 3) return 'bg-warn'; return 'bg-ok';
-        },
-        generateRandomPassword() {
-            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; let pw = "";
-            for (let i = 0; i < 8; i++) { pw += chars.charAt(Math.floor(Math.random() * chars.length)); } return pw;
-        },
-        async changePasswordPrompt(user) {
-            const sug = this.generateRandomPassword();
-            const newPassword = prompt(`Neues Kennwort für '${user.username}' vergeben (Passwort-Wechsel wird erzwungen):`, sug);
-            if (newPassword && newPassword.trim() !== "") {
-                const res = await fetch(`/api/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: newPassword.trim() }) });
-                if (res.ok) alert(`Das Passwort wurde überschrieben!\nTemporärer Zugang: ${newPassword.trim()}`);
-                await this.loadUsers();
-            }
-        },
-        addTemplate(title) { const text = `${new Date().getFullYear()}: ${title}\n`; this.activePerson.honors = (this.activePerson.honors || '') + text; },
-        openNewMemberModal() {
-            this.activePerson = {
-                id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: '', entry_date: '', honors: '', profile_picture: '', has_picture: false,
-                is_truppmann: false, is_funk: false, is_agt: false, is_maschinist: false, is_tf: false, is_gf: false, lic_b: false, lic_be: false, lic_c: false, lic_ce: false, g26_3_date: '', belastungslauf_date: '', unterweisung_date: ''
-            };
-            this.modalInstance.show();
-        },
-        async editMember(p) { this.activePerson = { ...p, honors: 'Lade Akte...', profile_picture: '' }; this.modalInstance.show(); const r = await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' }); if(r.ok) { this.activePerson = await r.json(); } },
-        onAvatarChange(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { this.activePerson.profile_picture = event.target.result; }; reader.readAsDataURL(file); },
-        async createUser() {
-            const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) });
-            if (res.ok) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); }
-        },
-        async updateUserRole(user) { await fetch(`/api/users/${user.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: user.role }) }); },
-        async updateUserPersonnelId(user) {
-            await fetch(`/api/users/${user.id}/personnel`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: user.personnel_id }) });
-            this.loadUsers();
-        },
-        async deleteUser(user) { if (confirm("Konto löschen?")) { await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
+        async load() { this.personnel = await (await fetch('/api/personnel/list', { credentials: 'include' })).json(); this.cacheBuster = Date.now(); },
+        async loadSettings() { const d = await (await fetch('/api/personnel/settings', { credentials: 'include' })).json(); if(d.int_g26) this.intervals.g26 = d.int_g26; },
+        async loadUsers() { this.users = await (await fetch('/api/users/list', { credentials: 'include' })).json(); },
+        async loadAuditLogs() { this.auditLogs = await (await fetch('/api/audit/logs', { credentials: 'include' })).json(); },
+        getStatusClass(s) { return s === 'Aktiv' ? 'aktiv' : s === 'Passiv' ? 'passiv' : s === 'Jugend' ? 'jugend' : 'ehren'; },
+        getHealthStatus(d, f) { if(!d) return ''; const m = f.includes('g26') ? this.intervals.g26 : 12; return ((new Date() - new Date(d)) / (1000*60*60*24*30.44)) >= m ? 'bg-crit' : 'bg-ok'; },
+        async openNewMemberModal() { this.activePerson = { id: null, name: '', rank: 'Feuerwehrmann (FM)', membership_status: 'Aktiv', honors: '', profile_picture: '', has_picture: false }; this.modalInstance.show(); },
+        async editMember(p) { this.activePerson = await (await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' })).json(); this.modalInstance.show(); },
+        onAvatarChange(e) { const f = e.target.files[0]; const r = new FileReader(); r.onload = (ex) => { this.activePerson.profile_picture = ex.target.result; }; r.readAsDataURL(f); },
+        async createUser() { if(await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) })) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); } },
+        async updateUserRole(u) { await fetch(`/api/users/${u.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: u.role }) }); },
+        async updateUserPersonnelId(u) { await fetch(`/api/users/${u.id}/personnel`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: u.personnel_id }) }); this.loadUsers(); },
+        async deleteUser(u) { if(confirm("Konto löschen?")) { await fetch(`/api/users/${u.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
         async saveActiveMember() {
-            if(!this.activePerson.name) return alert("Name darf nicht leer sein!");
-            const payload = { ...this.activePerson };
-            this.qualifications.forEach(q => payload[q.id] = this.activePerson[q.id] ? 1 : 0);
-            ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => payload[k] = this.activePerson[k] ? 1 : 0);
-            const endpoint = this.activePerson.id === null ? '/api/personnel/add' : `/api/personnel/update/${this.activePerson.id}`;
-            await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+            const e = this.activePerson.id === null ? '/api/personnel/add' : `/api/personnel/update/${this.activePerson.id}`;
+            await fetch(e, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.activePerson) });
             this.load(); this.modalInstance.hide();
         },
-        async deleteActiveMember() { if(confirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
+        async deleteActiveMember() { if(confirm("Akte unwiderruflich löschen?")) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
     },
     mounted() { this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
 }).mount('#app');
