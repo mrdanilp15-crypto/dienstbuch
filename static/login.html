@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Login - FeuerwehrHub</title>
+    <title>Login - Dienstbuch</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background: #f1f5f9; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; margin: 0; }
         .login-card { width: 100%; max-width: 400px; padding: 2.5rem; background: #ffffff; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #cbd5e1; }
-        .fire-icon-container { width: 70px; height: 75px; background: #dc2626; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto; font-size: 2rem; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2); }
-        .form-control { border-radius: 6px; padding: 0.75rem 1rem; border: 1px solid #cbd5e1; }
-        .btn-submit { background-color: #dc2626; border: none; border-radius: 6px; padding: 0.75rem; font-weight: 700; color: white; }
-        .btn-submit:hover { background-color: #b91c1c; color: white; }
+        .fire-icon-container { width: 70px; height: 70px; background: #dc2626; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto; font-size: 2rem; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2); }
+        .form-control { border-radius: 6px; padding: 0.75rem 1rem; border: 1px solid #cbd5e1; font-weight: 600; }
+        .btn-submit { background-color: #dc2626; border: none; border-radius: 6px; padding: 0.75rem; font-weight: 700; color: white; width: 100%; transition: 0.2s; }
+        .btn-submit:hover { background-color: #b91c1c; }
+        #errorBox { border-radius: 6px; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -24,29 +25,49 @@
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="mb-3 text-start">
                 <label class="form-label small fw-bold text-secondary">Benutzername</label>
-                <input type="text" id="usernameInput" class="form-control w-100" placeholder="admin" required autocomplete="username">
+                <input type="text" id="usernameInput" class="form-control" placeholder="z. B. admin" required autocomplete="username">
             </div>
             <div class="mb-4 text-start">
                 <label class="form-label small fw-bold text-secondary">Passwort</label>
-                <input type="password" id="passwordInput" class="form-control w-100" placeholder="********" required autocomplete="current-password">
+                <input type="password" id="passwordInput" class="form-control" placeholder="********" required autocomplete="current-password">
             </div>
-            <button type="submit" id="submitBtn" class="btn btn-submit w-100">Anmelden</button>
+            <button type="submit" id="submitBtn" class="btn btn-submit">Anmelden</button>
         </form>
     </div>
     <script>
         async function handleLogin(event) {
             event.preventDefault();
-            const eb = document.getElementById('errorBox');
-            eb.style.display = 'none';
+            const usernameInput = document.getElementById('usernameInput');
+            const passwordInput = document.getElementById('passwordInput');
+            const errorBox = document.getElementById('errorBox');
+            const btn = document.getElementById('submitBtn');
+
+            errorBox.style.display = 'none';
+            btn.disabled = true;
+
             try {
-                const res = await fetch('/api/login', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: document.getElementById('usernameInput').value, password: document.getElementById('passwordInput').value })
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: usernameInput.value.trim(), password: passwordInput.value })
                 });
-                const d = await res.json();
-                if (!res.ok) { eb.innerText = d.detail || "Fehler!"; eb.style.display = 'block'; return; }
+                const data = await response.json();
+
+                if (!response.ok) {
+                    errorBox.innerText = data.detail || 'Benutzername oder Passwort falsch!';
+                    errorBox.style.display = 'block';
+                    passwordInput.value = '';
+                    btn.disabled = false;
+                    passwordInput.focus();
+                    return;
+                }
+                // Weiterleitung direkt auf die SPA-Wurzel
                 window.location.href = '/';
-            } catch (e) { eb.innerText = "Verbindung fehlgeschlagen!"; eb.style.display = 'block'; }
+            } catch (error) {
+                errorBox.innerText = "Verbindung zum Server fehlgeschlagen!";
+                errorBox.style.display = 'block';
+                btn.disabled = false;
+            }
         }
     </script>
 </body>
