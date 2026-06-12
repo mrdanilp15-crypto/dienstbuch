@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "4.0-ULTIMATE"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-TOWN_NAME = os.getenv("TOWN_NAME", "Dienstbezirk Memmingen")
+TOWN_NAME = os.getenv("TOWN_NAME", "Feuerwehr")
 SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
 
 app = FastAPI(title="FeuerwehrHub Ultimate Engine")
@@ -254,7 +254,7 @@ def init_ultimate_database():
         ) ENGINE=InnoDB;
     """)
     
-    cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Löschzug 1 Buxheim')")
+    cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Löschzug Buxheim')")
     
     cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
     if cur.fetchone()[0] == 0:
@@ -371,7 +371,7 @@ def get_kanban_notes(request: Request):
         raise HTTPException(status_code=401)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, username, title, content, visibility, kanban_status, priority, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted FROM notes ORDER BY id DESC")
+    cur.execute("SELECT id, username, title, content, visibility, Kanban_status, priority, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted FROM notes ORDER BY id DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
@@ -384,7 +384,7 @@ def create_kanban_note(data: NoteCreateDto, request: Request):
         raise HTTPException(status_code=401)
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO notes (username, title, content, visibility, priority, kanban_status) VALUES (%s, %s, %s, %s, %s, 'neu')", (user["username"], data.title.strip(), data.content.strip(), data.visibility, data.priority))
+    cur.execute("INSERT INTO notes (username, title, content, visibility, priority, Kanban_status) VALUES (%s, %s, %s, %s, %s, 'neu')", (user["username"], data.title.strip(), data.content.strip(), data.visibility, data.priority))
     conn.commit()
     cur.close()
     conn.close()
@@ -402,7 +402,7 @@ def update_kanban_status(note_id: int, data: KanbanUpdateRequest, request: Reque
         raise HTTPException(status_code=401)
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE notes SET kanban_status = %s WHERE id = %s", (data.status, note_id))
+    cur.execute("UPDATE notes SET Kanban_status = %s WHERE id = %s", (data.status, note_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -714,8 +714,9 @@ def get_group_sessions(group_id: int, request: Request):
     conn.close()
     return res
 
+# --- SYNTAX-FIX ENDPUNKT ---
 @app.get("/groups/{group_id}/attendance")
-def get_group_attendance_matrix(group_id: int, session_id: Optional[int] = None, request: Request):
+def get_group_attendance_matrix(group_id: int, request: Request, session_id: Optional[int] = None):
     if not get_current_user(request): 
         raise HTTPException(status_code=401)
     conn = get_db_connection()
@@ -787,7 +788,7 @@ def save_attendance_report(data: LegacySessionPayload, request: Request):
 
 @app.get("/api/broadcasts/active")
 def get_active_broadcasts():
-    return [] # Kompatibilitäts-Stub für Altkorpora
+    return []
 
 @app.get("/groups/{group_id}/stats")
 def get_group_ranking_stats(group_id: int):
