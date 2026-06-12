@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FeuerwehrHub - Dienstkartei</title>
+    <title>FeuerwehrHub - Mannschaftsverwaltung</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=2.30">
@@ -11,123 +11,86 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
-
 <div id="app" v-cloak>
-    <!-- HORIZONTALE TOP-NAVBAR -->
     <nav class="navbar-top">
         <div class="navbar-brand-row">
-            <div class="brand-left">
-                <div class="brand-logo">FH</div>
-                <div>
-                    <div class="brand-title">FeuerwehrHub</div>
-                    <div class="brand-subtitle">Feuerwehrverwaltung</div>
-                </div>
-            </div>
-            <div class="brand-right">
-                <a href="/dashboard" class="btn btn-sm btn-outline-light rounded-pill px-4 fw-bold">Dashboard</a>
-            </div>
-        </div>
-        <div class="navbar-menu-row">
-            <div class="nav-links">
-                <a href="/dashboard" class="nav-link-item">Startseite</a>
-                <a href="/personal" class="nav-link-item active">Personal & Stammakten</a>
-                <a href="/notizen" class="nav-link-item">Technik & Geräte</a>
-            </div>
+            <div class="brand-left"><div class="brand-logo"><i class="fa fa-user-shield"></i></div><div class="brand-title">Personalkartei & Logins</div></div>
+            <div class="brand-right"><a href="/dashboard" class="btn btn-sm btn-outline-light rounded-pill px-4 fw-bold">Dashboard</a></div>
         </div>
     </nav>
 
     <div class="main-content">
-        <!-- Hauptsteuerung Admin Tabs -->
         <ul class="nav main-pills gap-2 mb-4 border-0" id="mainAdminTabs" role="tablist">
-            <li class="nav-item"><button class="nav-link active shadow-sm" id="personnel-tab" data-bs-toggle="tab" data-bs-target="#pane-personnel" type="button" role="tab">Kameraden & Qualifikationen</button></li>
+            <li class="nav-item"><button class="nav-link active shadow-sm" id="personnel-tab" data-bs-toggle="tab" data-bs-target="#pane-personnel" type="button" role="tab">Kameraden & Lehrgänge</button></li>
             <li class="nav-item"><button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button></li>
             <li class="nav-item"><button class="nav-link shadow-sm text-danger" id="logs-tab" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab" @click="loadAuditLogs"><i class="fa fa-history me-1"></i>Sicherheits-Logbuch</button></li>
         </ul>
 
-        <div class="tab-content" id="mainAdminTabsContent">
-            <!-- REITER 1: STAMMDATEI MATRIX -->
+        <div class="tab-content">
             <div class="tab-pane fade show active" id="pane-personnel" role="tabpanel">
                 <div class="card mb-4 border-secondary">
                     <div class="row g-2">
-                        <div class="col-md-5"><input type="text" v-model="search" class="form-control" placeholder="Nach Name oder Grad filtern..."></div>
-                        <div class="col-md-4">
-                            <select v-model="filterStatus" class="form-select">
-                                <option value="">Alle Abteilungen</option>
-                                <option value="Aktiv">Aktive Einsatzabteilung</option>
-                                <option value="Passiv">Passive / Fördernde</option>
-                                <option value="Jugend">Jugendfeuerwehr</option>
-                                <option value="Ehrenabteilung">Ehrenabteilung</option>
-                            </select>
-                        </div>
+                        <div class="col-md-9"><input type="text" v-model="search" class="form-control" placeholder="Mannschaft durchsuchen..."></div>
                         <div class="col-md-3"><button class="btn btn-danger w-100 rounded-3 fw-bold" @click="openNewMemberModal"><i class="fa fa-plus me-2"></i>Kamerad anlegen</button></div>
                     </div>
                 </div>
 
                 <div class="person-grid">
-                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3 border-secondary" @click="editMember(p)">
-                        <div class="avatar-container shadow-sm border-secondary"><img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'"></div>
+                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3" @click="editMember(p)">
+                        <div class="avatar-container border-secondary"><img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'"></div>
                         <div class="flex-grow-1 min-width-0">
                             <div class="d-flex justify-content-between align-items-start"><h6 class="fw-bold text-white m-0 text-truncate me-2">{{ p.name }}</h6><span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span></div>
-                            <small class="text-muted font-monospace text-uppercase fw-bold mt-1 d-block" style="font-size:0.65rem;">{{ p.rank || 'Kein Dienstgrad' }}</small>
-                            <div class="d-flex flex-wrap gap-1 mt-2">
-                                <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem;">GF</span>
-                                <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem;">TF</span>
-                                <span v-if="p.is_agt" class="badge bg-dark border font-monospace text-white" style="font-size:0.55rem;">AGT</span>
-                                <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem;">MA</span>
-                            </div>
+                            <small class="text-muted fw-bold d-block mt-1 font-monospace" style="font-size:0.65rem;">{{ p.rank || 'Kein Dienstgrad' }}</small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- REITER 2: LOGIN CONFIGS -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-md-4">
-                        <div class="card p-4 border-secondary">
-                            <h5 class="fw-bold mb-3 text-white"><i class="fa fa-user-plus me-2 text-danger"></i>Zugang erstellen</h5>
+                        <div class="card p-4 border-secondary bg-dark">
+                            <h5 class="fw-bold mb-3 text-white">Zugang anlegen</h5>
                             <form @submit.prevent="createUser">
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" required></div>
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Passwort</label><input type="password" v-model="newUser.password" class="form-control" required></div>
                                 <div class="mb-3">
-                                    <label class="small fw-bold text-muted mb-1">Zugeordneter Kamerad</label>
+                                    <label class="small fw-bold text-muted mb-1">Kameraden-Zuordnung</label>
                                     <select v-model="newUser.personnel_id" class="form-select" required>
                                         <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                     </select>
                                 </div>
-                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Rolle</label>
+                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Rechte</label>
                                     <select v-model="newUser.role" class="form-select">
-                                        <option value="mannschaft">Mannschaft (Leserechte)</option>
-                                        <option value="user">User (Eintragen)</option>
-                                        <option value="geratewart">Gerätewart</option>
-                                        <option value="admin">Admin</option>
+                                        <option value="mannschaft">Mannschaft (Lesen)</option>
+                                        <option value="user">User (Schreiben)</option>
+                                        <option value="admin">Admin (Vollzugriff)</option>
                                     </select>
                                 </div>
-                                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow-sm">Freischalten</button>
+                                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow-sm">Zugang aktivieren</button>
                             </form>
                         </div>
                     </div>
                     <div class="col-md-8">
                         <div class="card p-4 border-secondary">
-                            <table class="table table-hover align-middle">
-                                <thead><tr><th>Konto</th><th>Kameraden-Akte</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
+                            <table class="table align-middle">
+                                <thead><tr><th>Nutzer</th><th>Akte</th><th>Rechte</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
                                         <td class="fw-bold text-white">{{ u.username }}</td>
                                         <td>
-                                            <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm border-secondary shadow-sm font-monospace fw-bold">
-                                                <option :value="null">Keine Verknüpfung</option>
+                                            <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm border-secondary font-monospace fw-bold bg-dark">
                                                 <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                             </select>
                                         </td>
                                         <td>
-                                            <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 w-auto rounded-pill px-3 bg-dark text-white fw-bold">
-                                                <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
+                                            <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm bg-dark text-white fw-bold">
+                                                <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="admin">ADMIN</option>
                                             </select>
                                         </td>
                                         <td class="text-end">
-                                            <button class="btn btn-sm btn-link text-warning me-1 p-1 border-0" @click="changePasswordPrompt(u)"><i class="fa fa-key"></i></button>
-                                            <button class="btn btn-sm btn-link text-danger p-1 border-0" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
+                                            <button class="btn btn-sm text-warning p-1 border-0" @click="changePasswordPrompt(u)"><i class="fa fa-key"></i></button>
+                                            <button class="btn btn-sm text-danger p-1 border-0" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -137,16 +100,15 @@
                 </div>
             </div>
 
-            <!-- REITER 3: LOGBUCH -->
             <div class="tab-pane fade" id="pane-logs" role="tabpanel">
                 <div class="card p-4 border-secondary">
                     <table class="table table-sm font-monospace" style="font-size:0.85rem;">
-                        <thead><tr><th>Zeitstempel</th><th>Nutzer</th><th>Aktion</th><th>Details</th></tr></thead>
+                        <thead><tr><th>Zeitpunkt</th><th>Konto</th><th>Aktion</th><th>Details</th></tr></thead>
                         <tbody>
                             <tr v-for="l in auditLogs" :key="l.id">
                                 <td class="text-muted">{{ l.date_formatted }}</td>
-                                <td><span class="badge bg-dark border border-secondary text-white">{{ l.username }}</span></td>
-                                <td class="fw-bold text-danger text-uppercase" style="font-size:0.75rem;">{{ l.action }}</td>
+                                <td><span class="badge bg-dark">{{ l.username }}</span></td>
+                                <td class="fw-bold text-danger text-uppercase">{{ l.action }}</td>
                                 <td class="text-white-50">{{ l.details }}</td>
                             </tr>
                         </tbody>
@@ -156,31 +118,30 @@
         </div>
     </div>
 
-    <!-- DIGITALES STAMMAKTEN MODAL -->
     <div class="modal fade" id="memberModal" data-bs-backdrop="static" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content bg-dark border border-secondary text-white rounded-4 shadow-lg">
                 <div class="modal-header bg-black border-bottom border-secondary py-3">
-                    <h5 class="modal-title fw-bold"><i class="fa fa-id-card me-2 text-danger"></i>Digitale Personalakte</h5>
+                    <h5 class="modal-title fw-bold"><i class="fa fa-id-card me-2 text-danger"></i>Digitale Stammakte</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" v-if="activePerson">
                     <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary">
-                        <div class="modal-avatar-upload shadow-sm" @click="$refs.fileInput.click()">
+                        <div class="modal-avatar-upload shadow-sm border-secondary" @click="$refs.fileInput.click()">
                             <img :src="activePerson.profile_picture || (activePerson.has_picture ? '/api/personnel/avatar/' + activePerson.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF')">
                             <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
                         </div>
                         <div class="flex-grow-1">
-                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold border-secondary bg-dark text-white shadow-sm mb-2" placeholder="Nachname Vorname">
+                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold mb-2 text-white bg-dark border-secondary" placeholder="Name">
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <select v-model="activePerson.membership_status" class="form-select form-select-sm">
-                                        <option value="Aktiv">Aktiver Dienst</option><option value="Passiv">Passiv / Fördernd</option><option value="Jugend">Jugendfeuerwehr</option><option value="Ehrenabteilung">Ehrenabteilung</option>
+                                    <select v-model="activePerson.membership_status" class="form-select">
+                                        <option value="Aktiv">Aktiver Dienst</option><option value="Passiv">Passiv</option>
                                     </select>
                                 </div>
                                 <div class="col-6">
-                                    <select v-model="activePerson.rank" class="form-select form-select-sm">
-                                        <option value="">-- Dienstgrad --</option><option v-for="r in ranks" :value="r">{{ r }}</option>
+                                    <select v-model="activePerson.rank" class="form-select">
+                                        <option v-for="r in ranks" :value="r">{{ r }}</option>
                                     </select>
                                 </div>
                             </div>
@@ -189,9 +150,8 @@
 
                     <ul class="nav nav-tabs mb-3 border-0 bg-black p-1 rounded-3" role="tablist">
                         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-base">Stammdaten</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-qual">Qualifikationen & Lizenzen</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-health">Tauglichkeit & Atemschutz</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-honors">Ehrungen</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-qual">Lehrgänge & Lizenzen</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-health">Tauglichkeit & Fristen</button></li>
                     </ul>
 
                     <div class="tab-content pt-2">
@@ -199,29 +159,17 @@
                             <div class="row g-3">
                                 <div class="col-md-6"><label class="small fw-bold text-muted">Geburtsdatum</label><input type="date" v-model="activePerson.birth_date" class="form-control"></div>
                                 <div class="col-md-6"><label class="small fw-bold text-muted">Eintrittsdatum</label><input type="date" v-model="activePerson.entry_date" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Ausweis-ID</label><input type="text" v-model="activePerson.badge_number" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted">Telefonnummer</label><input type="text" v-model="activePerson.phone" class="form-control"></div>
                                 <div class="col-md-12"><label class="small fw-bold text-muted">E-Mail</label><input type="email" v-model="activePerson.email" class="form-control"></div>
-                                <div class="col-md-12"><label class="small fw-bold text-muted">Adresse</label><textarea v-model="activePerson.address" class="form-control" rows="2"></textarea></div>
                             </div>
                         </div>
 
                         <div class="tab-pane fade" id="tab-qual">
-                            <h6 class="fw-bold text-danger mb-3">Feuerwehr-Lehrgänge</h6>
-                            <div class="row g-2 mb-4">
-                                <div class="col-6 col-md-4" v-for="q in qualifications">
+                            <h6 class="fw-bold text-danger mb-2 font-monospace">LEHRGÄNGE</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4" v-for="q in qualifications">
                                     <div class="form-check form-switch p-2 border border-secondary rounded bg-black ps-5">
                                         <input class="form-check-input" type="checkbox" :id="q.id" v-model="activePerson[q.id]">
-                                        <label class="form-check-label fw-bold small text-white" :for="q.id">{{ q.label }}</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <h6 class="fw-bold text-primary mb-3">Führerscheinklassen</h6>
-                            <div class="row g-2">
-                                <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
-                                    <div class="form-check border border-secondary p-2 rounded text-center bg-black">
-                                        <input type="checkbox" :id="l.id" v-model="activePerson[l.id]" class="form-check-input float-none me-2">
-                                        <label :for="l.id" class="fw-bold small text-white">{{ l.n }}</label>
+                                        <label class="form-check-label fw-bold small" :for="q.id">{{ q.label }}</label>
                                     </div>
                                 </div>
                             </div>
@@ -229,30 +177,19 @@
 
                         <div class="tab-pane fade" id="tab-health">
                             <div class="row g-3">
-                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Jährlicher Belastungslauf'}, {f: 'unterweisung_date', l: 'UVV Unterweisung'}]">
+                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Belastungslauf Kriechstrecke'}, {f: 'unterweisung_date', l: 'UVV Sicherheitsunterweisung'}]">
                                     <div class="p-3 border border-secondary rounded-3 bg-black d-flex justify-content-between align-items-center">
                                         <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold small text-white">{{ f.l }}</span></div>
-                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm border-secondary text-white font-monospace fw-bold bg-dark px-2 py-1">
+                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm border-secondary text-white font-monospace bg-dark">
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="tab-pane fade" id="tab-honors">
-                            <div class="mb-2">
-                                <label class="small fw-bold text-muted d-block mb-1">Schnellvorlagen einfügen:</label>
-                                <div class="d-flex flex-wrap gap-2 mb-3">
-                                    <span v-for="t in templates" class="badge bg-secondary template-badge py-2 px-3 rounded-pill" @click="addTemplate(t)"><i class="fa fa-plus me-1"></i> {{ t }}</span>
-                                </div>
-                            </div>
-                            <label class="small fw-bold text-muted">Ehrungen & Werdegang</label>
-                            <textarea v-model="activePerson.honors" class="form-control font-monospace text-white bg-black" rows="6"></textarea>
-                        </div>
                     </div>
                 </div>
-                <div class="modal-footer border-top border-secondary bg-black d-flex justify-content-between">
+                <div class="modal-footer border-secondary bg-black d-flex justify-content-between">
                     <button type="button" class="btn btn-link text-danger fw-bold text-decoration-none shadow-none" @click="deleteActiveMember"><i class="fa fa-trash me-1"></i> Löschen</button>
-                    <div class="d-flex gap-2"><button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveActiveMember">Speichern</button></div>
+                    <div class="d-flex gap-2"><button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveActiveMember">Sichern</button></div>
                 </div>
             </div>
         </div>
@@ -266,35 +203,30 @@ createApp({
         return {
             personnel: [], search: '', filterStatus: '', activePerson: null, modalInstance: null, cacheBuster: Date.now(),
             intervals: { g26: 36, belastung: 12, unterweisung: 12 }, auditLogs: [],
-            ranks: ['Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)', 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)', 'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)'],
-            templates: ["10 Jahre Dienstzeit", "25 Jahre (Silbernes Ehrenzeichen)", "40 Jahre (Goldenes Ehrenzeichen)", "Leistungsabzeichen Bronze", "Leistungsabzeichen Silber", "Leistungsabzeichen Gold"],
-            qualifications: [{id: 'is_truppmann', label: 'Truppmann (TM)'}, {id: 'is_funk', label: 'Sprechfunker'}, {id: 'is_agt', label: 'Atemschutzgeräteträger'}, {id: 'is_maschinist', label: 'Maschinist'}, {id: 'is_tf', label: 'Truppführer (TF)'}, {id: 'is_gf', label: 'Gruppenführer (GF)'}],
+            ranks: ['Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)', 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)'],
+            qualifications: [{id: 'is_truppmann', label: 'Truppmann'}, {id: 'is_funk', label: 'Sprechfunker'}, {id: 'is_agt', label: 'Atemschutzgeräteträger'}, {id: 'is_maschinist', label: 'Maschinist'}, {id: 'is_tf', label: 'Truppführer'}, {id: 'is_gf', label: 'Gruppenführer'}],
             users: [], newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null }
         }
     },
     computed: {
-        filteredPersonnel() { return this.personnel.filter(p => (!this.search || p.name.toLowerCase().includes(this.search.toLowerCase()) || (p.rank && p.rank.toLowerCase().includes(this.search.toLowerCase()))) && (!this.filterStatus || p.membership_status === this.filterStatus)); },
-        stats() { return [ { label: 'Gesamtstärke', count: this.personnel.length }, { label: 'Einsatzabteilung', count: this.personnel.filter(p => p.membership_status === 'Aktiv').length }, { label: 'Atemschutz (AGT)', count: this.personnel.filter(p => p.is_agt && p.membership_status === 'Aktiv').length } ]; }
+        filteredPersonnel() { return this.personnel.filter(p => (!this.search || p.name.toLowerCase().includes(this.search.toLowerCase())) && (!this.filterStatus || p.membership_status === this.filterStatus)); }
     },
     methods: {
-        async load() { const r = await fetch('/api/personnel/list', { credentials: 'include' }); this.personnel = await r.json(); this.cacheBuster = Date.now(); },
-        async loadSettings() { const r = await fetch('/api/personnel/settings', { credentials: 'include' }); const d = await r.json(); if(d.int_g26) this.intervals.g26 = d.int_g26; if(d.int_belastung) this.intervals.belastung = d.int_belastung; if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung; },
-        async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
-        async loadAuditLogs() { const res = await fetch('/api/audit/logs', { credentials: 'include' }); if (res.ok) this.auditLogs = await res.json(); },
-        getStatusClass(s) { return s === 'Aktiv' ? 'aktiv' : s === 'Passiv' ? 'passiv' : s === 'Jugend' ? 'jugend' : 'ehren'; },
-        getHealthStatus(d, f) { if(!d) return ''; const m = f.includes('g26') ? this.intervals.g26 : (f.includes('belastung') ? this.intervals.belastung : this.intervals.unterweisung); const diff = (new Date() - new Date(d)) / (1000*60*60*24*30.44); if(diff >= m) return 'bg-crit'; if(diff >= m - 3) return 'bg-warn'; return 'bg-ok'; },
-        generateRandomPassword() { const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; let pw = ""; for (let i = 0; i < 8; i++) { pw += chars.charAt(Math.floor(Math.random() * chars.length)); } return pw; },
-        async changePasswordPrompt(u) { const sug = this.generateRandomPassword(); const np = prompt(`Neues Kennwort für '${u.username}' vergeben:`, sug); if (np && np.trim() !== "") { const res = await fetch(`/api/users/${u.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: np.trim() }) }); if (res.ok) alert(`Das Passwort wurde überschrieben!\nTemporärer Zugang: ${np.trim()}`); await this.loadUsers(); } },
-        addTemplate(t) { const text = `${new Date().getFullYear()}: ${t}\n`; this.activePerson.honors = (this.activePerson.honors || '') + text; },
-        openNewMemberModal() { this.activePerson = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: '', entry_date: '', honors: '', profile_picture: '', has_picture: false, is_truppmann: false, is_funk: false, is_agt: false, is_maschinist: false, is_tf: false, is_gf: false, lic_b: false, lic_be: false, lic_c: false, lic_ce: false, g26_3_date: '', belastungslauf_date: '', unterweisung_date: '' }; this.modalInstance.show(); },
+        async load() { this.personnel = await (await fetch('/api/personnel/list', { credentials: 'include' })).json(); this.cacheBuster = Date.now(); },
+        async loadSettings() { const d = await (await fetch('/api/personnel/settings', { credentials: 'include' })).json(); if(d.int_g26) this.intervals.g26 = d.int_g26; },
+        async loadUsers() { this.users = await (await fetch('/api/users/list', { credentials: 'include' })).json(); },
+        async loadAuditLogs() { this.auditLogs = await (await fetch('/api/audit/logs', { credentials: 'include' })).json(); },
+        getStatusClass(s) { return s === 'Aktiv' ? 'aktiv' : 'passiv'; },
+        getHealthStatus(d, f) { if(!d) return ''; const m = f.includes('g26') ? this.intervals.g26 : 12; return ((new Date() - new Date(d)) / (1000*60*60*24*30.44)) >= m ? 'bg-crit' : 'bg-ok'; },
+        openNewMemberModal() { this.activePerson = { id: null, name: '', rank: 'Feuerwehrmann (FM)', membership_status: 'Aktiv', profile_picture: '', has_picture: false }; this.modalInstance.show(); },
         async editMember(p) { this.activePerson = { ...p, honors: 'Lade Akte...', profile_picture: '' }; this.modalInstance.show(); const r = await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' }); if(r.ok) { this.activePerson = await r.json(); } },
-        onAvatarChange(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { this.activePerson.profile_picture = event.target.result; }; reader.readAsDataURL(file); },
-        async createUser() { const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) }); if (res.ok) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); } },
+        onAvatarChange(e) { const f = e.target.files[0]; const r = new FileReader(); r.onload = (ex) => { this.activePerson.profile_picture = ex.target.result; }; r.readAsDataURL(f); },
+        async createUser() { if(await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) })) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); } },
         async updateUserRole(u) { await fetch(`/api/users/${u.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: u.role }) }); },
         async updateUserPersonnelId(u) { await fetch(`/api/users/${u.id}/personnel`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: u.personnel_id }) }); this.loadUsers(); },
-        async deleteUser(u) { if (confirm("Konto löschen?")) { await fetch(`/api/users/${u.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
-        async saveActiveMember() { if(!this.activePerson.name) return alert("Name darf nicht leer sein!"); const payload = { ...this.activePerson }; this.qualifications.forEach(q => payload[q.id] = this.activePerson[q.id] ? 1 : 0); ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => payload[k] = this.activePerson[k] ? 1 : 0); const endpoint = this.activePerson.id === null ? '/api/personnel/add' : `/api/personnel/update/${this.activePerson.id}`; await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(payload) }); this.load(); this.modalInstance.hide(); },
-        async deleteActiveMember() { if(confirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
+        async deleteUser(u) { if(confirm("Konto löschen?")) { await fetch(`/api/users/${u.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
+        async saveActiveMember() { const endpoint = this.activePerson.id === null ? '/api/personnel/add' : `/api/personnel/update/${this.activePerson.id}`; await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.activePerson) }); this.load(); this.modalInstance.hide(); },
+        async deleteActiveMember() { if(confirm("Akte löschen?")) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
     },
     mounted() { this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
 }).mount('#app');
