@@ -287,6 +287,12 @@ def view_index(request: Request):
         return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
+@app.get("/dashboard")
+def view_dashboard(request: Request):
+    if not get_current_user(request): 
+        return FileResponse("static/login.html")
+    return FileResponse("static/dashboard.html")
+
 @app.get("/personal")
 def view_personnel(request: Request):
     user = get_current_user(request)
