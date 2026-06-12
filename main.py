@@ -24,17 +24,18 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- DATENMODELLE ---
+# --- DATENMODELLE (PYDANTIC) ---
 class LoginRequest(BaseModel): username: str; password: str
 class KanbanUpdateRequest(BaseModel): status: str
-class InventoryItemDto(BaseModel): id: Optional[int] = None; item_name: str; amount: int; min_amount: int; unit: str; location: str; status: str; requester: Optional[str] = None
-class NoteCreateDto(BaseModel): id: Optional[int] = None; title: str; content: str; visibility: str; priority: str
+class InventoryItemDto(BaseModel): item_name: str; amount: int; min_amount: int; unit: str; location: str; status: str; requester: Optional[str] = None
+class NoteCreateDto(BaseModel): title: str; content: str; visibility: str; priority: str
 class VehicleStatusDto(BaseModel): status: int
-class VehicleCreateDto(BaseModel): id: Optional[int] = None; name: str; radio_name: str; status: int; milage: int; tuv_date: Optional[str] = None; sp_date: Optional[str] = None; next_service: Optional[str] = None
+class VehicleCreateDto(BaseModel): name: str; radio_name: str; status: int; milage: int; tuv_date: Optional[str] = None; sp_date: Optional[str] = None
 class EventCreateDto(BaseModel): date: str; title: str; responsible: str
 class EntryDto(BaseModel): person_id: int; is_present: bool; note: Optional[str] = ""; vehicle: Optional[str] = ""; signature: Optional[str] = None
 class LegacySessionPayload(BaseModel): session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; duration: float = 0.0; description: str; instructors: Optional[str] = ""; leader_signature: Optional[str] = None; entries: List[EntryDto]
 
+# --- DATENBANK & KRYPTO ---
 def get_db_connection():
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
 
@@ -66,62 +67,39 @@ def get_current_user(request: Request) -> Optional[dict]:
         return json.loads(base64.b64decode(payload_b64.encode()).decode())
     except Exception: return None
 
-# --- DATENBANK UPGRADE ROUTINE ---
-def upgrade_database():
+# --- DATENBANK AUTOMATION (BOOTSTRAP) ---
+def init_database():
     conn = get_db_connection(); cur = conn.cursor()
     
-    # Basis-Tabellen erstellen
     cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
     cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('int_g26', '36'), ('apager_api_key', '0')")
-    cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(50) NOT NULL) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS notes (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL, content TEXT NOT NULL) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE) ENGINE=InnoDB;")
+    cur.execute("""CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(50) NOT NULL, is_first_login BOOLEAN DEFAULT TRUE, personnel_id INT NULL) ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE, rank VARCHAR(100) DEFAULT '', membership_status VARCHAR(50) DEFAULT 'Aktiv', is_agt BOOLEAN DEFAULT FALSE, is_maschinist BOOLEAN DEFAULT FALSE, is_gf BOOLEAN DEFAULT FALSE, g26_3_date DATE NULL) ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255) NOT NULL, amount INT NOT NULL DEFAULT 0, min_amount INT NOT NULL DEFAULT 5, unit VARCHAR(50) DEFAULT 'Stück', location VARCHAR(100) DEFAULT 'Lager', status VARCHAR(50) DEFAULT 'OK', requester VARCHAR(255) NULL) ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS notes (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL, content TEXT NOT NULL, visibility VARCHAR(50) DEFAULT 'public', kanban_status VARCHAR(50) DEFAULT 'neu', priority VARCHAR(50) DEFAULT 'normal') ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE) ENGINE=InnoDB;""")
     cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Feuerwehr - Aktive')")
-    cur.execute("CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE NOT NULL, title VARCHAR(255) NOT NULL, responsible VARCHAR(255) DEFAULT '') ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, description VARCHAR(255), duration FLOAT, date DATE, category VARCHAR(50), instructors VARCHAR(255), leader_signature LONGTEXT) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS attendance (id INT AUTO_INCREMENT PRIMARY KEY, session_id INT, person_id INT, is_present BOOLEAN, vehicle VARCHAR(100), signature LONGTEXT, note VARCHAR(255)) ENGINE=InnoDB;")
+    cur.execute("""CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, radio_name VARCHAR(255) DEFAULT '', status INT DEFAULT 2, tuv_date DATE NULL, sp_date DATE NULL, milage INT DEFAULT 0, next_service DATE NULL) ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE NOT NULL, title VARCHAR(255) NOT NULL, responsible VARCHAR(255) DEFAULT '') ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, description VARCHAR(255), duration FLOAT, date DATE, category VARCHAR(50), instructors VARCHAR(255), leader_signature LONGTEXT) ENGINE=InnoDB;""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS attendance (id INT AUTO_INCREMENT PRIMARY KEY, session_id INT, person_id INT, is_present BOOLEAN, vehicle VARCHAR(100), signature LONGTEXT, note VARCHAR(255)) ENGINE=InnoDB;""")
     
-    # Fehlende Spalten in alte Tabellen pumpen (Löst Error 1054)
-    upgrades = [
-        ("notes", "kanban_status", "VARCHAR(50) DEFAULT 'neu'"),
-        ("notes", "priority", "VARCHAR(50) DEFAULT 'normal'"),
-        ("notes", "visibility", "VARCHAR(50) DEFAULT 'public'"),
-        ("inventory", "amount", "INT NOT NULL DEFAULT 0"),
-        ("inventory", "min_amount", "INT NOT NULL DEFAULT 5"),
-        ("inventory", "unit", "VARCHAR(50) DEFAULT 'Stück'"),
-        ("inventory", "location", "VARCHAR(100) DEFAULT 'Lager'"),
-        ("inventory", "status", "VARCHAR(50) DEFAULT 'OK'"),
-        ("users", "personnel_id", "INT NULL"),
-        ("users", "is_first_login", "BOOLEAN DEFAULT TRUE"),
-        ("vehicles", "radio_name", "VARCHAR(255) DEFAULT ''"),
-        ("vehicles", "status", "INT DEFAULT 2"),
-        ("vehicles", "milage", "INT DEFAULT 0"),
-        ("vehicles", "tuv_date", "DATE NULL"),
-        ("vehicles", "sp_date", "DATE NULL"),
-        ("personnel", "rank", "VARCHAR(100) DEFAULT ''"),
-        ("personnel", "membership_status", "VARCHAR(50) DEFAULT 'Aktiv'"),
-        ("personnel", "is_agt", "BOOLEAN DEFAULT FALSE"),
-        ("personnel", "is_maschinist", "BOOLEAN DEFAULT FALSE"),
-        ("personnel", "is_gf", "BOOLEAN DEFAULT FALSE"),
-        ("personnel", "g26_3_date", "DATE NULL")
-    ]
+    # Standard-Kameraden anlegen, damit "Mein Bereich" nicht leer ist
+    cur.execute("INSERT IGNORE INTO personnel (id, name, rank, is_agt, is_gf) VALUES (1, 'System Administrator', 'Brandmeister', 1, 1)")
     
-    for table, col, definition in upgrades:
-        try:
-            cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
-        except mysql.connector.Error as err:
-            if err.errno == 1060: pass # Spalte existiert bereits
-            
+    # Admin Account verknüpfen
     cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
     if cur.fetchone()[0] == 0:
-        cur.execute("INSERT INTO users (username, password_hash, role, is_first_login) VALUES (%s, %s, %s, 0)", ("admin", hash_password("admin123"), "admin"))
+        cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 0, 1)", ("admin", hash_password("admin123"), "admin"))
     
+    # Dummy Fahrzeuge
+    cur.execute("SELECT COUNT(*) FROM vehicles")
+    if cur.fetchone()[0] == 0:
+        cur.execute("INSERT INTO vehicles (name, radio_name, status) VALUES ('HLF 20', 'Florian 40/1', 2), ('LF 10', 'Florian 43/1', 2)")
+
     conn.commit(); cur.close(); conn.close()
 
-upgrade_database()
+init_database()
 
 # --- WEB ROUTEN ---
 @app.get("/")
@@ -154,7 +132,10 @@ def api_auth_me(request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT u.role, p.name as personnel_name, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%Y-%m-%d') as g26 FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    cur.execute("""
+        SELECT u.role, p.name as personnel_name, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%d.%m.%Y') as g26 
+        FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s
+    """, (user["username"],))
     db_u = cur.fetchone(); cur.close(); conn.close()
     return {"username": user["username"], "role": user["role"], "profile": db_u}
 
@@ -162,11 +143,81 @@ def api_auth_me(request: Request):
 def api_logout(response: Response):
     response.delete_cookie("session_token"); return {"status": "success"}
 
-# --- VEREIN EVENTS API ---
+# --- LAGER API ---
+@app.get("/api/inventory")
+def get_inv():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM inventory ORDER BY item_name ASC")
+    res = cur.fetchall(); cur.close(); conn.close(); return res
+
+@app.post("/api/inventory")
+def add_inv(data: InventoryItemDto):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location) VALUES (%s, %s, %s, %s, %s)", (data.item_name, data.amount, data.min_amount, data.unit, data.location))
+    conn.commit(); cur.close(); conn.close(); return {"status": "added"}
+
+@app.delete("/api/inventory/{i_id}")
+def del_inv(i_id: int):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,))
+    conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
+
+# --- KANBAN API ---
+@app.get("/api/notes")
+def get_notes():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM notes ORDER BY id DESC")
+    res = cur.fetchall(); cur.close(); conn.close(); return res
+
+@app.post("/api/notes")
+def add_note(data: NoteCreateDto, request: Request):
+    user = get_current_user(request)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO notes (username, title, content, priority, kanban_status) VALUES (%s, %s, %s, %s, 'neu')", (user["username"], data.title, data.content, data.priority))
+    conn.commit(); cur.close(); conn.close(); return {"status": "added"}
+
+@app.put("/api/notes/{n_id}/status")
+def update_note(n_id: int, data: KanbanUpdateRequest):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE notes SET kanban_status = %s WHERE id = %s", (data.status, n_id))
+    conn.commit(); cur.close(); conn.close(); return {"status": "updated"}
+
+@app.delete("/api/notes/{n_id}")
+def del_note(n_id: int):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM notes WHERE id = %s", (n_id,))
+    conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
+
+# --- FAHRZEUGE ---
+@app.get("/api/vehicles")
+def get_veh():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date FROM vehicles ORDER BY name")
+    r = cur.fetchall(); cur.close(); conn.close(); return r
+
+@app.post("/api/vehicles")
+def add_veh(data: VehicleCreateDto):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date) VALUES (%s,%s,%s,%s,%s,%s)", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None))
+    conn.commit(); cur.close(); conn.close(); return {"status": "added"}
+
+@app.put("/api/vehicles/{v_id}/status")
+def set_v_status(v_id: int, data: VehicleStatusDto):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id))
+    conn.commit(); cur.close(); conn.close(); return {"status": "updated"}
+
+@app.delete("/api/vehicles/{v_id}")
+def del_veh(v_id: int):
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,))
+    conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
+
+# --- VEREIN EVENTS ---
 @app.get("/api/events")
 def get_events():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, DATE_FORMAT(date, '%Y-%m-%d') as date, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, title, responsible FROM events ORDER BY date ASC")
+    cur.execute("SELECT id, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, title, responsible FROM events ORDER BY date ASC")
     res = cur.fetchall(); cur.close(); conn.close(); return res
 
 @app.post("/api/events")
@@ -181,96 +232,41 @@ def delete_event(e_id: int):
     cur.execute("DELETE FROM events WHERE id = %s", (e_id,))
     conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
 
-# --- LAGER API ---
-@app.get("/api/inventory")
-def get_inv():
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM inventory ORDER BY item_name ASC")
-    res = cur.fetchall(); cur.close(); conn.close(); return res
-
-@app.post("/api/inventory")
-def save_inv(data: InventoryItemDto):
-    conn = get_db_connection(); cur = conn.cursor()
-    if data.id:
-        cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s WHERE id=%s", (data.item_name, data.amount, data.min_amount, data.unit, data.location, data.id))
-    else:
-        cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location) VALUES (%s, %s, %s, %s, %s)", (data.item_name, data.amount, data.min_amount, data.unit, data.location))
-    conn.commit(); cur.close(); conn.close(); return {"status": "saved"}
-
-@app.delete("/api/inventory/{i_id}")
-def del_inv(i_id: int):
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,))
-    conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
-
-# --- MÄNGEL KANBAN API ---
-@app.get("/api/notes")
-def get_notes():
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM notes ORDER BY id DESC")
-    res = cur.fetchall(); cur.close(); conn.close(); return res
-
-@app.post("/api/notes")
-def save_note(data: NoteCreateDto, request: Request):
-    user = get_current_user(request)
-    conn = get_db_connection(); cur = conn.cursor()
-    if data.id:
-        cur.execute("UPDATE notes SET title=%s, content=%s, priority=%s WHERE id=%s", (data.title, data.content, data.priority, data.id))
-    else:
-        cur.execute("INSERT INTO notes (username, title, content, priority, kanban_status) VALUES (%s, %s, %s, %s, 'neu')", (user["username"], data.title, data.content, data.priority))
-    conn.commit(); cur.close(); conn.close(); return {"status": "saved"}
-
-@app.put("/api/notes/{n_id}/status")
-def update_note(n_id: int, data: KanbanUpdateRequest):
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("UPDATE notes SET kanban_status = %s WHERE id = %s", (data.status, n_id))
-    conn.commit(); cur.close(); conn.close(); return {"status": "updated"}
-
-@app.delete("/api/notes/{n_id}")
-def del_note(n_id: int):
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM notes WHERE id = %s", (n_id,))
-    conn.commit(); cur.close(); conn.close(); return {"status": "deleted"}
-
-# --- FAHRZEUGE & DIENSTBUCH ---
+# --- CORE DIENSTBUCH ---
 @app.get("/groups")
 def get_groups():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM groups_table ORDER BY name")
     r = cur.fetchall(); cur.close(); conn.close(); return r
 
-@app.get("/api/vehicles")
-def get_veh():
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date FROM vehicles ORDER BY name")
-    r = cur.fetchall(); cur.close(); conn.close(); return r
-
-@app.put("/api/vehicles/{v_id}/status")
-def set_v_status(v_id: int, data: VehicleStatusDto):
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id))
-    conn.commit(); cur.close(); conn.close(); return {"status": "updated"}
-
 @app.get("/groups/{group_id}/sessions")
 def get_sess(group_id: int):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
+    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
     res = cur.fetchall(); cur.close(); conn.close(); return res
 
 @app.get("/groups/{group_id}/attendance")
 def get_att(group_id: int, request: Request, session_id: Optional[int] = None):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
+    session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
+    
     if session_id:
         cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
         row = cur.fetchone()
         if row: session_data = row
             
-    cur.execute("SELECT id, name, rank, is_agt, is_maschinist FROM personnel ORDER BY name ASC")
+    # REPARATUR: Echter LEFT JOIN, damit das Kreuzchen geladen wird!
+    query = """
+        SELECT p.id as personnel_id, p.name, p.rank, p.is_agt, p.is_maschinist,
+               COALESCE(a.is_present, 0) as is_present, COALESCE(a.vehicle, '') as vehicle
+        FROM personnel p
+        LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s
+        ORDER BY p.name ASC
+    """
+    cur.execute(query, (session_id,))
     persons = cur.fetchall()
-    for p in persons:
-        p['personnel_id'] = p['id']
-        p['is_present'] = False; p['vehicle'] = ""; p['g26_expired'] = False; p['has_picture'] = False
+    for p in persons: p['is_present'] = bool(p['is_present'])
+    
     cur.close(); conn.close()
     return {**session_data, "persons": persons}
 
