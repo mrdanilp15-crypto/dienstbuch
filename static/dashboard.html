@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FeuerwehrHub - Cockpit</title>
+    <title>FeuerwehrHub - Leitstand</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css?v=2.30">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
@@ -15,97 +14,82 @@
 <body>
     <div id="app" v-cloak v-show="ready">
 
-        <!-- HORIZONTALE NAVIGATION (Original-Layout aus Screenshot) -->
         <nav class="navbar-top">
-            <!-- Obere Zeile: Branding & Profil -->
             <div class="navbar-brand-row">
                 <div class="brand-left">
-                    <div class="brand-logo">FH</div>
+                    <div class="brand-logo"><i class="fa fa-shield-halved"></i></div>
                     <div>
                         <div class="brand-title">FeuerwehrHub</div>
-                        <div class="brand-subtitle">Feuerwehrverwaltung</div>
+                        <div class="brand-subtitle">Digitales Dienstbuch & Leitstand</div>
                     </div>
                 </div>
                 <div class="brand-right">
-                    <span class="user-status-dot"></span>
-                    <span class="text-white small fw-bold me-2" style="cursor:pointer;" @click="openSelfPasswordModal">
-                        <i class="fa fa-user-circle me-1 text-danger"></i> {{ username }} (<span class="text-uppercase" style="font-size:0.65rem;">{{ role }}</span>)
+                    <span class="status-dot bg-ok"></span>
+                    <span class="text-white fw-bold me-3" style="cursor:pointer;" @click="openSelfPasswordModal">
+                        <i class="fa fa-user-circle me-1 text-danger"></i> {{ username }} ({{ role.toUpperCase() }})
                     </span>
-                    <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" @click="fullLogout">Abmelden</button>
+                    <button class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" @click="fullLogout">Abmelden</button>
                 </div>
             </div>
             
-            <!-- Untere Zeile: Funktionstabs & Live-Wechsel -->
             <div class="navbar-menu-row">
-                <div class="nav-links">
-                    <a href="/dashboard" class="nav-link-item active">Startseite</a>
-                    <a href="/personal" v-if="isAdmin" class="nav-link-item">Personal</a>
-                    <a href="/notizen" class="nav-link-item">Technik & Geräte (Notizen)</a>
+                <div class="nav-links w-100 justify-content-between">
+                    <div class="d-flex gap-3 align-items-center">
+                        <a href="/dashboard" class="nav-link-item active">Cockpit-Zentrale</a>
+                        <a href="/personal" v-if="isAdmin" class="nav-link-item">Personal & Logins</a>
+                        <a href="/notizen" class="nav-link-item">Mängelmeldungen & Notizen</a>
+                    </div>
                     
-                    <div class="text-muted mx-2" style="opacity:0.3;">|</div>
-                    
-                    <!-- Dynamischer Listenwechsel -->
-                    <span class="text-muted small fw-bold text-uppercase" style="font-size:0.7rem;">Abteilung:</span>
-                    <select v-model="mobileSelectedId" class="form-select form-select-sm nav-group-select" @change="onMobileGroupChange">
-                        <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-                    </select>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-bold text-uppercase">Ausgewählte Wehr/Schleife:</span>
+                        <select v-model="mobileSelectedId" class="form-select form-select-sm" style="width:200px; background:#1f2937;" @change="onMobileGroupChange">
+                            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </nav>
 
-        <!-- HAUPTINHALTSBEREICH -->
         <div class="main-content">
             
-            <!-- System-Meldungen / Eilmeldungen des Administrators -->
-            <div v-for="b in visibleBroadcasts" :key="b.id" :class="['broadcast-card p-3 mb-3 d-flex justify-content-between align-items-center', b.is_mandatory ? 'mandatory' : '']">
-                <div class="d-flex align-items-start gap-3">
-                    <div :class="['p-2 rounded-3 text-center flex-shrink-0', b.is_mandatory ? 'bg-danger text-white' : 'bg-warning text-dark']" style="width:40px; height:40px;">
-                        <i :class="['fa', b.is_mandatory ? 'fa-exclamation-triangle' : 'fa-bullhorn']"></i>
-                    </div>
-                    <div>
-                        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                            <span v-if="b.is_mandatory" class="badge bg-danger text-uppercase font-monospace" style="font-size:0.55rem;">Lesepflicht</span>
-                            <small class="text-muted fw-bold"><i class="fa fa-calendar-alt me-1"></i>{{ b.datum }} — Leitung: {{ b.autor }}</small>
+            <div v-for="b in visibleBroadcasts" :key="b.id" :class="['broadcast-card card p-3 mb-3', b.is_mandatory ? 'mandatory' : '']">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="fa fa-bullhorn fs-4 text-warning"></i>
+                        <div>
+                            <div class="fw-bold text-white fs-5">{{ b.title }}</div>
+                            <small class="text-muted">Erstellt am {{ b.datum }} von {{ b.autor }}</small>
+                            <p class="m-0 text-white-50 mt-1 small">{{ b.content }}</p>
                         </div>
-                        <h5 class="fw-bold text-white m-0 mb-1">{{ b.title }}</h5>
-                        <p class="text-muted m-0 small" style="white-space: pre-wrap;">{{ b.content }}</p>
                     </div>
-                </div>
-                <div class="d-flex gap-2 flex-shrink-0 ms-3">
-                    <button class="btn btn-sm btn-danger rounded-pill fw-bold px-3" @click="markBroadcastAsRead(b)">Gelesen</button>
-                    <button v-if="isAdmin" class="btn btn-sm btn-outline-danger rounded-circle p-0" @click="deleteBroadcast(b)" style="width:32px; height:32px;"><i class="fa fa-trash-alt"></i></button>
+                    <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-sm" @click="markBroadcastAsRead(b)"><i class="fa fa-check me-1"></i> Verstanden</button>
                 </div>
             </div>
 
             <div v-if="selectedGroup">
-                <!-- Titelbalken -->
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
-                        <h1 class="fw-black text-white m-0 tracking-tight" style="font-size: 2rem;">{{ selectedGroup.name }}</h1>
-                        <div class="d-flex align-items-center mt-2 gap-2">
-                            <span class="badge bg-danger rounded-pill">Datenjahr {{ selectedYear }}</span>
-                            <select v-model="selectedYear" class="form-select form-select-sm rounded-pill py-0 px-2 border-0 bg-secondary text-white" style="width:90px; height:24px;" @change="loadData">
+                        <h1 class="fw-bold text-white m-0 tracking-tight">{{ selectedGroup.name }}</h1>
+                        <div class="d-flex align-items-center mt-1 gap-2">
+                            <span class="text-muted small fw-bold">Auswertungsjahr:</span>
+                            <select v-model="selectedYear" class="form-select form-select-sm py-0 px-2 text-white border-secondary bg-dark" style="width:90px;" @change="loadData">
                                 <option v-for="y in [2024,2025,2026,2027]" :value="y">{{ y }}</option>
                             </select>
                         </div>
                     </div>
                     <div class="d-flex gap-2">
-                        <!-- Admin Werkzeuge ins Dashboard integriert -->
-                        <div v-if="isAdmin" class="btn-group me-2">
-                            <button class="btn btn-sm btn-outline-light rounded-start-pill fw-bold" @click="addGroup"><i class="fa fa-folder-plus text-danger me-1"></i> Neue Liste</button>
-                            <button class="btn btn-sm btn-outline-light fw-bold" @click="manageVehicles"><i class="fa fa-truck text-primary me-1"></i> Fuhrpark</button>
-                            <button class="btn btn-sm btn-outline-light rounded-end-pill fw-bold" @click="openBroadcastModal"><i class="fa fa-bullhorn text-warning me-1"></i> Systemmeldung</button>
+                        <div v-if="isAdmin" class="btn-group">
+                            <button class="btn btn-sm btn-outline-light rounded-start-pill" @click="addGroup"><i class="fa fa-plus text-success"></i> Neue Liste</button>
+                            <button class="btn btn-sm btn-outline-light" @click="manageVehicles"><i class="fa fa-truck text-info"></i> Fuhrpark</button>
+                            <button class="btn btn-sm btn-outline-light rounded-end-pill" @click="openBroadcastModal"><i class="fa fa-bullhorn text-warning"></i> Systemdurchsage</button>
                         </div>
-                        <a :href="'/groups/' + selectedGroup.id + '/print_view?year=' + selectedYear" target="_blank" class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold bg-transparent">
-                            <i class="fa fa-file-pdf me-1 text-danger"></i> Jahresbericht
-                        </a>
-                        <button class="btn btn-sm btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="createNew"><i class="fa fa-plus me-1"></i> Neuer Eintrag</button>
+                        <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" @click="openInlineYearReport"><i class="fa fa-chart-line text-danger me-1"></i> Jahres-Statistik</button>
+                        <button class="btn btn-sm btn-danger rounded-pill px-4 fw-bold shadow" @click="createNew"><i class="fa fa-plus me-1"></i> Neuer Dienstbucheintrag</button>
                     </div>
                 </div>
 
-                <!-- Taktisches Fuhrpark Tableau -->
-                <div class="card mb-4">
-                    <h6 class="fw-bold text-uppercase small text-muted mb-3"><i class="fa fa-radio me-2 text-danger"></i>BOS Funk-Statusübersicht</h6>
+                <div class="card">
+                    <h6 class="fw-bold text-uppercase small text-muted mb-3"><i class="fa fa-radio me-2 text-danger"></i>Live BOS Funk-Statusübersicht</h6>
                     <div class="row g-2">
                         <div v-for="v in vehicles" :key="v.id" class="col-6 col-sm-4 col-md-3">
                             <div class="p-2 border border-secondary rounded-3 d-flex align-items-center justify-content-between bg-dark shadow-sm">
@@ -114,7 +98,7 @@
                                     <div class="text-muted text-truncate" style="font-size: 0.65rem;">{{ v.radio_name || 'Ohne Kennung' }}</div>
                                 </div>
                                 <select v-model="v.status" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'"
-                                        :class="['form-select form-select-sm p-1 border-0 fw-bold rounded text-center text-white w-auto status-select status-' + v.status]"
+                                        :class="['form-select form-select-sm p-1 border-0 fw-bold rounded text-center text-white w-auto shadow-sm status-select status-' + v.status]"
                                         style="font-size: 0.8rem; min-width: 42px; cursor: pointer;">
                                     <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option>
                                 </select>
@@ -123,26 +107,31 @@
                     </div>
                 </div>
 
-                <!-- Stunden-Statistiken Widgets -->
-                <div class="row g-3 mb-4 text-center">
-                    <div class="col-4"><div class="card p-3 border-0" style="background:#0d6efd;"><div class="small text-uppercase fw-bold text-white-50">Übungsbetrieb</div><div class="h3 fw-black text-white m-0 mt-1">{{catStats.Übung}}h</div></div></div>
-                    <div class="col-4"><div class="card p-3 border-0" style="background:#dc3545;"><div class="small text-uppercase fw-bold text-white-50">Einsatzstunden</div><div class="h3 fw-black text-white m-0 mt-1">{{catStats.Einsatz}}h</div></div></div>
-                    <div class="col-4"><div class="card p-3 border-0 text-dark" style="background:#ffc107;"><div class="small text-uppercase fw-bold text-dark-50">Sonstiges</div><div class="h3 fw-black m-0 mt-1">{{catStats.Sonstiges}}h</div></div></div>
+                <div class="card p-2 mb-3 bg-black">
+                    <div class="row g-2">
+                        <div class="col-md-8"><input type="text" v-model="dashboardSearch" class="form-control form-control-sm" placeholder="Dienstbücher durchsuchen (z.B. Atemschutzübung, Maschinisten, Brandeinsatz)..."></div>
+                        <div class="col-md-4">
+                            <select v-model="catFilter" class="form-select form-select-sm">
+                                <option value="">Alle Kategorien anzeigen</option><option value="Übung">Nur Übungen</option><option value="Einsatz">Nur Einsätze</option><option value="Sonstiges">Sonstiges</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Dienststunden Ranking-Tabelle -->
+                <div class="row g-3 mb-4 text-center">
+                    <div class="col-4"><div class="card p-3 border-0 bg-primary"><div class="small text-uppercase fw-bold text-white-50">Übungsbetrieb</div><div class="h3 fw-black text-white m-0 mt-1">{{catStats.Übung}}h</div></div></div>
+                    <div class="col-4"><div class="card p-3 border-0 bg-danger"><div class="small text-uppercase fw-bold text-white-50">Einsatzstunden</div><div class="h3 fw-black text-white m-0 mt-1">{{catStats.Einsatz}}h</div></div></div>
+                    <div class="col-4"><div class="card p-3 border-0 text-dark bg-warning"><div class="small text-uppercase fw-bold text-dark-50">Sonstiges</div><div class="h3 fw-black m-0 mt-1">{{catStats.Sonstiges}}h</div></div></div>
+                </div>
+
                 <div class="card mb-4 overflow-hidden p-0">
                     <div class="card-header bg-transparent py-3 border-0 d-flex justify-content-between align-items-center" @click="showRanking = !showRanking" style="cursor:pointer">
-                        <h6 class="m-0 fw-bold text-uppercase small text-muted"><i class="fa fa-trophy text-warning me-2"></i>Dienststunden Top-Ranking</h6>
+                        <h6 class="m-0 fw-bold text-uppercase small text-muted"><i class="fa fa-trophy text-warning me-2"></i>Dienststunden Top-Ranking (Ausklappbar)</h6>
                         <i class="fa text-muted small" :class="showRanking?'fa-chevron-up':'fa-chevron-down'"></i>
                     </div>
                     <div v-show="showRanking" class="table-responsive px-3 pb-3">
                         <table class="table table-hover align-middle mb-0">
-                            <thead>
-                                <tr class="text-muted small text-uppercase" style="font-size: 0.65rem;">
-                                    <th>Rang</th><th>Name</th><th class="text-end">Gesamtdauer</th>
-                                </tr>
-                            </thead>
+                            <thead><tr class="text-muted small text-uppercase"><th>Rang</th><th>Name</th><th class="text-end">Gesamtdauer</th></tr></thead>
                             <tbody>
                                 <tr v-for="(p, i) in ranking" :key="p.id">
                                     <td style="width: 50px;"><span class="badge bg-dark border text-white rounded px-2.5 py-1">{{i+1}}</span></td>
@@ -154,31 +143,44 @@
                     </div>
                 </div>
 
-                <!-- Letzte Berichte / Dienstprotokolle -->
-                <h6 class="text-uppercase text-muted fw-bold small mb-3"><i class="fa fa-history me-2"></i>Erfasste Dienstbücher</h6>
-                <div v-for="s in sessions" :key="s.id" class="session-item p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" @click="loadSession(s)">
-                    <div class="d-flex gap-3 align-items-center">
-                        <div class="text-center bg-dark rounded p-2 border border-secondary" style="min-width: 55px;">
-                            <div class="fw-bold text-danger h5 m-0">{{ s.date.split('-')[2] }}</div>
-                            <div class="small text-muted font-monospace" style="font-size: 0.6rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
+                <h6 class="text-uppercase text-muted fw-bold small mb-3"><i class="fa fa-history me-2"></i>Erfasste Protokollbücher</h6>
+                <div v-for="s in filteredDashboardSessions" :key="s.id" class="card p-3 mb-2 bg-dark" @click="loadSession(s)" style="cursor:pointer; border-color:var(--fh-border);">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex gap-3 align-items-center">
+                            <div class="text-center bg-black rounded p-2 border border-secondary" style="min-width: 60px;">
+                                <div class="fw-bold text-danger h5 m-0">{{ s.date.split('-')[2] }}</div>
+                                <div class="small text-muted font-monospace" style="font-size: 0.65rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
+                            </div>
+                            <div>
+                                <span class="badge rounded-pill mb-1 small" :class="s.category==='Einsatz'?'bg-danger':'bg-primary'">{{ s.category }}</span>
+                                <div class="fw-bold text-white fs-5">{{ s.description }}</div>
+                                <small class="text-muted d-block mt-1"><i class="fa fa-clock me-1"></i>{{ s.duration }} Stunden — Ausbilder: {{ s.instructors }}</small>
+                            </div>
                         </div>
-                        <div>
-                            <span class="badge rounded-pill mb-1 small" :class="s.category==='Einsatz'?'bg-danger':'bg-primary'">{{ s.category }}</span>
-                            <div class="fw-bold text-white">{{ s.description }}</div>
-                            <small class="text-fh-text-muted d-block mt-1" style="font-size:0.75rem;"><i class="fa fa-clock me-1"></i>{{ s.duration }} Stunden — Leitung: {{ s.instructors }}</small>
+                        <div class="d-flex gap-2" @click.stop>
+                            <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" @click="openInlineReport(s)"><i class="fa fa-file-invoice me-1 text-danger"></i> Bericht einsehen</button>
+                            <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" @click="openSig(s)">Handzeichen</button>
+                            <button v-if="isAdmin" class="btn btn-sm text-danger bg-transparent border-0" @click="deleteSession(s)"><i class="fa fa-trash-alt"></i></button>
                         </div>
-                    </div>
-                    <div class="d-flex gap-2" @click.stop>
-                        <button class="btn btn-xs btn-outline-light rounded-pill px-3" @click="openReport(s)">Bericht</button>
-                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-danger rounded-pill px-3 fw-bold" @click="openSig(s)">Freigabe</button>
-                        <button v-if="isAdmin" class="btn btn-sm text-outline-danger border-0 bg-transparent ms-1" @click="deleteSession(s)"><i class="fa fa-trash-alt text-danger"></i></button>
                     </div>
                 </div>
-
             </div>
         </div>
 
-        <!-- MODAL WINDOWS (Unverändert übernommen für die Datenkonsistenz) -->
+        <div class="modal fade fullscreen-modal" id="inlineReportModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-black text-white py-2 border-secondary">
+                        <h5 class="modal-title fw-bold text-danger"><i class="fa fa-print me-2"></i>Integrierte Dienstbericht-Vorschau</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-2 bg-dark">
+                        <iframe :src="inlineReportUrl" class="report-iframe"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="vehicleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content bg-dark border border-secondary text-white rounded-4 shadow-lg">
@@ -187,16 +189,16 @@
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
-                        <div v-if="isAdmin" class="bg-black p-3 rounded-3 mb-4 border border-secondary">
+                        <div v-if="isAdmin" class="bg-black p-3 rounded-3 mb-4 border border-secondary text-dark">
                             <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Fahrzeug hinzufügen</label>
-                            <div class="row g-2 align-items-end text-dark">
+                            <div class="row g-2 align-items-end">
                                 <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Typ / Modell</label><input type="text" v-model="newVehicle.name" class="form-control form-control-sm" placeholder="HLF 20"></div>
                                 <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Funkrufname</label><input type="text" v-model="newVehicle.radio_name" class="form-control form-control-sm" placeholder="Florian 40/1"></div>
-                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Kilometerstand</label><input type="number" v-model="newVehicle.milage" class="form-control form-control-sm"></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">KM-Stand</label><input type="number" v-model="newVehicle.milage" class="form-control form-control-sm"></div>
                                 <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Nächste HU</label><input type="date" v-model="newVehicle.tuv_date" class="form-control form-control-sm"></div>
                                 <div class="col-md-4"><label class="small text-muted fw-bold mb-1">SP Frist</label><input type="date" v-model="newVehicle.sp_date" class="form-control form-control-sm"></div>
-                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Service</label><input type="date" v-model="newVehicle.next_service" class="form-control form-control-sm"></div>
-                                <div class="col-12 text-end mt-2"><button class="btn btn-danger btn-sm rounded-pill px-4 fw-bold" @click="addVehicleAdvanced">Hinzufügen</button></div>
+                                <div class="col-md-4"><label class="small text-muted fw-bold mb-1">Wartungstermin</label><input type="date" v-model="newVehicle.next_service" class="form-control form-control-sm"></div>
+                                <div class="col-12 text-end mt-2"><button class="btn btn-danger btn-sm rounded-pill px-4 fw-bold" @click="addVehicleAdvanced">Speichern</button></div>
                             </div>
                         </div>
                         <div class="row g-3">
@@ -227,14 +229,6 @@
                         <button v-if="!isFirstLoginBlock" type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <div v-if="isFirstLoginBlock" class="alert alert-danger small rounded-3 mb-3 fw-bold">Initial-Passwort aktiv!</div>
-                        <div v-if="!isFirstLoginBlock" class="bg-black p-3 rounded-4 mb-4 border border-secondary text-center shadow-sm">
-                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Jahres-Gesamtleistung {{ selectedYear }}</label>
-                            <div class="row mt-2">
-                                <div class="col-6 border-end border-secondary"><span class="h3 fw-black text-danger d-block m-0">{{ personalStats.hours }}h</span><small class="text-muted">Geleistete Stunden</small></div>
-                                <div class="col-6"><span class="h3 fw-black text-primary d-block m-0">{{ personalStats.count }}</span><small class="text-muted">Dienste</small></div>
-                            </div>
-                        </div>
                         <form @submit.prevent="submitSelfPassword">
                             <div class="mb-3"><label class="small fw-bold text-muted mb-1">Aktuelles Passwort</label><input type="password" v-model="selfPwData.old_password" class="form-control" required></div>
                             <div class="mb-3"><label class="small fw-bold text-muted mb-1">Neues Passwort</label><input type="password" v-model="selfPwData.new_password" class="form-control" required></div>
@@ -257,10 +251,6 @@
                         <form @submit.prevent="submitBroadcast">
                             <div class="mb-3"><label class="small fw-bold text-muted mb-1">Betreff / Thema</label><input type="text" v-model="newBroadcast.title" class="form-control" required></div>
                             <div class="mb-3"><label class="small fw-bold text-muted mb-1">Inhalt</label><textarea v-model="newBroadcast.content" class="form-control" rows="4" required></textarea></div>
-                            <div class="form-check form-switch mb-3 bg-black p-2 border border-secondary rounded ps-5">
-                                <input class="form-check-input" type="checkbox" id="bcMandatory" v-model="newBroadcast.is_mandatory">
-                                <label class="form-check-label small fw-bold text-danger" for="bcMandatory">Lesepflicht erzwingen</label>
-                            </div>
                             <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 mt-2">Senden</button>
                         </form>
                     </div>
@@ -273,7 +263,7 @@
                 <div class="modal-content bg-dark border border-secondary text-white rounded-4 shadow-lg">
                     <div class="modal-body p-3">
                         <div class="sig-wrapper border border-secondary mb-2"><canvas id="sigCanvas"></canvas></div>
-                        <p class="text-center text-muted small">Unterschriftsfeld Leitung</p>
+                        <p class="text-center text-muted small">Handzeichen Leitung</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-between pt-0">
                         <button class="btn btn-sm btn-light rounded-pill px-3" @click="clearSig">Löschen</button>
@@ -285,10 +275,9 @@
 
     </div>
 
-    <!-- VUE CONTROL SCRIPT -->
     <script>
         const { createApp } = Vue;
-        let sigPad = null, sigModal = null, vehicleModal = null, selfPasswordModal = null, broadcastModal = null;
+        let sigPad = null, sigModal = null, vehicleModal = null, selfPasswordModal = null, broadcastModal = null, inlineReportModal = null;
         
         createApp({
             data() {
@@ -297,17 +286,23 @@
                     groups: [], selectedGroup: null, mobileSelectedId: null,
                     sessionsList: [], selectedYear: new Date().getFullYear(),
                     ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
-                    vehicles: [],
+                    vehicles: [], dashboardSearch: '', catFilter: '', inlineReportUrl: '',
                     newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' },
                     selfPwData: { old_password: '', new_password: '', confirm_password: '' },
                     activeBroadcasts: [],
                     newBroadcast: { title: '', content: '', is_mandatory: false },
-                    isFirstLoginBlock: false,
-                    personalStats: { hours: 0, count: 0 }
+                    isFirstLoginBlock: false, personalStats: { hours: 0, count: 0 }
                 }
             },
             computed: {
                 sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => new Date(b.date) - new Date(a.date)); },
+                filteredDashboardSessions() {
+                    return this.sessions.filter(s => {
+                        const matchText = !this.dashboardSearch || s.description.toLowerCase().includes(this.dashboardSearch.toLowerCase()) || (s.instructors && s.instructors.toLowerCase().includes(this.dashboardSearch.toLowerCase()));
+                        const matchCat = !this.catFilter || s.category === this.catFilter;
+                        return matchText && matchCat;
+                    });
+                },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); }
             },
             async mounted() {
@@ -329,6 +324,7 @@
                 vehicleModal = new bootstrap.Modal(document.getElementById('vehicleModal'));
                 selfPasswordModal = new bootstrap.Modal(document.getElementById('selfPasswordModal'));
                 broadcastModal = new bootstrap.Modal(document.getElementById('broadcastModal'));
+                inlineReportModal = new bootstrap.Modal(document.getElementById('inlineReportModal'));
                 
                 this.ready = true;
                 if (this.isFirstLoginBlock) { setTimeout(() => { selfPasswordModal.show(); }, 400); }
@@ -381,6 +377,8 @@
                         if (res.ok) { this.personalStats = await res.json(); }
                     } catch(e) { console.error("Fehler beim Abruf der persönlichen Statistik:", e); }
                 },
+                openInlineReport(s) { this.inlineReportUrl = `/sessions/${s.id}/report`; inlineReportModal.show(); },
+                openInlineYearReport() { this.inlineReportUrl = `/groups/${this.selectedGroup.id}/print_view?year=${this.selectedYear}`; inlineReportModal.show(); },
                 manageVehicles() { if(vehicleModal) vehicleModal.show(); },
                 openBroadcastModal() { if(broadcastModal) broadcastModal.show(); },
                 async submitBroadcast() {
@@ -393,10 +391,7 @@
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
                     try {
-                        const res = await fetch('/api/auth/change-password', {
-                            method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
-                            body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password })
-                        });
+                        const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
                         if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
                     } catch(e) { alert("Netzwerkfehler."); }
                 },
@@ -413,10 +408,9 @@
                 async addGroup() { const name = prompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async editGroup(g) { const name = prompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async deleteGroup(g) { if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
-                async deleteSession(s) { if(confirm("Eintrag löschen?")) { await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' }); this.init_db; this.loadData(); } },
+                async deleteSession(s) { if(confirm("Eintrag löschen?")) { await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' }); this.loadData(); } },
                 createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
-                openReport(s) { window.open('/sessions/' + s.id + '/report', '_blank'); },
                 openSig(s) { this.activeS = s; if(sigModal) sigModal.show(); },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
