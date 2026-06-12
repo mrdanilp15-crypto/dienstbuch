@@ -27,7 +27,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # --- PYDANTIC MODELS (Zuerst definieren gegen NameErrors) ---
 class LoginRequest(BaseModel): username: str; password: str
 class UserCreateDto(BaseModel): username: str; password: str; role: str; personnel_id: Optional[int] = None
-class UserPasswordDto(BaseModel): new_password: str
 class KanbanUpdateRequest(BaseModel): status: str
 class InventoryItemDto(BaseModel): id: Optional[int] = None; item_name: str; amount: int; min_amount: int; unit: str; location: str
 class NoteCreateDto(BaseModel): id: Optional[int] = None; title: str; content: str; priority: str
@@ -36,6 +35,7 @@ class VehicleCreateDto(BaseModel): id: Optional[int] = None; name: str; radio_na
 class EventCreateDto(BaseModel): date: str; title: str; responsible: str
 class EntryDto(BaseModel): person_id: int; is_present: bool; vehicle: Optional[str] = ""
 class LegacySessionPayload(BaseModel): session_id: Optional[int] = None; date: str; group_id: int; category: str; duration: float; description: str; instructors: str; entries: List[EntryDto]
+class PersonnelCreateDto(BaseModel): id: Optional[int] = None; name: str; rank: str; membership_status: str; is_agt: bool; is_maschinist: bool; is_gf: bool; g26_3_date: Optional[str] = None
 
 # --- DB & KRYPTO HELFER ---
 def get_db_connection():
@@ -95,6 +95,9 @@ init_db()
 def route_root(request: Request):
     if get_current_user(request): return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
+
+@app.get("/login")
+def route_login(): return FileResponse("static/login.html")
 
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
