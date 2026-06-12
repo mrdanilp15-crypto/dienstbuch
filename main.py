@@ -27,6 +27,30 @@ SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112"
 
 app = FastAPI(title="FeuerwehrHub Ultimate Engine")
 
+# ... (Imports wie oben) ...
+
+app = FastAPI(title="FeuerwehrHub Ultimate Engine")
+
+# ... (Mounts & Router wie oben) ...
+
+# --- HIER MÜSSEN DIE PYDANTIC KLASSEN HIN ---
+class LoginRequest(BaseModel): username: str; password: str
+class KanbanUpdateRequest(BaseModel): status: str
+class InventoryItemDto(BaseModel): item_name: str; amount: int; min_amount: int; unit: str; location: str; status: str; requester: Optional[str] = None
+class NoteCreateDto(BaseModel): title: str; content: str; visibility: str; priority: str
+class RegistryUpdateDto(BaseModel): apager_api_key: str; int_g26: str; int_belastung: str; int_unterweisung: str
+class UserAddDto(BaseModel): username: str; password: str; role: str; personnel_id: Optional[int] = None
+class RoleUpdateDto(BaseModel): role: str
+class PersonnelLinkDto(BaseModel): personnel_id: Optional[int] = None
+class PasswordOverrideDto(BaseModel): password: str
+class VehicleStatusDto(BaseModel): status: int
+class EntryDto(BaseModel): person_id: int; is_present: bool; note: Optional[str] = ""; vehicle: Optional[str] = ""; signature: Optional[str] = None
+class LegacyAttendanceEntry(BaseModel): person_id: int; is_present: bool; vehicle: str; signature: Optional[str] = None; note: Optional[str] = None
+class LegacySessionPayload(BaseModel): session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; duration: float = 0.0; description: str; instructors: Optional[str] = ""; leader_signature: Optional[str] = None; entries: List[LegacyAttendanceEntry]
+
+# --- JETZT FOLGEN DIE FUNKTIONEN (wie get_db_connection, api_login etc.) ---
+# ...
+
 # Statische Ordnerstruktur absichern
 if not os.path.exists("static"):
     os.makedirs("static")
