@@ -1,192 +1,144 @@
-/* --- ORIGINAL FEUERWEHRHUB DEEP-DARK THEME --- */
+/* --- FEUERWEHRHUB HIGH-CONTRAST CLASSIC HYBRID THEME --- */
 :root {
-    --fh-bg: #0b0f19;         /* Extrem dunkles Navy-Blau für den App-Hintergrund */
-    --fh-nav-bg: #111827;     /* Sattes Schwarz-Blau für die Top-Navbar */
-    --fh-card-bg: #1e293b;    /* Dunkles Slate-Graublau für Karten */
-    --fh-border: #334155;     /* Taktische Rahmenfarbe */
-    --fh-text-main: #f8fafc;  /* Kristallweiß für primäre Texte */
-    --fh-text-muted: #94a3b8; /* Muted Blaugrau für Beschriftungen/Metadaten */
+    --fh-bg: #0f172a;           /* Tiefdunkles Schieferblau für maximalen App-Rahmen */
+    --fh-content-bg: #1e293b;   /* Sattes Dunkelgrau für den Inhaltsbereich */
+    --fh-card-bg: #293548;      /* Aufgehelltes Graublau für Karten – sorgt für perfekten Kontrast */
+    --fh-border: #475569;       /* Knackige, helle Trennlinien */
+    --fh-text-main: #ffffff;    /* Absolut reines Weiß für beste Lesbarkeit */
+    --fh-text-muted: #cbd5e1;   /* Helles Blaugrau für Sekundärtexte */
     
-    --fh-fire: #ef4444;       /* FeuerwehrHub Signalrot für Highlights */
-    --fh-exercise: #2563eb;   /* Übungs-Blau */
-    --fh-incident: #dc2626;   /* Einsatz-Rot */
-    --fh-misc: #f59e0b;       /* Bernstein-Gelb */
-    --fh-safe: #10b981;       /* Fristen-Grün */
+    /* Signalfarben */
+    --fh-fire: #ef4444;         /* Leuchtendes Signalrot */
+    --fh-exercise: #3b82f6;     /* Klares Blau */
+    --fh-safe: #10b981;         /* Sattes Fristengrün */
+    --fh-warn: #f59e0b;         /* Warn-Orange */
 }
 
-/* Base Reset */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
     background-color: var(--fh-bg);
     color: var(--fh-text-main);
-    font-family: 'Inter', -apple-system, system-ui, sans-serif;
-    letter-spacing: -0.2px;
+    font-family: 'Inter', -apple-system, sans-serif;
     height: 100vh;
     overflow-x: hidden;
     overflow-y: auto;
 }
 
-/* --- HORIZONTALE TOP-NAVBAR (Screenshot-Style) --- */
+/* --- HORIZONTALE HIGH-CONTRAST NAVBAR --- */
 .navbar-top {
-    background-color: var(--fh-nav-bg);
-    border-bottom: 1px solid var(--fh-border);
+    background-color: #0b0f19;
+    border-bottom: 2px solid var(--fh-fire);
     width: 100%;
-    z-index: 1050;
 }
-
 .navbar-brand-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 2rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--fh-border);
 }
-
-.brand-left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
 .brand-logo {
-    width: 38px;
-    height: 38px;
-    background-color: var(--fh-fire);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
-    font-size: 1.1rem;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+    width: 40px; height: 40px; background-color: var(--fh-fire); color: white;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 1.2rem; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
 }
-
-.brand-title { font-weight: 800; font-size: 1.15rem; color: var(--fh-text-main); line-height: 1.2; }
-.brand-subtitle { font-size: 0.75rem; color: var(--fh-text-muted); font-weight: 600; }
-
-.brand-right {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.user-status-dot {
-    width: 8px;
-    height: 8px;
-    background-color: var(--fh-safe);
-    border-radius: 50%;
-    display: inline-block;
-}
-
-/* Zweite Navigationszeile (Menüpunkte) */
 .navbar-menu-row {
     display: flex;
     align-items: center;
-    padding: 0px 2rem;
-    height: 45px;
+    padding: 0 2rem;
+    height: 50px;
+    background: #111827;
 }
-
-.nav-links {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    height: 100%;
-}
-
+.nav-links { display: flex; align-items: center; gap: 1.5rem; height: 100%; }
 .nav-link-item {
-    color: var(--fh-text-muted);
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    height: 100%;
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s ease;
+    color: var(--fh-text-muted); text-decoration: none; font-size: 0.95rem;
+    font-weight: 700; display: flex; align-items: center; height: 100%;
+    border-bottom: 3px solid transparent; transition: all 0.2s;
+}
+.nav-link-item:hover, .nav-link-item.active {
+    color: var(--fh-text-main); border-bottom-color: var(--fh-fire);
 }
 
-.nav-link-item:hover { color: var(--fh-text-main); }
-.nav-link-item.active {
-    color: var(--fh-fire);
-    border-bottom-color: var(--fh-fire);
-}
-
-.nav-group-select {
-    background-color: #1f2937 !important;
-    color: var(--fh-text-main) !important;
-    border: 1px solid var(--fh-border) !important;
-    font-weight: bold;
-    border-radius: 8px;
-    padding: 4px 12px;
-}
-
-/* --- APP MAIN INNER CONTAINER --- */
+/* --- MAIN FRAME LAYOUT --- */
 .main-content {
-    max-width: 1300px;
-    margin: 0 auto;
-    padding: 2.5rem 1.5rem;
+    max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem;
 }
 
-/* --- CARDS & WIDGETS --- */
-.card, .session-item, .broadcast-card {
+/* --- MODERN APP CARDS --- */
+.card {
     background: var(--fh-card-bg) !important;
     border: 1px solid var(--fh-border) !important;
     border-radius: 12px !important;
     padding: 1.5rem !important;
-    margin-bottom: 1.25rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3) !important;
 }
 
-/* Formularelemente im Dark-Mode */
+/* Formularelemente für maximale Lesbarkeit geschärft */
 .form-control, .form-select {
-    background-color: #111827 !important;
-    color: var(--fh-text-main) !important;
-    border: 1px solid var(--fh-border) !important;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border: 2px solid var(--fh-border) !important;
+    font-weight: 600 !important;
 }
 .form-control:focus, .form-select:focus {
     border-color: var(--fh-fire) !important;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) !important;
 }
 
-/* Tabellen-Anpassung */
-.table { color: var(--fh-text-main) !important; }
-.table th { color: var(--fh-text-muted) !important; border-bottom-color: var(--fh-border) !important; }
-.table td { border-bottom-color: rgba(255, 255, 255, 0.05) !important; }
+/* Taktisches Tabellen-Raster */
+.table { color: #ffffff !important; }
+.table th { color: #94a3b8 !important; border-bottom: 2px solid var(--fh-border) !important; font-weight: 800; }
+.table td { border-bottom: 1px solid rgba(255,255,255,0.08) !important; padding: 12px 8px !important; }
 
-/* Status-Selects im Protokoll */
-.status-select {
-    font-size: 0.85rem;
-    font-weight: 700;
-    border-radius: 6px;
-    border: none;
-    text-align: center;
-    padding: 4px 8px;
-    color: white;
+/* Mannschaftsraster */
+.person-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;
 }
-.status-1 { background-color: #2563eb !important; }
-.status-2 { background-color: var(--fh-safe) !important; }
-.status-3 { background-color: #eab308 !important; color: #000 !important; }
-.status-4 { background-color: var(--fh-incident) !important; }
-.status-6 { background-color: #475569 !important; }
-
-/* Broadcast Banner Lesepflicht-Streifen */
-.broadcast-card.mandatory {
-    border-left: 5px solid var(--fh-fire) !important;
+.member-card {
+    background: var(--fh-card-bg); border: 1px solid var(--fh-border);
+    border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: 0.2s;
 }
+.member-card:hover { border-color: var(--fh-fire); transform: translateY(-2px); }
 
-/* --- REVISIONS-LOGS, COMPONENT AVATARS --- */
+/* Anwesenheitszeilen im Editor */
+.person-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem; background: #1e293b; border-bottom: 1px solid var(--fh-border); gap: 1rem;
+}
+.person-row.absent { background-color: #2a1f2d; opacity: 0.7; }
+.person-row.g26-expired-alert { border-left: 6px solid var(--fh-fire) !important; background-color: #3b1e22 !important; }
+
+/* Komponenten */
 .avatar-container, .editor-avatar {
-    width: 46px; height: 46px; border-radius: 8px; overflow: hidden;
-    border: 1px solid var(--fh-border); flex-shrink: 0;
+    width: 50px; height: 50px; border-radius: 10px; overflow: hidden;
+    border: 2px solid var(--fh-border); flex-shrink: 0; background: #0f172a;
 }
 .avatar-container img, .editor-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .sig-box {
-    width: 70px; height: 40px; border: 1px dashed var(--fh-border); border-radius: 6px;
-    display: flex; align-items: center; justify-content: center; cursor: pointer; background: #111827;
+    width: 80px; height: 45px; border: 2px dashed var(--fh-border); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; background: #0f172a;
 }
-.sig-box img { max-width: 100%; max-height: 100%; }
+.sig-box img { max-width: 100%; max-height: 100%; filter: invert(1) brightness(2); } /* Macht schwarze Tinte auf dunklem Grund sichtbar */
+
+.sig-wrapper { width: 100%; height: 260px; background: white; border: 2px solid var(--fh-border); border-radius: 8px; overflow: hidden; }
+#sigCanvas { width: 100%; height: 100%; }
+
+/* Badge Dekorationen */
+.badge-vis { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; padding: 5px 12px; border-radius: 4px; }
+.vis-public { background: #10b981; color: #fff; }
+.vis-private { background: #3b82f6; color: #fff; }
+.vis-admin { background: #ef4444; color: #fff; }
+.vis-geratewart { background: #f59e0b; color: #000; }
+
+.status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.bg-ok { background: var(--fh-safe); } .bg-warn { background: var(--fh-warn); } .bg-crit { background: var(--fh-fire); }
+
+/* Bildschirmfüllendes Bericht-Modal (Ersetzt window.open) */
+.fullscreen-modal .modal-dialog { max-width: 95%; width: 95%; height: 90vh; }
+.fullscreen-modal .modal-content { height: 100%; background: #111827; border: 2px solid var(--fh-border); }
+.report-iframe { width: 100%; height: 100%; border: none; background: white; border-radius: 8px; }
 
 [v-cloak] { display: none !important; }
