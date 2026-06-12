@@ -3,28 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FeuerwehrHub - Leitstand & Verwaltung</title>
-    <!-- Frameworks Core -->
+    <title>FeuerwehrHub Enterprise Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=4.0">
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="/static/style.css?v=4.1"> <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
 
-        <!-- Mobile Navigationsbalken -->
         <div class="mobile-nav d-lg-none">
             <button class="btn btn-outline-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobMenu"><i class="fa fa-bars"></i></button>
             <div class="fw-bold text-dark">FEUERWEHRHUB</div>
             <span class="badge bg-danger text-uppercase">{{ currentTab }}</span>
         </div>
 
-        <!-- Offcanvas Mobile Drawer Menu -->
         <div class="offcanvas offcanvas-start bg-white text-dark" tabindex="-1" id="mobMenu">
             <div class="offcanvas-header border-bottom">
-                <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire"></i> MENÜSTEUERUNG</h5>
+                <h5 class="offcanvas-title fw-bold text-danger"><i class="fa fa-fire"></i> LEITSTELLE</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
             </div>
             <div class="offcanvas-body p-0">
@@ -39,11 +35,10 @@
         </div>
 
         <div class="app-container">
-            <!-- SATELLITEN-SIDEBAR (Desktop-Ansicht gegen Textüberlappungen) -->
             <div class="sidebar d-none d-lg-flex">
                 <div class="sidebar-header">
-                    <h4 class="m-0 fw-black text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4>
-                    <small class="text-muted font-monospace fw-bold">ULTIMATE SUITE v4.0</small>
+                    <h4 class="m-0 fw-bold text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4>
+                    <small class="text-muted font-monospace fw-bold">ULTIMATE SUITE v4.1</small>
                 </div>
                 
                 <div class="flex-grow-1 overflow-y-auto">
@@ -58,110 +53,103 @@
 
                 <div class="p-3 bg-light border-top text-center">
                     <div class="small fw-bold text-dark mb-2"><i class="fa fa-user-circle me-1 text-danger"></i> {{ identity.username }}</div>
-                    <button class="btn btn-sm btn-dark w-100 rounded-pill fw-bold" @click="triggerLogout">Abmelden</button>
+                    <button class="btn btn-sm btn-outline-dark w-100 rounded-pill fw-bold" @click="triggerLogout">Abmelden</button>
                 </div>
             </div>
 
-            <!-- RESPONSIVE DYNAMISCHER INHALTSFLÜGEL -->
             <div class="main-content">
 
-                <!-- ================= REITER: LEITSTAND ZENTRALE ================= -->
                 <div v-if="currentTab === 'leitstand'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
                             <h2 class="fw-bold text-dark m-0">Führungs-Leitstand</h2>
-                            <small class="text-muted fw-bold">Kommando-Übersicht und Funkleitstelle</small>
+                            <small class="text-muted fw-bold">Live-Überwachung des Dienstbetriebs</small>
                         </div>
                         <div class="d-flex gap-2">
-                            <select v-model="selectedGroupId" class="form-select form-select-sm w-auto bg-white border-secondary fw-bold" @change="loadGroupSessions">[cite: 18]
-                                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>[cite: 18]
+                            <select v-model="selectedGroupId" class="form-select form-select-sm w-auto bg-white border-secondary fw-bold text-dark" @change="loadGroupSessions">
+                                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
                             </select>
-                            <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="goToLegacyEditor"><i class="fa fa-plus me-1"></i> Dienstbuch schreiben</button>
+                            <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" style="background:var(--fh-fire);" @click="goToLegacyEditor"><i class="fa fa-plus me-1"></i> Dienstbuch schreiben</button>
                         </div>
                     </div>
 
-                    <!-- Kombiniertes Fristenradar -->
                     <div class="card border-danger border-2 mb-4 bg-white">
-                        <h6 class="fw-bold text-danger text-uppercase mb-2"><i class="fa fa-triangle-exclamation me-2"></i>Kritisches Sicherheits- & Fristenradar</h6>
-                        <div class="text-dark fw-bold" style="font-size: 0.95rem; line-height: 1.6;">
+                        <h6 class="fw-bold text-danger text-uppercase mb-2"><i class="fa fa-triangle-exclamation me-2"></i>Sicherheits- & Fristenradar</h6>
+                        <div class="text-dark fw-bold small" style="line-height: 1.6;">
                             <div class="text-danger"><i class="fa fa-circle-dot me-2"></i> Atemschutz: 2 Kameraden überschreiten zulässiges G26.3 Untersuchungsintervall!</div>
-                            <div class="text-warning"><i class="fa fa-circle-dot me-2"></i> Fuhrpark: Sicherheitsprüfung (SP) für HLF 20 fällig.</div>
+                            <div class="text-warning"><i class="fa fa-circle-dot me-2"></i> Fuhrpark: Sicherheitsprüfung (SP) für Löschfahrzeuge im kommenden Monat fällig.</div>
                         </div>
                     </div>
 
-                    <!-- Klickbares BOS Funk Tableau -->
-                    <div class="card mb-4">
-                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio me-2 text-danger"></i>Live BOS Funk-Statustableau (Direktklick)</h6>
+                    <div class="card mb-4 bg-white">
+                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio me-2 text-danger"></i>Live BOS Funk-Statustableau</h6>
                         <div class="row g-2">
-                            <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">[cite: 18]
-                                <div class="p-3 border rounded-3 d-flex align-items-center justify-content-between bg-light">[cite: 13]
-                                    <div class="text-truncate"><div class="fw-bold text-dark text-truncate">{{ v.name }}</div><small class="text-muted font-monospace">{{ v.radio_name || 'Ohne Rufname' }}</small></div>[cite: 13, 18]
-                                    <div class="d-flex gap-1">[cite: 13]
-                                        <button class="status-btn s-2 shadow-sm" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>[cite: 13]
-                                        <button class="status-btn s-4 shadow-sm" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>[cite: 13]
+                            <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
+                                <div class="p-3 border rounded-3 d-flex align-items-center justify-content-between bg-light">
+                                    <div class="text-truncate"><div class="fw-bold text-dark text-truncate">{{ v.name }}</div><small class="text-muted font-monospace">{{ v.radio_name || 'Ohne Rufname' }}</small></div>
+                                    <div class="d-flex gap-1">
+                                        <button class="status-btn s-2 shadow-sm" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
+                                        <button class="status-btn s-4 shadow-sm" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Dienstbücher Auflistung -->
                     <h5 class="fw-bold text-dark mb-3"><i class="fa fa-book me-2 text-muted"></i>Letzte Dienstbucheinträge</h5>
-                    <div v-for="s in legacySessions" :key="s.id" class="card border-secondary shadow-sm" style="cursor:pointer;" @click="openInlineReport(s.id)">[cite: 18]
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">[cite: 13]
+                    <div v-for="s in legacySessions" :key="s.id" class="card border-secondary bg-white shadow-sm" style="cursor:pointer;" @click="openInlineReport(s.id)">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div>
-                                <span class="badge bg-primary rounded-pill mb-1 px-3 py-1">{{ s.category }}</span>[cite: 13, 18]
-                                <h4 class="fw-bold text-dark m-0">{{ s.description }}</h4>[cite: 13, 18]
-                                <small class="text-muted fw-semibold">Dauer: {{ s.duration }} Std. — Ausbilder: {{ s.instructors }}</small>[cite: 13, 18]
+                                <span class="badge bg-primary rounded-pill mb-1 px-3 py-1">{{ s.category }}</span>
+                                <h4 class="fw-bold text-dark m-0">{{ s.description }}</h4>
+                                <small class="text-muted fw-semibold">Dauer: {{ s.duration }} Std. — Ausbilder: {{ s.instructors }}</small>
                             </div>
-                            <button class="btn btn-sm btn-outline-danger rounded-pill fw-bold"><i class="fa fa-file-invoice me-1"></i> Bericht einsehen</button>[cite: 13]
+                            <button class="btn btn-sm btn-outline-danger rounded-pill fw-bold"><i class="fa fa-file-invoice me-1"></i> Bericht einsehen</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- ================= REITER: MEIN BEREICH ================= -->
                 <div v-if="currentTab === 'meinbereich'">
                     <h2 class="fw-bold text-dark mb-4">Mein Bereich</h2>
                     
-                    <ul class="nav nav-tabs mb-4 bg-light p-1 rounded-3" role="tablist">
-                        <li class="nav-item flex-fill"><button class="nav-link active text-center py-2 fw-bold" data-bs-toggle="tab" data-bs-target="#sub-profil">Mein Profil</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link text-center py-2 fw-bold" data-bs-toggle="tab" data-bs-target="#sub-ausruestung">Persönliche Ausrüstung</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link text-center py-2 fw-bold" data-bs-toggle="tab" data-bs-target="#sub-ausweis">Digitaler Dienstausweis</button></li>
+                    <ul class="nav nav-tabs mb-4 bg-light p-1 rounded-3 border-0" role="tablist">
+                        <li class="nav-item flex-fill"><button class="nav-link active text-center py-2 fw-bold text-dark border-0 bg-transparent" data-bs-toggle="tab" data-bs-target="#sub-profil">Mein Profil</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link text-center py-2 fw-bold text-dark border-0 bg-transparent" data-bs-toggle="tab" data-bs-target="#sub-ausruestung">Persönliche Ausrüstung</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link text-center py-2 fw-bold text-dark border-0 bg-transparent" data-bs-toggle="tab" data-bs-target="#sub-ausweis">Digitaler Dienstausweis</button></li>
                     </ul>
 
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="sub-profil">
-                            <div class="card">
-                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">Kontaktdaten & Notfallkontakte</h5>
+                            <div class="card bg-white">
+                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">Stammdaten & Erreichbarkeit</h5>
                                 <div class="row g-3">
-                                    <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Benutzerkennung</label><input type="text" class="form-control" :value="identity.username" disabled>[cite: 18]</div>
-                                    <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Zugeordneter Klarname</label><input type="text" class="form-control" :value="identity.personnel_name || 'Thomas Müller'" disabled>[cite: 18]</div>
+                                    <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Benutzerkennung</label><input type="text" class="form-control" :value="identity.username" disabled></div>
+                                    <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Verknüpfter Klarname</label><input type="text" class="form-control" value="Thomas Müller" disabled></div>
                                     <div class="col-md-12"><label class="small fw-bold text-muted mb-1">Notfallkontakt (Angehörige / Telefon)</label><input type="text" class="form-control" placeholder="Name, Beziehung +49 170..."></div>
                                 </div>
                                 <button class="btn btn-danger mt-3 rounded-pill fw-bold px-4" @click="alert('Änderungen gespeichert!')">Profil sichern</button>
                             </div>
                         </div>
                         <div class="tab-pane fade" id="sub-ausruestung">
-                            <div class="card">
-                                <h5 class="fw-bold text-dark mb-3">Ausgegebene PSA (Persönliche Schutzausrüstung)</h5>
+                            <div class="card bg-white">
+                                <h5 class="fw-bold text-dark mb-3">Ausgegebene Schutzausrüstung (PSA)</h5>
                                 <table class="table">
                                     <thead><tr><th>Gegenstand</th><th>Größe / Typ</th><th>Zustand</th></tr></thead>
                                     <tbody>
                                         <tr><td class="fw-bold">Überjacke S-Gard</td><td>52 / XL</td><td>Einsatzbereit</td></tr>
                                         <tr><td class="fw-bold">Feuerwehrhelm Schuberth</td><td>H2</td><td>Prüfung fällig (12/2026)</td></tr>
-                                        <tr><td class="fw-bold">Schnittschutzhose Stihl</td><td>54</td><td>Einsatzbereit</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
                         <div class="tab-pane fade" id="sub-ausweis">
-                            <div class="card mx-auto shadow-lg" style="max-width:380px; border-left: 6px solid var(--fh-fire) !important;">
+                            <div class="card mx-auto shadow bg-white" style="max-width:360px; border-top: 5px solid var(--fh-fire) !important;">
                                 <div class="text-center">
-                                    <div class="avatar-container mx-auto mb-3 border-danger" style="width:90px; height:90px;"><img src="https://via.placeholder.com/150?text=FF"></div>
-                                    <h4 class="fw-bold text-dark mb-0">{{ identity.personnel_name || 'Thomas Müller' }}</h4>[cite: 18]
+                                    <div class="avatar-container mx-auto mb-3 border-secondary" style="width:80px; height:80px;"><img src="https://via.placeholder.com/150?text=FF"></div>
+                                    <h4 class="fw-bold text-dark mb-0">Thomas Müller</h4>
                                     <small class="text-muted text-uppercase font-monospace fw-bold">Dienstgrad: Brandmeister</small>
                                     <hr class="my-3">
-                                    <div class="text-start bg-light p-2 rounded border font-monospace small text-dark">
+                                    <div class="text-start bg-light p-3 rounded border font-monospace small text-dark">
                                         <div><b>Dienstausweis-Nr:</b> FH-MM-9612</div>
                                         <div><b>Status:</b> Aktive Einsatzabteilung</div>
                                     </div>
@@ -171,7 +159,6 @@
                     </div>
                 </div>
 
-                <!-- ================= REITER: LAGER & INVENTAR ================= -->
                 <div v-if="currentTab === 'lager'">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
@@ -181,14 +168,13 @@
                         <button class="btn btn-sm btn-dark rounded-pill px-3 fw-bold" @click="openNewInventoryPrompt"><i class="fa fa-plus me-1"></i> Artikel einbuchen</button>
                     </div>
 
-                    <!-- Materialkacheln -->
                     <div class="row g-3 mb-4 text-center text-white font-monospace">
                         <div class="col-md-4"><div class="p-3 rounded-3 bg-dark fw-bold">ITEMS GELISTET<span class="d-block h2 fw-black m-0 mt-1">{{ inventory.length }}</span></div></div>
                         <div class="col-md-4"><div class="p-3 rounded-3 bg-warning text-dark fw-bold">MINDESTBESTAND UNTERSCHRITTEN<span class="d-block h2 fw-black m-0 mt-1">2</span></div></div>
                         <div class="col-md-4"><div class="p-3 rounded-3 bg-success fw-bold">EXPORTSTRECKEN READY<span class="d-block h2 fw-black m-0 mt-1">CSV</span></div></div>
                     </div>
 
-                    <div class="card p-0 overflow-hidden">
+                    <div class="card p-0 overflow-hidden bg-white shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Material / Ausrüstungsgegenstand</th><th>Aktueller Bestand</th><th>Soll-Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
@@ -197,7 +183,7 @@
                                     <td><span class="badge bg-light text-dark border px-3 py-2 fw-bold fs-6 shadow-sm">{{ i.amount }} {{ i.unit }}</span></td>
                                     <td class="text-muted fw-bold font-monospace">{{ i.min_amount }}</td>
                                     <td><span class="badge bg-secondary px-2.5 py-1.5">{{ i.location }}</span></td>
-                                    <td><span class="badge px-3 py-1.5" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Kritisch / Nachbestellen':'Einsatzbereit' }}</span></td>
+                                    <td><span class="badge px-3 py-1.5" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Kritisch':'OK' }}</span></td>
                                     <td class="text-end"><button class="btn btn-sm text-danger border-0 bg-transparent" @click="deleteInventoryItem(i.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
@@ -205,111 +191,101 @@
                     </div>
                 </div>
 
-                <!-- ================= REITER: PERSONALVERWALTUNG ================= -->
                 <div v-if="currentTab === 'personal'">
                     <h2 class="fw-bold text-dark mb-4">Personalregister & Berechtigungen</h2>
-                    <div class="card border-0 bg-light shadow-sm p-3 mb-3"><i class="fa fa-id-card text-danger me-2"></i> Die lückenlose Verwaltung aller Lehrgänge und Atemschutz-Fristen erfolgt datenschutzkonform über die integrierten Kernakten.</div>
-                    <div class="card p-0 overflow-hidden shadow">
+                    <div class="card border-0 bg-light shadow-sm p-3 mb-3 text-dark fw-semibold"><i class="fa fa-id-card text-danger me-2"></i> Die lückenlose Verwaltung aller Lehrgänge und Atemschutz-Fristen erfolgt über die integrierten Kernakten.</div>
+                    <div class="card p-0 overflow-hidden bg-white shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Kamerad</th><th>Abteilung</th><th>System-Rechte</th><th>2FA Status</th></tr></thead>
                             <tbody>
                                 <tr><td class="fw-bold text-dark fs-5">Thomas Müller</td><td><span class="badge bg-success">Aktiv</span></td><td><span class="badge bg-danger text-uppercase">Admin</span></td><td><span class="badge bg-secondary">Inaktiv</span></td></tr>
-                                <tr><td class="fw-bold text-dark fs-5">Daniel (Du)</td><td><span class="badge bg-success">Aktiv</span></td><td><span class="badge bg-primary text-uppercase">User (Schreiben)</span></td><td><span class="badge bg-success"><i class="fa fa-shield me-1"></i> Aktiv</span></td></tr>
+                                <tr><td class="fw-bold text-dark fs-5">Daniel (Du)</td><td><span class="badge bg-success">Aktiv</span></td><td><span class="badge bg-primary text-uppercase">User</span></td><td><span class="badge bg-success"><i class="fa fa-shield me-1"></i> Aktiv</span></td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- ================= REITER: TECHNIK & FUHRPARK (KANBAN) ================= -->
                 <div v-if="currentTab === 'technik'">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <h2 class="fw-bold text-dark m-0">Technik & Geräte (Mängel-Kanban)</h2>
-                            <small class="text-muted fw-bold">Echtzeit-Mängelboard mit Alamos aPager-Kopplung bei kritischen Defekten</small>
+                            <small class="text-muted fw-bold">Echtzeit-Mängelboard mit Alamos-Kopplung</small>
                         </div>
                         <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" style="background:var(--fh-fire);" @click="openNewNoteModal"><i class="fa fa-wrench me-1"></i> Defekt melden</button>
                     </div>
 
-                    <!-- Drei-Spalten Kanbanboard -->
                     <div class="kanban-board">
-                        <!-- Spalte 1 -->
                         <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-danger"><i class="fa fa-triangle-exclamation me-1"></i> 1. Neu erfasst</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'neu')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white shadow-sm">[cite: 18]
-                                <div class="d-flex justify-content-between mb-1"><span class="badge" :class="n.priority === 'kritisch' ? 'bg-danger' : 'bg-secondary'">{{ n.priority.toUpperCase() }}</span><small class="text-muted font-monospace">{{ n.username }}</small></div>[cite: 18]
-                                <h5 class="fw-bold text-dark m-0 mt-2">{{ n.title }}</h5>[cite: 18]
-                                <p class="text-muted m-0 mt-1 small" style="line-height:1.3">{{ n.content }}</p>[cite: 18]
+                            <div class="kanban-col-title text-danger"><i class="fa fa-circle-exclamation me-1"></i> 1. Neu erfasst</div>
+                            <div v-for="n in notes.filter(x => x.kanban_status === 'neu')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white shadow-sm">
+                                <div class="d-flex justify-content-between mb-1"><span class="badge" :class="n.priority === 'kritisch' ? 'bg-danger' : 'bg-secondary'">{{ n.priority.toUpperCase() }}</span><small class="text-muted font-monospace">{{ n.username }}</small></div>
+                                <h5 class="fw-bold text-dark m-0 mt-2">{{ n.title }}</h5>
+                                <p class="text-muted m-0 mt-1 small" style="line-height:1.3">{{ n.content }}</p>
                                 <div class="d-flex gap-1 mt-3 justify-content-end">
-                                    <button class="btn btn-xs btn-outline-dark fw-bold rounded shadow-sm py-1 px-2.5" style="font-size:0.75rem;" @click="moveKanban(n.id, 'arbeit')">➔ In Arbeit nehmen</button>
+                                    <button class="btn btn-xs btn-outline-dark fw-bold rounded py-1 px-2" @click="moveKanban(n.id, 'arbeit')">➔ In Arbeit</button>
                                 </div>
                             </div>
                         </div>
-                        <!-- Spalte 2 -->
                         <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-warning"><i class="fa fa-screwdriver-wrench me-1"></i> 2. In Werkstatt / Arbeit</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'arbeit')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white shadow-sm">[cite: 18]
-                                <h5 class="fw-bold text-dark m-0">{{ n.title }}</h5>[cite: 18]
-                                <p class="text-muted m-0 mt-1 small">{{ n.content }}</p>[cite: 18]
+                            <div class="kanban-col-title text-warning"><i class="fa fa-screwdriver-wrench me-1"></i> 2. In Arbeit</div>
+                            <div v-for="n in notes.filter(x => x.kanban_status === 'arbeit')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white shadow-sm">
+                                <h5 class="fw-bold text-dark m-0">{{ n.title }}</h5>
+                                <p class="text-muted m-0 mt-1 small">{{ n.content }}</p>
                                 <div class="d-flex gap-1 mt-3 justify-content-end">
-                                    <button class="btn btn-xs btn-success text-white fw-bold rounded shadow-sm py-1 px-2.5" style="font-size:0.75rem;" @click="moveKanban(n.id, 'erledigt')">➔ Mangel behoben</button>
+                                    <button class="btn btn-xs btn-success text-white fw-bold rounded py-1 px-2" @click="moveKanban(n.id, 'erledigt')">➔ Behoben</button>
                                 </div>
                             </div>
                         </div>
-                        <!-- Spalte 3 -->
                         <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-success"><i class="fa fa-circle-check me-1"></i> 3. Erledigt & Quittiert</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'erledigt')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white opacity-75 shadow-sm">[cite: 18]
-                                <h5 class="fw-bold text-dark m-0 text-decoration-line-through">{{ n.title }}</h5>[cite: 18]
-                                <p class="small text-muted m-0 mt-1">{{ n.content }}</p>[cite: 18]
-                                <div class="text-end mt-2"><button class="btn btn-link text-danger border-0 bg-transparent p-0 text-decoration-none small fw-bold" @click="deleteNotePermanently(n.id)"><i class="fa fa-trash-alt me-1"></i> Aus Board entfernen</button></div>
+                            <div class="kanban-col-title text-success"><i class="fa fa-circle-check me-1"></i> 3. Erledigt</div>
+                            <div v-for="n in notes.filter(x => x.kanban_status === 'erledigt')" :key="n.id" class="card p-3 mb-2 border-secondary bg-white opacity-75 shadow-sm">
+                                <h5 class="fw-bold text-dark m-0 text-decoration-line-through">{{ n.title }}</h5>
+                                <p class="small text-muted m-0 mt-1">{{ n.content }}</p>
+                                <div class="text-end mt-2"><button class="btn btn-link text-danger border-0 bg-transparent p-0 text-decoration-none small fw-bold" @click="deleteNotePermanently(n.id)"><i class="fa fa-trash-alt me-1"></i> Löschen</button></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ================= REITER: VEREIN ================= -->
                 <div v-if="currentTab === 'verein'">
                     <h2 class="fw-bold text-dark mb-4">Vereinsleben & Terminkoordination</h2>
-                    <div class="card">
-                        <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">Nächste Vereinsveranstaltungen</h5>
+                    <div class="card bg-white">
+                        <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">Nächste Termine</h5>
                         <table class="table">
-                            <thead><tr><th>Datum</th><th>Veranstaltung</th><th>Kassen-Verantwortlicher</th></tr></thead>
+                            <thead><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th></tr></thead>
                             <tbody>
                                 <tr><td class="fw-bold font-monospace">18.07.2026</td><td>Floriansfest Buxheim / Memmingen Region</td><td>Vorstandschaft</td></tr>
-                                <tr><td class="fw-bold font-monospace">12.09.2026</td><td>Kameradschaftsabend (Hauptversammlung)</td><td>Kassier</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- ================= REITER: EINSTELLUNGEN (REGISTRY) ================= -->
                 <div v-if="currentTab === 'einstellungen'">
-                    <h2 class="fw-bold text-dark mb-4">Systemsteuerung & API-Verschlüsselungen</h2>
-                    <div class="card border-secondary">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-pager text-danger me-2"></i>Alamos aPager PRO Schnittstellenkonfiguration</h5>
+                    <h2 class="fw-bold text-dark mb-4">Systemsteuerung & API Gateways</h2>
+                    <div class="card border-secondary bg-white">
+                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-pager text-danger me-2"></i>Alamos aPager PRO Schnittstelle</h5>
                         <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">Gateway API-Key (Triggert automatische Pushes bei kritischen Fahrzeugdefekten)</label>
+                            <label class="small fw-bold text-muted mb-1">Gateway API-Key (Fahrzeugstörungen-Push-Dienst)</label>
                             <input type="text" v-model="registry.apager_api_key" class="form-control font-monospace fw-bold" placeholder="Kein API-Key hinterlegt">
                         </div>
                         <hr class="my-3 border-secondary">
                         <h5 class="fw-bold text-dark mb-3"><i class="fa fa-shield-halved text-success me-2"></i>Zwei-Faktor-Authentisierung (2FA)</h5>
-                        <div class="form-check form-switch p-2 bg-light border rounded-3 ps-5 shadow-sm">
-                            <input class="form-check-input ms-[-2.5rem]" type="checkbox" id="glob2FA" checked disabled>
+                        <div class="form-check form-switch p-2 bg-light border rounded-3 ps-5">
+                            <input class="form-check-input" type="checkbox" id="glob2FA" checked disabled>
                             <label class="form-check-label small fw-bold text-dark" for="glob2FA">Globale 2FA-Pflicht für alle Administratoren und Schriftführer aktiv</label>
                         </div>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4 mt-4 shadow-sm" @click="saveRegistrySettings">Registry-Konfiguration überschreiben</button>
+                        <button class="btn btn-danger rounded-pill fw-bold px-4 mt-4 shadow-sm" @click="saveRegistrySettings">Registry sichern</button>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <!-- BILDSCHIRMFÜLLENDER INSIDE-VIEWER FOR REPORTS (Zero Popup Policy) -->
         <div class="modal fade" id="inlineViewerModal" tabindex="-1">
             <div class="modal-dialog modal-fullscreen-kapsel modal-dialog-centered">
                 <div class="modal-content border-secondary shadow-lg">
                     <div class="modal-header bg-dark text-white py-2 border-secondary">
-                        <h6 class="modal-title fw-bold text-danger"><i class="fa fa-file-invoice me-2"></i>In-App Dienstbericht-Dokumentenkapsel (Vorschau)</h6>
+                        <h6 class="modal-title fw-bold text-danger"><i class="fa fa-file-invoice me-2"></i>In-App Dienstbericht-Dokumentenkapsel</h6>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-2 bg-light">
@@ -319,7 +295,6 @@
             </div>
         </div>
 
-        <!-- INTERNES FORMULAR MODAL FÜR KANBAN-MÄNGEL -->
         <div class="modal fade" id="newNoteModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content text-dark border-secondary">
@@ -328,10 +303,10 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4 bg-white">
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Bauteil / Gerät / Fahrzeug</label><input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. HLF 20 Geräteraum 3 Schloss defekt" required></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Genaue Schadensbeschreibung</label><textarea v-model="newNote.content" class="form-control" rows="4" placeholder="Wie genau äußert sich der Defekt?" required></textarea></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Dringlichkeitsstufe (Kritisch triggert aPager-Push)</label>
-                            <select v-model="newNote.priority" class="form-select"><option value="normal">Normaler Mangel</option><option value="kritisch">🚨 KRITISCH (Fahrzeug außer Dienst / Atemschutzsperre)</option></select>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Bauteil / Gerät / Fahrzeug</label><input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. HLF 20 Reifen verschlissen" required></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Schadensbeschreibung</label><textarea v-model="newNote.content" class="form-control" rows="4" placeholder="Details..." required></textarea></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Dringlichkeit</label>
+                            <select v-model="newNote.priority" class="form-select"><option value="normal">Normaler Mangel</option><option value="kritisch">🚨 KRITISCH (Triggert Alamos-Push)</option></select>
                         </div>
                     </div>
                     <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 shadow" @click="submitKanbanNote">Meldung absetzen</button></div>
@@ -341,7 +316,6 @@
 
     </div>
 
-    <!-- REAKTIVER SPA MASTER CONTROL SCRIPT BLOCK -->
     <script>
         const { createApp } = Vue;
         let inlineViewerModal = null, newNoteModal = null;
@@ -356,14 +330,14 @@
             async mounted() {
                 try {
                     this.identity = await (await fetch('/api/auth/me')).json();
-                    this.groups = await (await fetch('/groups')).json();[cite: 18]
-                    this.vehicles = await (await fetch('/api/vehicles')).json();[cite: 18]
+                    this.groups = await (await fetch('/groups')).json();
+                    this.vehicles = await (await fetch('/api/vehicles')).json();
                     this.notes = await (await fetch('/api/notes')).json();
                     this.inventory = await (await fetch('/api/inventory')).json();
                     if(this.identity.role === 'admin') { this.registry = await (await fetch('/api/settings')).json(); }
                     
                     if(this.groups.length > 0) {
-                        this.selectedGroupId = this.groups[0].id;[cite: 18]
+                        this.selectedGroupId = this.groups[0].id;
                         await this.loadGroupSessions();
                     }
                     inlineViewerModal = new bootstrap.Modal(document.getElementById('inlineViewerModal'));
@@ -372,9 +346,7 @@
                 } catch(e) { window.location.href = '/'; }
             },
             methods: {
-                async loadGroupSessions() {
-                    this.legacySessions = await (await fetch(`/groups/${this.selectedGroupId}/sessions`)).json();[cite: 18]
-                },
+                async loadGroupSessions() { this.legacySessions = await (await fetch(`/groups/${this.selectedGroupId}/sessions`)).json(); },
                 async refreshKanban() { this.notes = await (await fetch('/api/notes')).json(); },
                 openInlineReport(sessionId) { this.inlineViewerUrl = `/sessions/${sessionId}/report`; inlineViewerModal.show(); },
                 openNewNoteModal() { this.newNote = { title: '', content: '', visibility: 'public', priority: 'normal' }; newNoteModal.show(); },
@@ -391,11 +363,11 @@
                 },
                 async saveRegistrySettings() {
                     await fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.registry) });
-                    alert("System-Registry erfolgreich überschrieben und aPager PRO Gateway abgeglichen!");
+                    alert("Registry erfolgreich gesichert!");
                 },
                 async setVehicleStatus(v, sCode) {
                     v.status = sCode;
-                    await fetch(`/api/vehicles/${v.id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: sCode}) });[cite: 18]
+                    await fetch(`/api/vehicles/${v.id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: sCode}) });
                 },
                 goToLegacyEditor() { if(this.selectedGroupId) window.location.href = `/editor?group_id=${this.selectedGroupId}`; },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/'; }
