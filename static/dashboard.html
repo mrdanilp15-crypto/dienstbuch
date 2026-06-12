@@ -2,333 +2,192 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FeuerwehrHub - Ultimate Leitstand</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FeuerwehrHub - Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=8.0">
+    <link rel="stylesheet" href="/static/style.css?v=7.0">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         <div class="app-container">
-            
             <div class="sidebar d-none d-lg-flex">
-                <div class="sidebar-header"><h4 class="m-0 fw-bold text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4></div>
+                <div class="sidebar-header"><h4 class="m-0 fw-bold"><i class="fa fa-shield-halved text-danger me-2"></i>WEHRHUB</h4></div>
                 <div class="flex-grow-1 overflow-y-auto">
-                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand Zentrale</div>
-                    <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user"></i> Mein Bereich</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-shirt"></i> Kleiderkammer & Lager</div>
-                    <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users"></i> Personalverwaltung</div>
-                    <div class="menu-link" :class="{active: currentTab === 'technik'}" @click="currentTab = 'technik'"><i class="fa fa-truck-ramp-box"></i> Technik & Fuhrpark</div>
-                    <div class="menu-link" :class="{active: currentTab === 'integration'}" @click="currentTab = 'integration'"><i class="fa fa-satellite-dish"></i> API & Integrationen</div>
+                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand</div>
+                    <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user"></i> Mein Profil</div>
+                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Lager</div>
+                    <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users"></i> Personal & Logins</div>
+                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck"></i> Fuhrpark</div>
+                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-building-shield"></i> Verein</div>
                 </div>
-                <div class="p-3 bg-light border-top text-center"><button class="btn btn-sm btn-outline-danger w-100 rounded-pill fw-bold" @click="triggerLogout">System verlassen</button></div>
-            </div>
-
-            <div class="mobile-nav d-lg-none w-100 d-flex justify-content-between align-items-center p-3 bg-white border-bottom">
-                <button class="btn btn-outline-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobMenu"><i class="fa fa-bars"></i></button>
-                <div class="fw-bold text-dark fs-5">FEUERWEHR<span class="text-danger">HUB</span></div>
+                <div class="p-3 bg-light border-top text-center">
+                    <div class="small fw-bold mb-2">{{ identity.username }}</div>
+                    <button class="btn btn-sm btn-danger w-100 rounded-pill" @click="triggerLogout">Abmelden</button>
+                </div>
             </div>
 
             <div class="main-content">
-                
                 <div v-if="currentTab === 'leitstand'">
-                    <div class="d-flex justify-content-between mb-4 flex-wrap gap-2">
-                        <h2 class="fw-bold text-dark m-0">Führungs-Leitstand</h2>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="goToEditor"><i class="fa fa-plus me-1"></i> Dienstbuch schreiben</button>
+                    <div class="d-flex justify-content-between mb-4">
+                        <h2>Führungs-Leitstand</h2>
+                        <button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neues Protokoll</button>
                     </div>
-
-                    <div v-if="registry.active_alarm" class="alert alert-danger shadow-lg border-danger border-2 mb-4 p-4 text-center blink-bg">
-                        <h1 class="fw-black text-danger text-uppercase display-5 mb-2"><i class="fa fa-bell"></i> EINSATZALARM</h1>
-                        <h3 class="fw-bold text-dark">{{ registry.active_alarm }}</h3>
-                        <button class="btn btn-dark mt-3 rounded-pill px-4 fw-bold" @click="clearAlarm">Einsatz abgeschlossen (Quittieren)</button>
-                    </div>
-
-                    <div class="card mb-4 bg-white">
-                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statustableau</h6>
+                    
+                    <div class="card mb-4 bg-white shadow-sm">
+                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Funk-Status</h6>
                         <div class="row g-2">
                             <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
-                                <div class="p-3 border rounded-3 d-flex align-items-center justify-content-between bg-light shadow-sm">
-                                    <div class="text-truncate"><div class="fw-bold text-dark">{{ v.name }}</div><small class="text-muted font-monospace">{{ v.radio_name || 'Ohne Kennung' }}</small></div>
+                                <div class="p-2 border rounded d-flex justify-content-between align-items-center bg-light">
+                                    <div class="text-truncate"><b>{{ v.name }}</b></div>
                                     <div class="d-flex gap-1">
-                                        <button class="status-btn s-2 shadow-sm" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
-                                        <button class="status-btn s-4 shadow-sm" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
+                                        <button class="status-btn s-2" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
+                                        <button class="status-btn s-4" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <h5 class="fw-bold text-dark mb-3"><i class="fa fa-book text-muted me-2"></i>Letzte Dienstberichte</h5>
-                    <div v-if="sessions.length === 0" class="text-muted">Keine Einträge vorhanden.</div>
-                    <div v-for="s in sessions" :key="s.id" class="card shadow-sm p-3 mb-3 border-start border-4" style="border-left-color: var(--fh-exercise) !important; cursor: pointer;">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div>
-                                <span class="badge bg-primary mb-1 px-2">{{ s.category }}</span>
-                                <h5 class="fw-bold text-dark m-0">{{ s.description }}</h5>
-                                <small class="text-muted fw-semibold">{{ s.date }} — Dauer: {{ s.duration }} Std.</small>
-                            </div>
+                    <h5 class="fw-bold mb-3">Dienstberichte</h5>
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 shadow-sm border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
+                        <div class="d-flex justify-content-between">
+                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0">{{ s.description }}</h6></div>
+                            <div class="text-end text-muted small">{{ s.date }}<br>{{ s.duration }} Std.</div>
                         </div>
-                    </div>
-                </div>
-
-                <div v-if="currentTab === 'meinbereich'">
-                    <h2 class="fw-bold text-dark mb-4">Mein Bereich</h2>
-                    <div class="row g-4">
-                        <div class="col-md-6">
-                            <div class="card bg-white h-100 shadow-sm border-0">
-                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-id-card text-danger me-2"></i>Persönliche Dienstakte</h5>
-                                <div v-if="identity.profile && identity.profile.personnel_name" class="fs-6">
-                                    <p class="mb-2"><b>Klarname:</b> {{ identity.profile.personnel_name }}</p>
-                                    <p class="mb-2"><b>AGT-Tauglichkeit:</b> <span class="badge" :class="identity.profile.is_agt ? 'bg-success':'bg-secondary'">{{ identity.profile.is_agt ? 'Zulassung Aktiv':'Nein' }}</span></p>
-                                    <p class="mb-2"><b>Maschinist:</b> <span class="badge" :class="identity.profile.is_maschinist ? 'bg-success':'bg-secondary'">{{ identity.profile.is_maschinist ? 'Ja':'Nein' }}</span></p>
-                                    <p class="mb-2"><b>G26.3 Gültig bis:</b> <span class="fw-bold text-primary">{{ identity.profile.g26 || 'Kein Datum' }}</span></p>
-                                </div>
-                                <div v-else class="alert alert-warning small fw-bold">Account ist mit keiner Akte verknüpft.</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h2 class="fw-bold text-dark m-0">Kleiderkammer & Lager</h2>
-                        <button class="btn btn-dark rounded-pill fw-bold px-3 shadow-sm" @click="openInvModal"><i class="fa fa-plus me-1"></i> Artikel einbuchen</button>
-                    </div>
-                    <div class="card p-0 overflow-hidden shadow-sm">
-                        <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Artikel / PSA</th><th>Code/Größe</th><th>Menge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
-                            <tbody>
-                                <tr v-for="i in inventory" :key="i.id">
-                                    <td class="fw-bold text-dark fs-6">{{ i.item_name }}</td>
-                                    <td><small class="text-muted">{{ i.barcode || '-' }} <br> {{ i.size || '-' }}</small></td>
-                                    <td><span class="badge bg-light text-dark border px-2 py-1 fs-6 shadow-sm">{{ i.amount }} {{ i.unit }}</span></td>
-                                    <td><span class="badge bg-secondary">{{ i.location }}</span></td>
-                                    <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Nachbestellen':'OK' }}</span></td>
-                                    <td class="text-end"><button class="btn btn-sm text-primary bg-transparent border-0" @click="editInv(i)"><i class="fa fa-edit"></i></button><button class="btn btn-sm text-danger bg-transparent border-0" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
 
                 <div v-if="currentTab === 'personal'">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h2 class="fw-bold text-dark m-0">Personalstämme Register</h2>
-                        <button class="btn btn-sm btn-danger rounded-pill fw-bold px-3" @click="openMemberModal">Kamerad anlegen</button>
+                    <div class="d-flex justify-content-between mb-4">
+                        <h2>Personal & System-Zugänge</h2>
                     </div>
-                    <div class="card p-0 overflow-hidden bg-white shadow-sm">
+
+                    <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
+                        <li class="nav-item flex-fill"><button class="nav-link w-100" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameraden</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Logins</button></li>
+                    </ul>
+
+                    <div v-if="subTabPers === 'akte'">
+                        <button class="btn btn-danger btn-sm mb-3" @click="openMemberModal(null)">Kamerad anlegen</button>
+                        <div class="card p-0 overflow-hidden shadow-sm">
+                            <table class="table mb-0 align-middle">
+                                <thead class="table-light"><tr><th>Name</th><th>Rang</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="p in personnel" :key="p.id">
+                                        <td><b>{{ p.name }}</b></td><td>{{ p.rank }}</td><td>{{ p.membership_status }}</td>
+                                        <td class="text-end"><button class="btn btn-sm btn-outline-primary" @click="openMemberModal(p)">Edit</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div v-if="subTabPers === 'login'">
+                        <button class="btn btn-dark btn-sm mb-3" @click="openUserModal">Login anlegen</button>
+                        <div class="card p-0 overflow-hidden shadow-sm">
+                            <table class="table mb-0 align-middle">
+                                <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th class="text-end">Aktion</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="u in users" :key="u.id">
+                                        <td><b>{{ u.username }}</b></td><td>{{ u.role }}</td>
+                                        <td class="text-end"><button class="btn btn-sm btn-danger" @click="delUser(u.id)">Löschen</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="currentTab === 'fuhrpark'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Fuhrparkverwaltung</h2><button class="btn btn-dark" @click="openVehModal">Fahrzeug hinzufügen</button></div>
+                    <div class="card p-0 overflow-hidden shadow-sm">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Kamerad</th><th>Dienstgrad</th><th>Abteilung</th><th>AGT</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Fahrzeug</th><th>Funkrufname</th><th>HU/TÜV</th><th>SP</th><th>KM</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
-                                <tr v-for="p in personnel" :key="p.id">
-                                    <td class="fw-bold text-dark fs-5">{{ p.name }}</td>
-                                    <td><span class="badge bg-light text-dark border">{{ p.rank || 'Feuerwehrmann' }}</span></td>
-                                    <td>{{ p.membership_status }}</td>
-                                    <td><span class="badge" :class="p.is_agt ? 'bg-dark text-white':'bg-light text-muted'">{{ p.is_agt ? 'Ja':'Nein' }}</span></td>
-                                    <td class="text-end"><button class="btn btn-sm text-primary bg-transparent border-0" @click="editMember(p)"><i class="fa fa-edit"></i></button><button class="btn btn-sm text-danger bg-transparent border-0" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                <tr v-for="v in vehicles" :key="v.id">
+                                    <td><b>{{ v.name }}</b></td><td>{{ v.radio_name }}</td>
+                                    <td><span class="badge bg-dark">{{ v.tuv_date || '-' }}</span></td>
+                                    <td><span class="badge bg-secondary">{{ v.sp_date || '-' }}</span></td>
+                                    <td>{{ v.milage }} km</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-danger" @click="delVeh(v.id)"><i class="fa fa-trash"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'technik'">
-                    <h2 class="fw-bold text-dark mb-4">Technik & Mängel-Kanbanboard</h2>
-                    <div class="d-flex justify-content-end mb-3"><button class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openDefectModal"><i class="fa fa-wrench me-1"></i> Defekt melden</button></div>
-                    <div class="kanban-board">
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-danger">Neu erfasst</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'neu')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-danger">
-                                <span class="badge bg-secondary mb-2 w-auto">{{ n.priority }}</span>
-                                <h6 class="fw-bold text-dark m-0">{{ n.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
-                                <div><button class="btn btn-sm text-primary border-0" @click="editNote(n)"><i class="fa fa-edit"></i></button><button class="btn btn-sm text-danger border-0" @click="delNote(n.id)"><i class="fa fa-trash"></i></button></div>
-                                <button class="btn btn-sm btn-outline-dark fw-bold w-100 mt-2" @click="moveKanban(n.id, 'arbeit')">In Arbeit ➔</button>
+                <div v-if="currentTab === 'meinbereich'">
+                    <h2 class="mb-4">Mein Bereich</h2>
+                    <div class="card p-4 shadow-sm border-0">
+                        <div v-if="identity.personnel_name">
+                            <h4>{{ identity.personnel_name }}</h4>
+                            <p class="text-muted text-uppercase small">{{ identity.role }}</p>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4 border-end"><h5>{{ identity.is_agt ? '✅':'❌' }}</h5><small>AGT</small></div>
+                                <div class="col-8"><h5>{{ identity.g26 || 'Kein Datum' }}</h5><small>Nächste G26.3</small></div>
                             </div>
                         </div>
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-warning">In Reparatur</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'arbeit')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm border-start border-4 border-warning">
-                                <h6 class="fw-bold text-dark m-0">{{ n.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ n.content }}</p>
-                                <button class="btn btn-sm btn-success text-white fw-bold w-100 mt-2" @click="moveKanban(n.id, 'erledigt')">Behoben ➔</button>
-                            </div>
-                        </div>
-                        <div class="kanban-col shadow-sm">
-                            <div class="kanban-col-title text-success">Erledigt</div>
-                            <div v-for="n in notes.filter(x => x.kanban_status === 'erledigt')" :key="n.id" class="card p-3 mb-2 bg-white shadow-sm opacity-75 border-start border-4 border-success">
-                                <h6 class="fw-bold text-dark m-0 text-decoration-line-through">{{ n.title }}</h6>
-                                <button class="btn btn-sm text-danger fw-bold bg-transparent border-0 mt-2" @click="delNote(n.id)"><i class="fa fa-trash-alt me-1"></i> Aus Board entfernen</button>
-                            </div>
-                        </div>
+                        <div v-else class="alert alert-info">Dein Login ist mit keinem Personal-Stamm verknüpft.</div>
                     </div>
-                </div>
-
-                <div v-if="currentTab === 'integration'">
-                    <h2 class="fw-bold text-dark mb-4">API Gateways & Integrationen</h2>
-                    
-                    <div class="card border-secondary bg-white mb-4">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-tower-cell text-danger me-2"></i>Inbound Webhook (Leitstelle / BosMon / Divera)</h5>
-                        <p class="text-muted small">Sende einen POST-Request an diese URL, um automatisch einen Einsatz zu erstellen und das System in den Alarm-Modus zu versetzen.</p>
-                        <div class="bg-light p-2 rounded border font-monospace small mb-3">
-                            <code>POST http://[DEINE-IP]/api/webhook/alarm</code><br>
-                            <code>Payload: {"keyword": "B3 Brand", "message": "Zimmerbrand", "address": "Musterstr. 1", "units": "LZ1"}</code>
-                        </div>
-                    </div>
-
-                    <div class="card border-secondary bg-white">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-pager text-success me-2"></i>Outbound Pushes (aPager PRO / Divera 24/7)</h5>
-                        <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">aPager PRO API-Key (Triggert bei kritischen Mängeln und Webhook-Eingang)</label>
-                            <input type="text" v-model="registry.apager_api_key" class="form-control font-monospace fw-bold" placeholder="Kein Key hinterlegt">
-                        </div>
-                        <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">Divera 24/7 Accesskey</label>
-                            <input type="text" v-model="registry.divera_api_key" class="form-control font-monospace fw-bold" placeholder="Kein Key hinterlegt">
-                        </div>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings">Registry speichern</button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <div class="modal fade" id="defectModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 rounded-4 shadow-lg">
-                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Mangel bearbeiten</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Gerät / Fahrzeug</label><input type="text" v-model="newNote.title" class="form-control bg-light" required></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Beschreibung</label><textarea v-model="newNote.content" class="form-control bg-light" rows="4" required></textarea></div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Dringlichkeit</label>
-                            <select v-model="newNote.priority" class="form-select bg-light"><option value="normal">Normal</option><option value="kritisch">🚨 KRITISCH (Löst aPager Push aus)</option></select>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 w-100" @click="submitKanban">Meldung absetzen</button></div>
                 </div>
             </div>
         </div>
 
-        <div class="modal fade" id="invModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content shadow-lg border-0 rounded-4">
-                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Artikel bearbeiten</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Material Name (PSA)</label><input type="text" v-model="newInv.item_name" class="form-control bg-light" required></div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Menge</label><input type="number" v-model="newInv.amount" class="form-control bg-light"></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Mindestbestand</label><input type="number" v-model="newInv.min_amount" class="form-control bg-light"></div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Barcode / Code</label><input type="text" v-model="newInv.barcode" class="form-control bg-light" placeholder="Scan..."></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Größe</label><input type="text" v-model="newInv.size" class="form-control bg-light" placeholder="z.B. XL"></div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Einheit</label><input type="text" v-model="newInv.unit" class="form-control bg-light" placeholder="Stück..."></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Lagerort</label><input type="text" v-model="newInv.location" class="form-control bg-light"></div>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0"><button class="btn btn-dark rounded-pill fw-bold px-4 w-100" @click="submitInv">Speichern</button></div>
-                </div>
-            </div>
-        </div>
+        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Kamerad Akte</h5></div><div class="modal-body">
+            <input type="text" v-model="activeMem.name" class="form-control mb-2" placeholder="Name">
+            <input type="text" v-model="activeMem.rank" class="form-control mb-2" placeholder="Rang">
+            <input type="date" v-model="activeMem.g26_3_date" class="form-control mb-2">
+            <button class="btn btn-danger w-100" @click="saveMember">Speichern</button>
+        </div></div></div></div>
 
-        <div class="modal fade" id="memberModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content shadow-lg border-0 rounded-4">
-                    <div class="modal-header bg-light border-bottom"><h5 class="modal-title fw-bold text-dark">Kamerad bearbeiten</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body p-4">
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name</label><input type="text" v-model="newMem.name" class="form-control bg-light" required></div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Dienstgrad</label><input type="text" v-model="newMem.rank" class="form-control bg-light"></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Abteilung</label>
-                                <select v-model="newMem.membership_status" class="form-select bg-light"><option value="Aktiv">Aktiv</option><option value="Jugend">Jugend</option></select>
-                            </div>
-                        </div>
-                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="c1"><label class="form-check-label fw-bold" for="c1">Atemschutzgeräteträger</label></div>
-                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist" id="c2"><label class="form-check-label fw-bold" for="c2">Maschinist</label></div>
-                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="c3"><label class="form-check-label fw-bold" for="c3">Gruppenführer</label></div>
-                    </div>
-                    <div class="modal-footer border-0"><button class="btn btn-danger rounded-pill fw-bold px-4 w-100" @click="submitMember">Akte speichern</button></div>
-                </div>
-            </div>
-        </div>
-
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Neuer Zugang</h5></div><div class="modal-body">
+            <input type="text" v-model="newUser.username" class="form-control mb-2" placeholder="Loginname">
+            <input type="password" v-model="newUser.password" class="form-control mb-2" placeholder="Passwort">
+            <select v-model="newUser.role" class="form-select mb-2"><option value="user">User</option><option value="admin">Admin</option></select>
+            <input type="number" v-model="newUser.personnel_id" class="form-control mb-2" placeholder="Verknüpfte ID (Optional)">
+            <button class="btn btn-dark w-100" @click="saveUser">Account erstellen</button>
+        </div></div></div></div>
+        
     </div>
 
     <script>
         const { createApp } = Vue;
-        let defectModal = null, invModal = null, memberModal = null;
-
         createApp({
             data() {
                 return {
-                    ready: false, currentTab: 'leitstand',
-                    identity: { username: '', role: '', profile: null },
-                    groups: [], selectedGroupId: null, sessions: [], vehicles: [], notes: [], inventory: [], personnel: [], registry: {},
-                    
-                    newNote: { id: null, title: '', content: '', visibility: 'public', priority: 'normal' },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', barcode: '', size: '', status: 'OK' },
-                    newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false }
+                    ready: false, currentTab: 'leitstand', subTabPers: 'akte', identity: {},
+                    groups: [], vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [],
+                    activeMem: { id: null, name: '', rank: '', g26_3_date: '' },
+                    newUser: { username: '', password: '', role: 'user', personnel_id: null }
                 }
             },
             async mounted() {
-                try {
-                    const res = await fetch('/api/auth/me');
-                    if(!res.ok) { window.location.href = '/login'; return; }
-                    this.identity = await res.json();
-                    
+                const res = await fetch('/api/auth/me');
+                if(!res.ok) { window.location.href = '/login'; return; }
+                this.identity = await res.json();
+                await this.refreshAll();
+                this.ready = true;
+            },
+            methods: {
+                async refreshAll() {
                     this.groups = await (await fetch('/groups')).json();
                     this.vehicles = await (await fetch('/api/vehicles')).json();
                     this.notes = await (await fetch('/api/notes')).json();
-                    this.inventory = await (await fetch('/api/inventory')).json();
                     this.personnel = await (await fetch('/api/personnel/list')).json();
-                    this.registry = await (await fetch('/api/settings')).json();
-                    
-                    if(this.groups.length > 0) {
-                        this.selectedGroupId = this.groups[0].id;
-                        this.sessions = await (await fetch(`/groups/${this.selectedGroupId}/sessions`)).json();
-                    }
-                    
-                    defectModal = new bootstrap.Modal(document.getElementById('defectModal'));
-                    invModal = new bootstrap.Modal(document.getElementById('invModal'));
-                    memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
-                    
-                    this.ready = true;
-                } catch(e) { window.location.href = '/login'; }
-            },
-            methods: {
-                goToEditor() { if(this.selectedGroupId) window.location.href = `/editor?group_id=${this.selectedGroupId}`; },
+                    if(this.identity.role === 'admin') this.users = await (await fetch('/api/users')).json();
+                    if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
+                },
+                goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
+                async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
-                
-                async clearAlarm() { await fetch('/api/webhook/alarm_clear', {method:'POST'}); this.registry.active_alarm = ''; },
-
-                // Kanban
-                openDefectModal() { this.newNote = { id: null, title: '', content: '', visibility: 'public', priority: 'normal' }; defectModal.show(); },
-                editNote(n) { this.newNote = { ...n }; defectModal.show(); },
-                async submitKanban() { await fetch('/api/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newNote) }); defectModal.hide(); this.notes = await (await fetch('/api/notes')).json(); },
-                async moveKanban(id, status) { await fetch(`/api/notes/${id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: status}) }); this.notes = await (await fetch('/api/notes')).json(); },
-                async delNote(id) { if(confirm("Löschen?")) { await fetch(`/api/notes/${id}`, { method:'DELETE' }); this.notes = await (await fetch('/api/notes')).json(); } },
-
-                // Lager
-                openInvModal() { this.newInv = { id: null, item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Lager', barcode: '', size: '', status: 'OK' }; invModal.show(); },
-                editInv(i) { this.newInv = { ...i }; invModal.show(); },
-                async submitInv() { await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv) }); invModal.hide(); this.inventory = await (await fetch('/api/inventory')).json(); },
-                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, { method:'DELETE' }); this.inventory = await (await fetch('/api/inventory')).json(); } },
-
-                // Personal
-                openMemberModal() { this.newMem = { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false }; memberModal.show(); },
-                editMember(p) { this.newMem = { ...p }; memberModal.show(); },
-                async submitMember() { await fetch('/api/personnel', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newMem) }); memberModal.hide(); this.personnel = await (await fetch('/api/personnel/list')).json(); },
-                async delMember(id) { if(confirm("Löschen?")) { await fetch(`/api/personnel/${id}`, { method:'DELETE' }); this.personnel = await (await fetch('/api/personnel/list')).json(); } },
-
-                // Fahrzeuge
-                async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: s}) }); },
-
-                async saveSettings() { await fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.registry) }); alert("Gesichert!"); }
+                openMemberModal(p) { this.activeMem = p ? {...p} : {id:null, name:'', rank:'', g26_3_date:''}; new bootstrap.Modal(document.getElementById('memberModal')).show(); },
+                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeMem)}); await this.refreshAll(); },
+                openUserModal() { new bootstrap.Modal(document.getElementById('userModal')).show(); },
+                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); await this.refreshAll(); }
             }
         }).mount('#app');
     </script>
