@@ -1,151 +1,192 @@
-/* --- FEUERWEHRHUB CORE UNIFIED BRANDING --- */
+/* --- ORIGINAL FEUERWEHRHUB DEEP-DARK THEME --- */
 :root {
-    --fh-dark: #0f172a;       /* Deep Slate */
-    --fh-bg: #f1f5f9;         /* Hellgrauer Hintergrund */
-    --fh-card-bg: #ffffff;
-    --fh-border: #e2e8f0;
-    --fh-text-main: #1e293b;
-    --fh-text-muted: #64748b;
+    --fh-bg: #0b0f19;         /* Extrem dunkles Navy-Blau für den App-Hintergrund */
+    --fh-nav-bg: #111827;     /* Sattes Schwarz-Blau für die Top-Navbar */
+    --fh-card-bg: #1e293b;    /* Dunkles Slate-Graublau für Karten */
+    --fh-border: #334155;     /* Taktische Rahmenfarbe */
+    --fh-text-main: #f8fafc;  /* Kristallweiß für primäre Texte */
+    --fh-text-muted: #94a3b8; /* Muted Blaugrau für Beschriftungen/Metadaten */
     
-    /* Taktische Farbpalette */
-    --fh-fire: #b71c1c;       /* Feuerwehr-Abendrot */
-    --fh-exercise: #0d6efd;   /* Übungs-Blau */
-    --fh-incident: #dc3545;   /* Einsatz-Rot */
-    --fh-misc: #ffc107;       /* Sonstiges-Gelb */
-    --fh-safe: #16a34a;       /* Gültig-Grün */
+    --fh-fire: #ef4444;       /* FeuerwehrHub Signalrot für Highlights */
+    --fh-exercise: #2563eb;   /* Übungs-Blau */
+    --fh-incident: #dc2626;   /* Einsatz-Rot */
+    --fh-misc: #f59e0b;       /* Bernstein-Gelb */
+    --fh-safe: #10b981;       /* Fristen-Grün */
 }
 
-* { box-sizing: border-box; }
+/* Base Reset */
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
     background-color: var(--fh-bg);
     color: var(--fh-text-main);
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
     letter-spacing: -0.2px;
-    height: 100dvh;
-    margin: 0;
-    overflow: hidden;
-}
-
-/* --- APP MAIN LAYOUT --- */
-.app-container { display: flex; height: 100dvh; }
-
-.sidebar {
-    width: 280px;
-    background: var(--fh-card-bg);
-    border-right: 1px solid var(--fh-border);
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.02);
-    z-index: 100;
-}
-
-.main-content {
-    flex-grow: 1;
+    height: 100vh;
+    overflow-x: hidden;
     overflow-y: auto;
-    padding: 30px;
-    width: 100%;
-    scroll-behavior: smooth;
 }
 
-.mobile-nav {
-    display: none;
-    background: var(--fh-card-bg);
+/* --- HORIZONTALE TOP-NAVBAR (Screenshot-Style) --- */
+.navbar-top {
+    background-color: var(--fh-nav-bg);
     border-bottom: 1px solid var(--fh-border);
-    padding: 10px 15px;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 1100;
+    width: 100%;
+    z-index: 1050;
 }
 
-/* --- UNIFIED CARDS --- */
-.card, .session-item, .member-card, .broadcast-card {
+.navbar-brand-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.brand-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.brand-logo {
+    width: 38px;
+    height: 38px;
+    background-color: var(--fh-fire);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 1.1rem;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+.brand-title { font-weight: 800; font-size: 1.15rem; color: var(--fh-text-main); line-height: 1.2; }
+.brand-subtitle { font-size: 0.75rem; color: var(--fh-text-muted); font-weight: 600; }
+
+.brand-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--fh-safe);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Zweite Navigationszeile (Menüpunkte) */
+.navbar-menu-row {
+    display: flex;
+    align-items: center;
+    padding: 0px 2rem;
+    height: 45px;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    height: 100%;
+}
+
+.nav-link-item {
+    color: var(--fh-text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.nav-link-item:hover { color: var(--fh-text-main); }
+.nav-link-item.active {
+    color: var(--fh-fire);
+    border-bottom-color: var(--fh-fire);
+}
+
+.nav-group-select {
+    background-color: #1f2937 !important;
+    color: var(--fh-text-main) !important;
+    border: 1px solid var(--fh-border) !important;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 4px 12px;
+}
+
+/* --- APP MAIN INNER CONTAINER --- */
+.main-content {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem;
+}
+
+/* --- CARDS & WIDGETS --- */
+.card, .session-item, .broadcast-card {
     background: var(--fh-card-bg) !important;
     border: 1px solid var(--fh-border) !important;
-    border-radius: 16px !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.02) !important;
-    transition: all 0.2s ease-in-out !important;
-}
-.card:hover, .session-item:hover, .member-card:hover {
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05) !important;
-    border-color: #cbd5e1 !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* --- NAVIGATION & GRID TUNING --- */
-.group-item {
-    padding: 14px 20px;
-    cursor: pointer;
-    border-left: 5px solid transparent;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: all 0.2s;
-    border-bottom: 1px solid #f8fafc;
-    color: var(--fh-text-main);
-    font-weight: 500;
+/* Formularelemente im Dark-Mode */
+.form-control, .form-select {
+    background-color: #111827 !important;
+    color: var(--fh-text-main) !important;
+    border: 1px solid var(--fh-border) !important;
 }
-.group-item.active {
-    border-left-color: var(--fh-fire);
-    background: #fff5f5;
-    color: var(--fh-fire);
+.form-control:focus, .form-select:focus {
+    border-color: var(--fh-fire) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+}
+
+/* Tabellen-Anpassung */
+.table { color: var(--fh-text-main) !important; }
+.table th { color: var(--fh-text-muted) !important; border-bottom-color: var(--fh-border) !important; }
+.table td { border-bottom-color: rgba(255, 255, 255, 0.05) !important; }
+
+/* Status-Selects im Protokoll */
+.status-select {
+    font-size: 0.85rem;
     font-weight: 700;
+    border-radius: 6px;
+    border: none;
+    text-align: center;
+    padding: 4px 8px;
+    color: white;
+}
+.status-1 { background-color: #2563eb !important; }
+.status-2 { background-color: var(--fh-safe) !important; }
+.status-3 { background-color: #eab308 !important; color: #000 !important; }
+.status-4 { background-color: var(--fh-incident) !important; }
+.status-6 { background-color: #475569 !important; }
+
+/* Broadcast Banner Lesepflicht-Streifen */
+.broadcast-card.mandatory {
+    border-left: 5px solid var(--fh-fire) !important;
 }
 
-.person-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
+/* --- REVISIONS-LOGS, COMPONENT AVATARS --- */
+.avatar-container, .editor-avatar {
+    width: 46px; height: 46px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--fh-border); flex-shrink: 0;
 }
-
-/* --- LIST ROWS & ALERTS --- */
-.person-row {
-    display: flex;
-    align-items: center;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--fh-border);
-    transition: 0.2s;
-    background: white;
-}
-.person-row.absent { background-color: #fff5f5; opacity: 0.8; }
-.person-row.g26-expired-alert { border-left: 5px solid var(--fh-fire) !important; background-color: #fef2f2 !important; }
-.g26-crit-text { color: var(--fh-fire) !important; font-weight: 700; font-size: 0.75rem; display: block; margin-top: 2px; }
-
-/* --- BRAND COMPONENT STYLES --- */
-.avatar-container, .editor-avatar, .modal-avatar-upload {
-    width: 55px; height: 55px; border-radius: 12px; background: #e2e8f0;
-    overflow: hidden; display: flex; align-items: center; justify-content: center;
-    border: 2px solid #f1f5f9; flex-shrink: 0;
-}
-.avatar-container img, .editor-avatar img, .modal-avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
-.modal-avatar-upload { width: 110px; height: 110px; cursor: pointer; border: 2px dashed #cbd5e1; }
+.avatar-container img, .editor-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .sig-box {
-    width: 70px; height: 40px; border: 1px dashed #cbd5e0; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    background: #f8fafc; overflow: hidden;
+    width: 70px; height: 40px; border: 1px dashed var(--fh-border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; background: #111827;
 }
 .sig-box img { max-width: 100%; max-height: 100%; }
-.sig-wrapper { position: relative; width: 100%; height: 250px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; }
-#sigCanvas { width: 100%; height: 100%; touch-action: none; background: white; }
 
-/* --- SPECIAL BADGES & CONFIGS --- */
-.badge-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; }
-.status-aktiv { background: #dcfce7; color: #15803d; }
-.status-passiv { background: #f1f5f9; color: #475569; }
-.status-jugend { background: #e0f2fe; color: #0369a1; }
-.status-ehren { background: #fef3c7; color: #b45309; }
-
-.status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-.bg-ok { background: var(--fh-safe); } .bg-warn { background: var(--fh-misc); } .bg-crit { background: var(--fh-fire); }
-
-/* --- RESPONSIVE FIX (KEIN MOBIL-MIX) --- */
-@media (max-width: 991px) {
-    body { overflow: auto; }
-    .app-container { flex-direction: column; height: auto; }
-    .sidebar { display: none !important; }
-    .mobile-nav { display: flex; sticky; top: 0; }
-    .main-content { padding: 15px; }
-    .person-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-}
 [v-cloak] { display: none !important; }
