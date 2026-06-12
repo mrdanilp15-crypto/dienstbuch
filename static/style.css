@@ -1,0 +1,200 @@
+/* --- FEUERWEHRHUB UNIFIED BRANDING --- */
+:root {
+    --fh-dark: #0f172a;       /* Edles Schiefergrau für Header/Sidebar */
+    --fh-bg: #f8fafc;         /* Weicher, moderner Hintergrund */
+    --fh-card-bg: #ffffff;    /* Reine weiße Kartenkomponenten */
+    --fh-border: #e2e8f0;     /* Dezente Trennlinien */
+    --fh-text-main: #1e293b;  /* Gut lesbarer Fließtext */
+    --fh-text-muted: #64748b; /* Für Untertitel und Metadaten */
+    
+    /* Taktische Signal-Farbpalette */
+    --fh-fire: #b71c1c;       /* Feuerwehr-Abendrot für Primäraktionen */
+    --fh-exercise: #2563eb;   /* Klares Blau für Übungsdienste */
+    --fh-incident: #dc2626;   /* Signalrot für Realeinsätze */
+    --fh-misc: #d97706;       /* Warmes Bernstein für Sonstiges */
+    --fh-safe: #16a34a;       /* Sattes Grün für gültige Fristen */
+}
+
+/* Base Reset */
+body {
+    background-color: var(--fh-bg);
+    color: var(--fh-text-main);
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: -0.2px;
+}
+
+/* --- APP LAYOUT CONTAINER --- */
+.app-container {
+    display: flex;
+    height: 100dvh;
+}
+
+.sidebar {
+    width: 280px;
+    background: var(--fh-card-bg);
+    border-right: 1px solid var(--fh-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    box-shadow: 4px 0 20px rgba(15, 23, 42, 0.02);
+    z-index: 100;
+}
+
+.main-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    width: 100%;
+    scroll-behavior: smooth;
+}
+
+/* --- MODERN HUB CARDS --- */
+.card, .note-card, .member-card {
+    background: var(--fh-card-bg) !important;
+    border: 1px solid var(--fh-border) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 2px 4px -1px rgba(15, 23, 42, 0.01) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.card:hover, .note-card:hover, .member-card:hover {
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05) !important;
+    transform: translateY(-2px);
+    border-color: #cbd5e1 !important;
+}
+
+/* Header-Balken für Unterseiten (Notizen/Akte) */
+.page-header {
+    background: linear-gradient(135deg, var(--fh-dark) 0%, #1e293b 100%);
+    color: white;
+    padding: 1.5rem 0;
+    border-radius: 0 0 20px 20px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+}
+
+/* --- KATEGORIEN & BADGES --- */
+.badge-vis {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 50px;
+}
+.vis-public { background: #dcfce7; color: #15803d; }
+.vis-private { background: #dbeafe; color: #1d4ed8; }
+.vis-admin { background: #fee2e2; color: #b91c1c; }
+.vis-geratewart { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+/* Taktische Funk-Status-Selects */
+.status-select {
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    text-align: center;
+    padding: 4px 8px;
+    color: white;
+}
+.status-1 { background-color: #3b82f6 !important; }
+.status-2 { background-color: var(--fh-safe) !important; }
+.status-3 { background-color: #eab308 !important; color: #000 !important; }
+.status-4 { background-color: var(--fh-incident) !important; }
+.status-6 { background-color: var(--fh-text-muted) !important; }
+
+/* --- SIDEBAR LIST-ITEMS --- */
+.group-item {
+    padding: 14px 20px;
+    cursor: pointer;
+    border-left: 4px solid transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.15s;
+    border-bottom: 1px solid #f1f5f9;
+    color: var(--fh-text-main);
+    font-weight: 500;
+}
+
+.group-item:hover {
+    background: #f8fafc;
+}
+
+.group-item.active {
+    border-left-color: var(--fh-fire);
+    background: #fff5f5;
+    color: var(--fh-fire);
+    font-weight: 700;
+}
+
+/* --- FRISTEN & WARNUNGEN --- */
+.g26-expired-alert {
+    border-left: 4px solid var(--fh-fire) !important;
+    background-color: #fff5f5 !important;
+}
+
+.g26-crit-text {
+    color: var(--fh-fire) !important;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+/* --- AVATARS & SIGNATURES --- */
+.editor-avatar, .avatar-container {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fh-border);
+}
+.editor-avatar img, .avatar-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sig-box {
+    width: 75px;
+    height: 42px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: #f8fafc;
+    overflow: hidden;
+}
+.sig-box img { max-width: 100%; max-height: 100%; }
+
+/* --- UI COMPONENTS --- */
+.btn-danger {
+    background-color: var(--fh-fire) !important;
+    border-color: var(--fh-fire) !important;
+}
+.btn-danger:hover {
+    background-color: #9a1616 !important;
+}
+
+.filter-pill {
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-radius: 20px;
+    padding: 6px 16px;
+    border: 1px solid var(--fh-border);
+    background: white;
+    color: var(--fh-text-muted);
+    transition: all 0.2s;
+}
+.filter-pill.active {
+    background: var(--fh-dark) !important;
+    color: white !important;
+    border-color: var(--fh-dark);
+}
+
+/* Hide VUE before compilierung */
+[v-cloak] { display: none !important; }
