@@ -3,43 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal-Management Pro</title>
+    <title>FeuerwehrHub - Dienstkartei</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=2.30">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <style>
-        .page-header { background: linear-gradient(135deg, var(--fh-dark) 0%, #1e293b 100%); color: white; padding: 2rem 0; border-radius: 0 0 24px 24px; margin-bottom: 2rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .main-pills .nav-link { color: #64748b; font-weight: 700; border-radius: 10px; padding: 10px 20px; border: 1px solid #e2e8f0; background: white; transition: 0.2s; }
-        .main-pills .nav-link.active { background: var(--fh-dark) !important; color: white !important; }
-        .nav-tabs .nav-link { color: #64748b; font-weight: 600; border: none; padding: 10px 15px; }
-        .nav-tabs .nav-link.active { color: var(--fh-fire); border-bottom: 3px solid var(--fh-fire); background: transparent; }
-        .template-badge { cursor: pointer; transition: 0.2s; font-size: 0.75rem; }
-        .template-badge:hover { filter: brightness(0.9); }
-    </style>
 </head>
 <body>
 
 <div id="app" v-cloak>
-    <header class="page-header">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="fw-black m-0 text-white"><i class="fa fa-users me-3"></i>Personalverwaltung Pro</h2>
-                <a href="/dashboard" class="btn btn-light btn-sm rounded-pill px-4 fw-bold">Dashboard</a>
-            </div>
-            <div class="row g-3">
-                <div class="col-6 col-md-3" v-for="s in stats">
-                    <div class="p-3 bg-white bg-opacity-10 rounded-3 border border-white border-opacity-10">
-                        <span class="h3 m-0 fw-black text-white d-block">{{ s.count }}</span>
-                        <span class="small fw-bold text-uppercase text-white-50" style="font-size:0.65rem;">{{ s.label }}</span>
-                    </div>
+    <!-- HORIZONTALE TOP-NAVBAR -->
+    <nav class="navbar-top">
+        <div class="navbar-brand-row">
+            <div class="brand-left">
+                <div class="brand-logo">FH</div>
+                <div>
+                    <div class="brand-title">FeuerwehrHub</div>
+                    <div class="brand-subtitle">Feuerwehrverwaltung</div>
                 </div>
             </div>
+            <div class="brand-right">
+                <a href="/dashboard" class="btn btn-sm btn-outline-light rounded-pill px-4 fw-bold">Dashboard</a>
+            </div>
         </div>
-    </header>
+        <div class="navbar-menu-row">
+            <div class="nav-links">
+                <a href="/dashboard" class="nav-link-item">Startseite</a>
+                <a href="/personal" class="nav-link-item active">Personal & Stammakten</a>
+                <a href="/notizen" class="nav-link-item">Technik & Geräte</a>
+            </div>
+        </div>
+    </nav>
 
-    <div class="container">
+    <div class="main-content">
+        <!-- Hauptsteuerung Admin Tabs -->
         <ul class="nav main-pills gap-2 mb-4 border-0" id="mainAdminTabs" role="tablist">
             <li class="nav-item"><button class="nav-link active shadow-sm" id="personnel-tab" data-bs-toggle="tab" data-bs-target="#pane-personnel" type="button" role="tab">Kameraden & Qualifikationen</button></li>
             <li class="nav-item"><button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button></li>
@@ -47,93 +45,89 @@
         </ul>
 
         <div class="tab-content" id="mainAdminTabsContent">
+            <!-- REITER 1: STAMMDATEI MATRIX -->
             <div class="tab-pane fade show active" id="pane-personnel" role="tabpanel">
-                <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-body p-3">
-                        <div class="row g-2">
-                            <div class="col-md-5"><input type="text" v-model="search" class="form-control border-0 bg-light rounded-3" placeholder="Suchen nach Name, Dienstgrad..."></div>
-                            <div class="col-md-4">
-                                <select v-model="filterStatus" class="form-select border-0 bg-light rounded-3">
-                                    <option value="">Alle Mitgliedschaften</option>
-                                    <option value="Aktiv">Aktive Einsatzabteilung</option>
-                                    <option value="Passiv">Passive / Fördernde</option>
-                                    <option value="Jugend">Jugendfeuerwehr</option>
-                                    <option value="Ehrenabteilung">Ehrenabteilung</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3"><button class="btn btn-danger w-100 rounded-3 fw-bold" @click="openNewMemberModal"><i class="fa fa-plus me-2"></i>Neues Mitglied</button></div>
+                <div class="card mb-4 border-secondary">
+                    <div class="row g-2">
+                        <div class="col-md-5"><input type="text" v-model="search" class="form-control" placeholder="Nach Name oder Grad filtern..."></div>
+                        <div class="col-md-4">
+                            <select v-model="filterStatus" class="form-select">
+                                <option value="">Alle Abteilungen</option>
+                                <option value="Aktiv">Aktive Einsatzabteilung</option>
+                                <option value="Passiv">Passive / Fördernde</option>
+                                <option value="Jugend">Jugendfeuerwehr</option>
+                                <option value="Ehrenabteilung">Ehrenabteilung</option>
+                            </select>
                         </div>
+                        <div class="col-md-3"><button class="btn btn-danger w-100 rounded-3 fw-bold" @click="openNewMemberModal"><i class="fa fa-plus me-2"></i>Kamerad anlegen</button></div>
                     </div>
                 </div>
 
                 <div class="person-grid">
-                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3 bg-white" @click="editMember(p)">
-                        <div class="avatar-container shadow-sm"><img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'"></div>
+                    <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3 border-secondary" @click="editMember(p)">
+                        <div class="avatar-container shadow-sm border-secondary"><img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'"></div>
                         <div class="flex-grow-1 min-width-0">
-                            <div class="d-flex justify-content-between align-items-start"><h6 class="fw-bold m-0 text-dark text-truncate">{{ p.name }}</h6><span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span></div>
-                            <small class="text-muted d-block mt-1 font-monospace text-uppercase fw-bold" style="font-size:0.65rem;">{{ p.rank || 'Kein Dienstgrad' }}</small>
+                            <div class="d-flex justify-content-between align-items-start"><h6 class="fw-bold text-white m-0 text-truncate me-2">{{ p.name }}</h6><span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span></div>
+                            <small class="text-muted font-monospace text-uppercase fw-bold mt-1 d-block" style="font-size:0.65rem;">{{ p.rank || 'Kein Dienstgrad' }}</small>
                             <div class="d-flex flex-wrap gap-1 mt-2">
-                                <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem; padding:3px 5px;">GF</span>
-                                <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem; padding:3px 5px;">TF</span>
-                                <span v-if="p.is_agt" class="badge bg-dark text-white font-monospace" style="font-size:0.55rem; padding:3px 5px;">AGT</span>
-                                <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem; padding:3px 5px;">MA</span>
-                                <span v-if="p.lic_b || p.lic_be" class="badge bg-info text-dark font-monospace" style="font-size:0.55rem; padding:3px 5px;">PKW</span>
-                                <span v-if="p.lic_c || p.lic_ce" class="badge bg-primary text-white font-monospace" style="font-size:0.55rem; padding:3px 5px;">LKW</span>
+                                <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem;">GF</span>
+                                <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem;">TF</span>
+                                <span v-if="p.is_agt" class="badge bg-dark border font-monospace text-white" style="font-size:0.55rem;">AGT</span>
+                                <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem;">MA</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- REITER 2: LOGIN CONFIGS -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-md-4">
-                        <div class="card p-4 bg-white border">
-                            <h5 class="fw-bold mb-3 text-danger"><i class="fa fa-user-plus me-2"></i>Zugang erstellen</h5>
+                        <div class="card p-4 border-secondary">
+                            <h5 class="fw-bold mb-3 text-white"><i class="fa fa-user-plus me-2 text-danger"></i>Zugang erstellen</h5>
                             <form @submit.prevent="createUser">
-                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Benutzername</label><input type="text" v-model="newUser.username" class="form-control bg-light border-0 rounded-3" required></div>
-                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Passwort</label><input type="password" v-model="newUser.password" class="form-control bg-light border-0 rounded-3" required></div>
+                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" required></div>
+                                <div class="mb-3"><label class="small fw-bold text-muted mb-1">Passwort</label><input type="password" v-model="newUser.password" class="form-control" required></div>
                                 <div class="mb-3">
                                     <label class="small fw-bold text-muted mb-1">Zugeordneter Kamerad</label>
-                                    <select v-model="newUser.personnel_id" class="form-select bg-light border-0 rounded-3" required>
-                                        <option :value="null" disabled>-- Bitte wählen --</option>
+                                    <select v-model="newUser.personnel_id" class="form-select" required>
                                         <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                     </select>
                                 </div>
                                 <div class="mb-3"><label class="small fw-bold text-muted mb-1">Rolle</label>
-                                    <select v-model="newUser.role" class="form-select bg-light border-0 rounded-3">
+                                    <select v-model="newUser.role" class="form-select">
                                         <option value="mannschaft">Mannschaft (Leserechte)</option>
                                         <option value="user">User (Eintragen)</option>
-                                        <option value="geratewart">Gerätewart (Meldungen)</option>
-                                        <option value="admin">Admin (Vollzugriff)</option>
+                                        <option value="geratewart">Gerätewart</option>
+                                        <option value="admin">Admin</option>
                                     </select>
                                 </div>
-                                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow-sm">Zugang freischalten</button>
+                                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow-sm">Freischalten</button>
                             </form>
                         </div>
                     </div>
                     <div class="col-md-8">
-                        <div class="card p-4 bg-white border">
-                            <h5 class="fw-bold mb-3">Live Profile & Rechteverwaltung</h5>
+                        <div class="card p-4 border-secondary">
                             <table class="table table-hover align-middle">
-                                <thead class="table-light"><tr><th>Nutzer</th><th>Kameraden-Zuordnung (Live)</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead><tr><th>Konto</th><th>Kameraden-Akte</th><th>Berechtigung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
-                                        <td class="fw-bold text-dark">{{ u.username }}<span v-if="u.is_first_login" class="badge bg-warning text-dark font-monospace ms-2" style="font-size:0.55rem;">Passwort-Wechsel erzwungen</span></td>
+                                        <td class="fw-bold text-white">{{ u.username }}</td>
                                         <td>
-                                            <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm border-0 bg-light fw-bold shadow-sm rounded-2">
+                                            <select v-model="u.personnel_id" @change="updateUserPersonnelId(u)" class="form-select form-select-sm border-secondary shadow-sm font-monospace fw-bold">
                                                 <option :value="null">Keine Verknüpfung</option>
                                                 <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                             </select>
                                         </td>
                                         <td>
-                                            <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 rounded-pill px-3 bg-light fw-bold">
+                                            <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 w-auto rounded-pill px-3 bg-dark text-white fw-bold">
                                                 <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
                                             </select>
                                         </td>
                                         <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-warning rounded-circle me-1" @click="changePasswordPrompt(u)"><i class="fa fa-key"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger rounded-circle" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
+                                            <button class="btn btn-sm btn-link text-warning me-1 p-1 border-0" @click="changePasswordPrompt(u)"><i class="fa fa-key"></i></button>
+                                            <button class="btn btn-sm btn-link text-danger p-1 border-0" :disabled="u.username === 'admin'" @click="deleteUser(u)"><i class="fa fa-trash-alt"></i></button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -143,17 +137,17 @@
                 </div>
             </div>
 
+            <!-- REITER 3: LOGBUCH -->
             <div class="tab-pane fade" id="pane-logs" role="tabpanel">
-                <div class="card p-4 bg-white border">
-                    <h5 class="fw-bold mb-3"><i class="fa fa-history text-danger me-2"></i>System-Protokoll (Revisionssicher)</h5>
-                    <table class="table table-sm table-hover font-monospace" style="font-size:0.85rem;">
-                        <thead class="table-light"><tr><th>Zeitstempel</th><th>Nutzer</th><th>Aktion</th><th>Details</th></tr></thead>
+                <div class="card p-4 border-secondary">
+                    <table class="table table-sm font-monospace" style="font-size:0.85rem;">
+                        <thead><tr><th>Zeitstempel</th><th>Nutzer</th><th>Aktion</th><th>Details</th></tr></thead>
                         <tbody>
                             <tr v-for="l in auditLogs" :key="l.id">
                                 <td class="text-muted">{{ l.date_formatted }}</td>
-                                <td><span class="badge bg-dark">{{ l.username }}</span></td>
-                                <td class="fw-bold text-uppercase" style="font-size:0.75rem;">{{ l.action }}</td>
-                                <td class="text-secondary">{{ l.details }}</td>
+                                <td><span class="badge bg-dark border border-secondary text-white">{{ l.username }}</span></td>
+                                <td class="fw-bold text-danger text-uppercase" style="font-size:0.75rem;">{{ l.action }}</td>
+                                <td class="text-white-50">{{ l.details }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -162,83 +156,83 @@
         </div>
     </div>
 
+    <!-- DIGITALES STAMMAKTEN MODAL -->
     <div class="modal fade" id="memberModal" data-bs-backdrop="static" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content border-0 shadow rounded-4">
-                <div class="modal-header bg-dark text-white rounded-top-4 py-3">
+            <div class="modal-content bg-dark border border-secondary text-white rounded-4 shadow-lg">
+                <div class="modal-header bg-black border-bottom border-secondary py-3">
                     <h5 class="modal-title fw-bold"><i class="fa fa-id-card me-2 text-danger"></i>Digitale Personalakte</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" v-if="activePerson">
-                    <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary">
                         <div class="modal-avatar-upload shadow-sm" @click="$refs.fileInput.click()">
                             <img :src="activePerson.profile_picture || (activePerson.has_picture ? '/api/personnel/avatar/' + activePerson.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF')">
                             <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
                         </div>
                         <div class="flex-grow-1">
-                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold border-0 bg-light mb-2 shadow-sm" placeholder="Vorname Nachname">
+                            <input type="text" v-model="activePerson.name" class="form-control form-control-lg fw-bold border-secondary bg-dark text-white shadow-sm mb-2" placeholder="Nachname Vorname">
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <select v-model="activePerson.membership_status" class="form-select form-select-sm border-0 bg-light shadow-sm">
+                                    <select v-model="activePerson.membership_status" class="form-select form-select-sm">
                                         <option value="Aktiv">Aktiver Dienst</option><option value="Passiv">Passiv / Fördernd</option><option value="Jugend">Jugendfeuerwehr</option><option value="Ehrenabteilung">Ehrenabteilung</option>
                                     </select>
                                 </div>
                                 <div class="col-6">
-                                    <select v-model="activePerson.rank" class="form-select form-select-sm border-0 bg-light shadow-sm">
-                                        <option value="">-- Dienstgrad wählen --</option><option v-for="r in ranks" :value="r">{{ r }}</option>
+                                    <select v-model="activePerson.rank" class="form-select form-select-sm">
+                                        <option value="">-- Dienstgrad --</option><option v-for="r in ranks" :value="r">{{ r }}</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <ul class="nav nav-tabs mb-3 border-bottom-0" role="tablist">
+                    <ul class="nav nav-tabs mb-3 border-0 bg-black p-1 rounded-3" role="tablist">
                         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-base">Stammdaten</button></li>
                         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-qual">Qualifikationen & Lizenzen</button></li>
                         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-health">Tauglichkeit & Atemschutz</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-honors">Ehrungen & Notizen</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-honors">Ehrungen</button></li>
                     </ul>
 
                     <div class="tab-content pt-2">
                         <div class="tab-pane fade show active" id="tab-base">
                             <div class="row g-3">
-                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Geburtsdatum</label><input type="date" v-model="activePerson.birth_date" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Eintrittsdatum</label><input type="date" v-model="activePerson.entry_date" class="form-control"></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Dienstausweis-Nr.</label><input type="text" v-model="activePerson.badge_number" class="form-control" placeholder="ID..."></div>
-                                <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Telefonnummer</label><input type="text" v-model="activePerson.phone" class="form-control" placeholder="Handy..."></div>
-                                <div class="col-md-12"><label class="small fw-bold text-muted mb-1">E-Mail</label><input type="email" v-model="activePerson.email" class="form-control" placeholder="name@beispiel.de"></div>
-                                <div class="col-md-12"><label class="small fw-bold text-muted mb-1">Adresse</label><textarea v-model="activePerson.address" class="form-control" rows="2" placeholder="Anschrift..."></textarea></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted">Geburtsdatum</label><input type="date" v-model="activePerson.birth_date" class="form-control"></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted">Eintrittsdatum</label><input type="date" v-model="activePerson.entry_date" class="form-control"></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted">Ausweis-ID</label><input type="text" v-model="activePerson.badge_number" class="form-control"></div>
+                                <div class="col-md-6"><label class="small fw-bold text-muted">Telefonnummer</label><input type="text" v-model="activePerson.phone" class="form-control"></div>
+                                <div class="col-md-12"><label class="small fw-bold text-muted">E-Mail</label><input type="email" v-model="activePerson.email" class="form-control"></div>
+                                <div class="col-md-12"><label class="small fw-bold text-muted">Adresse</label><textarea v-model="activePerson.address" class="form-control" rows="2"></textarea></div>
                             </div>
                         </div>
 
                         <div class="tab-pane fade" id="tab-qual">
-                            <h6 class="fw-bold text-danger mb-3"><i class="fa fa-graduation-cap me-2"></i>Lehrgangsmatrix</h6>
+                            <h6 class="fw-bold text-danger mb-3">Feuerwehr-Lehrgänge</h6>
                             <div class="row g-2 mb-4">
                                 <div class="col-6 col-md-4" v-for="q in qualifications">
-                                    <div class="form-check form-switch p-2 border rounded bg-light ps-5">
+                                    <div class="form-check form-switch p-2 border border-secondary rounded bg-black ps-5">
                                         <input class="form-check-input" type="checkbox" :id="q.id" v-model="activePerson[q.id]">
-                                        <label class="form-check-label fw-bold small" :for="q.id">{{ q.label }}</label>
+                                        <label class="form-check-label fw-bold small text-white" :for="q.id">{{ q.label }}</label>
                                     </div>
                                 </div>
                             </div>
-                            <h6 class="fw-bold text-primary mb-3"><i class="fa fa-id-card-clip me-2"></i>Führerscheinklassen (Fahrberechtigungen)</h6>
+                            <h6 class="fw-bold text-primary mb-3">Führerscheinklassen</h6>
                             <div class="row g-2">
                                 <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
-                                    <div class="form-check border p-2 rounded text-center bg-light">
+                                    <div class="form-check border border-secondary p-2 rounded text-center bg-black">
                                         <input type="checkbox" :id="l.id" v-model="activePerson[l.id]" class="form-check-input float-none me-2">
-                                        <label :for="l.id" class="fw-bold small">{{ l.n }}</label>
+                                        <label :for="l.id" class="fw-bold small text-white">{{ l.n }}</label>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="tab-pane fade" id="tab-health">
-                            <div class="alert alert-warning small py-2"><i class="fa fa-info-circle me-1"></i> Farbampeln basieren auf Parametern.</div>
                             <div class="row g-3">
-                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Jährlicher Belastungslauf (Kriechstrecke)'}, {f: 'unterweisung_date', l: 'UVV Sicherheitsunterweisung'}]">
-                                    <div class="p-3 border rounded-3 bg-light d-flex justify-content-between align-items-center shadow-sm">
-                                        <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold small text-dark">{{ f.l }}</span></div>
-                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm font-monospace border-0 bg-white px-2 py-1 shadow-sm">
+                                <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Jährlicher Belastungslauf'}, {f: 'unterweisung_date', l: 'UVV Unterweisung'}]">
+                                    <div class="p-3 border border-secondary rounded-3 bg-black d-flex justify-content-between align-items-center">
+                                        <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold small text-white">{{ f.l }}</span></div>
+                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm border-secondary text-white font-monospace fw-bold bg-dark px-2 py-1">
                                     </div>
                                 </div>
                             </div>
@@ -251,14 +245,14 @@
                                     <span v-for="t in templates" class="badge bg-secondary template-badge py-2 px-3 rounded-pill" @click="addTemplate(t)"><i class="fa fa-plus me-1"></i> {{ t }}</span>
                                 </div>
                             </div>
-                            <label class="small fw-bold text-muted">Werdegang & Freitext-Notizen</label>
-                            <textarea v-model="activePerson.honors" class="form-control font-monospace" rows="5" placeholder="Notizen..."></textarea>
+                            <label class="small fw-bold text-muted">Ehrungen & Werdegang</label>
+                            <textarea v-model="activePerson.honors" class="form-control font-monospace text-white bg-black" rows="6"></textarea>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0 bg-light rounded-bottom-4 d-flex justify-content-between">
-                    <button type="button" class="btn btn-link text-danger fw-bold text-decoration-none" @click="deleteActiveMember"><i class="fa fa-trash me-1"></i> Akte löschen</button>
-                    <div class="d-flex gap-2"><button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-danger rounded-3 px-4 fw-bold shadow-sm" @click="saveActiveMember">Sichern</button></div>
+                <div class="modal-footer border-top border-secondary bg-black d-flex justify-content-between">
+                    <button type="button" class="btn btn-link text-danger fw-bold text-decoration-none shadow-none" @click="deleteActiveMember"><i class="fa fa-trash me-1"></i> Löschen</button>
+                    <div class="d-flex gap-2"><button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" @click="saveActiveMember">Speichern</button></div>
                 </div>
             </div>
         </div>
