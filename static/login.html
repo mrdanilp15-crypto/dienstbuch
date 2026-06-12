@@ -3,182 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Login - Dienstbuch</title>
-    
+    <title>FeuerwehrHub - Login</title>
     <meta name="theme-color" content="#b71c1c">
-    <meta name="apple-mobile-web-app-capable" content=\"yes\">
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/921/921063.png">
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
     <style>
-        :root { --primary-color: #b71c1c; }
         body { 
-            background: linear-gradient(135deg, #b71c1c 0%, #1a237e 100%); 
-            height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-family: 'Segoe UI', sans-serif;
-            margin: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            height: 100vh; display: flex; align-items: center; justify-content: center; 
+            font-family: 'Segoe UI', system-ui, sans-serif; margin: 0;
         }
         .login-card { 
-            width: 100%;
-            max-width: 400px;
-            padding: 2.5rem;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            margin: 15px;
+            width: 100%; max-width: 400px; padding: 2.5rem; background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); margin: 15px; border: 1px solid rgba(255,255,255,0.1);
         }
         .fire-icon-container {
-            width: 80px;
-            height: 80px;
-            background: var(--primary-color);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.5rem auto;
-            box-shadow: 0 8px 20px rgba(183, 28, 28, 0.4);
-            font-size: 2rem;
+            width: 75px; height: 75px; background: #b71c1c; color: white; border-radius: 18px;
+            display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto;
+            box-shadow: 0 8px 20px rgba(183, 28, 28, 0.3); font-size: 2rem;
         }
-        .form-control {
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            border: 1px solid #ced4da;
-            transition: all 0.2s;
-        }
-        .form-control:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.25rem rgba(183, 28, 28, 0.25);
-        }
-        .btn-submit {
-            background-color: var(--primary-color);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem;
-            font-weight: 600;
-            font-size: 1.1rem;
-            transition: all 0.2s;
-            color: white;
-        }
-        .btn-submit:hover:not(:disabled) {
-            background-color: #c62828;
-            transform: translateY(-1px);
-            box-shadow: 0 5px 15px rgba(183, 28, 28, 0.3);
-            color: white;
-        }
-        .btn-submit:active {
-            transform: translateY(1px);
-        }
-        #errorBox {
-            display: none;
-            border-radius: 10px;
-            font-weight: 500;
-        }
+        .form-control { border-radius: 10px; padding: 0.75rem 1rem; border: 1px solid #cbd5e1; background: #f8fafc; }
+        .form-control:focus { border-color: #b71c1c; box-shadow: 0 0 0 0.25rem rgba(183, 28, 28, 0.15); background: white; }
+        .btn-submit { background-color: #b71c1c; border: none; border-radius: 10px; padding: 0.75rem; font-weight: 700; color: white; transition: all 0.2s; }
+        .btn-submit:hover:not(:disabled) { background-color: #9a1616; transform: translateY(-1px); box-shadow: 0 5px 15px rgba(183, 28, 28, 0.2); }
     </style>
 </head>
 <body>
 
-    <div class="login-card text-center">
-        <div class="fire-icon-container">
-            <i class="fa fa-fire"></i>
-        </div>
-        
-        <h3 class="fw-bold mb-1 text-dark">Digitales Dienstbuch</h3>
-        <p class="text-muted small mb-4">Bitte melde dich mit deinen Zugangsdaten an</p>
-        
-        <div id="errorBox" class="alert alert-danger py-2 small mb-3 text-start"></div>
+    <div class="login-card text-center shadow-lg">
+        <div class="fire-icon-container"><i class="fa fa-fire"></i></div>
+        <h3 class="fw-black mb-1 text-dark tracking-tight">FEUERWEHR<span class="text-danger">HUB</span></h3>
+        <p class="text-muted small mb-4">Meldestufe — Digitales Dienstbuch</p>
+        <div id="errorBox" class="alert alert-danger py-2 small mb-3 text-start border-0 rounded-3" style="display:none;"></div>
         
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="mb-3 text-start">
-                <label for="usernameInput" class="form-label small fw-bold text-secondary">Benutzername</label>
+                <label class="form-label small fw-bold text-secondary">Benutzername</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-light text-muted border-end-0" style="border-radius: 10px 0 0 10px;"><i class="fa fa-user"></i></span>
-                    <input type="text" id="usernameInput" class="form-control border-start-0" style="border-radius: 0 10px 10px 0;" placeholder="z. B. admin" required autocomplete="username">
+                    <span class="input-group-text bg-light text-muted border-end-0 rounded-start-3"><i class="fa fa-user"></i></span>
+                    <input type="text" id="usernameInput" class="form-control border-start-0 rounded-end-3" placeholder="z. B. admin" required autocomplete="username">
                 </div>
             </div>
             
             <div class="mb-4 text-start">
-                <label for="passwordInput" class="form-label small fw-bold text-secondary">Passwort</label>
+                <label class="form-label small fw-bold text-secondary">Passwort</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-light text-muted border-end-0" style="border-radius: 10px 0 0 10px;"><i class="fa fa-lock"></i></span>
-                    <input type="password" id="passwordInput" class="form-control border-start-0" style="border-radius: 0 10px 10px 0;" placeholder="********" required autocomplete="current-password">
+                    <span class="input-group-text bg-light text-muted border-end-0 rounded-start-3"><i class="fa fa-lock"></i></span>
+                    <input type="password" id="passwordInput" class="form-control border-start-0 rounded-end-3" placeholder="********" required autocomplete="current-password">
                 </div>
             </div>
             
-            <button type="submit" id="submitBtn" class="btn btn-submit w-100 d-flex align-items-center justify-content-center gap-2">
-                <span id="btnText"><i class="fa fa-sign-in-alt me-1"></i> Anmelden</span>
-                <span id="btnSpinner" class="spinner-border spinner-border-sm" style="display: none;" role="status" aria-hidden="true"></span>
+            <button type="submit" id="submitBtn" class="btn btn-submit w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                <span id="btnText"><i class="fa fa-sign-in-alt me-1"></i> Cockpit öffnen</span>
+                <span id="btnSpinner" class="spinner-border spinner-border-sm" style="display: none;" role="status"></span>
             </button>
         </form>
     </div>
 
     <script>
         async function handleLogin(event) {
-            event.preventDefault(); // Verhindert Neuladen der Seite
-            
-            const usernameInput = document.getElementById('usernameInput');
-            const passwordInput = document.getElementById('passwordInput');
-            const errorBox = document.getElementById('errorBox');
-            const btn = document.getElementById('submitBtn');
-            const btnText = document.getElementById('btnText');
-            const spinner = document.getElementById('btnSpinner');
+            event.preventDefault();
+            const usernameInput = document.getElementById('usernameInput'), passwordInput = document.getElementById('passwordInput');
+            const errorBox = document.getElementById('errorBox'), btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText'), spinner = document.getElementById('btnSpinner');
 
-            // UI in Ladezustand versetzen
-            errorBox.style.display = 'none';
-            btn.disabled = true;
-            btnText.style.display = 'none';
-            spinner.style.display = 'inline-block';
-
-            const payload = {
-                username: usernameInput.value.trim(),
-                password: passwordInput.value
-            };
+            errorBox.style.display = 'none'; btn.disabled = true; btnText.style.display = 'none'; spinner.style.display = 'inline-block';
 
             try {
                 const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: usernameInput.value.trim(), password: passwordInput.value })
                 });
-
                 const data = await response.json();
 
                 if (!response.ok) {
-                    // Fehlerbehandlung
-                    const errorMsg = data.detail || 'Benutzername oder Passwort falsch!';
-                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${errorMsg}`;
-                    errorBox.style.display = 'block';
-                    
-                    passwordInput.value = '';
-                    btn.disabled = false;
-                    btnText.style.display = 'inline-block';
-                    spinner.style.display = 'none';
-                    passwordInput.focus();
-                    return;
+                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${data.detail || 'Fehler beim Abgleich!'}`;
+                    errorBox.style.display = 'block'; passwordInput.value = ''; btn.disabled = false; btnText.style.display = 'inline-block'; spinner.style.display = 'none'; passwordInput.focus(); return;
                 }
-
-                // Erfolg: Rolle, Name und Login-Status im LocalStorage hinterlegen
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('userRole', data.role);
-                localStorage.setItem('userName', data.username);
-
-                // Weiterleitung zum Dashboard
+                localStorage.setItem('isLoggedIn', 'true'); localStorage.setItem('userRole', data.role);
                 window.location.href = data.redirect;
-
             } catch (error) {
-                // Netzwerkfehler oder Server offline
-                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
-                errorBox.style.display = 'block';
-                btn.disabled = false;
-                btnText.style.display = 'inline-block';
-                spinner.style.display = 'none';
+                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Host-Verbindung fehlgeschlagen!`; errorBox.style.display = 'block';
+                btn.disabled = false; btnText.style.display = 'inline-block'; spinner.style.display = 'none';
             }
         }
     </script>
