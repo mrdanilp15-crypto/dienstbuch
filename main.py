@@ -20,7 +20,7 @@ from routers import notes_manager
 from routers import personnel_mgr
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.30"
+CURRENT_VERSION = "2.40"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -102,7 +102,7 @@ def init_db_extensions():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Spalten für die Personalakte absichern
+        # FIX: Atemschutz- & Untersuchungsspalten in BEIDEN Tabellen absichern um Queries vor Abstürzen zu schützen
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
@@ -114,13 +114,14 @@ def init_db_extensions():
             ("belastungslauf_date", "DATE NULL"),
             ("unterweisung_date", "DATE NULL")
         ]
-        for col_name, col_type in required_columns:
-            try:
-                cur.execute(f"ALTER TABLE persons ADD COLUMN {col_name} {col_type}")
-            except mysql.connector.Error as err:
-                if err.errno == 1060: pass 
-                else: print(f"Fehler bei Spalte {col_name}: {err}")
         
+        for table in ["persons", "personnel"]:
+            for col_name, col_type in required_columns:
+                try:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+                except mysql.connector.Error as err:
+                    if err.errno == 1060: pass 
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 setting_key VARCHAR(50) PRIMARY KEY,
@@ -131,7 +132,6 @@ def init_db_extensions():
         for key, val in default_settings:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
 
-        # --- Benutzertabelle inklusive personnel_id Verknüpfung ---
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -150,7 +150,6 @@ def init_db_extensions():
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
 
-        # --- Spalten für lückenlose Fahrzeugverwaltung ---
         required_veh_columns = [
             ("radio_name", "VARCHAR(255) DEFAULT ''"),
             ("status", "INT DEFAULT 2"),
@@ -197,7 +196,6 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
-        # Bootstrap Admin
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -336,7 +334,7 @@ def get_personnel_page(request: Request):
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
-# --- AUTHENTIFIZIERUNG UND LOGIN SPERREN ---
+# --- AUTHENTIFIZIERUNG UND LOGIN ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     username_clean = data.username.strip()
@@ -495,7 +493,7 @@ def get_audit_logs(request: Request):
     logs = cur.fetchall(); cur.close(); conn.close()
     return logs
 
-# --- INTERNES BROADCAST SYSTEM (SCHWARZES BRETT) ---
+# --- INTERNES BROADCAST SYSTEM ---
 @app.get("/api/broadcasts/active")
 def list_active_broadcasts(request: Request):
     user = get_current_user(request)
@@ -537,7 +535,6 @@ def mark_broadcast_as_read(id: int, request: Request):
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
-# --- NEU: SYSTEMMELDUNGEN PERMANENT LÖSCHEN ---
 @app.delete("/api/broadcasts/{id}")
 def delete_broadcast(id: int, request: Request):
     user = get_current_user(request)
@@ -607,7 +604,7 @@ def delete_vehicle(id: int, request: Request):
     c.commit(); c.close()
     return {"status": "deleted"}
 
-# --- GRUPPEN & MANNSCHAFTS-STRUKTUREN ---
+# --- GRUPPEN & DIENST-STRUKTUREN ---
 @app.get("/groups")
 def get_groups():
     c=get_db_connection(); cur=c.cursor(dictionary=True)
@@ -747,103 +744,76 @@ async def save_leader_sig(session_id: int, data: dict):
     cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
     c.commit(); c.close(); return {"status": "success"}
 
+# --- FIX: EINTRÄGE / DIENSTE PERMANENT LÖSCHEN ---
+@app.delete("/sessions/{session_id}")
+def delete_session(session_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] == "mannschaft": 
+        raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    log_audit_action(user["username"], "EINTRAG_LOESCHEN", f"Diensteintrag ID {session_id} wurde unwiderruflich gelöscht.")
+    return {"status": "success"}
+
+# --- BERICHTE & JAHRESBERICHTE SYSTEM ---
 @app.get("/sessions/{session_id}/report", response_class=HTMLResponse)
 def single_report(session_id: int):
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.id=%s", (session_id,))
     s = cur.fetchone()
-    if s and s['leader_signature']: 
-        s['leader_signature'] = safe_decode(s['leader_signature'])
+    if s and s['leader_signature']: s['leader_signature'] = safe_decode(s['leader_signature'])
     cur.execute("SELECT p.name, a.is_present, a.note, a.vehicle, a.signature FROM attendance a JOIN persons p ON a.person_id = p.id WHERE a.session_id=%s ORDER BY p.name", (session_id,))
-    persons = cur.fetchall()
-    c.close()
-    for p in persons: 
-        p['signature'] = safe_decode(p['signature'])
+    persons = cur.fetchall(); c.close()
+    for p in persons: p['signature'] = safe_decode(p['signature'])
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{reports.generate_single_report(s, persons, TOWN_NAME)}</body></html>"
 
 @app.get("/groups/{group_id}/print_view", response_class=HTMLResponse)
 def year_report(group_id: int, year: int):
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM groups_table WHERE id=%s", (group_id,))
-    gname_res = cur.fetchone()
-    gname = gname_res['name'] if gname_res else "Unbekannt"
+    gname_res = cur.fetchone(); gname = gname_res['name'] if gname_res else "Unbekannt"
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (group_id, year))
     max_s = cur.fetchone()['total'] or 0
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.group_id=%s AND YEAR(s.date)=%s ORDER BY s.date ASC, s.id ASC", (group_id, year))
     sessions_list = cur.fetchall()
-    html_body = ""
-    p_stats = {}
-    cat_sums = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0}
+    html_body = ""; p_stats = {}; cat_sums = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0}
     for s in sessions_list:
-        if s['leader_signature']: 
-            s['leader_signature'] = safe_decode(s['leader_signature'])
+        if s['leader_signature']: s['leader_signature'] = safe_decode(s['leader_signature'])
         cur.execute("SELECT p.name, a.is_present, a.note, a.vehicle, a.signature FROM attendance a JOIN persons p ON a.person_id = p.id WHERE a.session_id=%s ORDER BY p.name", (s['id'],))
         persons = cur.fetchall()
-        for p in persons: 
-            p['signature'] = safe_decode(p['signature'])
+        for p in persons: p['signature'] = safe_decode(p['signature'])
         html_body += reports.generate_single_report(s, persons, TOWN_NAME)
         cat = s['category'] if s['category'] in cat_sums else "Sonstiges"
         cat_sums[cat] += float(s['duration'])
         for p in persons:
-            if p['name'] not in p_stats: 
-                p_stats[p['name']] = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0, "total_h": 0.0, "p": 0}
-            if p['is_present']: 
-                p_stats[p['name']]["p"] += 1
-                p_stats[p['name']][cat] += float(s['duration'])
-                p_stats[p['name']]["total_h"] += float(s['duration'])
-    for n in p_stats: 
-        p_stats[n]['q'] = round((p_stats[n]['p'] / max_s) * 100) if max_s > 0 else 0
+            if p['name'] not in p_stats: p_stats[p['name']] = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0, "total_h": 0.0, "p": 0}
+            if p['is_present']: p_stats[p['name']]["p"] += 1; p_stats[p['name']][cat] += float(s['duration']); p_stats[p['name']]["total_h"] += float(s['duration'])
+    for n in p_stats: p_stats[n]['q'] = round((p_stats[n]['p'] / max_s) * 100) if max_s > 0 else 0
     html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, TOWN_NAME)
     c.close()
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
 
-# --- GRUPPENÜBERGREIFENDE STUNDENBERECHNUNG FÜR DAS NUTZER-COCKPIT ---
+# --- GLOBALER NUTZERSTUNDEN-ABGLEICH ---
 @app.get("/api/users/me/stats")
 def get_my_global_fire_stats(year: int, request: Request):
     user = get_current_user(request)
-    if not user: 
-        raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    
-    conn = get_db_connection()
-    cur = conn.cursor(dictionary=True)
-    
-    # 1. Ermittle den Klarnamen des angemeldeten Accounts aus der Personalakte
-    cur.execute("""
-        SELECT p.name 
-        FROM users u 
-        JOIN personnel p ON u.personnel_id = p.id 
-        WHERE u.username = %s
-    """, (user["username"],))
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT p.name FROM users u JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
     res = cur.fetchone()
-    
     if not res:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
         return {"hours": 0, "count": 0}
-        
     klarnat_name = res["name"]
-    
-    # 2. Berechne alle geleisteten Stunden und Dienste über JEDE Gruppe hinweg für das gewählte Jahr
     query = """
-        SELECT 
-            COALESCE(SUM(s.duration), 0) as total_hours,
-            COUNT(DISTINCT s.id) as present_count
-        FROM attendance a
-        JOIN sessions s ON a.session_id = s.id
-        JOIN persons p ON a.person_id = p.id
-        WHERE p.name = %s 
-          AND YEAR(s.date) = %s 
-          AND a.is_present = 1
+        SELECT COALESCE(SUM(s.duration), 0) as total_hours, COUNT(DISTINCT s.id) as present_count
+        FROM attendance a JOIN sessions s ON a.session_id = s.id JOIN persons p ON a.person_id = p.id
+        WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
     """
     cur.execute(query, (klarnat_name, year))
-    stats = cur.fetchone()
-    
-    cur.close()
-    conn.close()
-    
-    return {
-        "hours": float(stats["total_hours"]) if stats else 0.0,
-        "count": stats["present_count"] if stats else 0
-    }
+    stats = cur.fetchone(); cur.close(); conn.close()
+    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0}
