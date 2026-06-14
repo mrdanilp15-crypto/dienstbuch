@@ -21,9 +21,14 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
+        
         <div class="d-flex">
             
             <div class="sidebar d-flex flex-column justify-content-between">
@@ -148,7 +153,6 @@
                             <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
                                 <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
-                                <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Endgültig löschen</button>
                             </div>
                         </div>
                     </div>
@@ -313,30 +317,38 @@
                 <div v-show="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Systemeinstellungen & Integrationen</h2>
                     <div class="card p-4 bg-white border shadow-sm">
+                        
+                        <div class="p-3 bg-light rounded mb-4">
+                            <h6 class="fw-bold text-dark"><i class="fa fa-link me-2 text-primary"></i> Deine Inbound-Webhook URL</h6>
+                            <p class="small text-muted mb-2">Trage diese URL bei aPager PRO oder Divera ein. Wenn ein Alarm empfangen wird, legt das System <b>automatisch einen neuen Einsatzbericht</b> an!</p>
+                            <input type="text" class="form-control font-monospace fw-bold" readonly value="http://<deine-server-ip>:8000/api/webhook/alarm">
+                        </div>
+
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4 mt-2" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3" style="width:160px; height:160px;"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
+        <!-- ================= MODALS MATRIX (OHNE DATA-BS-DISMISS BLOCKIERUNG!) ================= -->
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="d-flex justify-content-center my-3"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button></div></div></div></div>
         
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Wasserentnahmestelle erfassen</h5>
             <div class="mb-2"><label class="small">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
             <div class="mb-2"><label class="small">Durchmesser</label><input type="text" v-model="newHyd.diameter" class="form-control"></div>
+            <!-- WICHTIG: KEIN data-bs-dismiss="modal" HIER! -->
             <button type="button" class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button>
         </div></div></div></div>
         
         <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Mangel / Defekt melden</h5>
-            <div class="mb-2"><label class="small">Titel</label><input type="text" v-model="newTicket.title" class="form-control"></div>
-            <div class="mb-2"><label class="small">Beschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
-            <div class="mb-3"><label class="small">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
+            <div class="mb-2"><label class="small fw-bold">Titel</label><input type="text" v-model="newTicket.title" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold">Beschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
+            <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
             <button type="button" class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button>
         </div></div></div></div>
 
@@ -375,6 +387,7 @@
                     <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce"><label class="form-check-label small">Klasse CE</label></div>
                 </div>
             </div>
+            <!-- WICHTIG: KEIN data-bs-dismiss="modal" HIER! -->
             <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()">Kameradenakte speichern</button>
         </div></div></div></div>
 
@@ -465,7 +478,7 @@
                         const res = await fetch(url, options);
                         if (!res.ok) {
                             const txt = await res.text();
-                            alert(`🚨 DATENBANK-FEHLER (${res.status})\n\nDer Server hat das Speichern blockiert:\n${txt}`);
+                            alert(`🚨 DATENBANK-FEHLER (${res.status})\n\nFehler im Backend:\n${txt}`);
                             return null;
                         }
                         return await res.json();
@@ -487,7 +500,7 @@
                         if(e) this.events = e; if(w) this.weather = w; if(s) this.registry = s;
                         if(l) this.vehicleLogs = l; if(u) this.users = u; if(t) this.tickets = t;
                         if(a) this.activeAlarm = a.status === 'clear' ? {} : a; if(arc) this.archiveDocs = arc; if(sess) this.sessions = sess;
-                    } catch (e) { console.error("Hintergrund-Sync fehlgeschlagen:", e); }
+                    } catch (e) { console.error("Sync fehlgeschlagen:", e); }
                 },
                 initMap() {
                     this.$nextTick(() => {
@@ -600,7 +613,7 @@
                 },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                openEditMember(p) { 
+                openMemberModal(p) { 
                     this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; 
                     this.openModal('memberModal'); 
                 },
@@ -615,7 +628,7 @@
                 },
                 async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
+                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
                 async saveUser() { 
                     if(!this.newUser.username) { alert("Benutzername fehlt!"); return; }
                     const res = await this.apiCall('/api/users', 'POST', this.newUser);
@@ -627,7 +640,7 @@
                 },
                 async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
+                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
                 async saveInv() { 
                     if(!this.newInv.item_name) { alert("Gegenstand fehlt!"); return; }
                     const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
@@ -639,7 +652,7 @@
                 },
                 async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
+                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
                 async saveVeh() { 
                     if(!this.newVeh.name) { alert("Bezeichnung fehlt!"); return; }
                     const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
@@ -651,7 +664,7 @@
                 },
                 async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
+                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
                 async saveLog() { 
                     const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
                     if(res) {
@@ -662,7 +675,7 @@
                 },
                 async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
+                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
                 async saveEvent() { 
                     if(!this.newEvent.title) { alert("Bitte Titel eintragen!"); return; }
                     const res = await this.apiCall('/api/events', 'POST', this.newEvent);
