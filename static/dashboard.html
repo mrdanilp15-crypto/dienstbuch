@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FeuerwehrHub - Leitstand & Wache</title>
+    <title>FeuerwehrHub - Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=7.5">
@@ -15,21 +15,18 @@
         <div class="app-container">
             
             <div class="sidebar">
-                <div class="sidebar-header">
-                    <h4 class="m-0 fw-bold text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4>
-                    <small class="text-muted font-monospace fw-bold">ENTERPRISE v7.5</small>
-                </div>
+                <div class="sidebar-header"><h4 class="m-0 fw-bold"><i class="fa fa-shield-halved text-danger me-2"></i>WEHRHUB</h4></div>
                 <div class="flex-grow-1 overflow-y-auto">
-                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand Zentrale</div>
+                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand</div>
                     <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user"></i> Mein Profil</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer & Lager</div>
+                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Lager & Bestände</div>
                     <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users"></i> Personal & Logins</div>
-                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck"></i> Fuhrpark-Zentrale</div>
-                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Verein & Kalender</div>
+                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck"></i> Fuhrpark</div>
+                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-building-shield"></i> Verein & Kalender</div>
                     <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
                 </div>
                 <div class="p-3 bg-light border-top text-center">
-                    <div class="small fw-bold mb-2 text-dark"><i class="fa fa-circle text-success me-1"></i> {{ identity.username }}</div>
+                    <div class="small fw-bold text-dark mb-2">{{ identity.username }}</div>
                     <button class="btn btn-sm btn-danger w-100 rounded-pill fw-bold" @click="triggerLogout">Abmelden</button>
                 </div>
             </div>
@@ -39,7 +36,7 @@
                 <div v-if="currentTab === 'leitstand'">
                     <div class="d-flex justify-content-between mb-4">
                         <h2>Führungs-Leitstand</h2>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="goToEditor(null)"><i class="fa fa-plus me-1"></i> Protokoll schreiben</button>
+                        <button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neues Protokoll</button>
                     </div>
 
                     <div class="card mb-4 bg-white shadow-sm border-start border-4 border-info" v-if="weather">
@@ -68,11 +65,10 @@
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3">Erfasste Dienstbücher</h5>
-                    <div v-if="sessions.length === 0" class="text-muted">Keine Einträge vorhanden.</div>
+                    <h5 class="fw-bold mb-3">Letzte Dienstberichte</h5>
                     <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 shadow-sm border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h5 class="m-0 text-dark">{{ s.description }}</h5><small class="text-muted">Ausbilder: {{ s.instructors }}</small></div>
+                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0">{{ s.description }}</h6></div>
                             <div class="text-end text-muted small">{{ s.date }}<br><b>{{ s.duration }} Std.</b></div>
                         </div>
                     </div>
@@ -92,15 +88,18 @@
                 </div>
 
                 <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer & Materialbestand</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal">Material einbuchen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Lagerbestand & Kleiderkammer</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material einbuchen</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Ausrüstungsgegenstand</th><th>Menge</th><th>Soll-Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Gegenstand</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
                                     <td><b>{{ i.item_name }}</b></td><td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td><td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
                                     <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Kritisch':'OK' }}</span></td>
-                                    <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @click="openInvModal(i)"><i class="fa fa-edit"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -108,21 +107,24 @@
                 </div>
 
                 <div v-if="currentTab === 'personal'">
-                    <h2 class="mb-4">Personal- & Rechteverwaltung</h2>
+                    <h2 class="mb-4">Personalregister & Systemzugänge</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm</button></li>
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemzugänge (Logins)</button></li>
                     </ul>
 
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden shadow-sm bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td>{{ p.membership_status }}</td>
-                                        <td class="text-end"><button class="btn btn-xs btn-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border">{{ p.rank || 'Feuerwehrmann' }}</span></td><td>{{ p.membership_status }}</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -130,13 +132,13 @@
                     </div>
 
                     <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal"><i class="fa fa-key me-1"></i> System-Login erstellen</button></div>
+                        <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> System-Login erstellen</button></div>
                         <div class="card p-0 overflow-hidden shadow-sm bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Personnel ID</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
-                                        <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ u.personnel_id || 'Keine' }}</td>
+                                        <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ u.personnel_id || 'Keine Verknüpfung' }}</td>
                                         <td class="text-end"><button class="btn btn-xs btn-danger" @click="delUser(u.id)">Löschen</button></td>
                                     </tr>
                                 </tbody>
@@ -146,7 +148,7 @@
                 </div>
 
                 <div v-if="currentTab === 'fuhrpark'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark-Zentrale</h2><button class="btn btn-dark rounded-pill fw-bold px-3" @click="openVehModal"><i class="fa fa-plus me-1"></i> Fahrzeug registrieren</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark-Zentrale</h2><button class="btn btn-dark rounded-pill fw-bold px-3" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug registrieren</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
@@ -155,7 +157,10 @@
                                     <td><h5 class="fw-bold m-0 text-dark">{{ v.name }}</h5></td><td class="font-monospace text-muted">{{ v.radio_name }}</td>
                                     <td><span class="badge bg-dark">{{ v.tuv_date || '-' }}</span></td><td><span class="badge bg-secondary">{{ v.sp_date || '-' }}</span></td>
                                     <td class="fw-bold">{{ v.milage }} km</td>
-                                    <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @click="openVehModal(v)"><i class="fa fa-edit"></i></button>
+                                        <button class="btn btn-sm text-danger bg-transparent border-0" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -163,7 +168,7 @@
                 </div>
 
                 <div v-if="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Kalender</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal"><i class="fa fa-calendar-plus me-1"></i> Termin eintragen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Dienstplanung</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin eintragen</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Termin</th><th>Veranstaltung / Fest</th><th>Zuständig</th><th class="text-end">Aktion</th></tr></thead>
@@ -193,10 +198,14 @@
         </div>
 
         <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Kamerad anlegen</h5>
+            <h5 class="fw-bold text-dark mb-3">Kamerad erfassen</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Klarname</label><input type="text" v-model="newMem.name" class="form-control"></div>
             <div class="mb-2"><label class="small fw-bold text-muted">Dienstgrad</label><input type="text" v-model="newMem.rank" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold text-muted">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktiv</option><option value="Jugend">Jugend</option></select></div>
+            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="ch1"><label class="form-check-label small fw-bold" for="ch1">Atemschutz (AGT)</label></div>
+            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist" id="ch2"><label class="form-check-label small fw-bold" for="ch2">Maschinist</label></div>
+            <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="ch3"><label class="form-check-label small fw-bold" for="ch3">Gruppenführer</label></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">G26.3 Untersuchung</label><input type="date" v-model="newMem.g26_3_date" class="form-control"></div>
             <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember">In Datenbank speichern</button>
         </div></div></div></div>
 
@@ -210,7 +219,7 @@
         </div></div></div></div>
 
         <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Lagerbestand einbuchen</h5>
+            <h5 class="fw-bold text-dark mb-3">Lagerbestand einbuchen / bearbeiten</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Gegenstand</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold text-muted">Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Mindestmenge</label><input type="number" v-model="newInv.min_amount" class="form-control"></div></div>
             <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Einheit</label><input type="text" v-model="newInv.unit" class="form-control" placeholder="Stück"></div><div class="col-6"><label class="small fw-bold text-muted">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div></div>
@@ -218,10 +227,11 @@
         </div></div></div></div>
 
         <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Einsatzfahrzeug registrieren</h5>
+            <h5 class="fw-bold text-dark mb-3">Einsatzfahrzeug registrieren / bearbeiten</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Modell / Typ</label><input type="text" v-model="newVeh.name" class="form-control" required></div>
             <div class="mb-2"><label class="small fw-bold text-muted">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" required></div>
             <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Nächste HU</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">SP Frist</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">Kilometerstand</label><input type="number" v-model="newVeh.milage" class="form-control"></div>
             <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveVeh">Fahrzeug registrieren</button>
         </div></div></div></div>
 
@@ -243,11 +253,11 @@
                 return {
                     ready: false, currentTab: 'leitstand', subTabPers: 'akte', identity: {}, weather: null,
                     groups: [], vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], registry: {},
-                    newMem: { name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false },
+                    newMem: { id: null, name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '' },
                     newUser: { username: '', password: '', role: 'user', personnel_id: null },
-                    newInv: { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Zentrallager' },
-                    newVeh: { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' },
-                    newEvent: { date: '', title: '', responsible: 'Vorstand' }
+                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager' },
+                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' },
+                    newEvent: { id: null, date: '', title: '', responsible: 'Vorstand' }
                 }
             },
             async refreshAllData() {
@@ -279,23 +289,23 @@
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                openMemberModal() { memberModal.show(); },
+                openMemberModal(p) { this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf } : { id: null, name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '' }; memberModal.show(); },
                 async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
                 async delMember(id) { if(confirm("Kamerad aus Datenbank löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openUserModal() { userModal.show(); },
+                openUserModal(u) { this.newUser = u ? { ...u } : { username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
                 async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
                 async delUser(id) { if(confirm("Login sperren?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openInvModal() { invModal.show(); },
+                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager' }; invModal.show(); },
                 async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
                 async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openVehModal() { vehModal.show(); },
+                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }; vehModal.show(); },
                 async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
                 async delVeh(id) { if(confirm("Fahrzeug löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openEventModal() { eventModal.show(); },
+                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Vorstand' }; eventModal.show(); },
                 async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
                 async delEvent(id) { if(confirm("Termin löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
