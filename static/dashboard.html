@@ -6,7 +6,7 @@
     <title>FeuerwehrHub - Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=7.6">
+    <link rel="stylesheet" href="/static/style.css?v=8.5">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
@@ -198,7 +198,7 @@
 
         <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">System-Zugang (Login) anlegen</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" id="newUsername" v-model="newUser.username" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" v-model="newUser.username" class="form-control"></div>
             <div class="mb-2"><label class="small fw-bold text-muted">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold text-muted">Rolle</label><select v-model="newUser.role" class="form-select"><option value="user">User</option><option value="admin">Admin</option></select></div>
             <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Akte ID (Optional)</label><input type="number" v-model="newUser.personnel_id" class="form-control"></div>
@@ -241,62 +241,69 @@
                     groups: [], vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], registry: {},
                     newMem: { name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false },
                     newUser: { username: '', password: '', role: 'user', personnel_id: null },
-                    newInv: { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Zentrallager' },
+                    newInv: { item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager' },
                     newVeh: { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' },
                     newEvent: { date: '', title: '', responsible: 'Vorstand' }
                 }
             },
-            async refreshAllData() {
+            async mounted() {
                 try {
-                    this.vehicles = await (await fetch('/api/vehicles')).json();
-                    this.inventory = await (await fetch('/api/inventory')).json();
-                    this.personnel = await (await fetch('/api/personnel/list')).json();
-                    this.events = await (await fetch('/api/events')).json();
-                    this.weather = await (await fetch('/api/weather')).json();
-                    this.registry = await (await fetch('/api/settings')).json();
-                    if(this.identity.role === 'admin') this.users = await (await fetch('/api/users')).json();
-                    if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
-                } catch (e) {
-                    console.error("Datenstamm-Synchronisierungsfehler abgefangen.");
+                    const res = await fetch('/api/auth/me');
+                    if(!res.ok) { window.location.href = '/login'; return; }
+                    this.identity = await res.json();
+                    this.groups = await (await fetch('/groups')).json();
+                    
+                    // MODALS BINDEN ERST NACH REFRESH ABSICHERN
+                    memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
+                    userModal = new bootstrap.Modal(document.getElementById('userModal'));
+                    invModal = new bootstrap.Modal(document.getElementById('invModal'));
+                    vehModal = new bootstrap.Modal(document.getElementById('vehModal'));
+                    eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+                    
+                    await this.refreshAllData();
+                } catch(e) {
+                    console.error(e);
+                } finally {
+                    this.ready = true;
                 }
             },
-            async mounted() {
-                const res = await fetch('/api/auth/me');
-                if(!res.ok) { window.location.href = '/login'; return; }
-                this.identity = await res.json();
-                this.groups = await (await fetch('/groups')).json();
-                
-                await this.refreshAllData();
-                memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
-                userModal = new bootstrap.Modal(document.getElementById('userModal'));
-                invModal = new bootstrap.Modal(document.getElementById('invModal'));
-                vehModal = new bootstrap.Modal(document.getElementById('vehModal'));
-                eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
-                this.ready = true;
-            },
             methods: {
+                async refreshAllData() {
+                    try {
+                        this.vehicles = await (await fetch('/api/vehicles')).json();
+                        this.inventory = await (await fetch('/api/inventory')).json();
+                        this.personnel = await (await fetch('/api/personnel/list')).json();
+                        this.events = await (await fetch('/api/events')).json();
+                        this.weather = await (await fetch('/api/weather')).json();
+                        this.registry = await (await fetch('/api/settings')).json();
+                        if(this.identity.role === 'admin') this.users = await (await fetch('/api/users')).json();
+                        if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
+                    } catch (e) {
+                        console.error("Datenstamm-Synchronisierungsfehler abgefangen.");
+                    }
+                },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                openMemberModal(p) { this.newMem = (p && p.id) ? {...p} : { name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false }; memberModal.show(); },
-                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
+                openMemberModal() { memberModal.show(); },
+                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); this.newMem = { name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv' }; await this.refreshAllData(); },
                 async delMember(id) { if(confirm("Kamerad aus Datenbank löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openUserModal(u) { this.newUser = (u && u.id) ? {...u} : { username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
-                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
+                openUserModal() { userModal.show(); },
+                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); this.newUser = { username: '', password: '', role: 'user', personnel_id: null }; await this.refreshAllData(); },
                 async delUser(id) { if(confirm("Login sperren?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openInvModal(i) { this.newInv = (i && i.id) ? {...i} : { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Zentrallager' }; invModal.show(); },
-                async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
+                openInvModal() { invModal.show(); },
+                async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newInv)}); invModal.hide(); this.newInv = { item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager' }; await this.refreshAllData(); },
                 async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openVehModal(v) { this.newVeh = (v && v.id) ? {...v} : { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }; vehModal.show(); },
-                async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
+                openVehModal() { vehModal.show(); },
+                async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); this.newVeh = { name: '', radio_name: '', status: 2, milage: 0 }; await this.refreshAllData(); },
                 async delVeh(id) { if(confirm("Fahrzeug löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openEventModal(e) { this.newEvent = (e && e.id) ? {...e} : { date: new Date().toISOString().split('T')[0], title: '', responsible: 'Vorstand' }; eventModal.show(); },
-                async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
+                openEventModal() { eventModal.show(); },
+                async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); this.newEvent = { date: '', title: '', responsible: 'Vorstand' }; await this.refreshAllData(); },
                 async delEvent(id) { if(confirm("Termin löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
                 async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Registry gesichert!"); }
