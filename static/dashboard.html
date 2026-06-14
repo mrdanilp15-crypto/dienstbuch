@@ -21,24 +21,11 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
-        
-        <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 9999;">
-            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
-              <div class="d-flex">
-                <div class="toast-body fw-bold fs-6" id="toastMessage"></div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-              </div>
-            </div>
-        </div>
-
         <div class="d-flex">
+            
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-book-open me-2"></i>Dienstbuch</h4></div>
@@ -113,7 +100,7 @@
                 </div>
 
                 <div v-show="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#hydrantModal"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openModal('hydrantModal')"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
                     <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
@@ -138,7 +125,7 @@
                 </div>
 
                 <div v-show="currentTab === 'tickets'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" data-bs-toggle="modal" data-bs-target="#ticketModal"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openModal('ticketModal')"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
@@ -161,6 +148,7 @@
                             <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
                                 <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
+                                <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Endgültig löschen</button>
                             </div>
                         </div>
                     </div>
@@ -188,13 +176,13 @@
                 </div>
 
                 <div v-show="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="resetInv()" data-bs-toggle="modal" data-bs-target="#invModal">Material hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
-                                    <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code drucken' }}</span></td>
+                                    <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code generieren' }}</span></td>
                                     <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
                                     <td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
                                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditInv(i)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
@@ -211,7 +199,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="resetMem()" data-bs-toggle="modal" data-bs-target="#memberModal"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
@@ -227,7 +215,7 @@
                         </div>
                     </div>
                     <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="resetUser()" data-bs-toggle="modal" data-bs-target="#userModal"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
@@ -249,7 +237,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch</button></li>
                     </ul>
                     <div v-if="subTabVeh === 'fahrzeuge'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="resetVeh()" data-bs-toggle="modal" data-bs-target="#vehModal"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
@@ -264,7 +252,7 @@
                         </div>
                     </div>
                     <div v-if="subTabVeh === 'log'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="resetLog()" data-bs-toggle="modal" data-bs-target="#vehLogModal"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
@@ -281,7 +269,7 @@
                 </div>
 
                 <div v-show="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="resetEvent()" data-bs-toggle="modal" data-bs-target="#eventModal"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
@@ -325,41 +313,23 @@
                 <div v-show="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Systemeinstellungen & Integrationen</h2>
                     <div class="card p-4 bg-white border shadow-sm">
-                        
-                        <div class="p-3 bg-light rounded mb-4">
-                            <h6 class="fw-bold text-dark"><i class="fa fa-link me-2 text-primary"></i> Deine Inbound-Webhook URL</h6>
-                            <p class="small text-muted mb-2">Trage diese URL bei aPager PRO, Divera oder in eurer Leitstellen-Software ein, damit Alarme automatisch in dieses Dienstbuch gepusht werden und ein neuer Einsatzbericht gestartet wird:</p>
-                            <input type="text" class="form-control font-monospace fw-bold" readonly value="http://<deine-server-ip>:8000/api/webhook/alarm">
-                        </div>
-
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <h5 class="fw-bold text-danger mt-4 mb-2"><i class="fa fa-network-wired me-2"></i> Digitale Alarm-Schnittstellen (Outbound)</h5>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">aPager PRO API Key</label><input type="text" v-model="registry.apager_api_key" class="form-control font-monospace"></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Divera 24/7 Webhook URL</label><input type="text" v-model="registry.divera_webhook" class="form-control font-monospace"></div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Alamos FE2 Server-Schnittstelle</label><input type="text" v-model="registry.alamos_fe2_url" class="form-control font-monospace"></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">GroupAlarm API Token</label><input type="text" v-model="registry.groupalarm_token" class="form-control font-monospace"></div>
-                        </div>
-                        <div class="d-flex gap-2 mt-2">
-                            <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
-                        </div>
+                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4 mt-2" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="d-flex justify-content-center my-3"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3" style="width:160px; height:160px;"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
         
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Wasserentnahmestelle erfassen</h5>
             <div class="mb-2"><label class="small">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
             <div class="mb-2"><label class="small">Durchmesser</label><input type="text" v-model="newHyd.diameter" class="form-control"></div>
-            <button type="button" class="btn btn-danger w-100" @click="saveHydrant()" data-bs-dismiss="modal">Speichern</button>
+            <button type="button" class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button>
         </div></div></div></div>
         
         <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -367,7 +337,7 @@
             <div class="mb-2"><label class="small">Titel</label><input type="text" v-model="newTicket.title" class="form-control"></div>
             <div class="mb-2"><label class="small">Beschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
             <div class="mb-3"><label class="small">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
-            <button type="button" class="btn btn-dark w-100" @click="saveTicket()" data-bs-dismiss="modal">Ticket anlegen</button>
+            <button type="button" class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button>
         </div></div></div></div>
 
         <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
@@ -405,7 +375,7 @@
                     <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce"><label class="form-check-label small">Klasse CE</label></div>
                 </div>
             </div>
-            <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()" data-bs-dismiss="modal">Kameradenakte speichern</button>
+            <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()">Kameradenakte speichern</button>
         </div></div></div></div>
 
         <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -414,7 +384,7 @@
             <div class="mb-2"><label class="small fw-bold">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold">Rolle</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div>
             <div class="mb-3"><label class="small fw-bold">Verknüpfte Akte</label><select v-model.number="newUser.personnel_id" class="form-select"><option :value="0">Keine</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div>
-            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()" data-bs-dismiss="modal">Login speichern</button>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login speichern</button>
         </div></div></div></div>
         
         <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -422,7 +392,7 @@
             <div class="mb-2"><label class="small fw-bold">Gegenstand</label><input type="text" v-model="newInv.item_name" class="form-control" placeholder="Gegenstand"></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control"></div></div>
             <div class="mb-3"><label class="small fw-bold">Lagerort</label><input type="text" v-model="newInv.location" class="form-control" placeholder="Lagerort"></div>
-            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()" data-bs-dismiss="modal">Material erfassen</button>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
         </div></div></div></div>
 
         <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -435,7 +405,7 @@
                 <div class="col-6"><label class="small fw-bold">Hauptuntersuchung (HU)</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div>
                 <div class="col-6"><label class="small fw-bold">Sicherheitsprüfung (SP)</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div>
             </div>
-            <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()" data-bs-dismiss="modal">Fahrzeug sichern</button>
+            <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
         </div></div></div></div>
 
         <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -446,7 +416,7 @@
             <div class="mb-2"><label class="small fw-bold">Zweck / Route</label><input type="text" v-model="activeLog.purpose" class="form-control" placeholder="Zweck / Route"></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">KM Start</label><input type="number" v-model.number="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold">KM Ende</label><input type="number" v-model.number="activeLog.km_end" class="form-control"></div></div>
             <div class="mb-3"><label class="small fw-bold">Getankte Liter</label><input type="number" step="0.1" v-model.number="activeLog.fuel_liters" class="form-control" placeholder="Getankte Liter"></div>
-            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()" data-bs-dismiss="modal">Protokollieren</button>
+            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
         </div></div></div></div>
         
         <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -454,7 +424,7 @@
             <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="newEvent.date" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold">Titel</label><input type="text" v-model="newEvent.title" class="form-control" placeholder="Titel"></div>
             <div class="mb-3"><label class="small fw-bold">Zuständig</label><input type="text" v-model="newEvent.responsible" class="form-control" placeholder="Zuständig"></div>
-            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveEvent()" data-bs-dismiss="modal">Eintragen</button>
+            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button>
         </div></div></div></div>
 
     </div>
@@ -484,33 +454,40 @@
                 currentTab(newVal) { if (newVal === 'lagekarte') this.initMap(); }
             },
             methods: {
-                showToast(msg, isError = false) {
-                    const t = document.getElementById('sysToast');
-                    const m = document.getElementById('toastMessage');
-                    t.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
-                    m.innerText = msg;
-                    bootstrap.Toast.getOrCreateInstance(t).show();
-                },
-                async fetchJson(url) {
-                    try { 
-                        const sep = url.includes('?') ? '&' : '?';
-                        const r = await fetch(url + sep + 't=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); 
-                        return r.ok ? await r.json() : null; 
-                    } catch(e) { return null; }
+                // --- ZENTRALER DIAGNOSE KERN ---
+                async apiCall(url, method = 'GET', body = null) {
+                    const options = { method, headers: {} };
+                    if (body) {
+                        options.headers['Content-Type'] = 'application/json';
+                        options.body = JSON.stringify(body);
+                    }
+                    try {
+                        const res = await fetch(url, options);
+                        if (!res.ok) {
+                            const txt = await res.text();
+                            alert(`🚨 DATENBANK-FEHLER (${res.status})\n\nDer Server hat das Speichern blockiert:\n${txt}`);
+                            return null;
+                        }
+                        return await res.json();
+                    } catch (err) {
+                        alert(`🚨 NETZWERK-FEHLER\n\nDas System ist nicht erreichbar:\n${err.message}`);
+                        return null;
+                    }
                 },
                 async refreshAllData() {
                     try {
+                        const ts = '?t=' + new Date().getTime();
                         const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
-                            this.fetchJson('/api/vehicles'), this.fetchJson('/api/inventory'), this.fetchJson('/api/personnel/list'),
-                            this.fetchJson('/api/events'), this.fetchJson('/api/weather'), this.fetchJson('/api/settings'),
-                            this.fetchJson('/api/vehicles/logs'), this.fetchJson('/api/users'), this.fetchJson('/api/tickets'),
-                            this.fetchJson('/api/alarm/active'), this.fetchJson('/api/archive/list'), this.fetchJson('/groups/1/sessions')
+                            fetch('/api/vehicles'+ts).then(r=>r.json()), fetch('/api/inventory'+ts).then(r=>r.json()), fetch('/api/personnel/list'+ts).then(r=>r.json()),
+                            fetch('/api/events'+ts).then(r=>r.json()), fetch('/api/weather'+ts).then(r=>r.json()), fetch('/api/settings'+ts).then(r=>r.json()),
+                            fetch('/api/vehicles/logs'+ts).then(r=>r.json()), fetch('/api/users'+ts).then(r=>r.json()), fetch('/api/tickets'+ts).then(r=>r.json()),
+                            fetch('/api/alarm/active'+ts).then(r=>r.json()), fetch('/api/archive/list'+ts).then(r=>r.json()), fetch('/groups/1/sessions'+ts).then(r=>r.json())
                         ]);
                         if(v) this.vehicles = v; if(i) this.inventory = i; if(p) this.personnel = p;
                         if(e) this.events = e; if(w) this.weather = w; if(s) this.registry = s;
                         if(l) this.vehicleLogs = l; if(u) this.users = u; if(t) this.tickets = t;
-                        if(a) this.activeAlarm = a; if(arc) this.archiveDocs = arc; if(sess) this.sessions = sess;
-                    } catch (e) { console.error("Sync Error", e); }
+                        if(a) this.activeAlarm = a.status === 'clear' ? {} : a; if(arc) this.archiveDocs = arc; if(sess) this.sessions = sess;
+                    } catch (e) { console.error("Hintergrund-Sync fehlgeschlagen:", e); }
                 },
                 initMap() {
                     this.$nextTick(() => {
@@ -522,20 +499,38 @@
                         map = L.map('map').setView([lat, lon], 15);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                         L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Dienststelle") + "</b>").openPopup();
+
+                        map.on('click', (e) => {
+                            this.newHyd.lat = e.latlng.lat;
+                            this.newHyd.lon = e.latlng.lng;
+                            this.openModal('hydrantModal');
+                        });
+                        fetch('/api/hydranten').then(res => res.json()).then(data => {
+                            if(data && Array.isArray(data)){
+                                data.forEach(h => { L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Durchmesser: " + h.diameter); });
+                            }
+                        });
                     });
+                },
+                openModal(id) {
+                    const el = document.getElementById(id);
+                    if(el) bootstrap.Modal.getOrCreateInstance(el).show();
+                },
+                closeModal(id) {
+                    const el = document.getElementById(id);
+                    if(el) bootstrap.Modal.getInstance(el)?.hide();
                 },
                 async searchHazmat() {
                     if(!this.hazmatSearchQuery) return;
-                    const res = await this.fetchJson('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
-                    if(res) this.activeEriCard = res;
-                    else this.showToast("Keine ERI-Card gefunden.", true);
+                    const res = await this.apiCall('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
+                    if(res && !res.detail) this.activeEriCard = res;
                 },
                 async generateQRWindow(i) {
                     let id = i.qr_code_id;
                     if (!id || id.trim() === '') {
                         id = 'FW-QR-' + Math.random().toString(36).substr(2, 6).toUpperCase();
                         i.qr_code_id = id;
-                        await fetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(i) });
+                        await this.apiCall('/api/inventory', 'POST', i);
                         await this.refreshAllData();
                     }
                     this.$nextTick(() => {
@@ -543,7 +538,7 @@
                         if(!qrBox) return;
                         qrBox.innerHTML = "";
                         new QRCode(qrBox, {text: id, width: 160, height: 160});
-                        bootstrap.Modal.getOrCreateInstance(document.getElementById('qrModal')).show();
+                        this.openModal('qrModal');
                     });
                 },
                 processArchiveFile(e) {
@@ -554,163 +549,161 @@
                     reader.readAsDataURL(file);
                 },
                 async saveArchiveDoc() {
-                    if(!this.newArchiveDoc.title) { this.showToast("Bitte Titel eingeben.", true); return; }
-                    try {
-                        const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newArchiveDoc)});
-                        if(!res.ok) throw new Error();
+                    if(!this.newArchiveDoc.title) { alert("Bitte Titel eingeben."); return; }
+                    const res = await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
+                    if(res) {
                         this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
                         document.getElementById('archiveFileInput').value = "";
-                        this.showToast("Dokument archiviert!");
+                        alert("Dokument archiviert!");
                         this.refreshAllData();
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    }
                 },
                 async delArchiveDoc(id) {
                     if(confirm("Wirklich löschen?")) {
-                        try {
-                            const res = await fetch(`/api/archive/${id}`, {method:'DELETE'});
-                            if(res.ok) this.refreshAllData();
-                        } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); }
+                        const res = await this.apiCall(`/api/archive/${id}`, 'DELETE');
+                        if(res) this.refreshAllData();
                     }
                 },
                 async setTicketStatus(id, status) {
-                    try {
-                        const res = await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
-                        if(res.ok) this.refreshAllData();
-                    } catch(err) { this.showToast("Statusänderung fehlgeschlagen!", true); }
+                    const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status});
+                    if(res) this.refreshAllData();
                 },
                 async delTicket(id) {
                     if(confirm("Mangel löschen?")) {
-                        try {
-                            const res = await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'erledigt'})});
-                            if(res.ok) this.refreshAllData();
-                        } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); }
+                        const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status: 'erledigt'});
+                        if(res) this.refreshAllData();
                     }
                 },
                 async saveTicket() {
-                    try {
-                        if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
-                        const res = await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
-                        if(!res.ok) throw new Error();
+                    if(!this.newTicket.title) { alert("Titel fehlt!"); return; }
+                    const res = await this.apiCall('/api/tickets', 'POST', this.newTicket);
+                    if(res) {
+                        this.closeModal('ticketModal');
                         this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
-                        this.showToast("Mangel erfasst!");
+                        alert("Mangel erfasst!");
                         this.refreshAllData();
-                    } catch(err) { this.showToast("Fehler beim Erfassen!", true); }
+                    }
                 },
                 async saveHydrant() {
-                    try {
-                        const res = await fetch('/api/hydranten', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newHyd)});
-                        if(!res.ok) throw new Error();
-                        this.showToast("Hydrant gespeichert!");
+                    const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd);
+                    if(res) {
+                        this.closeModal('hydrantModal');
+                        alert("Hydrant gespeichert!");
                         this.initMap();
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    }
                 },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { 
-                    try {
-                        v.status = s; 
-                        await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); 
-                    } catch(err) { this.showToast("Status-Fehler!", true); }
+                    v.status = s; 
+                    await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s});
                 },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                resetMem() { this.newMem = { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; },
-                openEditMember(p) { this.newMem = { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce }; bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).show(); },
+                openEditMember(p) { 
+                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; 
+                    this.openModal('memberModal'); 
+                },
                 async saveMember() { 
-                    try {
-                        if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
-                        const res = await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Akte gesichert!");
+                    if(!this.newMem.name) { alert("Name ist Pflicht!"); return; }
+                    const res = await this.apiCall('/api/personnel', 'POST', this.newMem);
+                    if(res) {
+                        this.closeModal('memberModal'); 
+                        alert("Akte gesichert!");
                         this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    }
                 },
-                async delMember(id) { if(confirm("Kamerad wirklich löschen?")) { try { const res = await fetch(`/api/personnel/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
+                async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                resetUser() { this.newUser = { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; },
-                openEditUser(u) { this.newUser = { ...u, password: '' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show(); },
+                openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
                 async saveUser() { 
-                    try {
-                        if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
-                        const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Login angelegt!"); this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    if(!this.newUser.username) { alert("Benutzername fehlt!"); return; }
+                    const res = await this.apiCall('/api/users', 'POST', this.newUser);
+                    if(res) {
+                        this.closeModal('userModal'); 
+                        alert("Login angelegt!"); 
+                        this.refreshAllData(); 
+                    }
                 },
-                async delUser(id) { if(confirm("Zugang löschen?")) { try { const res = await fetch(`/api/users/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
+                async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                resetInv() { this.newInv = { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; },
-                openEditInv(i) { this.newInv = { ...i }; bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).show(); },
+                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
                 async saveInv() { 
-                    try {
-                        if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
-                        const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Material erfasst!"); this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    if(!this.newInv.item_name) { alert("Gegenstand fehlt!"); return; }
+                    const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
+                    if(res) {
+                        this.closeModal('invModal'); 
+                        alert("Material erfasst!"); 
+                        this.refreshAllData(); 
+                    }
                 },
-                async delInv(id) { if(confirm("Ausrüstung löschen?")) { try { const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
+                async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                resetVeh() { this.newVeh = { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; },
-                openEditVeh(v) { this.newVeh = { ...v }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).show(); },
+                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
                 async saveVeh() { 
-                    try {
-                        if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
-                        const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Fahrzeug gesichert!"); this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    if(!this.newVeh.name) { alert("Bezeichnung fehlt!"); return; }
+                    const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
+                    if(res) {
+                        this.closeModal('vehModal'); 
+                        alert("Fahrzeug gesichert!"); 
+                        this.refreshAllData(); 
+                    }
                 },
-                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { try { const res = await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
+                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                resetLog() { this.activeLog = { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; },
-                openEditLog(l) { this.activeLog = { ...l }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).show(); },
+                openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
                 async saveLog() { 
-                    try {
-                        const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Fahrt protokolliert!"); this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
+                    if(res) {
+                        this.closeModal('vehLogModal'); 
+                        alert("Fahrt protokolliert!"); 
+                        this.refreshAllData(); 
+                    }
                 },
-                async delLog(id) { if(confirm("Eintrag stornieren?")) { try { const res = await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
+                async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                resetEvent() { this.newEvent = { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; },
-                openEditEvent(e) { this.newEvent = { ...e }; bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).show(); },
+                openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
                 async saveEvent() { 
-                    try {
-                        if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
-                        const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); 
-                        if(!res.ok) throw new Error();
-                        this.showToast("Termin eingetragen!"); this.refreshAllData(); 
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    if(!this.newEvent.title) { alert("Bitte Titel eintragen!"); return; }
+                    const res = await this.apiCall('/api/events', 'POST', this.newEvent);
+                    if(res) {
+                        this.closeModal('eventModal'); 
+                        alert("Termin eingetragen!"); 
+                        this.refreshAllData(); 
+                    }
                 },
-                async delEvent(id) { if(confirm("Termin absagen?")) { try { const res = await fetch(`/api/events/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Absagen fehlgeschlagen!", true); } } },
+                async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
                 async triggerGeocodingLookup() {
                     const q = document.getElementById('geoSearchInput').value;
                     if(!q) return;
                     try {
-                        const res = await this.fetchJson('/api/geocode?q=' + encodeURIComponent(q));
+                        const res = await fetch('/api/geocode?q=' + encodeURIComponent(q)).then(r=>r.json());
                         if(res && res.status === 'success') {
                             this.registry.station_lat = res.lat;
                             this.registry.station_lon = res.lon;
-                            this.showToast("Ort erfolgreich aufgelöst!");
-                        } else { this.showToast("Ort nicht gefunden.", true); }
-                    } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
+                            alert("Ort erfolgreich aufgelöst!");
+                        } else { alert("Ort nicht gefunden."); }
+                    } catch(err) { alert("Fehler bei der Ortssuche."); }
                 },
                 async saveSettings() { 
-                    try {
-                        const res = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); 
-                        if(res.ok) { this.showToast("Systemeinstellungen gesichert!"); this.refreshAllData(); }
-                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
+                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
+                    if(res) {
+                        alert("Systemeinstellungen gesichert!"); 
+                        this.refreshAllData(); 
+                    }
                 }
             },
             async mounted() {
-                const res = await this.fetchJson('/api/auth/me');
-                if(!res) { window.location.href = '/login'; return; }
-                this.identity = res;
-                await this.refreshAllData();
-                this.ready = true;
+                try {
+                    const res = await fetch('/api/auth/me').then(r=>r.json());
+                    if(!res || res.detail) { window.location.href = '/login'; return; }
+                    this.identity = res;
+                    await this.refreshAllData();
+                    this.ready = true;
+                } catch(e) { 
+                    alert("Kritischer Systemfehler beim Laden der Daten.");
+                }
             }
         }).mount('#app');
     </script>
