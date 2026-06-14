@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Request
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
@@ -45,12 +45,37 @@ class GlobalSettings(BaseModel):
     int_belastung: int
     int_unterweisung: int
 
+# --- AUTOMATISCHE HINTERGRUND-SYNCHRONISATION ---
+def internal_sync_personnel_to_groups():
+    """ Gleicht alle globalen Kameraden mit den einzelnen Editor-Gruppenlisten ab """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        sync_query = """
+            INSERT INTO persons (group_id, name)
+            SELECT g.id, TRIM(p.name)
+            FROM groups_table g
+            CROSS JOIN personnel p
+            WHERE NOT EXISTS (
+                SELECT 1 FROM persons src 
+                WHERE src.group_id = g.id AND TRIM(src.name) = TRIM(p.name)
+            ) AND p.name IS NOT NULL AND LENGTH(TRIM(p.name)) > 0;
+        """
+        cur.execute(sync_query)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Hintergrund-Synchronisationsfehler: {e}")
+
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
 @router.get("/list")
 def get_all_personnel():
+    # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren
+    internal_sync_personnel_to_groups()
+    
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    # profile_picture und honors werden hier bewusst ausgelassen! Wir prüfen nur, ob ein Bild existiert.
     sql = """SELECT id, name, rank, membership_status, phone, email, address, 
                     badge_number, birth_date, entry_date, is_truppmann, is_funk, 
                     is_agt, is_maschinist, is_tf, is_gf, lic_b, lic_be, lic_c, lic_ce, 
@@ -59,6 +84,7 @@ def get_all_personnel():
              FROM personnel ORDER BY name ASC"""
     cur.execute(sql)
     res = cur.fetchall()
+    cur.close()
     conn.close()
     
     for row in res:
@@ -77,6 +103,7 @@ def get_single_member(member_id: int):
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE id = %s", (member_id,))
     row = cur.fetchone()
+    cur.close()
     conn.close()
     
     if not row:
@@ -89,13 +116,14 @@ def get_single_member(member_id: int):
             row[key] = bool(value)
     return row
 
-# --- BILDER DIREKT ALS BINÄRDATEI STREAMEN (KANN VOM BROWSER GECACHED WERDEN) ---
+# --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
 @router.get("/avatar/{member_id}")
 def get_avatar(member_id: int):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
     row = cur.fetchone()
+    cur.close()
     conn.close()
     
     if not row or not row[0]:
@@ -112,13 +140,35 @@ def get_avatar(member_id: int):
         pass
     raise HTTPException(status_code=400, detail="Ungültige Bilddaten")
 
+# --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
 def add_member(m: PersonnelMember):
+    if not m.name or len(m.name.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
+        
+    clean_name = m.name.strip()
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT IGNORE INTO personnel (name, membership_status) VALUES (%s, %s)", (m.name, m.membership_status))
-    conn.commit()
-    conn.close()
+    try:
+        # 1. In globale Akte schmeißen
+        cur.execute("INSERT IGNORE INTO personnel (name, membership_status) VALUES (%s, %s)", (clean_name, m.membership_status))
+        conn.commit()
+        
+        # 2. Direkt für alle Gruppen in persons eintragen, damit er im Editor wählbar wird
+        cur.execute("SELECT id FROM groups_table")
+        groups = cur.fetchall()
+        for (group_id,) in groups:
+            cur.execute("INSERT IGNORE INTO persons (group_id, name) VALUES (%s, %s)", (group_id, clean_name))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Fehler beim Hinzufügen: {e}")
+    finally:
+        cur.close()
+        conn.close()
+        
+    # Sicherheits-Zweitprüfung anstoßen
+    internal_sync_personnel_to_groups()
     return {"status": "success"}
 
 @router.post("/update/{member_id}")
@@ -144,7 +194,7 @@ def update_member(member_id: int, m: PersonnelMember):
              g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s 
              WHERE id=%s"""
     
-    vals = (m.name, m.rank, m.membership_status, m.phone, m.email, m.address,
+    vals = (m.name.strip(), m.rank, m.membership_status, m.phone, m.email, m.address,
             m.badge_number, b_date, e_date, m.honors, m.profile_picture,
             int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
             int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
@@ -152,19 +202,31 @@ def update_member(member_id: int, m: PersonnelMember):
     
     cur.execute(sql, vals)
 
-    if old_name and old_name != m.name:
-        cur.execute("UPDATE persons SET name=%s WHERE name=%s", (m.name, old_name))
+    if old_name and old_name.strip() != m.name.strip():
+        cur.execute("UPDATE persons SET name=%s WHERE name=%s", (m.name.strip(), old_name.strip()))
     
     conn.commit()
+    cur.close()
     conn.close()
+    
+    internal_sync_personnel_to_groups()
     return {"status": "updated"}
 
 @router.delete("/delete/{member_id}")
 def delete_member(member_id: int):
     conn = get_db_connection()
     cur = conn.cursor()
+    
+    # Vor dem Löschen den Namen holen, um ihn auch aus persons zu fegen
+    cur.execute("SELECT name FROM personnel WHERE id = %s", (member_id,))
+    name_row = cur.fetchone()
+    
     cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
+    if name_row:
+        cur.execute("DELETE FROM persons WHERE name = %s", (name_row[0],))
+        
     conn.commit()
+    cur.close()
     conn.close()
     return {"status": "deleted"}
 
@@ -174,6 +236,7 @@ def get_settings():
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT setting_key, setting_value FROM settings")
     rows = cur.fetchall()
+    cur.close()
     conn.close()
     res = {row['setting_key']: row['setting_value'] for row in rows}
     if not res:
@@ -192,6 +255,7 @@ def save_settings(s: GlobalSettings):
     for key, val in settings:
         cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (key, val, val))
     conn.commit()
+    cur.close()
     conn.close()
     return {"status": "settings updated"}
 
@@ -242,7 +306,6 @@ def init_personnel_db():
         conn.commit()
         cur.close()
         conn.close()
-        print("--- INTERSCHUTZ-DB-MIGRATION ERFOLGREICH ---")
     except Exception as e:
         print(f"Fehler bei init_personnel_db: {e}")
 
