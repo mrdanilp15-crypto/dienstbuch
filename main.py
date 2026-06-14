@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112")
 
-app = FastAPI(title="Digitales Dienstbuch - Sovereign Ultimate Edition v10.0")
+app = FastAPI(title="Digitales Dienstbuch")
 
 if not os.path.exists("static"):
     os.makedirs("static")
