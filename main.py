@@ -197,9 +197,8 @@ def init_db():
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Dienststellen Administrator', 'Brandmeister', 'Aktiv')")
-        cur.execute("INSERT IGNORE INTO e_ri_cards (un_number, danger_text, safety_measures, first_aid) VALUES ('1203', 'Benzin: Leicht entzündlich. Dämpfe bilden explosionsfähige Gemische.', 'Abstand halten, Zündquellen eliminieren.', 'An frische Luft bringen, Augen spülen.');")
 
-        # --- SELF-HEALING MIGRATION MANAGER (DIREKTE SCHADENSBEHEBUNG) ---
+        # --- SELF-HEALING MIGRATION MANAGER ---
         migrations = [
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
@@ -213,10 +212,8 @@ def init_db():
             ("inventory", "last_check", "DATE NULL"), ("inventory", "next_check", "DATE NULL")
         ]
         for table, col, schema in migrations:
-            try:
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {schema};")
-            except:
-                pass # Spalte existiert bereits, Migration überspringen
+            try: cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {schema};")
+            except: pass
 
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
@@ -231,30 +228,26 @@ def init_db():
 
 init_db()
 
-# --- ROUTES & WEB CONTROLLERS ---
+# --- WEB SEITEN CONTROLLER ---
 @app.get("/")
 def route_root(r: Request):
-    if get_current_user(r):
-        return FileResponse("static/dashboard.html")
+    if get_current_user(r): return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
 @app.get("/dashboard")
 def route_dashboard(r: Request):
-    if get_current_user(r):
-        return FileResponse("static/dashboard.html")
+    if get_current_user(r): return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
 @app.get("/login")
-def route_login_page():
-    return FileResponse("static/login.html")
+def route_login_page(): return FileResponse("static/login.html")
 
 @app.get("/editor")
 def route_editor_page(r: Request):
-    if get_current_user(r):
-        return FileResponse("static/editor.html")
+    if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- AUTH API MIT BRUTE FORCE PROTECTION ---
+# --- AUTH API ---
 @app.post("/api/login")
 def api_login(d: LoginRequest, res: Response):
     c = get_db_connection()
@@ -264,13 +257,9 @@ def api_login(d: LoginRequest, res: Response):
     if not u:
         cur.close()
         c.close()
-        raise HTTPException(status_code=401, detail="Ungültig")
-    if u.get('lockout_until') and u['lockout_until'] and datetime.now() < u['lockout_until']:
-        cur.close()
-        c.close()
-        raise HTTPException(status_code=423, detail="Konto gesperrt.")
+        raise HTTPException(status_code=401)
     if verify_password(u['password_hash'], d.password):
-        cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (u['id'],))
+        cur.execute("UPDATE users SET failed_logins = 0 WHERE id = %s", (u['id'],))
         c.commit()
         cur.close()
         c.close()
@@ -278,16 +267,9 @@ def api_login(d: LoginRequest, res: Response):
         res.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
         return {"status": "success", "redirect": "/dashboard"}
     else:
-        nf = u['failed_logins'] + 1
-        lo = datetime.now() + timedelta(minutes=15) if nf >= 5 else None
-        if lo:
-            cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (nf, lo, u['id']))
-        else:
-            cur.execute("UPDATE users SET failed_logins = %s WHERE id = %s", (nf, u['id']))
-        c.commit()
         cur.close()
         c.close()
-        raise HTTPException(status_code=401, detail="Ungültig")
+        raise HTTPException(status_code=401)
 
 @app.post("/api/logout")
 def api_logout(res: Response):
@@ -297,11 +279,10 @@ def api_logout(res: Response):
 @app.get("/api/auth/me")
 def api_me(r: Request):
     u = get_current_user(r)
-    if not u:
-        raise HTTPException(status_code=401)
+    if not u: raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT u.username, u.role, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%d.%m.%Y') as g26 FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (u['u'],))
+    cur.execute("SELECT u.username, u.role, u.personnel_id, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(p.birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(p.entry_date, '%Y-%m-%d') as entry_date, p.ice_contact, p.drive_b, p.drive_be, p.drive_c, p.drive_ce FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (u['u'],))
     res = cur.fetchone()
     cur.close()
     c.close()
@@ -309,41 +290,35 @@ def api_me(r: Request):
 
 @app.get("/api/geocode")
 def geocode(q: str, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     try:
         url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={urllib.parse.quote(q)}"
         req = urllib.request.Request(url, headers={'User-Agent': 'DigitalesDienstbuch/1.0'})
         with urllib.request.urlopen(req, timeout=5) as res:
             data = json.loads(res.read().decode())
-            if data:
-                return {"status": "success", "name": data[0].get("display_name"), "lat": data[0].get("lat"), "lon": data[0].get("lon")}
-    except:
-        pass
-    return {"status": "error", "message": "Fehler beim Auflösen."}
+            if data: return {"status": "success", "name": data[0].get("display_name"), "lat": data[0].get("lat"), "lon": data[0].get("lon")}
+    except: pass
+    return {"status": "error", "message": "Fehler"}
 
 @app.get("/api/weather")
 def get_weather(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT setting_key, setting_value FROM settings")
     s = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
     cur.close()
     c.close()
-    lat, lon, name = s.get("station_lat", "47.9942"), s.get("station_lon", "10.1344"), s.get("station_name", "Hauptdienststelle")
+    lat, lon, name = s.get("station_lat", "47.9942"), s.get("station_lon", "10.1344"), s.get("station_name", "Dienststelle")
     try:
         with urllib.request.urlopen(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true", timeout=3) as res:
             cw = json.loads(res.read().decode()).get("current_weather", {})
-            return {"station": name, "temperature": f"{cw.get('temperature', '--')} °C", "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live-Wetter synchronisiert."}
-    except:
-        return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "API Offline."}
+            return {"station": name, "temperature": f"{cw.get('temperature', '--')} °C", "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Dienstbuch-Wetter synchronisiert."}
+    except: return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "Gateway Offline."}
 
 @app.get("/api/settings")
 def get_settings(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT setting_key, setting_value FROM settings")
@@ -354,8 +329,7 @@ def get_settings(r: Request):
 
 @app.post("/api/settings")
 def save_settings(d: dict, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     for k, v in d.items():
@@ -367,8 +341,7 @@ def save_settings(d: dict, r: Request):
 
 @app.get("/api/users")
 def list_users(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, username, role, personnel_id FROM users ORDER BY username ASC")
@@ -379,8 +352,7 @@ def list_users(r: Request):
 
 @app.post("/api/users")
 def save_user(d: UserCreateDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     if d.id:
@@ -397,8 +369,7 @@ def save_user(d: UserCreateDto, r: Request):
 
 @app.delete("/api/users/{u_id}")
 def del_user(u_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM users WHERE id = %s", (u_id,))
@@ -409,8 +380,7 @@ def del_user(u_id: int, r: Request):
 
 @app.get("/api/personnel/list")
 def list_pers(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("""SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture,
@@ -422,15 +392,19 @@ def list_pers(r: Request):
 
 @app.post("/api/personnel")
 def save_pers(d: PersonnelCreateDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    g26, bd, ed = d.g26_3_date or None, d.birth_date or None, d.entry_date or None
+    g26 = d.g26_3_date if d.g26_3_date and d.g26_3_date.strip() != "" else None
+    bd = d.birth_date if d.birth_date and d.birth_date.strip() != "" else None
+    ed = d.entry_date if d.entry_date and d.entry_date.strip() != "" else None
+    
     if d.id:
-        cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""", (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture, d.id))
+        cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""", 
+                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture, d.id))
     else:
-        cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture))
+        cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", 
+                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture))
     c.commit()
     cur.close()
     c.close()
@@ -438,8 +412,7 @@ def save_pers(d: PersonnelCreateDto, r: Request):
 
 @app.delete("/api/personnel/{p_id}")
 def del_pers(p_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,))
@@ -450,8 +423,7 @@ def del_pers(p_id: int, r: Request):
 
 @app.get("/api/vehicles")
 def list_vehicles(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date, next_oil_change_km FROM vehicles ORDER BY name ASC")
@@ -462,14 +434,15 @@ def list_vehicles(r: Request):
 
 @app.post("/api/vehicles")
 def save_vehicle(d: VehicleCreateDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
+    td = d.tuv_date if d.tuv_date and d.tuv_date.strip() != "" else None
+    sd = d.sp_date if d.sp_date and d.sp_date.strip() != "" else None
     if d.id:
-        cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.name, d.radio_name, d.status, d.milage, d.tuv_date or None, d.sp_date or None, d.next_oil_change_km, d.id))
+        cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km, d.id))
     else:
-        cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date, next_oil_change_km) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.name, d.radio_name, d.status, d.milage, d.tuv_date or None, d.sp_date or None, d.next_oil_change_km))
+        cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date, next_oil_change_km) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km))
     c.commit()
     cur.close()
     c.close()
@@ -477,8 +450,7 @@ def save_vehicle(d: VehicleCreateDto, r: Request):
 
 @app.delete("/api/vehicles/{v_id}")
 def del_vehicle(v_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,))
@@ -489,8 +461,7 @@ def del_vehicle(v_id: int, r: Request):
 
 @app.put("/api/vehicles/{v_id}/status")
 def vehicle_status(v_id: int, d: VehicleStatusDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (d.status, v_id))
@@ -535,8 +506,7 @@ def del_log(log_id: int):
 
 @app.get("/groups")
 def list_groups(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT * FROM groups_table")
@@ -547,8 +517,7 @@ def list_groups(r: Request):
 
 @app.get("/groups/{group_id}/sessions")
 def list_sessions(group_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
@@ -559,20 +528,17 @@ def list_sessions(group_id: int, r: Request):
 
 @app.get("/groups/{group_id}/attendance")
 def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     sd = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
     if session_id and session_id != 0:
         cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
         row = cur.fetchone()
-        if row:
-            sd = row
+        if row: sd = row
     cur.execute("SELECT p.id as personnel_id, p.name, p.rank, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC", (session_id,))
     persons = cur.fetchall()
-    for p in persons:
-        p['is_present'] = bool(p['is_present'])
+    for p in persons: p['is_present'] = bool(p['is_present'])
     cur.execute("SELECT DISTINCT description FROM sessions ORDER BY id DESC LIMIT 5")
     pt = [row_t['description'] for row_t in cur.fetchall()]
     cur.execute("SELECT DISTINCT instructors FROM sessions ORDER BY id DESC LIMIT 5")
@@ -583,8 +549,7 @@ def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
 
 @app.post("/attendance")
 def save_attendance(d: LegacySessionPayload, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     s_id = d.session_id
@@ -603,8 +568,7 @@ def save_attendance(d: LegacySessionPayload, r: Request):
 
 @app.get("/api/inventory")
 def list_inv(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, item_name, amount, min_amount, unit, location, barcode, size, qr_code_id, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check, DATE_FORMAT(next_check, '%Y-%m-%d') as next_check FROM inventory ORDER BY item_name ASC")
@@ -615,12 +579,11 @@ def list_inv(r: Request):
 
 @app.post("/api/inventory")
 def save_inv(d: InventoryItemDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = d.last_check or None
-    nc = d.next_check or None
+    lc = d.last_check if d.last_check and d.last_check.strip() != "" else None
+    nc = d.next_check if d.next_check and d.next_check.strip() != "" else None
     qr_id = d.qr_code_id
     if not qr_id or qr_id.strip() == "":
         qr_id = f"FEUERWEHR-QR-{secrets.token_hex(4).upper()}"
@@ -635,8 +598,7 @@ def save_inv(d: InventoryItemDto, r: Request):
 
 @app.delete("/api/inventory/{i_id}")
 def del_inv(i_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,))
@@ -647,8 +609,7 @@ def del_inv(i_id: int, r: Request):
 
 @app.get("/api/tickets")
 def list_tickets(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT t.*, v.name as vehicle_name, i.item_name FROM tickets t LEFT JOIN vehicles v ON t.vehicle_id = v.id LEFT JOIN inventory i ON t.inventory_id = i.id ORDER BY t.id DESC")
@@ -659,8 +620,7 @@ def list_tickets(r: Request):
 
 @app.post("/api/tickets")
 def create_ticket(d: TicketCreateDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     v_id = d.vehicle_id if d.vehicle_id else None
@@ -673,8 +633,7 @@ def create_ticket(d: TicketCreateDto, r: Request):
 
 @app.put("/api/tickets/{t_id}/status")
 def update_ticket_status(t_id: int, d: KanbanUpdateRequest, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("UPDATE tickets SET status = %s WHERE id = %s", (d.status, t_id))
@@ -685,15 +644,14 @@ def update_ticket_status(t_id: int, d: KanbanUpdateRequest, r: Request):
 
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, address, keyword, alert_text, DATE_FORMAT(timestamp, '%d.%m.%Y %H:%i') as timestamp FROM active_alarm ORDER BY id DESC LIMIT 1")
     res = cur.fetchone()
     cur.close()
     c.close()
-    return res if res else {"status": "clear", "message": "Kein aktiver Alarm vorliegend."}
+    return res if res else {"status": "clear", "message": "Keine Alarme vorliegend."}
 
 @app.post("/api/alarm/trigger")
 def trigger_alarm_webhook(d: AlarmPayloadDto):
@@ -705,77 +663,36 @@ def trigger_alarm_webhook(d: AlarmPayloadDto):
     c.close()
     return {"status": "alarm_broadcasted"}
 
-# --- SATELLITEN-GESTÜTZTES GEFAHRGUT-AUSKUNFTSSYSTEM (ADR-ALGORITHMUS v10.5) ---
 @app.get("/api/gahrgut/ericard/{un_number}")
 def get_eri_card(un_number: str, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401, detail="Nicht autorisiert.")
-    
-    # Formatierung erzwingen (z. B. "6" -> "0006")
+    if not get_current_user(r): raise HTTPException(status_code=401)
     un_clean = un_number.strip().zfill(4)
-    
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT * FROM e_ri_cards WHERE un_number = %s", (un_clean,))
     res = cur.fetchone()
     cur.close()
     c.close()
-    
-    # 1. Fallback: Wenn der Code explizit in der MySQL-Datenbank existiert
-    if res:
-        return res
-        
-    # 2. Taktische Echtzeit-Berechnung (Garantiert 100% Schutz für alle 3.000+ UN-Codes)
+    if res: return res
     try:
         un_int = int(un_clean)
-        
-        # BEREICH 0001 - 0999: Explosivstoffe (Klasse 1)
         if 1 <= un_int < 1000:
-            return {
-                "un_number": un_clean,
-                "danger_text": "ADR KLASSE 1 (Explosivstoffe / Munition): Akute Detonations-, Massenexplosions- und Splittergefahr. Thermische Reaktionen können spontan einsetzen.",
-                "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten! Deckung suchen. Splitterschutz für Einsatzkräfte aktivieren. Keine Zündquellen, absolutes Rauchverbot.",
-                "first_aid": "Verletzte außerhalb des Trümmerkreises versorgen. Thermische Verbrennungen sofort intensiv kühlen und steril abdecken. Schockbekämpfung einleiten."
-            }
-            
-        # BEREICH 1000 - 1999: Gase & Entzündbare Flüssigkeiten (Klasse 2 / 3)
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe / Munition): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Thermische Verbrennungen sofort kühlen."}
         elif 1000 <= un_int < 2000:
-            return {
-                "un_number": un_clean,
-                "danger_text": "ADR KLASSE 2/3 (Verdichtete Gase / Hochentzündliche Stoffe): Gaswolken können sich unsichtbar am Boden ausbreiten (schwerer als Luft) oder unter Hallendecken sammeln.",
-                "safety_measures": "Ex-Schutz-Zone (mind. 100m) einrichten! Funkenbildung strikt vermeiden. Behälter aus geschützter Deckung mit Wasserwerfern kühlen. Gasmessungen einleiten.",
-                "first_aid": "Verunglückte nur unter schwerem Atemschutz retten. Frischluft zuführen. Bei Erfrierungen durch verflüssigte Gase Wunden steril abdecken, nicht reiben."
-            }
-            
-        # BEREICH 2000 - 2999: Entzündbare Feststoffe & Oxidationsmittel (Klasse 4 / 5)
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Entzündbare Flüssigkeiten): Schwere Gaswolken kriechen am Boden.", "safety_measures": "Ex-Schutz-Zone (mind. 100m) einrichten! Funkenbildung vermeiden.", "first_aid": "Verunglückte unter Atemschutz retten. Frischluft."}
         elif 2000 <= un_int < 3000:
-            return {
-                "un_number": un_clean,
-                "danger_text": "ADR KLASSE 4/5 (Selbstentzündliche oder oxidierende Stoffe): Gefahr von heftigen Reaktionen mit Wasser! Stoffe können unter Sauerstoffabgabe Brände extrem beschleunigen.",
-                "safety_measures": "Vorsicht bei Wassereinsatz (Gefahr von Gasbildung/Explosion). Erstickende Löschmittel (Pulver, Sand, CO2) prüfen. PSA gegen thermische Belastung anlegen.",
-                "first_aid": "Kontaminierte Kleidung sofort entfernen (Vorsicht vor Selbstdeponierung). Chemische Pulverreste trocken abwischen, danach Haut intensiv mit Wasser spülen."
-            }
-            
-        # BEREICH 3000 - 3999: Giftige, Infektiöse & Ätzende Stoffe (Klasse 6 / 8)
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5 (Selbstentzündliche / oxidierende Stoffe): Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz. Erstickende Löschmittel prüfen.", "first_aid": "Chemische Pulverreste trocken abwischen, danach spülen."}
         elif 3000 <= un_int <= 3600:
-            return {
-                "un_number": un_clean,
-                "danger_text": "ADR KLASSE 6/8 (Toxische / Ätzende Chemikalien): Akute Lebensgefahr bei Einatmen, Verschlucken oder Hautkontakt. Verursacht schwerste Verätzungen der Schleimhäute.",
-                "safety_measures": "Einsatz nur mit schwerem Chemikalienschutzanzug (CSA) und Pressluftatmer. Dämpfe gezielt mit feinem Wassersprühstrahl niederschlagen. Löschwasser auffangen!",
-                "first_aid": "Sofortige Not-Dekontamination einleiten. Augen bei geöffneten Lidern mindestens 15 Minuten kontinuierlich spülen. Vitalfunktionen überwachen, Notarzt hinzuziehen."
-            }
-    except ValueError:
-        pass
-        
-    raise HTTPException(status_code=404, detail="Eingegebene UN-Nummer entspricht nicht dem internationalen ADR-Standardkatalog.")
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxische / Ätzende Chemikalien): Akute Lebensgefahr bei Einatmen oder Hautkontakt.", "safety_measures": "Einsatz nur mit schwerem CSA. Dämpfe niederschlagen. Löschwasser auffangen.", "first_aid": "Sofortige Not-Dekontamination. Augen 15 Minuten spülen."}
+    except: pass
+    return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "Standard-Gefahrgut-Sicherheitsabstand (GAMS-Regel) einhalten.", "first_aid": "Allgemeine Rettungsmaßnahmen unter Eigenschutz durchführen."}
 
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, lat, lon, hydrant_type, diameter, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check FROM hydranten")
+    cur.execute("SELECT id, lat, lon, hydrant_type, diameter, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check) FROM hydranten")
     res = cur.fetchall()
     cur.close()
     c.close()
@@ -783,11 +700,10 @@ def list_hydrants(r: Request):
 
 @app.post("/api/hydranten")
 def add_hydrant(d: HydrantDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = d.last_check if d.last_check else None
+    lc = d.last_check if d.last_check and d.last_check.strip() != "" else None
     cur.execute("INSERT INTO hydranten (lat, lon, hydrant_type, diameter, last_check) VALUES (%s,%s,%s,%s,%s)", (d.lat, d.lon, d.hydrant_type, d.diameter, lc))
     c.commit()
     cur.close()
@@ -796,8 +712,7 @@ def add_hydrant(d: HydrantDto, r: Request):
 
 @app.get("/api/events")
 def list_events(r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, DATE_FORMAT(date, '%Y-%m-%d') as date, title, responsible FROM events ORDER BY date ASC")
@@ -808,14 +723,11 @@ def list_events(r: Request):
 
 @app.post("/api/events")
 def save_event(d: EventCreateDto, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    if d.id:
-        cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (d.date, d.title, d.responsible, d.id))
-    else:
-        cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (d.date, d.title, d.responsible))
+    if d.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (d.date, d.title, d.responsible, d.id))
+    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (d.date, d.title, d.responsible))
     c.commit()
     cur.close()
     c.close()
@@ -823,8 +735,7 @@ def save_event(d: EventCreateDto, r: Request):
 
 @app.delete("/api/events/{e_id}")
 def del_event(e_id: int, r: Request):
-    if not get_current_user(r):
-        raise HTTPException(status_code=401)
+    if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM events WHERE id = %s", (e_id,))
