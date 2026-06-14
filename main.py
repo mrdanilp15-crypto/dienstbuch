@@ -140,6 +140,11 @@ class HydrantDto(BaseModel):
     diameter: str = "H100"
     last_check: Optional[str] = None
 
+class ArchiveUploadDto(BaseModel):
+    title: str
+    keywords: str
+    file_blob: str
+
 # --- DATABASE ENGINE & CRYPTO ---
 def get_db_connection():
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
@@ -178,7 +183,16 @@ def init_db():
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-        for k, v in [('apager_api_key', '0'), ('int_g26', '36'), ('station_name', 'Freiwillige Feuerwehr Buxheim'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
+        for k, v in [
+            ('apager_api_key', ''), 
+            ('divera_webhook', ''), 
+            ('alamos_fe2_url', ''), 
+            ('groupalarm_token', ''), 
+            ('int_g26', '36'), 
+            ('station_name', 'Freiwillige Feuerwehr Buxheim'), 
+            ('station_lat', '47.9942'), 
+            ('station_lon', '10.1344')
+        ]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
             
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL, failed_logins INT DEFAULT 0, lockout_until DATETIME NULL) ENGINE=InnoDB;")
@@ -194,11 +208,12 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS e_ri_cards (un_number VARCHAR(10) PRIMARY KEY, danger_text TEXT, safety_measures TEXT, first_aid TEXT) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
+        cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Dienststellen Administrator', 'Brandmeister', 'Aktiv')")
 
-        # --- SELF-HEALING MIGRATION MANAGER ---
+        # --- AUTOMATISCHE STRUKTUR-MIGRATION (MÄNGELBEHEBUNG) ---
         migrations = [
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
@@ -228,7 +243,7 @@ def init_db():
 
 init_db()
 
-# --- WEB SEITEN CONTROLLER ---
+# --- WEB ROUTES ---
 @app.get("/")
 def route_root(r: Request):
     if get_current_user(r): return FileResponse("static/dashboard.html")
@@ -247,7 +262,7 @@ def route_editor_page(r: Request):
     if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- AUTH API ---
+# --- CORE API COCKPIT ---
 @app.post("/api/login")
 def api_login(d: LoginRequest, res: Response):
     c = get_db_connection()
@@ -259,8 +274,6 @@ def api_login(d: LoginRequest, res: Response):
         c.close()
         raise HTTPException(status_code=401)
     if verify_password(u['password_hash'], d.password):
-        cur.execute("UPDATE users SET failed_logins = 0 WHERE id = %s", (u['id'],))
-        c.commit()
         cur.close()
         c.close()
         token = create_token(u['username'], u['role'])
@@ -355,13 +368,14 @@ def save_user(d: UserCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
+    p_id = d.personnel_id if d.personnel_id and d.personnel_id != 0 else None
     if d.id:
         if d.password and len(d.password.strip()) > 0:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (d.role, d.personnel_id, hash_password(d.password), d.id))
+            cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (d.role, p_id, hash_password(d.password), d.id))
         else:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (d.role, d.personnel_id, d.id))
+            cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (d.role, p_id, d.id))
     else:
-        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (d.username.strip(), hash_password(d.password), d.role, d.personnel_id))
+        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (d.username.strip(), hash_password(d.password), d.role, p_id))
     c.commit()
     cur.close()
     c.close()
@@ -623,8 +637,8 @@ def create_ticket(d: TicketCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    v_id = d.vehicle_id if d.vehicle_id else None
-    i_id = d.inventory_id if d.inventory_id else None
+    v_id = d.vehicle_id if d.vehicle_id and d.vehicle_id != 0 else None
+    i_id = d.inventory_id if d.inventory_id and d.inventory_id != 0 else None
     cur.execute("INSERT INTO tickets (title, content, vehicle_id, inventory_id, priority, status) VALUES (%s,%s,%s,%s,%s,%s)", (d.title, d.content, v_id, i_id, d.priority, d.status))
     c.commit()
     cur.close()
@@ -739,6 +753,40 @@ def del_event(e_id: int, r: Request):
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM events WHERE id = %s", (e_id,))
+    c.commit()
+    cur.close()
+    c.close()
+    return {"status": "success"}
+
+# --- INTERACTIVE ARCHIVE SYSTEM ---
+@app.get("/api/archive/list")
+def list_archive(r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, title, keywords, DATE_FORMAT(uploaded_at, '%d.%m.%Y %H:%i') as date_formatted FROM archive_docs ORDER BY id DESC")
+    res = cur.fetchall()
+    cur.close()
+    c.close()
+    return res
+
+@app.post("/api/archive/upload")
+def upload_archive_doc(d: ArchiveUploadDto, r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor()
+    cur.execute("INSERT INTO archive_docs (title, keywords, file_blob) VALUES (%s, %s, %s)", (d.title, d.keywords, d.file_blob))
+    c.commit()
+    cur.close()
+    c.close()
+    return {"status": "success"}
+
+@app.delete("/api/archive/{doc_id}")
+def delete_archive_doc(doc_id: int, r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor()
+    cur.execute("DELETE FROM archive_docs WHERE id = %s", (doc_id,))
     c.commit()
     cur.close()
     c.close()
