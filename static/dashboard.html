@@ -3,81 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch — Operationszentrale v10.0</title>
+    <title>Digitales Dienstbuch</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/static/style.css?v=10.6">
+    <style>
+        [v-cloak] { display: none !important; }
+        .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #334155; }
+        .menu-link { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #cbd5e1; font-weight: 500; transition: all 0.2s; }
+        .menu-link:hover, .menu-link.active { background: #334155; color: white; }
+        .main-content { margin-left: 260px; padding: 40px; background: #f8fafc; min-height: 100vh; }
+        .avatar-container { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #e2e8f0; display: inline-block; }
+        .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
+        .status-btn { width: 40px; height: 40px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; }
+        .status-btn.s-2.active { background: #22c55e; color: white; border-color: #15803d; }
+        .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
+    </style>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
-<body :class="{'monitor-mode-active': monitorMode}">
+<body>
     <div id="app" v-cloak v-show="ready">
-        <div class="app-container">
+        <div class="d-flex">
             
-            <div class="sidebar" v-if="!monitorMode">
-                <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>SOVEREIGN v10</h4></div>
-                <div class="flex-grow-1 overflow-y-auto">
-                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand & Monitor</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Digitale Lagekarte</div>
-                    <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERICards)</div>
-                    <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Tickets</div>
-                    <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer & Verleih</div>
-                    <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
-                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Tankbuch</div>
-                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Kalender & Tauschbörse</div>
-                    <div class="menu-link" :class="{active: currentTab === 'chronik'}" @click="currentTab = 'chronik'"><i class="fa fa-clock-rotate-left"></i> 140j. Jubiläums-Archiv</div>
-                    <div class="menu-link" :class="{active: currentTab === 'quiz'}" @click="currentTab = 'quiz'"><i class="fa fa-graduation-cap"></i> Schulungs-Quiz</div>
-                    <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Systemeinstellungen</div>
+            <!-- Linker Navigationsflügel -->
+            <div class="sidebar d-flex flex-column justify-content-between">
+                <div>
+                    <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-book-open me-2"></i>Dienstbuch</h4></div>
+                    <div class="flex-grow-1 overflow-y-auto">
+                        <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
+                        <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
+                        <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
+                        <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
+                        <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
+                        <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer</div>
+                        <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
+                        <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Tankbuch</div>
+                        <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Dienstplan & Termine</div>
+                        <div class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-clock-rotate-left"></i> Dienstbuch-Archiv</div>
+                        <div class="menu-link" :class="{active: currentTab === 'quiz'}" @click="currentTab = 'quiz'"><i class="fa fa-graduation-cap"></i> Schulungs-Quiz</div>
+                        <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
+                    </div>
                 </div>
-                <div class="p-3 bg-light border-top text-center">
-                    <div class="small fw-bold text-dark mb-2">{{ identity.username }}</div>
+                <div class="p-3 bg-dark text-center">
+                    <div class="small fw-bold text-muted mb-2">{{ identity.username || 'Benutzer' }}</div>
                     <button class="btn btn-sm btn-danger w-100 rounded-pill fw-bold" @click="triggerLogout()">Abmelden</button>
                 </div>
             </div>
 
-            <div class="main-content" :class="{'w-100 p-4 bg-dark text-white': monitorMode}">
+            <!-- Hauptarbeitsbereich -->
+            <div class="main-content flex-grow-1">
                 
-                <div class="p-2 bg-danger text-white text-center rounded mb-3 d-flex justify-content-between align-items-center" v-if="monitorMode">
-                    <span class="fw-bold font-monospace"><i class="fa fa-display animate-pulse me-2"></i> WACHEN-MONITOR-MODUS AKTIV</span>
-                    <button class="btn btn-xs btn-light fw-bold rounded-pill" @click="monitorMode = false">Zurück zur App</button>
+                <!-- === ALARM COMPONENT === -->
+                <div class="card mb-4 bg-danger text-white border-0 shadow" v-if="activeAlarm && activeAlarm.address">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="m-0 text-uppercase fw-bold font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> Aktiver Alarm</h5>
+                            <span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span>
+                        </div>
+                        <h2 class="fw-bold font-monospace text-warning m-0 mb-1">{{ activeAlarm.keyword }}</h2>
+                        <h5 class="mb-3"><i class="fa fa-location-dot me-1"></i> {{ activeAlarm.address }}</h5>
+                        <p class="mb-0 bg-black bg-opacity-20 p-3 rounded font-monospace">{{ activeAlarm.alert_text }}</p>
+                    </div>
                 </div>
 
-                <div v-if="currentTab === 'leitstand'">
-                    <div class="card mb-4 bg-danger text-white border-0 shadow" v-if="activeAlarm && activeAlarm.address">
-                        <div class="card-body p-4">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h4 class="m-0 fw-bold text-uppercase font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> ALARMING SYSTEM</h4>
-                                <span class="badge bg-white text-danger fw-bold rounded-pill font-monospace">{{ activeAlarm.timestamp }}</span>
-                            </div>
-                            <h1 class="fw-bold mb-2 font-monospace text-warning">{{ activeAlarm.keyword }}</h1>
-                            <h4 class="mb-3"><i class="fa fa-location-dot me-2"></i> {{ activeAlarm.address }}</h4>
-                            <p class="mb-0 bg-black bg-opacity-20 p-3 rounded font-monospace fs-5"><b>Meldung:</b> {{ activeAlarm.alert_text }}</p>
-                            <div class="mt-3 text-end">
-                                <a :href="'http://maps.google.com/?q=' + encodeURIComponent(activeAlarm.address)" target="_blank" class="btn btn-light text-danger fw-bold rounded-pill shadow-sm"><i class="fa fa-route me-1"></i> Anfahrt starten</a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between mb-4" v-if="!monitorMode">
-                        <h2>Führungs-Leitstand</h2>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-dark rounded-pill fw-bold" @click="monitorMode = true"><i class="fa fa-desktop me-1"></i> Hallen-Monitor</button>
-                            <button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neues Protokoll</button>
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
+                <!-- === ZENTRALE === -->
+                <div v-show="currentTab === 'leitstand'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Zentrale Dashboard</h2><button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neuer Dienstbucheintrag</button></div>
+                    <div class="row g-3 mb-4">
                         <div class="col-md-8">
-                            <div class="card mb-4">
-                                <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live Fahrzeug-Verfügbarkeit (Stärkemeldung)</h6>
+                            <div class="card p-3 bg-white border">
+                                <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Fahrzeug-Statustableau (FMS)</h6>
                                 <div class="row g-2">
                                     <div v-for="v in vehicles" :key="v.id" class="col-6">
-                                        <div class="p-3 border rounded d-flex justify-content-between align-items-center bg-light text-dark">
-                                            <div class="text-truncate"><b>{{ v.name }}</b> <br/><small class="font-monospace text-muted">{{ v.radio_name }}</small></div>
+                                        <div class="p-2 border rounded d-flex justify-content-between align-items-center bg-light">
+                                            <div class="text-truncate"><b>{{ v.name }}</b> <br><small class="font-monospace text-muted">{{ v.radio_name }}</small></div>
                                             <div class="d-flex gap-1">
                                                 <button class="status-btn s-2" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
                                                 <button class="status-btn s-4" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
@@ -88,174 +91,151 @@
                             </div>
                         </div>
                         <div class="col-md-4" v-if="weather">
-                            <div class="card border-start border-4 border-info">
-                                <h6 class="fw-bold text-muted text-uppercase mb-2"><i class="fa fa-cloud-sun text-info me-2"></i>Wetter-Zentrale</h6>
-                                <div class="fs-4 fw-bold text-dark">{{ weather.temperature }}</div>
-                                <div class="small text-muted mb-2">Windstärke: {{ weather.wind }}</div>
-                                <span class="badge bg-success rounded-pill font-monospace small p-1.5">{{ weather.warning_text }}</span>
+                            <div class="card p-3 bg-white border h-100 d-flex flex-column justify-content-between">
+                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Wetter {{ weather.station }}</h6>
+                                <h2 class="fw-bold text-dark m-0 my-2">{{ weather.temperature }}</h2>
+                                <span class="badge bg-success py-1.5 font-monospace">{{ weather.warning_text }}</span>
                             </div>
                         </div>
                     </div>
-
-                    <h5 class="fw-bold mb-3" v-if="!monitorMode">Zuletzt erfasste Dienstbuchberichte</h5>
-                    <div v-for="s in sessions" :key="s.id" v-if="!monitorMode" class="card p-3 mb-2 border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
+                    <h5 class="fw-bold mb-3">Zuletzt erfasste Berichte</h5>
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold">{{ s.description }}</h6><small class="text-muted">Leitung: {{ s.instructors }}</small></div>
+                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold text-dark">{{ s.description }}</h6><small class="text-muted">Ausbilder: {{ s.instructors }}</small></div>
                             <div class="text-end text-muted small">{{ s.date }}<br><b>{{ s.duration }} Std.</b></div>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between mb-3">
-                        <h2>Taktische Live-Lagekarte & Hydranten-Kataster</h2>
-                        <button class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant markieren</button>
-                    </div>
-                    <div class="card p-2 bg-white rounded-4">
-                        <div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div>
-                    </div>
+                <!-- === LAGEKARTE === -->
+                <div v-show="currentTab === 'lagekarte'">
+                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
+                    <div class="card p-2 bg-white rounded-4"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
-                <div v-if="currentTab === 'gefahrgut'">
-                    <h2 class="mb-4">Gefahrgut-Informationssystem (ERI-Cards)</h2>
+                <!-- === GEFAHRGUT === -->
+                <div v-show="currentTab === 'gefahrgut'">
+                    <h2 class="mb-4">Gefahrgutdatenbank</h2>
                     <div class="card p-4 bg-white border-0 mb-4">
-                        <label class="small fw-bold text-muted mb-2">UN-Nummer eingeben (z. B. 1203 für Benzin, 1202 für Diesel, 1005 für Ammoniak)</label>
+                        <label class="small fw-bold text-muted mb-2">UN-Nummer eingeben (4-stellig)</label>
                         <div class="input-group" style="max-width: 450px;">
                             <span class="input-group-text bg-danger text-white fw-bold">UN</span>
                             <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace" placeholder="1203">
                             <button class="btn btn-dark fw-bold" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
                         </div>
                     </div>
-
                     <div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
-                        <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt für UN {{ activeEriCard.un_number }}</h4>
+                        <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt UN {{ activeEriCard.un_number }}</h4>
                         <div class="row g-3">
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2"><i class="fa fa-triangle-exclamation text-danger"></i> Taktische Gefahr</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.danger_text }}</p></div></div>
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2"><i class="fa fa-shield text-success"></i> Schutzmaßnahmen</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.safety_measures }}</p></div></div>
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2"><i class="fa fa-kit-medical text-primary"></i> Erste Hilfe</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.first_aid }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Taktische Gefahr</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.danger_text }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Schutzmaßnahmen</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.safety_measures }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Erste Hilfe</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.first_aid }}</p></div></div>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'tickets'">
-                    <div class="d-flex justify-content-between mb-4">
-                        <h2>Gerätewart-Mängel-Board & UVV-Prüfung</h2>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-dark rounded-pill fw-bold" @click="printPruefprotokoll()"><i class="fa fa-print me-1"></i> Prüfbericht drucken</button>
-                            <button class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel eintragen</button>
-                        </div>
-                    </div>
-                    
+                <!-- === GERÄTEWART === -->
+                <div v-show="currentTab === 'tickets'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row">
                         <div class="col-md-4">
-                            <h5 class="text-danger fw-bold border-bottom pb-2 mb-3"><i class="fa fa-circle-exclamation"></i> Neu erfasst</h5>
+                            <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border">
-                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-                                <button class="btn btn-sm btn-outline-dark w-100 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">Werkstatt <i class="fa fa-arrow-right"></i></button>
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
+                                <button class="btn btn-sm btn-outline-dark w-100 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt verschieben</button>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <h5 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fa fa-screwdriver-wrench"></i> In Reparatur</h5>
+                            <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border">
-                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
-                                <p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-                                <button class="btn btn-sm btn-success w-100 rounded-pill" @click="setTicketStatus(t.id, 'erledigt')">UVV Freigabe <i class="fa fa-check"></i></button>
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
+                                <button class="btn btn-sm btn-success w-100 rounded-pill" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <h5 class="text-success fw-bold border-bottom pb-2 mb-3"><i class="fa fa-circle-check"></i> Einsatzbereit</h5>
+                            <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
-                                <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6>
-                                <p class="small text-muted mt-1 m-0">{{ t.content }}</p>
+                                <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4">
-                        <h2>Kleiderkammer & Digitales Verleih-Register</h2>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-dark rounded-pill fw-bold" @click="openRentModal()"><i class="fa fa-camera me-1"></i> QR-Scanner / Verleihen</button>
-                            <button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Neues Material</button>
+                <!-- === MEIN PROFIL === -->
+                <div v-show="currentTab === 'meinbereich'">
+                    <h2 class="mb-4">Mein Dienstbuch Profil</h2>
+                    <div class="card p-4 border bg-white shadow-sm">
+                        <div class="d-flex align-items-center gap-4 mb-3">
+                            <div class="avatar-container border" style="width:80px; height:80px;">
+                                <img :src="identity.profile_picture" v-if="identity.profile_picture && identity.profile_picture.strip() != ''">
+                                <div class="w-100 h-100 bg-secondary text-white d-flex align-items-center justify-content-center fw-bold" v-else>PSA</div>
+                            </div>
+                            <div>
+                                <h4 class="text-dark fw-bold mb-1">{{ identity.personnel_name || identity.username || 'Benutzer' }}</h4>
+                                <span class="badge bg-danger text-uppercase font-monospace">{{ identity.role }}</span>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row text-center mt-3 text-dark">
+                            <div class="col-4 border-end"><h5>{{ identity.rank || 'Feuerwehranwärter' }}</h5><small class="text-muted fw-bold">Dienstgrad</small></div>
+                            <div class="col-4 border-end"><h5>{{ identity.membership_status || 'Aktiv' }}</h5><small class="text-muted fw-bold">Abteilung</small></div>
+                            <div class="col-4"><h5>{{ identity.g26_3_date || '-' }}</h5><small class="text-muted fw-bold">G26.3 Validierung</small></div>
+                        </div>
+                        <hr class="my-3">
+                        <div class="row text-dark p-2">
+                            <div class="col-md-6 mb-2"><b>E-Mail:</b> {{ identity.email || '-' }}</div>
+                            <div class="col-md-6 mb-2"><b>Telefon:</b> {{ identity.phone || '-' }}</div>
+                            <div class="col-md-10"><b>Anschrift:</b> {{ identity.address || '-' }}</div>
                         </div>
                     </div>
-                    <div class="card p-0 overflow-hidden bg-white">
+                </div>
+
+                <!-- === KLEIDERKAMMER === -->
+                <div v-show="currentTab === 'lager'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
+                    <div class="card p-0 overflow-hidden bg-white border">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Ausrüstung / QR-ID</th><th>Menge</th><th>Mindestbestand</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
-                                    <td>
-                                        <b>{{ i.item_name }}</b> <br/>
-                                        <span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i.qr_code_id)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id }}</span>
-                                    </td>
+                                    <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i.qr_code_id)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id }}</span></td>
                                     <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
-                                    <td>{{ i.min_amount }}</td>
-                                    <td><span class="badge bg-secondary">{{ i.location }}</span></td>
-                                    <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Nachbestellen':'Bestand OK' }}</span></td>
-                                    <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-dark me-1" @click="openInvModal(i)"><i class="fa fa-edit"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button>
-                                    </td>
+                                    <td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openInvModal(i)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'personal'">
-                    <h2 class="mb-4">Personalregister & Qualifikationsmatrix</h2>
+                <!-- === PERSONALREGISTER === -->
+                <div v-show="currentTab === 'personal'">
+                    <h2 class="mb-4">Personalstamm</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'matrix'}" @click="subTabPers = 'matrix'">Kompetenz-Matrix</button></li>
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
-
                     <div v-if="subTabPers === 'akte'">
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
+                        <div class="card p-0 overflow-hidden bg-white border">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Dienstgrad</th><th>Abteilung</th><th>G26.3 Frist</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><div class="avatar-container"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold">PSA</div></div></td>
-                                        <td><b>{{ p.name }}</b><br/><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
-                                        <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td>
-                                        <td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
-                                        <td><span class="badge" :class="isOverdue(p.g26_3_date) ? 'bg-danger':'bg-success'">{{ p.g26_3_date || 'Nicht erfasst' }}</span></td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button>
-                                        </td>
+                                        <td><div class="avatar-container"><img :src="p.profile_picture" v-if="p.profile_picture && p.profile_picture.strip() != ''"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold" v-else>PSA</div></div></td>
+                                        <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
+                                        <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
+                                        <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-
-                    <div v-if="subTabPers === 'matrix'">
-                        <div class="card p-0 overflow-hidden bg-white">
-                            <table class="table mb-0 align-middle text-center">
-                                <thead class="table-light"><tr class="text-start"><th>Name</th><th>AGT</th><th>Maschinist</th><th>GF</th><th>Klasse C/CE</th></tr></thead>
-                                <tbody class="text-start">
-                                    <tr v-for="p in personnel" :key="p.id">
-                                        <td><b>{{ p.name }}</b></td>
-                                        <td><i class="fa fa-circle-check text-success fs-5" v-if="p.is_agt"></i><i class="fa fa-circle-xmark text-muted opacity-50" v-else></i></td>
-                                        <td><i class="fa fa-circle-check text-success fs-5" v-if="p.is_maschinist"></i><i class="fa fa-circle-xmark text-muted opacity-50" v-else></i></td>
-                                        <td><i class="fa fa-circle-check text-success fs-5" v-if="p.is_gf"></i><i class="fa fa-circle-xmark text-muted opacity-50" v-else></i></td>
-                                        <td><span class="badge bg-dark" v-if="p.drive_c || p.drive_ce">Ja (LKW)</span><span class="badge bg-light text-muted border" v-else>Nein</span></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
                     <div v-if="subTabPers === 'login'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
+                        <div class="card p-0 overflow-hidden bg-white border">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Benutzername</th><th>Berechtigungsstufe</th><th>Verknüpfte Akte</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfte Akte</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
                                         <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ getPersonnelName(u.personnel_id) }}</td>
@@ -267,38 +247,36 @@
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'fuhrpark'">
-                    <h2 class="mb-4">Fuhrpark-Zentrale & Tankdaten-Überwachung</h2>
+                <!-- === FUHRPARK === -->
+                <div v-show="currentTab === 'fuhrpark'">
+                    <h2 class="mb-4">Fuhrpark & Tankbuch</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'fahrzeuge'}" @click="subTabVeh = 'fahrzeuge'">Fahrzeugstamm</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrten- & Tankbuch</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch</button></li>
                     </ul>
-
                     <div v-if="subTabVeh === 'fahrzeuge'">
-                        <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Asset registrieren</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
+                        <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
+                        <div class="card p-0 overflow-hidden bg-white border">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="v in vehicles" :key="v.id">
-                                        <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td>
-                                        <td>{{ v.milage }} km</td>
-                                        <td><span class="badge" :class="v.milage >= (v.next_oil_change_km - 500) ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
+                                        <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td><td>{{ v.milage }} km</td>
+                                        <td><span class="badge" :class="v.milage >= v.next_oil_change_km ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
                                         <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openVehModal(v)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-
                     <div v-if="subTabVeh === 'log'">
-                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt/Betankung loggen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
+                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
+                        <div class="card p-0 overflow-hidden bg-white border">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>Zweck / Route</th><th>KM Stand</th><th>Kraftstoff</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="l in vehicleLogs" :key="l.id">
-                                        <td><b>{{ l.vehicle_name }}</b></td><td>{{ l.date_formatted }}</td><td>{{ l.driver_name }}</td><td><small class="text-muted">{{ l.purpose }}</small></td><td>{{ l.km_start }} - {{ l.km_end }} km</td>
+                                        <td><b>{{ l.vehicle_name }}</b></td><td>{{ l.date_formatted }}</td><td>{{ l.driver_name }}</td><td>{{ l.km_start }} - {{ l.km_end }} km</td>
                                         <td><span v-if="l.fuel_liters > 0" class="badge bg-info text-white font-monospace"><i class="fa fa-gas-pump"></i> {{ l.fuel_liters }} L</span><span class="text-muted" v-else>-</span></td>
                                         <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openLogModal(l)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
@@ -308,150 +286,141 @@
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4">
-                        <h2>Dienstplan, Termine & Tauschbörse</h2>
-                        <button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button>
-                    </div>
-                    <div class="card p-0 overflow-hidden bg-white">
+                <!-- === TERMINE === -->
+                <div v-show="currentTab === 'verein'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
+                    <div class="card p-0 overflow-hidden bg-white border">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th>Status Tauschbörse</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="e in events" :key="e.id">
-                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td>
-                                    <td><b>{{ e.title }}</b></td>
-                                    <td>{{ e.responsible }}</td>
-                                    <td><span class="badge bg-warning text-dark animate-pulse" v-if="e.id % 3 === 0">Suche Vertretung!</span><span class="badge bg-light text-muted border" v-else>Besetzt</span></td>
-                                    <td class="text-end">
-                                        <button class="btn btn-xs btn-outline-warning me-1 rounded-pill" v-if="e.id % 3 !== 0" @click="alert('Dienst zur Tauschbörse freigegeben!')">Tauschen</button>
-                                        <button class="btn btn-xs btn-success me-1 rounded-pill" v-else @click="alert('Dienst erfolgreich übernommen!')">Übernehmen</button>
-                                        <button class="btn btn-xs btn-outline-danger border-0" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button>
-                                    </td>
+                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td><b>{{ e.title }}</b></td><td>{{ e.responsible }}</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openEventModal(e)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'chronik'">
-                    <h2 class="mb-4">140 Jahre Feuerwehr-Chronik & Digitales Dokumentenarchiv</h2>
-                    <div class="card p-4 bg-white border-0 mb-4 text-center">
-                        <div class="border-dashed p-4 rounded-3 text-muted"><i class="fa fa-cloud-arrow-up fs-1 text-danger mb-2"></i><h6>Historische Dokumente oder Jubiläumsfotos hochladen</h6><small>Erlaubte Formate: PDF, JPG, PNG — Werden automatisch verschlagwortet</small></div>
-                    </div>
-                    <h5 class="fw-bold mb-3">Archivierte Systemdateien</h5>
-                    <div class="row g-2">
-                        <div class="col-md-6"><div class="card p-3 bg-white border d-flex flex-row align-items-center gap-3"><i class="fa fa-file-pdf fs-2 text-danger"></i><div><h6 class="fw-bold m-0">Festzeitschrift 140 Jahre Buxheim.pdf</h6><small class="text-muted">Tags: Chronik, Jubiläum, Geschichte</small></div></div></div>
-                        <div class="col-md-6"><div class="card p-3 bg-white border d-flex flex-row align-items-center gap-3"><i class="fa fa-file-image fs-2 text-primary"></i><div><h6 class="fw-bold m-0">Gründungsfoto_Mannschaft_1886.jpg</h6><small class="text-muted">Tags: Historisch, Gründungsmitglieder</small></div></div></div>
-                    </div>
+                <!-- === ARCHIV === -->
+                <div v-show="currentTab === 'archiv'">
+                    <h2 class="mb-4">Dienstbuch-Archiv</h2>
+                    <div class="card p-4 bg-white border text-center text-muted mb-3"><h6>Historische Berichte, Chroniken und Dokumente verwalten</h6></div>
+                    <div class="card p-3 bg-white border mb-2"><b>Festschrift_140_Jahre.pdf</b> <br><small class="text-muted">Schlagworte: Jubiläum, Geschichte, Chronik</small></div>
                 </div>
 
-                <div v-if="currentTab === 'quiz'">
-                    <h2 class="mb-4">Digitales Ausbildungs-Wissensquiz</h2>
-                    <div class="card p-4 bg-white border-start border-4 border-primary">
-                        <span class="badge bg-secondary mb-2 align-self-start">Wissenscheck: Fahrzeugkunde & UVV</span>
-                        <h4 class="fw-bold text-dark mb-3">Welche Mindest-Restdruck-Sperre schützt die Flasche eines Pressluftatmers vor dem Eindringen von Feuchtigkeit?</h4>
-                        <div class="d-flex flex-column gap-2 mb-3">
-                            <button class="btn btn-outline-dark text-start p-3 fw-bold" @click="submitQuiz(1)">A) Keine, die Flasche wird komplett entleert.</button>
-                            <button class="btn btn-outline-dark text-start p-3 fw-bold" @click="submitQuiz(2)">B) ca. 5 bar Überdruck-Restdruckventil.</button>
-                            <button class="btn btn-outline-dark text-start p-3 fw-bold" @click="submitQuiz(3)">C) ca. 50 bar Abschaltdruck.</button>
+                <!-- === QUIZ === -->
+                <div v-show="currentTab === 'quiz'">
+                    <h2 class="mb-4">Schulungs-Quiz</h2>
+                    <div class="card p-4 bg-white border">
+                        <span class="badge bg-secondary mb-2 align-self-start">Ausbildungsthema: UVV</span>
+                        <h4 class="fw-bold mb-3">Welche Mindest-Restdruck-Sperre schützt die Flasche eines Pressluftatmers vor Feuchtigkeit?</h4>
+                        <div class="d-flex flex-column gap-2">
+                            <button class="btn btn-outline-dark text-start p-2" @click="alert('Falsch. Versuche es noch einmal!')">A) Keine Restdrucksperre vorhanden.</button>
+                            <button class="btn btn-outline-dark text-start p-2" @click="alert('Richtig! Das integrierte Ventil hält ca. 5 bar Restdruck.')">B) ca. 5 bar Überdruck-Restdruckventil.</button>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'einstellungen'">
-                    <h2 class="mb-4">Systemeinstellungen & Webhook Schnittstellen</h2>
-                    <div class="card p-4 bg-white shadow-sm border-0">
-                        <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding-Schnittstelle)</label>
-                            <div class="input-group">
-                                <input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Buxheim">
-                                <button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-magnifying-glass-location"></i> Suchen</button>
-                            </div>
-                        </div>
-                        <hr class="my-4"/>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Wehr</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Breitengrad (Latitude)</label><input type="text" v-model="registry.station_lat" class="form-control" disabled></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Längengrad (Longitude)</label><input type="text" v-model="registry.station_lon" class="form-control" disabled></div>
-                        </div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Divera 24/7 Webhook-Schnittstelle (API Url)</label><input type="text" class="form-control font-monospace" placeholder="https://app.divera247.de/api/v2/alerts/..."></div>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
+                <!-- === EINSTELLUNGEN === -->
+                <div v-show="currentTab === 'einstellungen'">
+                    <h2 class="mb-4">Systemeinstellungen</h2>
+                    <div class="card p-4 bg-white border">
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
+                        <hr class="my-3">
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
+                        <button class="btn btn-danger rounded-pill fw-bold" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5 class="fw-bold mb-3">QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3"></div><button class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button></div></div></div></div>
+        <!-- ================= MODALS MATRIX ================= -->
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3"></div><button class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button></div></div></div></div>
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Wasserentnahmestelle erfassen</h5><div class="mb-2"><label class="small">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div><div class="mb-2"><label class="small">Durchmesser</label><input v-model="newHyd.diameter" class="form-control"></div><button class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button></div></div></div></div>
         <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Mangel / Defekt melden</h5><input v-model="newTicket.title" class="form-control mb-2" placeholder="Titel"><textarea v-model="newTicket.content" class="form-control mb-2" placeholder="Beschreibung"></textarea><select v-model="newTicket.priority" class="form-select mb-3"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select><button class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button></div></div></div></div>
-        <div class="modal fade" id="rentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Ausrüstungsgegenstand verleihen</h5><div class="mb-2"><label class="small fw-bold">QR-ID scannen oder eintragen</label><input type="text" class="form-control font-monospace" placeholder="z.B. FEUERWEHR-QR-A4B2"></div><div class="mb-3"><label class="small fw-bold">Ausgeben an Kamerad</label><select class="form-select"><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div><button class="btn btn-danger w-100 rounded-pill" @click="alert('Verleihvorgang erfolgreich registriert!'); bootstrap.Modal.getInstance(document.getElementById('rentModal')).hide();">Ausgabe bestätigen</button></div></div></div></div>
-        
+
+        <!-- VOLLSTÄNDIG ERWEITERTES MEMBER MODAL (AKTE 3.0) -->
         <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Kameradenstamm (Akte 3.0)</h5>
+            <h5 class="fw-bold text-dark mb-3">Kameradenstamm verwalten</h5>
             <div class="row g-2 mb-2">
-                <div class="col-md-6"><label class="small fw-bold">Klarname</label><input type="text" v-model="newMem.name" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label>
-                    <select v-model="newMem.rank" class="form-select">
-                        <option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option>
-                        <option value="Löschmeister">Löschmeister</option><option value="Brandmeister">Brandmeister</option>
-                    </select>
-                </div>
+                <div class="col-md-6"><label class="small fw-bold">Klarname *</label><input type="text" v-model="newMem.name" class="form-control"></div>
+                <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label><select v-model="newMem.rank" class="form-select"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option><option value="Brandmeister">Brandmeister</option></select></div>
             </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-4"><label class="small fw-bold">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugendfeuerwehr">Jugendfeuerwehr</option></select></div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-4"><label class="small fw-bold">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugend">Jugendfeuerwehr</option><option value="Passiv">Passiv / Altersabteilung</option></select></div>
                 <div class="col-md-4"><label class="small fw-bold">Geburtsdatum</label><input type="date" v-model="newMem.birth_date" class="form-control"></div>
                 <div class="col-md-4"><label class="small fw-bold">Diensteintritt</label><input type="date" v-model="newMem.entry_date" class="form-control"></div>
             </div>
-            <div class="row mb-3 p-2 bg-light rounded"><label class="small fw-bold mb-1">Qualifikationsstatus</label>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="c1"><label class="form-check-label small fw-bold" for="c1">Atemschutz</label></div></div>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist" id="c2"><label class="form-check-label small fw-bold" for="c2">Maschinist</label></div></div>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="c3"><label class="form-check-label small fw-bold" for="c3">Gruppenführer</label></div></div>
-            </div>
-            <button class="btn btn-danger w-100 rounded-pill" @click="saveMember()">Akte speichern</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>System-Zugang verwalten</h5><div class="mb-2"><label class="small">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div><div class="mb-2"><label class="small">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div><div class="mb-3"><label class="small">Berechtigungsstufe</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div><button class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login freischalten</button></div></div></div></div>
-        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Materialbestand</h5><input v-model="newInv.item_name" class="form-control mb-2" placeholder="Gegenstand"><div class="row g-2 mb-2"><div class="col-6"><input type="number" v-model="newInv.amount" class="form-control" placeholder="Menge"></div><div class="col-6"><input type="number" v-model="newInv.min_amount" class="form-control" placeholder="Mindestmenge"></div></div><input v-model="newInv.location" class="form-control mb-3" placeholder="Lagerort"><button class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button></div></div></div></div>
-        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Einsatzfahrzeug registrieren</h5><input v-model="newVeh.name" class="form-control mb-2" placeholder="Modell / Typ"><input v-model="newVeh.radio_name" class="form-control mb-2" placeholder="Funkrufname"><input type="number" v-model="newVeh.milage" class="form-control mb-3" placeholder="Kilometerstand"><button class="btn btn-dark w-100 rounded-pill" @click="saveVeh()">Fahrzeug registrieren</button></div></div></div></div>
-        
-        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-            <h5>Fahrtenbucheintrag schreiben</h5>
-            <select v-model="activeLog.vehicle_id" class="form-select mb-2"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select>
-            <input type="date" v-model="activeLog.date" class="form-control mb-2">
-            <input type="text" v-model="activeLog.driver_name" class="form-control mb-2" placeholder="Fahrername (Maschinist)">
-            <input type="text" v-model="activeLog.purpose" class="form-control mb-2" placeholder="Zweck der Fahrt / Route">
             <div class="row g-2 mb-2">
-                <div class="col-6"><input type="number" v-model="activeLog.km_start" class="form-control" placeholder="KM Start"></div>
-                <div class="col-6"><input type="number" v-model="activeLog.km_end" class="form-control" placeholder="KM Ende"></div>
+                <div class="col-md-4"><label class="small fw-bold">Telefonnummer</label><input type="text" v-model="newMem.phone" class="form-control"></div>
+                <div class="col-md-4"><label class="small fw-bold">E-Mail Adresse</label><input type="email" v-model="newMem.email" class="form-control"></div>
+                <div class="col-md-4"><label class="small fw-bold">G26.3 Untersuchung Frist</label><input type="date" v-model="newMem.g26_3_date" class="form-control"></div>
             </div>
-            <input type="number" step="0.1" v-model="activeLog.fuel_liters" class="form-control mb-3" placeholder="Getankte Liter (Tankbuch)">
-            <button class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Fahrt protokollieren</button>
+            <div class="row g-2 mb-2">
+                <div class="col-md-6"><label class="small fw-bold">Anschrift (Straße, Hausnr, PLZ, Ort)</label><input type="text" v-model="newMem.address" class="form-control"></div>
+                <div class="col-md-6"><label class="small fw-bold">Notfallkontakt (ICE Name & Nummer)</label><input type="text" v-model="newMem.ice_contact" class="form-control"></div>
+            </div>
+            <div class="p-2 bg-light rounded mb-2"><label class="small fw-bold mb-1">Lehrgänge & Qualifikationen</label>
+                <div class="d-flex gap-4">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="fagt"><label class="form-check-label small" for="fagt">Atemschutzgeräteträger</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist" id="fmas"><label class="form-check-label small" for="fmas">Maschinist</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="fgf"><label class="form-check-label small" for="fgf">Gruppenführer</label></div>
+                </div>
+            </div>
+            <div class="p-2 bg-light rounded mb-3"><label class="small fw-bold mb-1">Führerscheinklassen</label>
+                <div class="d-flex gap-4">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_b" id="fb"><label class="form-check-label small" for="fb">Klasse B</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_be" id="fbe"><label class="form-check-label small" for="fbe">Klasse BE</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_c" id="fc"><label class="form-check-label small" for="fc">Klasse C</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce" id="fce"><label class="form-check-label small" for="fce">Klasse CE</label></div>
+                </div>
+            </div>
+            <button class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()">Kameradenakte speichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Vereinstermin / Dienstplanung</h5><input type="date" v-model="newEvent.date" class="form-control mb-2"><input type="text" v-model="newEvent.title" class="form-control mb-3" placeholder="Titel"><button class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Termin eintragen</button></div></div></div></div>
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>System-Zugang verwalten</h5><div class="mb-2"><label class="small">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div><div class="mb-2"><label class="small">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div><div class="mb-3"><label class="small">Rolle / Berechtigung</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div><div class="mb-3"><label class="small">Mit Personalakte verknüpfen</label><select v-model="newUser.personnel_id" class="form-select"><option :value="null">Nicht verknüpft</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div><button class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login freischalten</button></div></div></div></div>
+        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Materialbestand</h5><input v-model="newInv.item_name" class="form-control mb-2" placeholder="Gegenstand"><div class="row g-2 mb-2"><div class="col-6"><input type="number" v-model="newInv.amount" class="form-control" placeholder="Menge"></div><div class="col-6"><input type="number" v-model="newInv.min_amount" class="form-control" placeholder="Mindestmenge"></div></div><input v-model="newInv.location" class="form-control mb-3" placeholder="Lagerort"><button class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button></div></div></div></div>
+
+        <!-- VOLLSTÄNDIG ERWEITERTES FAHRZEUG MODAL -->
+        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Einsatzfahrzeug registrieren</h5>
+            <div class="mb-2"><label class="small fw-bold">Fahrzeugbezeichnung (Modell / Typ)</label><input v-model="newVeh.name" class="form-control" placeholder="z. B. HLF 20/16"></div>
+            <div class="mb-2"><label class="small fw-bold">Funkrufname (Opt.)</label><input v-model="newVeh.radio_name" class="form-control" placeholder="z. B. Florian Buxheim 40/1"></div>
+            <div class="mb-2"><label class="small fw-bold">Aktueller Kilometerstand</label><input type="number" v-model="newVeh.milage" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold">Nächster Ölwechsel bei (km-Stand)</label><input type="number" v-model="newVeh.next_oil_change_km" class="form-control"></div>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label class="small fw-bold">Nächste Hauptuntersuchung (HU)</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div>
+                <div class="col-6"><label class="small fw-bold">Sicherheitsprüfung (SP)</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div>
+            </div>
+            <button class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
+        </div></div></div></div>
+
+        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Fahrtenbucheintrag</h5><select v-model="activeLog.vehicle_id" class="form-select mb-2"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select><input type="date" v-model="activeLog.date" class="form-control mb-2"><input type="text" v-model="activeLog.driver_name" class="form-control mb-2" placeholder="Maschinist"><input type="text" v-model="activeLog.purpose" class="form-control mb-2" placeholder="Zweck / Route"><div class="row g-2 mb-2"><div class="col-6"><input type="number" v-model="activeLog.km_start" class="form-control" placeholder="KM Start"></div><div class="col-6"><input type="number" v-model="activeLog.km_end" class="form-control" placeholder="KM Ende"></div></div><input type="number" step="0.1" v-model="activeLog.fuel_liters" class="form-control mb-3" placeholder="Getankte Liter (Tankbuch)"><button class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button></div></div></div></div>
+        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Termin / Dienstplanung</h5><input type="date" v-model="newEvent.date" class="form-control mb-2"><input type="text" v-model="newEvent.title" class="form-control mb-3" placeholder="Titel"><input type="text" v-model="newEvent.responsible" class="form-control mb-3" placeholder="Zuständiger Gruppenführer/Vorstand"><button class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button></div></div></div></div>
 
     </div>
 
     <script>
         const { createApp } = Vue;
         let map = null;
-        let memberModal, userModal, invModal, vehModal, vehLogModal, eventModal, hydrantModal, ticketModal, rentModal;
+        let memberModal, userModal, invModal, vehModal, vehLogModal, eventModal, hydrantModal, ticketModal;
 
         createApp({
             data() {
                 return {
-                    ready: false, monitorMode: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
+                    ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
                     vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], vehicleLogs: [], registry: {}, tickets: [],
                     activeAlarm: {}, activeEriCard: null, hazmatSearchQuery: '',
                     newTicket: {title:'', content:'', priority:'normal', status:'neu'},
                     newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
                     newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' },
-                    newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: null },
+                    newUser: { id: null, username: '', password: '', role: 'user', personnel_id: null },
                     newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '' },
                     newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '', next_oil_change_km: 10000 },
                     activeLog: { id: null, vehicle_id: null, date: '', driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 },
-                    newEvent: { id: null, date: '', title: '', responsible: 'Vorstand' }
+                    newEvent: { id: null, date: '', title: '', responsible: 'Leitung' }
                 }
             },
             methods: {
@@ -470,7 +439,7 @@
                         
                         const sessRes = await fetch('/groups/1/sessions');
                         if(sessRes.ok) this.sessions = await sessRes.json();
-                    } catch (e) { console.error("Hintergrund-Synchronisierung blockiert:", e); }
+                    } catch (e) { console.error("Sync blockiert:", e); }
                 },
                 initMap() {
                     this.$nextTick(() => {
@@ -483,7 +452,7 @@
                         
                         map = L.map('map').setView([lat, lon], 15);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                        L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Feuerwehrwache") + "</b>").openPopup();
+                        L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Dienststelle") + "</b>").openPopup();
 
                         map.on('click', (e) => {
                             this.newHyd.lat = e.latlng.lat;
@@ -494,10 +463,10 @@
                         fetch('/api/hydranten').then(res => res.json()).then(data => {
                             if(Array.isArray(data)){
                                 data.forEach(h => {
-                                    L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Nennweite: " + h.diameter);
+                                    L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Durchmesser: " + h.diameter);
                                 });
                             }
-                        });
+                        }).catch(err => console.error("Hydranten Fehler"));
                     });
                 },
                 async searchHazmat() {
@@ -506,7 +475,7 @@
                         const res = await fetch('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
                         if(res.ok) this.activeEriCard = await res.json();
                         else alert("Keine ERI-Card hinterlegt.");
-                    } catch(e) { alert("Fehler bei Gefahrgut-Abfrage."); }
+                    } catch(e) { alert("Gateway Fehler"); }
                 },
                 generateQRWindow(id) {
                     this.$nextTick(() => {
@@ -516,12 +485,6 @@
                         new QRCode(qrBox, {text: id, width: 128, height: 128});
                         new bootstrap.Modal(document.getElementById('qrModal')).show();
                     });
-                },
-                printPruefprotokoll() {
-                    window.print();
-                },
-                submitQuiz(opt) {
-                    alert(opt === 2 ? "Richtig gelöst! Sicherheitsrestdruck beträgt 5 bar." : "Falsch gelöst. Versuch es noch einmal!");
                 },
                 async setTicketStatus(id, status) {
                     await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
@@ -540,30 +503,49 @@
                 },
                 openTicketModal() { ticketModal.show(); },
                 openHydrantModal() { hydrantModal.show(); },
-                openRentModal() { rentModal.show(); },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
-                openMemberModal(p) { this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false }; memberModal.show(); },
+                
+                openMemberModal(p) { 
+                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; 
+                    memberModal.show(); 
+                },
                 async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
-                async delMember(id) { if(confirm("Kamerad löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                async delMember(id) { if(confirm("Löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
                 openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
                 async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
-                async delUser(id) { if(confirm("Zugang löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager' }; invModal.show(); },
+                async delUser(id) { if(confirm("Löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
+                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '' }; invModal.show(); },
                 async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
-                async delInv(id) { if(confirm("Ausrüstung löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
                 openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '', next_oil_change_km: 10000 }; vehModal.show(); },
                 async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
-                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                async delVeh(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
                 openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; vehLogModal.show(); },
                 async saveLog() { await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); vehLogModal.hide(); await this.refreshAllData(); },
-                async delLog(id) { if(confirm("Eintrag stornieren?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Vorstand' }; eventModal.show(); },
+                async delLog(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
+                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; eventModal.show(); },
                 async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
-                async delEvent(id) { if(confirm("Termin absagen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Einstellungen gesichert!"); await this.refreshAllData(); },
+                async delEvent(id) { if(confirm("Löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
+                
+                async triggerGeocodingLookup() {
+                    const q = document.getElementById('geoSearchInput').value;
+                    if(!q) return;
+                    const res = await (await fetch('/api/geocode?q=' + encodeURIComponent(q))).json();
+                    if(res.status === 'success') {
+                        this.registry.station_lat = res.lat;
+                        this.registry.station_lon = res.lon;
+                        alert("Ort erfolgreich aufgelöst!");
+                    } else { alert("Ort nicht gefunden."); }
+                },
+                async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Gesichert!"); await this.refreshAllData(); },
                 isOverdue(date) { return date && new Date(date) < new Date(); }
             },
             async mounted() {
@@ -580,10 +562,9 @@
                     eventModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal'));
                     hydrantModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal'));
                     ticketModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal'));
-                    rentModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('rentModal'));
                     
                     await this.refreshAllData();
-                } catch(e) { console.error("Kritischer Boot-Fehler:", e); } finally { this.ready = true; }
+                } catch(e) { console.error("Boot-Fehler:", e); } finally { this.ready = true; }
             }
         }).mount('#app');
     </script>
