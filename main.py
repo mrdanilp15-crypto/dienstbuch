@@ -25,11 +25,11 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- HILFSFUNKTION ---
-def parse_date(date_str):
-    if date_str and isinstance(date_str, str) and len(date_str.strip()) > 0:
-        return date_str.strip()
-    return None
+# --- HILFSFUNKTIONEN ZUR FEHLERPRÄVENTION ---
+def parse_val(v):
+    """Verhindert 422 Abstürze durch leere Strings aus dem Frontend"""
+    if v == "" or v == "null": return None
+    return v
 
 # --- PYDANTIC SYSTEM MODELLE ---
 class LoginRequest(BaseModel):
@@ -39,7 +39,7 @@ class LoginRequest(BaseModel):
 class UserCreateDto(BaseModel):
     id: Optional[int] = None
     username: str
-    password: Optional[str] = ""
+    password: Optional[str] = None
     role: str = "user"
     personnel_id: Optional[int] = None
 
@@ -51,9 +51,9 @@ class InventoryItemDto(BaseModel):
     item_name: str
     amount: int = 0
     min_amount: int = 5
-    unit: str = "Stück"
-    location: str = "Lager"
-    qr_code_id: Optional[str] = ""
+    unit: Optional[str] = "Stück"
+    location: Optional[str] = "Lager"
+    qr_code_id: Optional[str] = None
     last_check: Optional[str] = None
     next_check: Optional[str] = None
 
@@ -63,12 +63,12 @@ class VehicleStatusDto(BaseModel):
 class VehicleCreateDto(BaseModel):
     id: Optional[int] = None
     name: str
-    radio_name: str = ""
+    radio_name: Optional[str] = None
     status: int = 2
     milage: int = 0
     tuv_date: Optional[str] = None
     sp_date: Optional[str] = None
-    next_oil_change_km: Optional[int] = 10000
+    next_oil_change_km: int = 10000
 
 class VehicleLogDto(BaseModel):
     id: Optional[int] = None
@@ -89,7 +89,7 @@ class EventCreateDto(BaseModel):
 class EntryDto(BaseModel):
     person_id: int
     is_present: bool = False
-    vehicle: Optional[str] = ""
+    vehicle: Optional[str] = None
 
 class LegacySessionPayload(BaseModel):
     session_id: Optional[int] = None
@@ -98,7 +98,7 @@ class LegacySessionPayload(BaseModel):
     category: str = "Übung"
     duration: float = 2.0
     description: str
-    instructors: str = ""
+    instructors: Optional[str] = None
     entries: List[EntryDto]
 
 class PersonnelCreateDto(BaseModel):
@@ -112,20 +112,20 @@ class PersonnelCreateDto(BaseModel):
     g26_3_date: Optional[str] = None
     birth_date: Optional[str] = None
     entry_date: Optional[str] = None
-    phone: Optional[str] = ""
-    email: Optional[str] = ""
-    address: Optional[str] = ""
-    ice_contact: Optional[str] = ""
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    ice_contact: Optional[str] = None
     drive_b: bool = False
     drive_be: bool = False
     drive_c: bool = False
     drive_ce: bool = False
-    profile_picture: Optional[str] = ""
+    profile_picture: Optional[str] = None
 
 class TicketCreateDto(BaseModel):
     id: Optional[int] = None
     title: str
-    content: str
+    content: Optional[str] = None
     vehicle_id: Optional[int] = None
     inventory_id: Optional[int] = None
     priority: str = "normal"
@@ -146,7 +146,7 @@ class HydrantDto(BaseModel):
 
 class ArchiveUploadDto(BaseModel):
     title: str
-    keywords: str
+    keywords: Optional[str] = None
     file_blob: str
 
 # --- DATABASE ENGINE ---
@@ -185,7 +185,7 @@ def init_db():
         
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
         for k, v in [
-            ('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), 
+            ('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), ('groupalarm_token', ''),
             ('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')
         ]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
@@ -207,7 +207,10 @@ def init_db():
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         
+        # Sichert, dass alle neuen Spalten auch in alten Systemen existieren!
         migrations = [
+            ("users", "personnel_id", "INT NULL"),
+            ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
             ("personnel", "address", "TEXT NULL"), ("personnel", "ice_contact", "VARCHAR(255) DEFAULT ''"),
@@ -228,9 +231,7 @@ def init_db():
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
             
         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-        c.commit()
-        cur.close()
-        c.close()
+        c.commit(); cur.close(); c.close()
     except Exception as e: print(f"DB Init Error: {e}")
 
 init_db()
@@ -254,6 +255,7 @@ def route_editor_page(r: Request):
     if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
+# --- AUTH API ---
 @app.post("/api/login")
 def api_login(d: LoginRequest, res: Response):
     c = get_db_connection()
@@ -278,7 +280,7 @@ def api_me(r: Request):
     if not u: raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT u.username, u.role, u.personnel_id, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%Y-%m-%d') as g26_3_date FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (u['u'],))
+    cur.execute("SELECT u.username, u.role, u.personnel_id, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(p.birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(p.entry_date, '%Y-%m-%d') as entry_date, p.ice_contact, p.drive_b, p.drive_be, p.drive_c, p.drive_ce FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (u['u'],))
     res = cur.fetchone()
     cur.close(); c.close()
     return res
@@ -357,7 +359,8 @@ def list_pers(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture, DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date FROM personnel ORDER BY name ASC")
+    cur.execute("""SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture,
+                   DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date FROM personnel ORDER BY name ASC""")
     res = cur.fetchall()
     cur.close(); c.close()
     return res
@@ -367,13 +370,16 @@ def save_pers(d: PersonnelCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    g26 = parse_date(d.g26_3_date)
-    bd = parse_date(d.birth_date)
-    ed = parse_date(d.entry_date)
+    g26 = parse_val(d.g26_3_date)
+    bd = parse_val(d.birth_date)
+    ed = parse_val(d.entry_date)
+    
     if d.id:
-        cur.execute("UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s", (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture, d.id))
+        cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""", 
+                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture, d.id))
     else:
-        cur.execute("INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture))
+        cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", 
+                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -401,8 +407,8 @@ def save_vehicle(d: VehicleCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    td = parse_date(d.tuv_date)
-    sd = parse_date(d.sp_date)
+    td = parse_val(d.tuv_date)
+    sd = parse_val(d.sp_date)
     if d.id:
         cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km, d.id))
     else:
@@ -441,7 +447,7 @@ def list_logs():
 def save_log(d: VehicleLogDto):
     c = get_db_connection()
     cur = c.cursor()
-    ld = parse_date(d.date)
+    ld = parse_val(d.date)
     if d.id:
         cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", (d.vehicle_id, ld, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters, d.id))
     else:
@@ -458,6 +464,53 @@ def del_log(log_id: int):
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
+@app.get("/groups/1/sessions")
+def list_sessions(r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions ORDER BY date DESC")
+    res = cur.fetchall()
+    cur.close(); c.close()
+    return res
+
+@app.get("/groups/{group_id}/attendance")
+def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    sd = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
+    if session_id and session_id != 0:
+        cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
+        row = cur.fetchone()
+        if row: sd = row
+    cur.execute("SELECT p.id as personnel_id, p.name, p.rank, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC", (session_id,))
+    persons = cur.fetchall()
+    for p in persons: p['is_present'] = bool(p['is_present'])
+    cur.execute("SELECT DISTINCT description FROM sessions ORDER BY id DESC LIMIT 5")
+    pt = [row_t['description'] for row_t in cur.fetchall()]
+    cur.execute("SELECT DISTINCT instructors FROM sessions ORDER BY id DESC LIMIT 5")
+    pl = [row_l['instructors'] for row_l in cur.fetchall()]
+    cur.close(); c.close()
+    return {**sd, "persons": persons, "presets": {"topics": pt, "leaders": pl}}
+
+@app.post("/attendance")
+def save_attendance(d: LegacySessionPayload, r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor()
+    s_id = d.session_id
+    if s_id and s_id != 0:
+        cur.execute("UPDATE sessions SET date=%s, duration=%s, description=%s, instructors=%s, category=%s WHERE id=%s", (d.date, d.duration, d.description, d.instructors, d.category, s_id))
+        cur.execute("DELETE FROM attendance WHERE session_id = %s", (s_id,))
+    else:
+        cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (%s,%s,%s,%s,%s,%s)", (d.group_id, d.date, d.category, d.duration, d.description, d.instructors))
+        s_id = cur.lastrowid
+    for e in d.entries:
+        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
+    c.commit(); cur.close(); c.close()
+    return {"status": "success", "session_id": s_id}
+
 @app.get("/api/inventory")
 def list_inv(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -473,8 +526,8 @@ def save_inv(d: InventoryItemDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = parse_date(d.last_check)
-    nc = parse_date(d.next_check)
+    lc = parse_val(d.last_check)
+    nc = parse_val(d.next_check)
     qr_id = d.qr_code_id if d.qr_code_id and len(d.qr_code_id.strip()) > 0 else f"FEUERWEHR-QR-{secrets.token_hex(4).upper()}"
     if d.id:
         cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc, d.id))
@@ -497,7 +550,7 @@ def list_tickets(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT t.*, v.name as vehicle_name FROM tickets t LEFT JOIN vehicles v ON t.vehicle_id = v.id ORDER BY t.id DESC")
+    cur.execute("SELECT t.*, v.name as vehicle_name, i.item_name FROM tickets t LEFT JOIN vehicles v ON t.vehicle_id = v.id LEFT JOIN inventory i ON t.inventory_id = i.id ORDER BY t.id DESC")
     res = cur.fetchall()
     cur.close(); c.close()
     return res
@@ -522,7 +575,7 @@ def update_ticket_status(t_id: int, d: KanbanUpdateRequest, r: Request):
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
-# --- SYSTEM INTEGRATIONEN (WEBHOOKS) ---
+# --- SYSTEM INTEGRATIONEN (WEBHOOKS SCHARF) ---
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -540,7 +593,6 @@ def trigger_alarm_webhook(d: AlarmPayloadDto):
     cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (d.address, d.keyword, d.alert_text))
     c.commit()
     
-    # Externe Webhooks ansteuern (Divera, Alamos, etc.)
     cur.execute("SELECT setting_key, setting_value FROM settings")
     st = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
     cur.close(); c.close()
@@ -550,19 +602,34 @@ def trigger_alarm_webhook(d: AlarmPayloadDto):
     
     # 1. Divera 24/7 Schnittstelle
     if st.get('divera_webhook'):
-        try:
-            req = urllib.request.Request(st['divera_webhook'], method="POST", data=payload, headers=headers)
-            urllib.request.urlopen(req, timeout=2)
+        try: urllib.request.urlopen(urllib.request.Request(st['divera_webhook'], method="POST", data=payload, headers=headers), timeout=2)
         except: pass
         
     # 2. Alamos FE2 Schnittstelle
     if st.get('alamos_fe2_url'):
-        try:
-            req = urllib.request.Request(st['alamos_fe2_url'], method="POST", data=payload, headers=headers)
-            urllib.request.urlopen(req, timeout=2)
+        try: urllib.request.urlopen(urllib.request.Request(st['alamos_fe2_url'], method="POST", data=payload, headers=headers), timeout=2)
         except: pass
 
-    return {"status": "alarm_broadcasted_and_dispatched"}
+    return {"status": "alarm_broadcasted"}
+
+@app.get("/api/gahrgut/ericard/{un_number}")
+def get_eri_card(un_number: str, r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    un_clean = un_number.strip().zfill(4)
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    cur.execute("SELECT * FROM e_ri_cards WHERE un_number = %s", (un_clean,))
+    res = cur.fetchone()
+    cur.close(); c.close()
+    if res: return res
+    try:
+        un_int = int(un_clean)
+        if 1 <= un_int < 1000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 1: Akute Detonationsgefahr.", "safety_measures": "Radius 500m einrichten!", "first_aid": "Verbrennungen kühlen."}
+        elif 1000 <= un_int < 2000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3: Gaswolken am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten!", "first_aid": "Rettung unter Atemschutz."}
+        elif 2000 <= un_int < 3000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5: Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz.", "first_aid": "Trocken abwischen."}
+        elif 3000 <= un_int <= 3600: return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8: Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit CSA.", "first_aid": "Sofort Dekontamination."}
+    except: pass
+    return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "GAMS-Regel einhalten.", "first_aid": "Eigenschutz beachten."}
 
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
@@ -579,7 +646,7 @@ def add_hydrant(d: HydrantDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = parse_date(d.last_check)
+    lc = parse_val(d.last_check)
     cur.execute("INSERT INTO hydranten (lat, lon, hydrant_type, diameter, last_check) VALUES (%s,%s,%s,%s,%s)", (d.lat, d.lon, d.hydrant_type, d.diameter, lc))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
@@ -599,7 +666,7 @@ def save_event(d: EventCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    ed = parse_date(d.date)
+    ed = parse_val(d.date)
     if d.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (ed, d.title, d.responsible, d.id))
     else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (ed, d.title, d.responsible))
     c.commit(); cur.close(); c.close()
@@ -641,13 +708,3 @@ def delete_archive_doc(doc_id: int, r: Request):
     cur.execute("DELETE FROM archive_docs WHERE id = %s", (doc_id,))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
-    
-@app.get("/groups/1/sessions")
-def list_sessions(r: Request):
-    if not get_current_user(r): raise HTTPException(status_code=401)
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions ORDER BY date DESC")
-    res = cur.fetchall()
-    cur.close(); c.close()
-    return res
