@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch - Wache</title>
+    <title>Digitales Dienstbuch - Cockpit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=9.5">
+    <link rel="stylesheet" href="/static/style.css?v=10.0">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
@@ -14,7 +14,6 @@
     <div id="app" v-cloak v-show="ready">
         <div class="app-container">
             
-            <!-- Linker Navigationsflügel -->
             <div class="sidebar">
                 <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-book-open me-2"></i>DIENSTBUCH</h4></div>
                 <div class="flex-grow-1 overflow-y-auto">
@@ -32,35 +31,32 @@
                 </div>
             </div>
 
-            <!-- Hauptinhaltsbereich -->
             <div class="main-content">
                 
-                <!-- === LEITSTAND === -->
                 <div v-if="currentTab === 'leitstand'">
                     <div class="d-flex justify-content-between mb-4">
                         <h2>Führungs-Leitstand</h2>
                         <button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neues Protokoll</button>
                     </div>
 
-                    <!-- GEOGRAFISCHE LIVE WEATHER ENGINE -->
-                    <div class="card mb-4 bg-white shadow-sm border-start border-4 border-info" v-if="weather">
-                        <h6 class="fw-bold text-muted text-uppercase mb-2"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetterzentrale: {{ weather.station }}</h6>
+                    <div class="card mb-4 border-start border-4 border-info" v-if="weather">
+                        <h6 class="fw-bold text-muted text-uppercase mb-2"><i class="fa fa-cloud-sun text-info me-2"></i>Wetterdienst-Zentrale: {{ weather.station }}</h6>
                         <div class="row align-items-center">
                             <div class="col-md-3"><strong>Temperatur:</strong> {{ weather.temperature }}</div>
-                            <div class="col-md-3"><strong>Windgeschwindigkeit:</strong> {{ weather.wind }}</div>
+                            <div class="col-md-3"><strong>Wind:</strong> {{ weather.wind }}</div>
                             <div class="col-md-6"><span class="badge bg-success py-1.5 px-3 rounded-pill"><i class="fa fa-circle-check"></i> {{ weather.warning_text }}</span></div>
                         </div>
                     </div>
                     
-                    <div class="card mb-4 bg-white shadow-sm">
-                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>BOS Funk-Statusübersicht</h6>
+                    <div class="card mb-4">
+                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statusübersicht</h6>
                         <div class="row g-2">
                             <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
                                 <div class="p-2 border rounded d-flex justify-content-between align-items-center bg-light">
                                     <div class="text-truncate"><b>{{ v.name }}</b> <br/><small class="text-muted font-monospace">{{ v.radio_name }}</small></div>
                                     <div class="d-flex gap-1">
-                                        <button class="status-btn s-2 shadow-sm" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
-                                        <button class="status-btn s-4 shadow-sm" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
+                                        <button class="status-btn s-2" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
+                                        <button class="status-btn s-4" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
                                     </div>
                                 </div>
                             </div>
@@ -68,7 +64,7 @@
                     </div>
 
                     <h5 class="fw-bold mb-3">Zuletzt erfasste Protokolle</h5>
-                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 shadow-sm border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold">{{ s.description }}</h6><small class="text-muted">Leitung: {{ s.instructors }}</small></div>
                             <div class="text-end text-muted small">{{ s.date }}<br><b>{{ s.duration }} Std.</b></div>
@@ -76,10 +72,9 @@
                     </div>
                 </div>
 
-                <!-- === MEIN BEREICH === -->
                 <div v-if="currentTab === 'meinbereich'">
                     <h2 class="mb-4">Mein Bereich</h2>
-                    <div class="card p-4 bg-white shadow-sm border-0">
+                    <div class="card p-4 border-0">
                         <div class="d-flex align-items-center gap-4 mb-3">
                             <div class="avatar-container border" style="width:80px; height:80px;">
                                 <img :src="identity.profile_picture || 'https://via.placeholder.com/150?text=PSA'">
@@ -98,10 +93,9 @@
                     </div>
                 </div>
 
-                <!-- === LAGER === -->
                 <div v-if="currentTab === 'lager'">
                     <div class="d-flex justify-content-between mb-4"><h2>Lagerbestand & Kleiderkammer</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material einbuchen</button></div>
-                    <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                    <div class="card p-0 overflow-hidden bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
@@ -119,17 +113,16 @@
                     </div>
                 </div>
 
-                <!-- === PERSONAL & RELATIONAL LOGINS === -->
                 <div v-if="currentTab === 'personal'">
                     <h2 class="mb-4">Personalregister & Systemzugänge</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm (Akte 2.0)</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm (Akte 3.0)</button></li>
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemzugänge (Logins)</button></li>
                     </ul>
 
                     <div v-if="subTabPers === 'akte'">
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
-                        <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                        <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung / Rolle</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -150,7 +143,7 @@
 
                     <div v-if="subTabPers === 'login'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> System-Login erstellen</button></div>
-                        <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                        <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -167,7 +160,6 @@
                     </div>
                 </div>
 
-                <!-- === FUHRPARK MODULE === -->
                 <div v-if="currentTab === 'fuhrpark'">
                     <h2 class="mb-4">Fuhrpark-Zentrale & Taktisches Fahrtenbuch</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
@@ -177,7 +169,7 @@
 
                     <div v-if="subTabVeh === 'fahrzeuge'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Asset registrieren</button></div>
-                        <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                        <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -193,7 +185,7 @@
 
                     <div v-if="subTabVeh === 'log'">
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt eintragen</button></div>
-                        <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                        <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>Zweck / Route</th><th>KM Stand</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -207,10 +199,9 @@
                     </div>
                 </div>
 
-                <!-- === VEREIN === -->
                 <div v-if="currentTab === 'verein'">
                     <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Terminbuch</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
-                    <div class="card p-0 overflow-hidden shadow-sm bg-white">
+                    <div class="card p-0 overflow-hidden bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Termin</th><th>Veranstaltung / Fest</th><th>Zuständig</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
@@ -223,7 +214,6 @@
                     </div>
                 </div>
 
-                <!-- === SETTINGS MIT AUTOMATISIERTER ADRESS-SUCHE === -->
                 <div v-if="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Allgemeine Systemeinstellungen</h2>
                     <div class="card p-4 bg-white shadow-sm border-0">
@@ -248,9 +238,8 @@
             </div>
         </div>
 
-        <!-- ================= MODALS MATRIX (AUSKLAPPFENSTER FÜR ALLES) ================= -->
         <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3"><i class="fa fa-id-card text-danger me-2"></i>Kameradenstamm (Akte 2.0)</h5>
+            <h5 class="fw-bold text-dark mb-3"><i class="fa fa-id-card text-danger me-2"></i>Kameradenstamm (Akte 3.0)</h5>
             <div class="text-center mb-3">
                 <div class="avatar-container mx-auto mb-2" style="width:80px; height:80px;"><img :src="newMem.profile_picture || 'https://via.placeholder.com/150?text=PSA'"></div>
                 <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="uploadAvatar($event)">
@@ -258,16 +247,16 @@
             </div>
             <div class="row g-2 mb-2">
                 <div class="col-md-6"><label class="small fw-bold text-muted">Klarname (Vor- und Nachname)</label><input type="text" v-model="newMem.name" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold text-muted">Dienstgrad (Ausklappfenster)</label>
+                <div class="col-md-6"><label class="small fw-bold text-muted">Dienstgrad</label>
                     <select v-model="newMem.rank" class="form-select">
                         <option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Hauptfeuerwehrmann">Hauptfeuerwehrmann</option>
                         <option value="Löschmeister">Löschmeister</option><option value="Oberlöschmeister">Oberlöschmeister</option><option value="Hauptlöschmeister">Hauptlöschmeister</option>
-                        <option value="Brandmeister">Brandmeister</option><option value="Oberbrandmeister">Oberbrandmeister</option><option value="Hauptbrandmeister">Hauptbrandmeister</option>
+                        <option value="Brandmeister">Brandmeister</option><option value="Oberbrandmeister">Oberbrandmeister</option><option value="Hauptmeister">Hauptbrandmeister</option>
                     </select>
                 </div>
             </div>
             <div class="row g-2 mb-3">
-                <div class="col-md-4"><label class="small fw-bold text-muted">Abteilung (Ausklappfenster)</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugendfeuerwehr">Jugendfeuerwehr</option><option value="Kinderfeuerwehr">Kinderfeuerwehr</option><option value="Altersabteilung">Alters-/Ehrenabteilung</option></select></div>
+                <div class="col-md-4"><label class="small fw-bold text-muted">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugendfeuerwehr">Jugendfeuerwehr</option><option value="Kinderfeuerwehr">Kinderfeuerwehr</option><option value="Altersabteilung">Alters-/Ehrenabteilung</option></select></div>
                 <div class="col-md-4"><label class="small fw-bold text-muted">Geburtsdatum</label><input type="date" v-model="newMem.birth_date" class="form-control"></div>
                 <div class="col-md-4"><label class="small fw-bold text-muted">Diensteintrittsdatum</label><input type="date" v-model="newMem.entry_date" class="form-control"></div>
             </div>
@@ -275,7 +264,7 @@
                 <div class="col-md-6"><label class="small fw-bold text-muted">Telefonnummer</label><input type="text" v-model="newMem.phone" class="form-control"></div>
                 <div class="col-md-6"><label class="small fw-bold text-muted">E-Mail-Adresse</label><input type="email" v-model="newMem.email" class="form-control"></div>
                 <div class="col-md-12"><label class="small fw-bold text-muted">Anschrift (Straße, PLZ, Ort)</label><input type="text" v-model="newMem.address" class="form-control"></div>
-                <div class="col-md-12"><label class="small fw-bold text-muted">ICE Notfallkontakt (Name & Telefon)</label><input type="text" v-model="newMem.ice_contact" class="form-control" placeholder="z. B. Ehefrau: 0170/..."></div>
+                <div class="col-md-12"><label class="small fw-bold text-muted">ICE Notfallkontakt (Name & Telefon)</label><input type="text" v-model="newMem.ice_contact" class="form-control"></div>
             </div>
             <div class="row mb-3 p-2 bg-light rounded"><label class="small fw-bold text-dark mb-2"><i class="fa fa-graduation-cap"></i> Qualifikationen & Fahrberechtigungen</label>
                 <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="c1"><label class="form-check-label small fw-bold" for="c1">Atemschutzträger</label></div></div>
@@ -287,21 +276,21 @@
                 <div class="col-md-3 mt-2"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce" id="f4"><label class="form-check-label small" for="f4">Klasse CE</label></div></div>
             </div>
             <div class="mb-3"><label class="small fw-bold text-muted">Nächste G26.3 Untersuchung</label><input type="date" v-model="newMem.g26_3_date" class="form-control"></div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember()">Akte revisionssicher in Datenbank speichern</button>
+            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember()">Akte speichern</button>
         </div></div></div></div>
 
         <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3"><i class="fa fa-key text-dark me-2"></i>System-Zugang verwalten</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Kennwort <span v-if="!!newUser.id" class="text-danger">(Nur tippen zum Ändern)</span></label><input type="password" v-model="newUser.password" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold text-muted">Berechtigungsstufe</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft (Lesen)</option><option value="user">User (Schreiben)</option><option value="admin">Admin (Vollzugriff)</option></select></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Akte (Namen-Dropdown aus Mannschaftsstamm)</label>
+            <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Akte</label>
                 <select v-model="newUser.personnel_id" class="form-select">
                     <option :value="null">Keine Verknüpfung</option>
                     <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
             </div>
-            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveUser()">Zugang freischalten</button>
+            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveUser()">Login freischalten</button>
         </div></div></div></div>
 
         <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
@@ -309,7 +298,7 @@
             <div class="mb-2"><label class="small fw-bold text-muted">Gegenstand</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold text-muted">Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Mindestmenge</label><input type="number" v-model="newInv.min_amount" class="form-control"></div></div>
             <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Einheit</label><input type="text" v-model="newInv.unit" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div></div>
-            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Barcode / Seriennummer</label><input type="text" v-model="newInv.barcode" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Konfektionsgröße</label><input type="text" v-model="newInv.size" class="form-control"></div></div>
+            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Barcode</label><input type="text" v-model="newInv.barcode" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Größe</label><input type="text" v-model="newInv.size" class="form-control"></div></div>
             <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveInv()">Material erfassen</button>
         </div></div></div></div>
 
@@ -330,7 +319,7 @@
                 </select>
             </div>
             <div class="mb-2"><label class="small fw-bold text-muted">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Maschinist (Dropdown)</label>
+            <div class="mb-2"><label class="small fw-bold text-muted">Maschinist</label>
                 <select v-model="activeLog.driver_name" class="form-select">
                     <option v-for="p in personnel" :value="p.name">{{ p.name }}</option>
                 </select>
@@ -347,10 +336,8 @@
             <div class="mb-3"><label class="small fw-bold text-muted">Zuständigkeit</label><input type="text" v-model="newEvent.responsible" class="form-control"></div>
             <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveEvent()">Termin eintragen</button>
         </div></div></div></div>
-
     </div>
 
-    <!-- FEHLERFREIE SAAS VUE-ENGINE -->
     <script>
         const { createApp } = Vue;
         let memberModal = null, userModal = null, invModal = null, vehModal = null, vehLogModal = null, eventModal = null;
@@ -379,66 +366,52 @@
                         this.vehicleLogs = await (await fetch('/api/vehicles/logs')).json();
                         this.users = await (await fetch('/api/users')).json();
                         if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
-                    } catch (e) { console.error("Sync-Abbruch blockiert."); }
+                    } catch (e) { console.error("Sync abgefangen."); }
                 },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 uploadAvatar(e) { const file = e.target.files[0]; const reader = new FileReader(); reader.onload = (ev) => { this.newMem.profile_picture = ev.target.result; }; reader.readAsDataURL(file); },
-
                 async triggerGeocodingLookup() {
                     const query = document.getElementById('geoSearchInput').value;
                     if(!query) return;
                     const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)).json();
                     if(res.status === 'success') {
-                        this.registry.station_name = query;
-                        this.registry.station_lat = res.lat;
-                        this.registry.station_lon = res.lon;
-                        alert("Standort erfolgreich weltweit aufgelöst!");
+                        this.registry.station_name = query; this.registry.station_lat = res.lat; this.registry.station_lon = res.lon;
+                        alert("Standort erfolgreich aufgelöst!");
                     } else { alert("Fehler: " + res.message); }
                 },
-
                 openMemberModal(p) { this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; memberModal.show(); },
                 async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
-                async delMember(id) { if(confirm("Kamerad löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                
+                async delMember(id) { if(confirm("Löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
                 async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
-                async delUser(id) { if(confirm("Zugang löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                
+                async delUser(id) { if(confirm("Löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager', barcode: '', size: '' }; invModal.show(); },
                 async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
-                async delInv(id) { if(confirm("Material ausbuchen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                
+                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }; vehModal.show(); },
                 async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
-                async delVeh(id) { if(confirm("Fahrzeug ausmustern?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                
+                async delVeh(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0 }; vehLogModal.show(); },
                 async saveLog() { await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); vehLogModal.hide(); await this.refreshAllData(); },
-                async delLog(id) { if(confirm("Eintrag löschen?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-
+                async delLog(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Vorstand' }; eventModal.show(); },
                 async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
-                async delEvent(id) { if(confirm("Absagen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                
+                async delEvent(id) { if(confirm("Löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Registry gesichert!"); await this.refreshAllData(); }
             },
             async mounted() {
                 try {
-                    const res = await fetch('/api/auth/me');
-                    if(!res.ok) { window.location.href = '/login'; return; }
-                    this.identity = await res.json();
-                    this.groups = await (await fetch('/groups')).json();
-                    
+                    const res = await fetch('/api/auth/me'); if(!res.ok) { window.location.href = '/login'; return; }
+                    this.identity = await res.json(); this.groups = await (await fetch('/groups')).json();
                     memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
                     userModal = new bootstrap.Modal(document.getElementById('userModal'));
                     invModal = new bootstrap.Modal(document.getElementById('invModal'));
                     vehModal = new bootstrap.Modal(document.getElementById('vehModal'));
                     vehLogModal = new bootstrap.Modal(document.getElementById('vehLogModal'));
                     eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
-                    
                     await this.refreshAllData();
                 } catch(e) { console.error(e); } finally { this.ready = true; }
             }
