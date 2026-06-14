@@ -42,6 +42,9 @@
                             <td class="text-center"><input type="checkbox" v-model="p.is_present" class="form-check-input" style="transform:scale(1.2)"></td>
                             <td><select v-model="p.vehicle" class="form-select form-select-sm" style="font-weight:600;"><option value="">Keine Zuweisung</option><option v-for="v in globalVehicles" :value="v.name">{{ v.name }}</option></select></td>
                         </tr>
+                        <tr v-if="persons.length === 0">
+                            <td colspan="3" class="text-center text-muted py-4 fw-bold">Keine Kameraden im Stammregister gefunden. Bitte lege zuerst Personal im Leitstand unter "Personal & Logins" an!</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
