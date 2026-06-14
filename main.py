@@ -691,17 +691,17 @@ def get_eri_card(un_number: str, r: Request):
     try:
         un_int = int(un_clean)
         if 1 <= un_int < 1000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Verbrennungen kühlen."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Thermische Verbrennungen sofort kühlen."}
         elif 1000 <= un_int < 2000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Flüssigkeiten): Gaswolken am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten! Funken vermeiden.", "first_aid": "Rettung unter Atemschutz. Frischluft."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Flüssigkeiten): Schwere Gaswolken kriechen am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten! Funken vermeiden.", "first_aid": "Rettung unter Atemschutz. Frischluft."}
         elif 2000 <= un_int < 3000:
             return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5 (Reaktive Stoffe): Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz. Pulver prüfen.", "first_aid": "Trocken abwischen, danach spülen."}
         elif 3000 <= un_int <= 3600:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxisch / Ätzend): Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit CSA. Löschwasser auffangen.", "first_aid": "Sofort Dekontamination einleiten."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxisch / Ätzend): Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit schwerem CSA. Dämpfe niederschlagen. Löschwasser auffangen.", "first_aid": "Sofort Dekontamination einleiten."}
     except: pass
     return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "GAMS-Regel einhalten.", "first_aid": "Eigenschutz beachten."}
 
-# --- FIX: KLAMMERFEHLER ENTFERNT ---
+# --- SERVERSIDE PARSTHESIS REPAIRED ---
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
