@@ -21,7 +21,7 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -158,7 +158,7 @@
                 </div>
 
                 <div v-show="currentTab === 'meinbereich'">
-                    <h2 class="mb-4">Mein Profil</h2>
+                    <h2 class="mb-4">Mein Dienstbuch Profil</h2>
                     <div class="card p-4 border bg-white shadow-sm">
                         <div class="d-flex align-items-center gap-4 mb-3">
                             <div class="avatar-container border" style="width:80px; height:80px;">
@@ -295,8 +295,6 @@
 
                 <div v-show="currentTab === 'archiv'">
                     <h2 class="mb-4">Dienstbuch-Archiv</h2>
-                    <div class="card p-4 bg-white border shadow-sm text-center text-muted mb-4"><h6>Historische Berichte, Chroniken und Dokumente verwalten</h6></div>
-                    
                     <div class="card p-4 bg-white border shadow-sm mb-4">
                         <h5 class="fw-bold mb-3"><i class="fa fa-upload text-danger me-2"></i> Dokument archivieren</h5>
                         <div class="row g-2 mb-2">
@@ -306,7 +304,6 @@
                         <div class="mb-3"><input type="file" id="archiveFileInput" class="form-control" @change="processArchiveFile"></div>
                         <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()"><i class="fa fa-cloud-arrow-up me-1"></i> Archivieren</button>
                     </div>
-                    
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>ID</th><th>Titel</th><th>Schlagworte</th><th>Datum</th><th class="text-end">Aktion</th></tr></thead>
@@ -337,8 +334,21 @@
         </div>
 
         <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3"></div><button class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button></div></div></div></div>
-        <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Wasserentnahmestelle erfassen</h5><div class="mb-2"><label for="hydrantType" class="small">Typ</label><select id="hydrantType" v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div><div class="mb-2"><label class="small">Durchmesser</label><input type="text" id="hydrantDiameter" v-model="newHyd.diameter" class="form-control"></div><button class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button></div></div></div></div>
-        <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Mangel / Defekt melden</h5><div class="mb-2"><label for="ticketTitle" class="small">Titel</label><input type="text" id="ticketTitle" v-model="newTicket.title" class="form-control"></div><div class="mb-2"><label for="ticketContent" class="small">Beschreibung</label><textarea id="ticketContent" v-model="newTicket.content" class="form-control"></textarea></div><div class="mb-3"><label for="ticketPriority" class="small">Priorität</label><select id="ticketPriority" v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch</option></select></div><button class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button></div></div></div></div>
+        
+        <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Wasserentnahmestelle erfassen</h5>
+            <div class="mb-2"><label for="hydrantType" class="small">Typ</label><select id="hydrantType" v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
+            <div class="mb-2"><label for="hydrantDiameter" class="small">Durchmesser</label><input type="text" id="hydrantDiameter" v-model="newHyd.diameter" class="form-control"></div>
+            <button class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Mangel / Defekt melden</h5>
+            <div class="mb-2"><label for="ticketTitle" class="small">Titel</label><input type="text" id="ticketTitle" v-model="newTicket.title" class="form-control"></div>
+            <div class="mb-2"><label for="ticketContent" class="small">Beschreibung</label><textarea id="ticketContent" v-model="newTicket.content" class="form-control"></textarea></div>
+            <div class="mb-3"><label for="ticketPriority" class="small">Priorität</label><select id="ticketPriority" v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
+            <button class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button>
+        </div></div></div></div>
 
         <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">Kameradenstamm verwalten</h5>
@@ -347,18 +357,18 @@
                 <div class="col-md-6"><label for="memberRank" class="small fw-bold">Dienstgrad</label><select id="memberRank" v-model="newMem.rank" class="form-select"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option><option value="Brandmeister">Brandmeister</option></select></div>
             </div>
             <div class="row g-2 mb-2">
-                <div class="col-md-4"><label class="small fw-bold" for="memberStatus">Abteilung</label><select id="memberStatus" v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugend">Jugendfeuerwehr</option><option value="Passiv">Passiv</option></select></div>
-                <div class="col-md-4"><label class="small fw-bold" for="birthDate">Geburtsdatum</label><input type="date" id="birthDate" v-model="newMem.birth_date" class="form-control"></div>
-                <div class="col-md-4"><label class="small fw-bold" for="entryDate">Diensteintritt</label><input type="date" id="entryDate" v-model="newMem.entry_date" class="form-control"></div>
+                <div class="col-md-4"><label for="memberStatus" class="small fw-bold">Abteilung</label><select id="memberStatus" v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugend">Jugendfeuerwehr</option><option value="Passiv">Passiv</option></select></div>
+                <div class="col-md-4"><label for="birthDate" class="small fw-bold">Geburtsdatum</label><input type="date" id="birthDate" v-model="newMem.birth_date" class="form-control"></div>
+                <div class="col-md-4"><label for="entryDate" class="small fw-bold">Diensteintritt</label><input type="date" id="entryDate" v-model="newMem.entry_date" class="form-control"></div>
             </div>
             <div class="row g-2 mb-2">
-                <div class="col-md-4"><label class="small fw-bold" for="memberPhone">Telefonnummer</label><input type="text" id="memberPhone" v-model="newMem.phone" class="form-control"></div>
-                <div class="col-md-4"><label class="small fw-bold" for="memberEmail">E-Mail Adresse</label><input type="email" id="memberEmail" v-model="newMem.email" class="form-control"></div>
-                <div class="col-md-4"><label class="small fw-bold" for="memberG26">G26.3 Untersuchung Frist</label><input type="date" id="memberG26" v-model="newMem.g26_3_date" class="form-control"></div>
+                <div class="col-md-4"><label for="memberPhone" class="small fw-bold">Telefonnummer</label><input type="text" id="memberPhone" v-model="newMem.phone" class="form-control"></div>
+                <div class="col-md-4"><label for="memberEmail" class="small fw-bold">E-Mail Adresse</label><input type="email" id="memberEmail" v-model="newMem.email" class="form-control"></div>
+                <div class="col-md-4"><label for="memberG26" class="small fw-bold">G26.3 Frist</label><input type="date" id="memberG26" v-model="newMem.g26_3_date" class="form-control"></div>
             </div>
             <div class="row g-2 mb-2">
-                <div class="col-md-6"><label class="small fw-bold" for="memberAddress">Anschrift</label><input type="text" id="memberAddress" v-model="newMem.address" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold" for="memberIce">Notfallkontakt (ICE)</label><input type="text" id="memberIce" v-model="newMem.ice_contact" class="form-control"></div>
+                <div class="col-md-6"><label for="memberAddress" class="small fw-bold">Anschrift</label><input type="text" id="memberAddress" v-model="newMem.address" class="form-control"></div>
+                <div class="col-md-6"><label for="memberIce" class="small fw-bold">Notfallkontakt (ICE)</label><input type="text" id="memberIce" v-model="newMem.ice_contact" class="form-control"></div>
             </div>
             <div class="p-2 bg-light rounded mb-2"><label class="small fw-bold mb-1">Qualifikationsstatus</label>
                 <div class="d-flex gap-4">
@@ -367,22 +377,53 @@
                     <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="fgf"><label class="form-check-label small" for="fgf">Gruppenführer</label></div>
                 </div>
             </div>
-            <div class="p-2 bg-light rounded mb-3"><label class="small fw-bold mb-1">Führerscheinklassen</label>
-                <div class="d-flex gap-4">
-                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_b" id="fb"><label class="form-check-label small" for="fb">Klasse B</label></div>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_be" id="fbe"><label class="form-check-label small" for="fbe">Klasse BE</label></div>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_c" id="fc"><label class="form-check-label small" for="fc">Klasse C</label></div>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce" id="fce"><label class="form-check-label small" for="fce">Klasse CE</label></div>
-                </div>
-            </div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()">Kameradenakte speichern</button>
+            <button class="btn btn-danger w-100 rounded-pill fw-bold mt-2" @click="saveMember()">Kameradenakte speichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>System-Zugang verwalten</h5><div class="mb-2"><label for="usernameInput" class="small">Benutzername</label><input type="text" id="usernameInput" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div><div class="mb-2"><label for="passwordInput" class="small">Kennwort</label><input type="password" id="passwordInput" v-model="newUser.password" class="form-control"></div><div class="mb-3"><label for="roleSelect" class="small">Rolle</label><select id="roleSelect" v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div><div class="mb-3"><label for="linkPersonnelSelect" class="small">Mit Personalakte verknüpfen</label><select id="linkPersonnelSelect" v-model="newUser.personnel_id" class="form-select"><option :value="0">Nicht verknüpft</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div><button class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login freischalten</button></div></div></div></div>
-        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Materialbestand</h5><input type="text" id="invItemName" v-model="newInv.item_name" class="form-control mb-2" placeholder="Gegenstand"><div class="row g-2 mb-2"><div class="col-6"><input type="number" id="invAmount" v-model="newInv.amount" class="form-control" placeholder="Menge"></div><div class="col-6"><input type="number" id="invMinAmount" v-model="newInv.min_amount" class="form-control" placeholder="Mindestmenge"></div></div><input type="text" id="invLocation" v-model="newInv.location" class="form-control mb-3" placeholder="Lagerort"><button class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button></div></div></div></div>
-        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Einsatzfahrzeug registrieren</h5><input type="text" id="vehName" v-model="newVeh.name" class="form-control mb-2" placeholder="Modell / Typ"><input type="text" id="vehRadioName" v-model="newVeh.radio_name" class="form-control mb-2" placeholder="Funkrufname"><input type="number" id="vehMilage" v-model="newVeh.milage" class="form-control mb-3" placeholder="Kilometerstand"><button class="btn btn-dark w-100 rounded-pill" @click="saveVeh()">Fahrzeug registrieren</button></div></div></div></div>
-        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Fahrtenbucheintrag</h5><select id="logVehSelect" v-model="activeLog.vehicle_id" class="form-select mb-2"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select><input type="date" id="logDate" v-model="activeLog.date" class="form-control mb-2"><input type="text" id="logDriver" v-model="activeLog.driver_name" class="form-control mb-2" placeholder="Maschinist"><input type="text" id="logPurpose" v-model="activeLog.purpose" class="form-control mb-2" placeholder="Zweck / Route"><div class="row g-2 mb-2"><div class="col-6"><input type="number" id="logKmStart" v-model="activeLog.km_start" class="form-control" placeholder="KM Start"></div><div class="col-6"><input type="number" id="logKmEnd" v-model="activeLog.km_end" class="form-control" placeholder="KM Ende"></div></div><input type="number" step="0.1" id="logFuel" v-model="activeLog.fuel_liters" class="form-control mb-3" placeholder="Getankte Liter"><button class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button></div></div></div></div>
-        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4"><h5>Termin / Dienstplanung</h5><input type="date" id="eventDate" v-model="newEvent.date" class="form-control mb-2"><input type="text" id="eventTitle" v-model="newEvent.title" class="form-control mb-3" placeholder="Titel"><input type="text" id="eventResponsible" v-model="newEvent.responsible" class="form-control mb-3" placeholder="Zuständig"><button class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button></div></div></div></div>
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>System-Zugang verwalten</h5>
+            <div class="mb-2"><label for="usernameInput" class="small">Benutzername</label><input type="text" id="usernameInput" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
+            <div class="mb-2"><label for="passwordInput" class="small">Kennwort</label><input type="password" id="passwordInput" v-model="newUser.password" class="form-control"></div>
+            <div class="mb-3"><label for="roleSelect" class="small">Rolle</label><select id="roleSelect" v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div>
+            <div class="mb-3"><label for="linkPersonnelSelect" class="small">Mit Personalakte verknüpfen</label><select id="linkPersonnelSelect" v-model="newUser.personnel_id" class="form-select"><option :value="0">Nicht verknüpft</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div>
+            <button class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login freischalten</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Materialbestand</h5>
+            <div class="mb-2"><label for="invItemName" class="small">Gegenstand</label><input type="text" id="invItemName" v-model="newInv.item_name" class="form-control" placeholder="Gegenstand"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label for="invAmount" class="small">Menge</label><input type="number" id="invAmount" v-model="newInv.amount" class="form-control"></div><div class="col-6"><label for="invMinAmount" class="small">Mindestmenge</label><input type="number" id="invMinAmount" v-model="newInv.min_amount" class="form-control"></div></div>
+            <div class="mb-3"><label for="invLocation" class="small">Lagerort</label><input type="text" id="invLocation" v-model="newInv.location" class="form-control" placeholder="Lagerort"></div>
+            <button class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
+        </div></div></div></div>
+
+        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Einsatzfahrzeug registrieren</h5>
+            <div class="mb-2"><label for="vehName" class="small fw-bold">Fahrzeugbezeichnung</label><input type="text" id="vehName" v-model="newVeh.name" class="form-control" placeholder="z. B. HLF 20"></div>
+            <div class="mb-2"><label for="vehRadioName" class="small fw-bold">Funkrufname</label><input type="text" id="vehRadioName" v-model="newVeh.radio_name" class="form-control" placeholder="z. B. Florian Buxheim 40/1"></div>
+            <div class="mb-2"><label for="vehMilage" class="small fw-bold">Aktueller Kilometerstand</label><input type="number" id="vehMilage" v-model="newVeh.milage" class="form-control"></div>
+            <div class="mb-2"><label for="vehOilChange" class="small fw-bold">Nächster Ölwechsel bei (km)</label><input type="number" id="vehOilChange" v-model="newVeh.next_oil_change_km" class="form-control"></div>
+            <button class="btn btn-dark w-100 rounded-pill fw-bold mt-2" @click="saveVeh()">Fahrzeug sichern</button>
+        </div></div></div></div>
+
+        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Fahrtenbucheintrag</h5>
+            <div class="mb-2"><label for="logVehSelect" class="small">Fahrzeug</label><select id="logVehSelect" v-model="activeLog.vehicle_id" class="form-select"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
+            <div class="mb-2"><label for="logDate" class="small">Datum</label><input type="date" id="logDate" v-model="activeLog.date" class="form-control"></div>
+            <div class="mb-2"><label for="logDriver" class="small">Maschinist</label><input type="text" id="logDriver" v-model="activeLog.driver_name" class="form-control" placeholder="Maschinist"></div>
+            <div class="mb-2"><label for="logPurpose" class="small">Zweck / Route</label><input type="text" id="logPurpose" v-model="activeLog.purpose" class="form-control" placeholder="Zweck / Route"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label for="logKmStart" class="small">KM Start</label><input type="number" id="logKmStart" v-model="activeLog.km_start" class="form-control" placeholder="KM Start"></div><div class="col-6"><label for="logKmEnd" class="small">KM Ende</label><input type="number" id="logKmEnd" v-model="activeLog.km_end" class="form-control" placeholder="KM Ende"></div></div>
+            <div class="mb-3"><label for="logFuel" class="small">Getankte Liter</label><input type="number" step="0.1" id="logFuel" v-model="activeLog.fuel_liters" class="form-control" placeholder="Getankte Liter"></div>
+            <button class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <h5>Termin / Dienstplanung</h5>
+            <div class="mb-2"><label for="eventDate" class="small">Datum</label><input type="date" id="eventDate" v-model="newEvent.date" class="form-control"></div>
+            <div class="mb-3"><label for="eventTitle" class="small">Titel</label><input type="text" id="eventTitle" v-model="newEvent.title" class="form-control" placeholder="Titel"></div>
+            <div class="mb-3"><label for="eventResponsible" class="small">Zuständig</label><input type="text" id="eventResponsible" v-model="newEvent.responsible" class="form-control" placeholder="Zuständig"></div>
+            <button class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button>
+        </div></div></div></div>
 
     </div>
 
@@ -390,7 +431,8 @@
         const { createApp } = Vue;
         let map = null;
 
-        createApp({
+        // Fehler-Abfangjäger für Vue
+        const app = createApp({
             data() {
                 return {
                     ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
@@ -424,7 +466,7 @@
                         
                         const sessRes = await fetch('/groups/1/sessions');
                         if(sessRes.ok) this.sessions = await sessRes.json();
-                    } catch (e) { console.error("Sync blockiert:", e); }
+                    } catch (e) { console.error("Hintergrund-Sync fehlgeschlagen:", e); }
                 },
                 initMap() {
                     this.$nextTick(() => {
@@ -467,8 +509,8 @@
                         const qrBox = document.getElementById('qrcode');
                         if(!qrBox) return;
                         qrBox.innerHTML = "";
-                        new QRCode(qrBox, {text: id, width: 128, height: 128});
-                        new bootstrap.Modal(document.getElementById('qrModal')).show();
+                        new QRCode(qrBox, {text: id || 'FEUERWEHR', width: 128, height: 128});
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('qrModal')).show();
                     });
                 },
                 processArchiveFile(e) {
@@ -479,47 +521,67 @@
                     reader.readAsDataURL(file);
                 },
                 async saveArchiveDoc() {
-                    if(!this.newArchiveDoc.title) { alert("Bitte einen Titel eingeben."); return; }
-                    const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.dumps(this.newArchiveDoc)});
-                    if(!res.ok) { alert("Fehler beim Archivieren!"); return; }
-                    this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
-                    document.getElementById('archiveFileInput').value = "";
-                    await this.refreshAllData();
+                    try {
+                        if(!this.newArchiveDoc.title) { alert("Bitte einen Titel eingeben."); return; }
+                        const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newArchiveDoc)});
+                        if(!res.ok) { alert("Fehler beim Archivieren!"); return; }
+                        this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
+                        document.getElementById('archiveFileInput').value = "";
+                        alert("Dokument erfolgreich archiviert!");
+                        await this.refreshAllData();
+                    } catch(err) { alert("Netzwerkfehler beim Archivieren!"); }
                 },
                 async delArchiveDoc(id) {
                     if(confirm("Dokument löschen?")) {
-                        const res = await fetch(`/api/archive/${doc_id}`, {method:'DELETE'});
-                        if(res.ok) await this.refreshAllData();
+                        try {
+                            const res = await fetch(`/api/archive/${id}`, {method:'DELETE'});
+                            if(res.ok) await this.refreshAllData();
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
                     }
                 },
                 async setTicketStatus(id, status) {
-                    await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
-                    await this.refreshAllData();
+                    try {
+                        await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+                        await this.refreshAllData();
+                    } catch(err) { alert("Status konnte nicht geändert werden!"); }
                 },
                 async delTicket(id) {
                     if(confirm("Mangel löschen?")) {
-                        await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'erledigt'})});
-                        await this.refreshAllData();
+                        try {
+                            await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'erledigt'})});
+                            await this.refreshAllData();
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
                     }
                 },
                 async saveTicket() {
-                    const res = await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
-                    if(!res.ok) { alert("Mangel konnte nicht gespeichert werden!"); return; }
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal')).hide();
-                    this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
-                    await this.refreshAllData();
+                    try {
+                        const res = await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
+                        if(!res.ok) { alert("Mangel konnte nicht gespeichert werden!"); return; }
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal')).hide();
+                        this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
+                        alert("Mangel erfasst!");
+                        await this.refreshAllData();
+                    } catch(err) { alert("Fehler beim Speichern des Mangels!"); }
                 },
                 async saveHydrant() {
-                    const res = await fetch('/api/hydranten', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newHyd)});
-                    if(!res.ok) { alert("Hydrant konnte nicht gespeichert werden!"); return; }
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal')).hide();
-                    this.initMap();
+                    try {
+                        const res = await fetch('/api/hydranten', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newHyd)});
+                        if(!res.ok) { alert("Hydrant konnte nicht gespeichert werden!"); return; }
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal')).hide();
+                        alert("Hydrant auf Karte markiert!");
+                        this.initMap();
+                    } catch(err) { alert("Fehler beim Speichern des Hydranten!"); }
                 },
                 openTicketModal() { bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal')).show(); },
                 openHydrantModal() { bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal')).show(); },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
-                async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
+                async setVehicleStatus(v, s) { 
+                    try {
+                        v.status = s; 
+                        await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); 
+                    } catch(err) { alert("Funkstatus konnte nicht gesendet werden!"); }
+                },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
                 openMemberModal(p) { 
@@ -527,45 +589,138 @@
                     bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).show(); 
                 },
                 async saveMember() { 
-                    const res = await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); 
-                    if(!res.ok) { alert("Akte konnte nicht gespeichert werden!"); return; }
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).hide(); 
-                    await this.refreshAllData(); 
+                    try {
+                        const res = await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); 
+                        if(!res.ok) { alert("Akte konnte nicht gespeichert werden! Vermutlich unvollständige Daten."); return; }
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).hide(); 
+                        alert("Kameradenakte erfolgreich gesichert!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Netzwerkfehler beim Speichern der Akte!"); }
                 },
-                async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await fetch(`/api/personnel/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                async delMember(id) { 
+                    if(confirm("Kamerad wirklich löschen?")) { 
+                        try {
+                            const res = await fetch(`/api/personnel/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Akte gelöscht!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
+                    } 
+                },
                 
-                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show(); },
-                async saveUser() { const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); if(!res.ok) { alert("Login konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).hide(); await this.refreshAllData(); },
-                async delUser(id) { if(confirm("Zugang löschen?")) { const res = await fetch(`/api/users/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show(); },
+                async saveUser() { 
+                    try {
+                        const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); 
+                        if(!res.ok) { alert("Login konnte nicht gespeichert werden!"); return; } 
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).hide(); 
+                        alert("Benutzer-Login angelegt!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Netzwerkfehler beim Speichern des Logins!"); }
+                },
+                async delUser(id) { 
+                    if(confirm("Zugang löschen?")) { 
+                        try {
+                            const res = await fetch(`/api/users/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Zugang gelöscht!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
+                    } 
+                },
                 
                 openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: '', next_check: '' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).show(); },
-                async saveInv() { const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); if(!res.ok) { alert("Material konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).hide(); await this.refreshAllData(); },
-                async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                async saveInv() { 
+                    try {
+                        const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); 
+                        if(!res.ok) { alert("Material konnte nicht gespeichert werden!"); return; } 
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).hide(); 
+                        alert("Material erfasst!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Fehler beim Erfassen des Materials!"); }
+                },
+                async delInv(id) { 
+                    if(confirm("Ausrüstung löschen?")) { 
+                        try {
+                            const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Ausrüstung gelöscht!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
+                    } 
+                },
                 
                 openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '', next_oil_change_km: 10000 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).show(); },
-                async saveVeh() { const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); if(!res.ok) { alert("Fahrzeug konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).hide(); await this.refreshAllData(); },
-                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                async saveVeh() { 
+                    try {
+                        const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); 
+                        if(!res.ok) { alert("Fahrzeug konnte nicht gespeichert werden!"); return; } 
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).hide(); 
+                        alert("Fahrzeug gesichert!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Fehler beim Speichern des Fahrzeugs!"); }
+                },
+                async delVeh(id) { 
+                    if(confirm("Fahrzeug löschen?")) { 
+                        try {
+                            const res = await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Fahrzeug gelöscht!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
+                    } 
+                },
                 
-                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).show(); },
-                async saveLog() { const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); if(!res.ok) { alert("Eintrag konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).hide(); await this.refreshAllData(); },
-                async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).show(); },
+                async saveLog() { 
+                    try {
+                        const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); 
+                        if(!res.ok) { alert("Eintrag konnte nicht gespeichert werden!"); return; } 
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).hide(); 
+                        alert("Fahrt erfolgreich protokolliert!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Fehler beim Protokollieren der Fahrt!"); }
+                },
+                async delLog(id) { 
+                    if(confirm("Eintrag stornieren?")) { 
+                        try {
+                            const res = await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Fahrt storniert!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Löschen fehlgeschlagen!"); }
+                    } 
+                },
                 
                 openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).show(); },
-                async saveEvent() { const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); if(!res.ok) { alert("Termin konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).hide(); await this.refreshAllData(); },
-                async delEvent(id) { if(confirm("Termin absagen?")) { const res = await fetch(`/api/events/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
+                async saveEvent() { 
+                    try {
+                        const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); 
+                        if(!res.ok) { alert("Termin konnte nicht gespeichert werden!"); return; } 
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).hide(); 
+                        alert("Termin eingetragen!");
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Fehler beim Eintragen des Termins!"); }
+                },
+                async delEvent(id) { 
+                    if(confirm("Termin absagen?")) { 
+                        try {
+                            const res = await fetch(`/api/events/${id}`, {method:'DELETE'}); 
+                            if(res.ok) { alert("Termin abgesagt!"); await this.refreshAllData(); } 
+                        } catch(err) { alert("Absagen fehlgeschlagen!"); }
+                    } 
+                },
                 
                 async triggerGeocodingLookup() {
                     const q = document.getElementById('geoSearchInput').value;
                     if(!q) return;
-                    const res = await (await fetch('/api/geocode?q=' + encodeURIComponent(q))).json();
-                    if(res.status === 'success') {
-                        this.registry.station_lat = res.lat;
-                        this.registry.station_lon = res.lon;
-                        alert("Ort erfolgreich aufgelöst!");
-                    } else { alert("Ort nicht gefunden."); }
+                    try {
+                        const res = await (await fetch('/api/geocode?q=' + encodeURIComponent(q))).json();
+                        if(res.status === 'success') {
+                            this.registry.station_lat = res.lat;
+                            this.registry.station_lon = res.lon;
+                            alert("Ort erfolgreich aufgelöst!");
+                        } else { alert("Ort nicht gefunden."); }
+                    } catch(err) { alert("Fehler bei der Ortssuche."); }
                 },
-                async saveSettings() { const res = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); if(!res.ok) { alert("Einstellungen konnten nicht gesichert werden!"); return; } alert("Gesichert!"); await this.refreshAllData(); },
-                isOverdue(date) { return date && new Date(date) < new Date(); }
+                async saveSettings() { 
+                    try {
+                        const res = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); 
+                        if(!res.ok) { alert("Einstellungen konnten nicht gesichert werden!"); return; } 
+                        alert("Systemeinstellungen gesichert!"); 
+                        await this.refreshAllData(); 
+                    } catch(err) { alert("Netzwerkfehler beim Sichern!"); }
+                }
             },
             async mounted() {
                 try {
@@ -573,9 +728,22 @@
                     if(!res.ok) { window.location.href = '/login'; return; }
                     this.identity = await res.json();
                     await this.refreshAllData();
-                } catch(e) { console.error("Boot-Fehler:", e); } finally { this.ready = true; }
+                } catch(e) { 
+                    console.error("Boot-Fehler:", e); 
+                    alert("Kritischer Systemfehler beim Laden der Daten.");
+                } finally { 
+                    this.ready = true; 
+                }
             }
-        }).mount('#app');
+        });
+        
+        // Globale Fehlerüberwachung in Vue aktivieren
+        app.config.errorHandler = (err, instance, info) => {
+            console.error("Vue Error:", err, info);
+            alert("Vue Rendering Fehler: " + err.message);
+        };
+        
+        app.mount('#app');
     </script>
 </body>
 </html>
