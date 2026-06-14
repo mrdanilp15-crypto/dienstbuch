@@ -3,27 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch - Cockpit</title>
+    <title>Digitales Dienstbuch — Operationszentrale v10.0</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/static/style.css?v=10.0">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         <div class="app-container">
             
             <div class="sidebar">
-                <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-book-open me-2"></i>DIENSTBUCH</h4></div>
+                <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>SOVEREIGN v10</h4></div>
                 <div class="flex-grow-1 overflow-y-auto">
                     <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand Zentrale</div>
+                    <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Digitale Lagekarte</div>
+                    <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERICards)</div>
+                    <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart-Tickets</div>
                     <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Lager & Bestände</div>
+                    <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Lager & QR-Logistik</div>
                     <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
-                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Log</div>
-                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-check"></i> Verein & Kalender</div>
-                    <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Allgemeine Einstellungen</div>
+                    <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Tankbuch</div>
+                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-check"></i> Dienstplan & Termine</div>
+                    <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Systemeinstellungen</div>
                 </div>
                 <div class="p-3 bg-light border-top text-center">
                     <div class="small fw-bold text-dark mb-2">{{ identity.username }}</div>
@@ -34,6 +40,21 @@
             <div class="main-content">
                 
                 <div v-if="currentTab === 'leitstand'">
+                    <div class="card mb-4 bg-danger text-white border-0 shadow animate-pulse" v-if="activeAlarm && activeAlarm.address">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="m-0 fw-bold text-uppercase font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> EINSATZALARMIERUNG !</h4>
+                                <span class="badge bg-white text-danger fw-bold rounded-pill px-3 py-2 font-monospace">{{ activeAlarm.timestamp }}</span>
+                            </div>
+                            <h2 class="fw-extrabold mb-2 font-monospace">{{ activeAlarm.keyword }}</h2>
+                            <h5 class="mb-3"><i class="fa fa-location-dot me-2"></i> Ort: {{ activeAlarm.address }}</h5>
+                            <p class="mb-0 bg-black bg-opacity-20 p-3 rounded rounded-3 font-monospace"><b>Einsatz-Meldung:</b> {{ activeAlarm.alert_text }}</p>
+                            <div class="mt-3 text-end">
+                                <a :href="'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(activeAlarm.address)" target="_blank" class="btn btn-white text-danger fw-bold rounded-pill shadow-sm"><i class="fa fa-route me-1"></i> Schnellste Route öffnen</a>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-between mb-4">
                         <h2>Führungs-Leitstand</h2>
                         <button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neues Protokoll</button>
@@ -49,7 +70,7 @@
                     </div>
                     
                     <div class="card mb-4">
-                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statusübersicht</h6>
+                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statusübersicht (Fahrzeughallen-Tableau)</h6>
                         <div class="row g-2">
                             <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
                                 <div class="p-2 border rounded d-flex justify-content-between align-items-center bg-light">
@@ -63,7 +84,7 @@
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3">Zuletzt erfasste Protokolle</h5>
+                    <h5 class="fw-bold mb-3">Zuletzt erfasste Protokolle / Berichte</h5>
                     <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold">{{ s.description }}</h6><small class="text-muted">Leitung: {{ s.instructors }}</small></div>
@@ -94,15 +115,20 @@
                 </div>
 
                 <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Lagerbestand & Kleiderkammer</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material einbuchen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Lagerbestand & Smarte QR-Kleiderkammer</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material einbuchen</button></div>
                     <div class="card p-0 overflow-hidden bg-white">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Gegenstand</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th>Nächste Prüfung</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
-                                    <td><b>{{ i.item_name }}</b> <br/><small class="text-muted">{{ i.barcode || '-' }} | Größe: {{ i.size || '-' }}</small></td>
-                                    <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td><td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
-                                    <td><span class="badge" :class="i.amount < i.min_amount ? 'bg-danger':'bg-success'">{{ i.amount < i.min_amount ? 'Kritisch':'OK' }}</span></td>
+                                    <td>
+                                        <b>{{ i.item_name }}</b> <br/>
+                                        <span class="badge bg-light text-dark border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i.qr_code_id)" style="cursor:pointer;"><i class="fa fa-qrcode me-1 text-danger"></i> {{ i.qr_code_id }}</span>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
+                                    <td>{{ i.min_amount }}</td>
+                                    <td><span class="badge bg-secondary">{{ i.location }}</span></td>
+                                    <td><span class="badge" :class="isOverdue(i.next_check) ? 'bg-danger':'bg-dark'">{{ i.next_check || '-' }}</span></td>
                                     <td class="text-end">
                                         <button class="btn btn-sm btn-outline-dark me-1" @click="openInvModal(i)"><i class="fa fa-edit"></i></button>
                                         <button class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button>
@@ -112,70 +138,111 @@
                         </table>
                     </div>
                 </div>
+                <div v-if="currentTab === 'lagekarte'">
+                    <div class="d-flex justify-content-between mb-3">
+                        <h2>Taktische Live-Lagekarte & Hydranten-Kataster</h2>
+                        <button class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Wasserentnahme eintragen</button>
+                    </div>
+                    <div class="card p-2 bg-white shadow-sm rounded-4">
+                        <div id="map" style="width: 100%; height: 550px; border-radius: 10px; z-index: 10;"></div>
+                    </div>
+                </div>
 
-                <div v-if="currentTab === 'personal'">
-                    <h2 class="mb-4">Personalregister & Systemzugänge</h2>
-                    <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm (Akte 3.0)</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemzugänge (Logins)</button></li>
-                    </ul>
-
-                    <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
-                            <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung / Rolle</th><th class="text-end">Aktion</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="p in personnel" :key="p.id">
-                                        <td><div class="avatar-container"><img :src="p.profile_picture || 'https://via.placeholder.com/150?text=PSA'"></div></td>
-                                        <td><b>{{ p.name }}</b><br/><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
-                                        <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td>
-                                        <td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                <div v-if="currentTab === 'gefahrgut'">
+                    <h2 class="mb-4">Gefahrgut-Informationssystem (ERI-Cards)</h2>
+                    <div class="card p-4 bg-white shadow-sm border-0 mb-4">
+                        <label class="small fw-bold text-muted mb-2">UN-Nummer eingeben (4-stellig, z. B. 1203 für Benzin)</label>
+                        <div class="input-group style-un-search" style="max-width: 450px;">
+                            <span class="input-group-text bg-danger text-white fw-bold">UN</span>
+                            <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace" placeholder="z. B. 1203">
+                            <button class="btn btn-dark fw-bold" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
                         </div>
                     </div>
 
-                    <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> System-Login erstellen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white">
-                            <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="u in users" :key="u.id">
-                                        <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ getPersonnelName(u.personnel_id) }}</td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-dark me-1" @click="openUserModal(u)"><i class="fa fa-edit"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" @click="delUser(u.id)"><i class="fa fa-trash-alt"></i></button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    <div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
+                        <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
+                            <h4 class="text-danger fw-bold m-0"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt für UN {{ activeEriCard.un_number }}</h4>
+                            <span class="badge bg-danger py-2 px-3 font-monospace rounded-pill">Gefahrgut-Klasse 3</span>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded rounded-3 height-100">
+                                    <h6 class="fw-bold text-dark mb-2"><i class="fa fa-skull-crossbones me-1 text-danger"></i> Taktische Gefahr</h6>
+                                    <p class="small text-muted font-monospace m-0">{{ activeEriCard.danger_text }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded rounded-3 height-100">
+                                    <h6 class="fw-bold text-dark mb-2"><i class="fa fa-shield-halved me-1 text-success"></i> Schutzmaßnahmen</h6>
+                                    <p class="small text-muted font-monospace m-0">{{ activeEriCard.safety_measures }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded rounded-3 height-100">
+                                    <h6 class="fw-bold text-dark mb-2"><i class="fa fa-kit-medical me-1 text-primary"></i> Erste Hilfe</h6>
+                                    <p class="small text-muted font-monospace m-0">{{ activeEriCard.first_aid }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <div v-if="currentTab === 'tickets'">
+                    <div class="d-flex justify-content-between mb-4">
+                        <h2>Gerätewart-Wartungstickets & Mängel-Kanban</h2>
+                        <button class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel melden</button>
+                    </div>
+                    
+                    <div class="kanban-board">
+                        <div class="kanban-col shadow-sm">
+                            <div class="kanban-col-title text-danger border-danger border-2"><i class="fa fa-circle-exclamation me-1"></i> Neu erfasst</div>
+                            <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border border-light shadow-xs rounded-3 position-relative">
+                                <span class="badge position-absolute top-0 end-0 m-2" :class="t.priority === 'hoch' ? 'bg-danger':'bg-secondary'">{{ t.priority }}</span>
+                                <h6 class="fw-bold text-dark p-0 pe-4 m-0">{{ t.title }}</h6>
+                                <p class="small text-muted font-monospace mt-1 mb-2">{{ t.content }}</p>
+                                <div class="small text-dark font-monospace mb-2" v-if="t.vehicle_name"><b>Fahrzeug:</b> {{ t.vehicle_name }}</div>
+                                <div class="small text-dark font-monospace mb-2" v-if="t.item_name"><b>Gerät:</b> {{ t.item_name }}</div>
+                                <div class="text-end border-top pt-2"><button class="btn btn-xs btn-outline-dark rounded-pill py-0 px-2 small" @click="setTicketStatus(t.id, 'reparatur')">Scharfschalten <i class="fa fa-arrow-right"></i></button></div>
+                            </div>
+                        </div>
+                        <div class="kanban-col shadow-sm">
+                            <div class="kanban-col-title text-warning border-warning border-2"><i class="fa fa-screwdriver-wrench me-1"></i> In Reparatur</div>
+                            <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border border-light shadow-xs rounded-3 position-relative">
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
+                                <p class="small text-muted font-monospace mt-1 mb-2">{{ t.content }}</p>
+                                <div class="text-end border-top pt-2"><button class="btn btn-xs btn-outline-success rounded-pill py-0 px-2 small" @click="setTicketStatus(t.id, 'erledigt')">Abschließen <i class="fa fa-check"></i></button></div>
+                            </div>
+                        </div>
+                        <div class="kanban-col shadow-sm">
+                            <div class="kanban-col-title text-success border-success border-2"><i class="fa fa-circle-check"></i> Erledigt / Archiv</div>
+                            <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-white border border-light shadow-xs rounded-3 opacity-75">
+                                <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6>
+                                <p class="small text-muted font-monospace mt-1 m-0">{{ t.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="currentTab === 'personal'">
+                    </div>
 
                 <div v-if="currentTab === 'fuhrpark'">
                     <h2 class="mb-4">Fuhrpark-Zentrale & Taktisches Fahrtenbuch</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'fahrzeuge'}" @click="subTabVeh = 'fahrzeuge'">Fahrzeugstamm</button></li>
-                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch-Register</button></li>
+                        <li class="nav-item flex-fill"><button class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch & Tankbuch</button></li>
                     </ul>
 
                     <div v-if="subTabVeh === 'fahrzeuge'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Asset registrieren</button></div>
                         <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="v in vehicles" :key="v.id">
                                         <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td>
                                         <td><span class="badge bg-dark">{{ v.tuv_date || '-' }}</span></td><td><span class="badge bg-secondary">{{ v.sp_date || '-' }}</span></td><td>{{ v.milage }} km</td>
+                                        <td><span class="badge" :class="v.milage >= v.next_oil_change_km ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
                                         <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openVehModal(v)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
@@ -187,10 +254,11 @@
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt eintragen</button></div>
                         <div class="card p-0 overflow-hidden bg-white">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>Zweck / Route</th><th>KM Stand</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>Zweck / Route</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="l in vehicleLogs" :key="l.id">
                                         <td><b>{{ l.vehicle_name }}</b></td><td>{{ l.date_formatted }}</td><td>{{ l.driver_name }}</td><td><small class="text-muted">{{ l.purpose }}</small></td><td>{{ l.km_start }} - {{ l.km_end }} km</td>
+                                        <td><span v-if="l.fuel_liters > 0" class="badge bg-info text-white font-monospace fw-bold"><i class="fa fa-gas-pump me-1"></i> {{ l.fuel_liters }} L</span><span v-else class="text-muted small">-</span></td>
                                         <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openLogModal(l)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
@@ -199,159 +267,42 @@
                     </div>
                 </div>
 
-                <div v-if="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Terminbuch</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
-                    <div class="card p-0 overflow-hidden bg-white">
-                        <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Termin</th><th>Veranstaltung / Fest</th><th>Zuständig</th><th class="text-end">Aktion</th></tr></thead>
-                            <tbody>
-                                <tr v-for="e in events" :key="e.id">
-                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td class="fw-bold text-dark">{{ e.title }}</td><td>{{ e.responsible }}</td>
-                                    <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openEventModal(e)"><i class="fa fa-edit"></i></button><button class="btn btn-sm text-danger bg-transparent border-0" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center">
+                    <h5 class="fw-bold mb-3">QR-Code Etikett</h5>
+                    <div id="qrcode" class="mx-auto mb-3"></div>
+                    <button class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button>
+                </div></div></div></div>
 
-                <div v-if="currentTab === 'einstellungen'">
-                    <h2 class="mb-4">Allgemeine Systemeinstellungen</h2>
-                    <div class="card p-4 bg-white shadow-sm border-0">
-                        <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Sucht die Adresse automatisch weltweit)</label>
-                            <div class="input-group">
-                                <input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Feuerwehr Buxheim oder Memmingen">
-                                <button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-magnifying-glass-location"></i> Ort suchen & auflösen</button>
-                            </div>
-                        </div>
-                        <hr class="my-4"/>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Wehr (Wird systemweit gerendert)</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Breitengrad (Latitude)</label><input type="text" v-model="registry.station_lat" class="form-control font-monospace" disabled></div>
-                            <div class="col-6"><label class="small fw-bold text-muted mb-1">Längengrad (Longitude)</label><input type="text" v-model="registry.station_lon" class="form-control font-monospace" disabled></div>
-                        </div>
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Alamos aPager PRO Integration-Key</label><input type="text" v-model="registry.apager_api_key" class="form-control font-monospace fw-bold"></div>
-                        <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
-                    </div>
-                </div>
+                <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content p-4">
+                    <h5>Wasserentnahmestelle erfassen</h5>
+                    <div class="mb-2"><label class="small">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
+                    <div class="mb-2"><label class="small">Durchmesser</label><input v-model="newHyd.diameter" class="form-control"></div>
+                    <button class="btn btn-danger w-100" @click="saveHydrant()">Speichern</button>
+                </div></div></div></div>
+
+                <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content p-4">
+                    <h5>Mangel / Defekt melden</h5>
+                    <input v-model="newTicket.title" class="form-control mb-2" placeholder="Titel">
+                    <textarea v-model="newTicket.content" class="form-control mb-2" placeholder="Beschreibung"></textarea>
+                    <select v-model="newTicket.priority" class="form-select mb-3"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select>
+                    <button class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button>
+                </div></div></div></div>
 
             </div>
         </div>
-
-        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3"><i class="fa fa-id-card text-danger me-2"></i>Kameradenstamm (Akte 3.0)</h5>
-            <div class="text-center mb-3">
-                <div class="avatar-container mx-auto mb-2" style="width:80px; height:80px;"><img :src="newMem.profile_picture || 'https://via.placeholder.com/150?text=PSA'"></div>
-                <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="uploadAvatar($event)">
-                <button class="btn btn-xs btn-outline-secondary" @click="$refs.fileInput.click()">Foto zuweisen</button>
-            </div>
-            <div class="row g-2 mb-2">
-                <div class="col-md-6"><label class="small fw-bold text-muted">Klarname (Vor- und Nachname)</label><input type="text" v-model="newMem.name" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold text-muted">Dienstgrad</label>
-                    <select v-model="newMem.rank" class="form-select">
-                        <option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Hauptfeuerwehrmann">Hauptfeuerwehrmann</option>
-                        <option value="Löschmeister">Löschmeister</option><option value="Oberlöschmeister">Oberlöschmeister</option><option value="Hauptlöschmeister">Hauptlöschmeister</option>
-                        <option value="Brandmeister">Brandmeister</option><option value="Oberbrandmeister">Oberbrandmeister</option><option value="Hauptmeister">Hauptbrandmeister</option>
-                    </select>
-                </div>
-            </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-4"><label class="small fw-bold text-muted">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugendfeuerwehr">Jugendfeuerwehr</option><option value="Kinderfeuerwehr">Kinderfeuerwehr</option><option value="Altersabteilung">Alters-/Ehrenabteilung</option></select></div>
-                <div class="col-md-4"><label class="small fw-bold text-muted">Geburtsdatum</label><input type="date" v-model="newMem.birth_date" class="form-control"></div>
-                <div class="col-md-4"><label class="small fw-bold text-muted">Diensteintrittsdatum</label><input type="date" v-model="newMem.entry_date" class="form-control"></div>
-            </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-6"><label class="small fw-bold text-muted">Telefonnummer</label><input type="text" v-model="newMem.phone" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold text-muted">E-Mail-Adresse</label><input type="email" v-model="newMem.email" class="form-control"></div>
-                <div class="col-md-12"><label class="small fw-bold text-muted">Anschrift (Straße, PLZ, Ort)</label><input type="text" v-model="newMem.address" class="form-control"></div>
-                <div class="col-md-12"><label class="small fw-bold text-muted">ICE Notfallkontakt (Name & Telefon)</label><input type="text" v-model="newMem.ice_contact" class="form-control"></div>
-            </div>
-            <div class="row mb-3 p-2 bg-light rounded"><label class="small fw-bold text-dark mb-2"><i class="fa fa-graduation-cap"></i> Qualifikationen & Fahrberechtigungen</label>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt" id="c1"><label class="form-check-label small fw-bold" for="c1">Atemschutzträger</label></div></div>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist" id="c2"><label class="form-check-label small fw-bold" for="c2">Maschinist</label></div></div>
-                <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf" id="c3"><label class="form-check-label small fw-bold" for="c3">Gruppenführer</label></div></div>
-                <div class="col-md-3 mt-2"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_b" id="f1"><label class="form-check-label small" for="f1">Klasse B</label></div></div>
-                <div class="col-md-3 mt-2"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_be" id="f2"><label class="form-check-label small" for="f2">Klasse BE</label></div></div>
-                <div class="col-md-3 mt-2"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_c" id="f3"><label class="form-check-label small" for="f3">Klasse C</label></div></div>
-                <div class="col-md-3 mt-2"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="newMem.drive_ce" id="f4"><label class="form-check-label small" for="f4">Klasse CE</label></div></div>
-            </div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Nächste G26.3 Untersuchung</label><input type="date" v-model="newMem.g26_3_date" class="form-control"></div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember()">Akte speichern</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3"><i class="fa fa-key text-dark me-2"></i>System-Zugang verwalten</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Berechtigungsstufe</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft (Lesen)</option><option value="user">User (Schreiben)</option><option value="admin">Admin (Vollzugriff)</option></select></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Akte</label>
-                <select v-model="newUser.personnel_id" class="form-select">
-                    <option :value="null">Keine Verknüpfung</option>
-                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
-            </div>
-            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveUser()">Login freischalten</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Materialbestand</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Gegenstand</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
-            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold text-muted">Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Mindestmenge</label><input type="number" v-model="newInv.min_amount" class="form-control"></div></div>
-            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Einheit</label><input type="text" v-model="newInv.unit" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div></div>
-            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Barcode</label><input type="text" v-model="newInv.barcode" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Größe</label><input type="text" v-model="newInv.size" class="form-control"></div></div>
-            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveInv()">Material erfassen</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Einsatzfahrzeug registrieren</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Modell / Typ</label><input type="text" v-model="newVeh.name" class="form-control" required></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" required></div>
-            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Nächste HU</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">SP Frist</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Kilometerstand</label><input type="number" v-model="newVeh.milage" class="form-control"></div>
-            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveVeh()">Fahrzeug registrieren</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Fahrtenbucheintrag schreiben</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Fahrzeug</label>
-                <select v-model="activeLog.vehicle_id" class="form-select">
-                    <option v-for="v in vehicles" :value="v.id">{{ v.name }}</option>
-                </select>
-            </div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Maschinist</label>
-                <select v-model="activeLog.driver_name" class="form-select">
-                    <option v-for="p in personnel" :value="p.name">{{ p.name }}</option>
-                </select>
-            </div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Zweck der Fahrt</label><input type="text" v-model="activeLog.purpose" class="form-control"></div>
-            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">KM Start</label><input type="number" v-model="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">KM Ende</label><input type="number" v-model="activeLog.km_end" class="form-control"></div></div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveLog()">Fahrt protokollieren</button>
-        </div></div></div></div>
-
-        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Vereinstermin / Dienstplanung</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Termindatum</label><input type="date" v-model="newEvent.date" class="form-control" required></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Veranstaltungstitel</label><input type="text" v-model="newEvent.title" class="form-control" required></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Zuständigkeit</label><input type="text" v-model="newEvent.responsible" class="form-control"></div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveEvent()">Termin eintragen</button>
-        </div></div></div></div>
     </div>
 
     <script>
         const { createApp } = Vue;
-        let memberModal = null, userModal = null, invModal = null, vehModal = null, vehLogModal = null, eventModal = null;
+        let map = null;
         createApp({
             data() {
                 return {
                     ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
-                    groups: [], vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], vehicleLogs: [], registry: {},
-                    newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' },
-                    newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: null },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager', barcode: '', size: '' },
-                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' },
-                    activeLog: { id: null, vehicle_id: null, date: '', driver_name: '', purpose: '', km_start: 0, km_end: 0 },
-                    newEvent: { id: null, date: '', title: '', responsible: 'Vorstand' }
+                    vehicles: [], sessions: [], inventory: [], personnel: [], tickets: [], activeAlarm: {}, 
+                    activeEriCard: null, hazmatSearchQuery: '', newTicket: {title:'', content:'', priority:'normal'},
+                    newHyd: {lat:0, lon:0, hydrant_type:'Unterflurhydrant', diameter:'H100'},
+                    newMem: {}, newUser: {}, newInv: {}, newVeh: {}, activeLog: {}, newEvent: {}
                 }
             },
             methods: {
@@ -360,60 +311,44 @@
                         this.vehicles = await (await fetch('/api/vehicles')).json();
                         this.inventory = await (await fetch('/api/inventory')).json();
                         this.personnel = await (await fetch('/api/personnel/list')).json();
-                        this.events = await (await fetch('/api/events')).json();
+                        this.tickets = await (await fetch('/api/tickets')).json();
                         this.weather = await (await fetch('/api/weather')).json();
-                        this.registry = await (await fetch('/api/settings')).json();
-                        this.vehicleLogs = await (await fetch('/api/vehicles/logs')).json();
-                        this.users = await (await fetch('/api/users')).json();
-                        if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
-                    } catch (e) { console.error("Sync abgefangen."); }
+                        this.activeAlarm = await (await fetch('/api/alarm/active')).json();
+                    } catch (e) { console.error(e); }
                 },
-                getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
-                goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
-                async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
-                async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
-                uploadAvatar(e) { const file = e.target.files[0]; const reader = new FileReader(); reader.onload = (ev) => { this.newMem.profile_picture = ev.target.result; }; reader.readAsDataURL(file); },
-                async triggerGeocodingLookup() {
-                    const query = document.getElementById('geoSearchInput').value;
-                    if(!query) return;
-                    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)).json();
-                    if(res.status === 'success') {
-                        this.registry.station_name = query; this.registry.station_lat = res.lat; this.registry.station_lon = res.lon;
-                        alert("Standort erfolgreich aufgelöst!");
-                    } else { alert("Fehler: " + res.message); }
+                initMap() {
+                    if(map) map.remove();
+                    map = L.map('map').setView([47.9942, 10.1344], 15);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    fetch('/api/hydranten').then(res => res.json()).then(data => {
+                        data.forEach(h => L.marker([h.lat, h.lon]).addTo(map).bindPopup(h.hydrant_type));
+                    });
                 },
-                openMemberModal(p) { this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; memberModal.show(); },
-                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
-                async delMember(id) { if(confirm("Löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
-                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
-                async delUser(id) { if(confirm("Löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Zentrallager', barcode: '', size: '' }; invModal.show(); },
-                async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
-                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' }; vehModal.show(); },
-                async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
-                async delVeh(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0 }; vehLogModal.show(); },
-                async saveLog() { await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); vehLogModal.hide(); await this.refreshAllData(); },
-                async delLog(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Vorstand' }; eventModal.show(); },
-                async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
-                async delEvent(id) { if(confirm("Löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
-                async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Registry gesichert!"); await this.refreshAllData(); }
+                async searchHazmat() {
+                    const res = await (await fetch('/api/gahrgut/ericard/' + this.hazmatSearchQuery)).json();
+                    if(res.un_number) this.activeEriCard = res;
+                    else alert("UN-Nummer nicht gefunden.");
+                },
+                generateQRWindow(id) {
+                    document.getElementById('qrcode').innerHTML = "";
+                    new QRCode(document.getElementById('qrcode'), {text: id, width: 128, height: 128});
+                    new bootstrap.Modal(document.getElementById('qrModal')).show();
+                },
+                async setTicketStatus(id, status) {
+                    await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+                    this.refreshAllData();
+                },
+                async saveTicket() {
+                    await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
+                    bootstrap.Modal.getInstance(document.getElementById('ticketModal')).hide();
+                    this.refreshAllData();
+                },
+                openTicketModal() { new bootstrap.Modal(document.getElementById('ticketModal')).show(); },
+                isOverdue(date) { return date && new Date(date) < new Date(); }
             },
             async mounted() {
-                try {
-                    const res = await fetch('/api/auth/me'); if(!res.ok) { window.location.href = '/login'; return; }
-                    this.identity = await res.json(); this.groups = await (await fetch('/groups')).json();
-                    memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
-                    userModal = new bootstrap.Modal(document.getElementById('userModal'));
-                    invModal = new bootstrap.Modal(document.getElementById('invModal'));
-                    vehModal = new bootstrap.Modal(document.getElementById('vehModal'));
-                    vehLogModal = new bootstrap.Modal(document.getElementById('vehLogModal'));
-                    eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
-                    await this.refreshAllData();
-                } catch(e) { console.error(e); } finally { this.ready = true; }
+                this.ready = true;
+                await this.refreshAllData();
             }
         }).mount('#app');
     </script>
