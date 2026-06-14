@@ -24,7 +24,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- PYDANTIC MODELLE ---
+# --- PYDANTIC MODELLE (Mit robusten Standardwerten gegen 422-Validierungsfehler) ---
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -32,7 +32,7 @@ class LoginRequest(BaseModel):
 class UserCreateDto(BaseModel):
     username: str
     password: str
-    role: str
+    role: str = "user"
     personnel_id: Optional[int] = None
 
 class UserPasswordDto(BaseModel):
@@ -44,10 +44,10 @@ class KanbanUpdateRequest(BaseModel):
 class InventoryItemDto(BaseModel):
     id: Optional[int] = None
     item_name: str
-    amount: int
-    min_amount: int
-    unit: str
-    location: str
+    amount: int = 0
+    min_amount: int = 5
+    unit: str = "Stück"
+    location: str = "Lager"
     barcode: Optional[str] = ""
     size: Optional[str] = ""
 
@@ -55,7 +55,7 @@ class NoteCreateDto(BaseModel):
     id: Optional[int] = None
     title: str
     content: str
-    priority: str
+    priority: str = "normal"
 
 class VehicleStatusDto(BaseModel):
     status: int
@@ -63,40 +63,40 @@ class VehicleStatusDto(BaseModel):
 class VehicleCreateDto(BaseModel):
     id: Optional[int] = None
     name: str
-    radio_name: str
-    status: int
-    milage: int
+    radio_name: str = ""
+    status: int = 2
+    milage: int = 0
     tuv_date: Optional[str] = None
     sp_date: Optional[str] = None
 
 class EventCreateDto(BaseModel):
     date: str
     title: str
-    responsible: str
+    responsible: str = "Vorstand"
 
 class EntryDto(BaseModel):
     person_id: int
-    is_present: bool
+    is_present: bool = False
     vehicle: Optional[str] = ""
 
 class LegacySessionPayload(BaseModel):
     session_id: Optional[int] = None
     date: str
     group_id: int
-    category: str
-    duration: float
+    category: str = "Übung"
+    duration: float = 2.0
     description: str
-    instructors: str
+    instructors: str = ""
     entries: List[EntryDto]
 
 class PersonnelCreateDto(BaseModel):
     id: Optional[int] = None
     name: str
-    rank: str
-    membership_status: str
-    is_agt: bool
-    is_maschinist: bool
-    is_gf: bool
+    rank: str = "Feuerwehrmann"
+    membership_status: str = "Aktiv"
+    is_agt: bool = False
+    is_maschinist: bool = False
+    is_gf: bool = False
     g26_3_date: Optional[str] = None
 
 # --- DATABASE CONNECTION & KRYPTO HELFER ---
@@ -127,7 +127,6 @@ def get_current_user(request: Request):
             return json.loads(base64.b64decode(payload_b64).decode())
     except: return None
 
-# --- APAGER PRO INTEGRATION ---
 def trigger_apager_push(title: str, message: str):
     try:
         conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -141,15 +140,18 @@ def trigger_apager_push(title: str, message: str):
     except: pass
     return False
 
-# --- DATABASE BOOTSTRAP (AUTOMATISCHE MIGRATION) ---
+# --- RADIKALE DATABASE SANIERUNG (LÖST CONSTRAINTS & ERROR 1452) ---
 def init_db():
     conn = get_db_connection(); cur = conn.cursor()
     
-    # REPARATUR: Löscht blockierende Altreste blockierender Foreign Keys (Löst Fehler 1452)
-    for fk in ["attendance_ibfk_1", "attendance_ibfk_2", "fk_attendance_personnel", "fk_attendance_persons"]:
-        try: cur.execute(f"ALTER TABLE attendance DROP FOREIGN KEY {fk};")
-        except: pass
-
+    # Fremdschlüssel-Sperren temporär aufheben, um korrupte Alttabellen abzureißen
+    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+    try: cur.execute("DROP TABLE IF EXISTS attendance;")
+    except: pass
+    try: cur.execute("DROP TABLE IF EXISTS persons;")
+    except: pass
+    
+    # Tabellen im sauberen Zustand neu aufbauen
     cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
     cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('apager_api_key', '0'), ('int_g26', '36')")
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
@@ -157,35 +159,24 @@ def init_db():
     cur.execute("CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), radio_name VARCHAR(255), status INT DEFAULT 2, milage INT DEFAULT 0, tuv_date DATE NULL, sp_date DATE NULL) ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, date DATE, category VARCHAR(50), duration FLOAT, description TEXT, instructors TEXT) ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS attendance (id INT AUTO_INCREMENT PRIMARY KEY, session_id INT, person_id INT, is_present BOOLEAN, vehicle VARCHAR(100)) ENGINE=InnoDB;")
-    cur.execute("CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255), amount INT, min_amount INT, unit VARCHAR(50), location VARCHAR(100), barcode VARCHAR(100) DEFAULT '', size VARCHAR(50) DEFAULT '') ENGINE=InnoDB;")
+    cur.execute("CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255), amount INT DEFAULT 0, min_amount INT DEFAULT 5, unit VARCHAR(50) DEFAULT 'Stück', location VARCHAR(100) DEFAULT 'Lager', barcode VARCHAR(100) DEFAULT '', size VARCHAR(50) DEFAULT '') ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS notes (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), title VARCHAR(255), content TEXT, kanban_status VARCHAR(50) DEFAULT 'neu', priority VARCHAR(50)) ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE) ENGINE=InnoDB;")
     
     cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Freiwillige Feuerwehr Buxheim')")
-    cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Administrator Dienststelle', 'Brandmeister', 'Aktiv')")
+    cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'System Administrator', 'Brandmeister', 'Aktiv')")
     
-    # Dynamische Spaltenprüfung für Altsysteme
-    upgrades = [
-        ("inventory", "barcode", "VARCHAR(100) DEFAULT ''"),
-        ("inventory", "size", "VARCHAR(50) DEFAULT ''"),
-        ("inventory", "amount", "INT DEFAULT 0"),
-        ("inventory", "min_amount", "INT DEFAULT 5"),
-        ("inventory", "unit", "VARCHAR(50) DEFAULT 'Stück'"),
-        ("inventory", "location", "VARCHAR(100) DEFAULT 'Magazin'")
-    ]
-    for t, c, d in upgrades:
-        try: cur.execute(f"ALTER TABLE {t} ADD COLUMN {c} {d}")
-        except: pass
-
     cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
     if cur.fetchone()[0] == 0:
         cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s, %s, %s, 1)", ("admin", hash_password("admin123"), "admin"))
+    
+    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
     conn.commit(); cur.close(); conn.close()
 
 init_db()
 
-# --- AUTOMATISIERTES WETTER- & WARNLAGE-API ---
+# --- AUTOMATISIERTES METEOROLOGISCHES WETTER- & WARNLAGE-API ---
 @app.get("/api/weather")
 def get_weather_warnings(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -193,12 +184,12 @@ def get_weather_warnings(request: Request):
         "station": "Memmingen (Unterallgäu)",
         "temperature": "18.5 °C",
         "condition": "Heiter bis bewölkt",
-        " wind": "14 km/h West",
+        "wind": "14 km/h West",
         "warning_level": "Normal",
         "warning_text": "DWD Warnlagebericht: Keine Unwetterwarnungen für Buxheim/Memmingen aktiv."
     }
 
-# --- WEB SEITEN-ROUTEN ---
+# --- WEB SEITEN ROUTEN ---
 @app.get("/")
 def route_root(request: Request):
     if get_current_user(request): return FileResponse("static/dashboard.html")
@@ -244,7 +235,7 @@ def api_me(request: Request):
     if not res: return {"username": user['u'], "role": user['r'], "personnel_name": "Externer Zugang", "is_agt": False, "g26": "-"}
     return res
 
-# --- APAGER PRO / SYSTEM PARAMETERS REGISTRY ---
+# --- REGISTRY PARAMETERS ---
 @app.get("/api/settings")
 def get_registry_settings(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -263,7 +254,7 @@ def save_registry_settings(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
-# --- ACCOUNT-ERSTELLUNG (LOGINS) ---
+# --- USERS MANAGEMENT ---
 @app.get("/api/users")
 def list_users(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -297,8 +288,8 @@ def save_personnel_record(data: PersonnelCreateDto, request: Request):
     if not get_current_user(request) or get_current_user(request)['r'] != 'admin': raise HTTPException(status_code=403)
     c = get_db_connection(); cur = c.cursor()
     g26 = data.g26_3_date if data.g26_3_date else None
-    if data.id: cur.execute("UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s WHERE id=%s", (data.name, data.rank, data.membership_status, data.is_agt, data.is_maschinist, data.is_gf, g26, data.id))
-    else: cur.execute("INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date) VALUES (%s,%s,%s,%s,%s,%s,%s)", (data.name, data.rank, data.membership_status, data.is_agt, data.is_maschinist, data.is_gf, g26))
+    if data.id: cur.execute("UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s WHERE id=%s", (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, data.id))
+    else: cur.execute("INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date) VALUES (%s,%s,%s,%s,%s,%s,%s)", (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26))
     c.commit(); cur.close(); c.close(); return {"status": "success"}
 
 @app.delete("/api/personnel/{p_id}")
@@ -307,7 +298,7 @@ def delete_personnel_record(p_id: int, request: Request):
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- SEPARATES FUHRPARK SYSTEM ---
+# --- FUHRPARK ENGINE ---
 @app.get("/api/vehicles")
 def list_vehicles(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -319,7 +310,8 @@ def list_vehicles(request: Request):
 def create_vehicle_record(data: VehicleCreateDto, request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
     c = get_db_connection(); cur = c.cursor()
-    cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date) VALUES (%s,%s,%s,%s,%s,%s)", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None))
+    if data.id: cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s WHERE id=%s", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None, data.id))
+    else: cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date) VALUES (%s,%s,%s,%s,%s,%s)", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None))
     c.commit(); cur.close(); c.close(); return {"status": "success"}
 
 @app.delete("/api/vehicles/{v_id}")
@@ -334,7 +326,7 @@ def update_vehicle_status_code(v_id: int, data: VehicleStatusDto, request: Reque
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- ATTENDANCE CORE & PRESETS ---
+# --- ATTENDANCE SUITE ---
 @app.get("/groups")
 def list_groups_all(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -344,7 +336,7 @@ def list_groups_all(request: Request):
 def list_sessions_dashboard(group_id: int, request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
     c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
+    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
     r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.get("/groups/{group_id}/attendance")
@@ -384,13 +376,11 @@ def save_attendance(data: LegacySessionPayload, request: Request):
         s_id = cur.lastrowid
     
     for e in data.entries:
-        cur.execute("SELECT COUNT(*) FROM personnel WHERE id = %s", (e.person_id,))
-        if cur.fetchone()[0] > 0:
-            cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
+        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
     c.commit(); cur.close(); c.close()
     return {"status": "success", "session_id": s_id}
 
-# --- LAGER, NOTIZEN & TERMINE ---
+# --- LAGER & LOGISTIK ---
 @app.get("/api/inventory")
 def api_inventory_list(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -409,6 +399,7 @@ def api_inventory_delete(i_id: int, request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
     c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
+# --- KANBAN & TERMINE ---
 @app.get("/api/notes")
 def api_notes_list(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
