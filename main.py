@@ -8,27 +8,29 @@ import secrets
 import hmac
 import base64
 import json
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 
+# --- SYSTEM-KONFIGURATION ---
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112")
 
 app = FastAPI(title="Digitales Dienstbuch")
 
-if not os.path.exists("static"): os.makedirs("static")
+if not os.path.exists("static"):
+    os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- KUGELSICHERE PARSER ---
+# --- HILFSFUNKTIONEN ZUR FEHLERPRÄVENTION ---
 def parse_val(v):
     if v == "" or v == "null" or v is None: return None
     if isinstance(v, str): return v.strip()
     return v
 
 def to_int(v):
-    if v in [True, 'true', 'True', 1, '1']: return 1
+    if str(v).lower() in ['true', '1', 'yes']: return 1
     return 0
 
 # --- DATENBANK VERBINDUNG ---
@@ -66,20 +68,11 @@ def init_db():
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-        for k, v in [('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), ('groupalarm_token', ''), ('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
+        for k, v in [('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
             
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL, failed_logins INT DEFAULT 0, lockout_until DATETIME NULL) ENGINE=InnoDB;")
-        
-        # Alle Spalten explizit anlegen, um Migrationen zu entlasten
-        cur.execute("""CREATE TABLE IF NOT EXISTS personnel (
-            id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), 
-            is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, 
-            birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', 
-            address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, 
-            drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL
-        ) ENGINE=InnoDB;""")
-        
+        cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), radio_name VARCHAR(255), status INT DEFAULT 2, milage INT DEFAULT 0, tuv_date DATE NULL, sp_date DATE NULL, next_oil_change_km INT DEFAULT 10000) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS vehicle_log (id INT AUTO_INCREMENT PRIMARY KEY, vehicle_id INT, date DATE, driver_name VARCHAR(255), purpose VARCHAR(255), km_start INT, km_end INT, fuel_liters FLOAT DEFAULT 0.0) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, date DATE, category VARCHAR(50), duration FLOAT, description TEXT, instructors TEXT) ENGINE=InnoDB;")
@@ -94,8 +87,23 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
+        
+        # Sicherstellen, dass alte Datenbanken zwingend migriert werden
+        migrations = [
+            ("users", "personnel_id", "INT NULL"), ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
+            ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
+            ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
+            ("personnel", "address", "TEXT NULL"), ("personnel", "ice_contact", "VARCHAR(255) DEFAULT ''"),
+            ("personnel", "drive_b", "BOOLEAN DEFAULT 0"), ("personnel", "drive_be", "BOOLEAN DEFAULT 0"),
+            ("personnel", "drive_c", "BOOLEAN DEFAULT 0"), ("personnel", "drive_ce", "BOOLEAN DEFAULT 0"),
+            ("personnel", "profile_picture", "LONGTEXT NULL"), ("vehicles", "next_oil_change_km", "INT DEFAULT 10000"),
+            ("vehicle_log", "fuel_liters", "FLOAT DEFAULT 0.0"), ("inventory", "qr_code_id", "VARCHAR(100) DEFAULT ''"),
+            ("inventory", "last_check", "DATE NULL"), ("inventory", "next_check", "DATE NULL")
+        ]
+        for table, col, schema in migrations:
+            try: cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {schema};")
+            except: pass
 
-        # Admin initialisieren falls fehlt
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
@@ -125,7 +133,7 @@ def route_editor_page(r: Request):
     if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- API ROUTES MIT DIAGNOSE-SYSTEM ---
+# --- AUTH API ---
 @app.post("/api/login")
 async def api_login(r: Request, res: Response):
     d = await r.json()
@@ -183,7 +191,7 @@ def get_settings(r: Request):
 @app.post("/api/settings")
 async def save_settings(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -206,13 +214,13 @@ def list_users(r: Request):
 @app.post("/api/users")
 async def save_user(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
         u_id = d.get('id')
         p_id = parse_val(d.get('personnel_id'))
-        if p_id == 0: p_id = None
+        if str(p_id) == "0": p_id = None
         pw = d.get('password')
         role = d.get('role', 'user')
         uname = d.get('username', '').strip()
@@ -231,7 +239,7 @@ async def save_user(r: Request):
 @app.delete("/api/users/{u_id}")
 def del_user(u_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM users WHERE id = %s", (u_id,))
@@ -253,7 +261,7 @@ def list_pers(r: Request):
 @app.post("/api/personnel")
 async def save_pers(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -279,7 +287,7 @@ async def save_pers(r: Request):
 @app.delete("/api/personnel/{p_id}")
 def del_pers(p_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,))
@@ -300,7 +308,7 @@ def list_vehicles(r: Request):
 @app.post("/api/vehicles")
 async def save_vehicle(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -316,7 +324,7 @@ async def save_vehicle(r: Request):
 @app.delete("/api/vehicles/{v_id}")
 def del_vehicle(v_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,))
@@ -327,7 +335,7 @@ def del_vehicle(v_id: int, r: Request):
 @app.put("/api/vehicles/{v_id}/status")
 async def vehicle_status(v_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -348,6 +356,7 @@ def list_logs():
 @app.post("/api/vehicles/logs")
 async def save_log(r: Request):
     try:
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -363,8 +372,9 @@ async def save_log(r: Request):
     except Exception as e: return Response(status_code=500, content=f"DB Error: {str(e)}")
 
 @app.delete("/api/vehicles/logs/{log_id}")
-def del_log(log_id: int):
+def del_log(log_id: int, r: Request):
     try:
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,))
@@ -395,7 +405,7 @@ def list_inv(r: Request):
 @app.post("/api/inventory")
 async def save_inv(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -414,7 +424,7 @@ async def save_inv(r: Request):
 @app.delete("/api/inventory/{i_id}")
 def del_inv(i_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,))
@@ -435,14 +445,14 @@ def list_tickets(r: Request):
 @app.post("/api/tickets")
 async def create_ticket(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
         v_id = parse_val(d.get('vehicle_id'))
-        if v_id == 0: v_id = None
+        if str(v_id) == "0": v_id = None
         i_id = parse_val(d.get('inventory_id'))
-        if i_id == 0: i_id = None
+        if str(i_id) == "0": i_id = None
         
         cur.execute("INSERT INTO tickets (title, content, vehicle_id, inventory_id, priority, status) VALUES (%s,%s,%s,%s,%s,%s)", (d.get('title'), d.get('content'), v_id, i_id, d.get('priority','normal'), d.get('status','neu')))
         c.commit(); cur.close(); c.close()
@@ -452,7 +462,7 @@ async def create_ticket(r: Request):
 @app.put("/api/tickets/{t_id}/status")
 async def update_ticket_status(t_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -461,7 +471,29 @@ async def update_ticket_status(t_id: int, r: Request):
         return {"status": "success"}
     except Exception as e: return Response(status_code=500, content=f"DB Error: {str(e)}")
 
-# --- SYSTEM INTEGRATIONEN (INBOUND WEBHOOK & AUTO-REPORT) ---
+# --- SYSTEM INTEGRATIONEN: DER AUTO-BERICHT WEBHOOK ---
+@app.post("/api/webhook/alarm")
+async def inbound_webhook(req: Request):
+    """Dies fängt die Alarme von Leitstelle/aPager/Divera ab und legt automatisch einen Bericht an!"""
+    try: payload = await req.json()
+    except: payload = {}
+    
+    keyword = payload.get("title") or payload.get("keyword") or payload.get("alarmName") or payload.get("title1") or "Einsatz"
+    address = payload.get("address") or payload.get("location") or payload.get("street") or "Ort unbekannt"
+    text = payload.get("text") or payload.get("message") or payload.get("description") or payload.get("content") or "Keine Einsatzdetails"
+
+    c = get_db_connection()
+    cur = c.cursor()
+    cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (address, keyword, text))
+    
+    # AUTOMATISCHER BERICHT
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    desc = f"Einsatz: {keyword} - {address}"
+    cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (1, %s, 'Einsatz', 1.0, %s, 'Leitstelle')", (date_str, desc))
+    
+    c.commit(); cur.close(); c.close()
+    return {"status": "success", "message": "Einsatzbericht wurde automatisch angelegt!"}
+
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -471,24 +503,6 @@ def get_active_alarm(r: Request):
     res = cur.fetchone()
     cur.close(); c.close()
     return res if res else {"status": "clear"}
-
-@app.post("/api/webhook/alarm")
-async def inbound_webhook(req: Request):
-    try: payload = await req.json()
-    except: payload = {}
-    keyword = payload.get("title") or payload.get("keyword") or payload.get("alarmName") or payload.get("title1") or "Einsatz"
-    address = payload.get("address") or payload.get("location") or payload.get("street") or "Ort unbekannt"
-    text = payload.get("text") or payload.get("message") or payload.get("description") or payload.get("content") or "Keine Einsatzdetails"
-
-    c = get_db_connection()
-    cur = c.cursor()
-    cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (address, keyword, text))
-    
-    date_str = datetime.now().strftime('%Y-%m-%d')
-    desc = f"Einsatz: {keyword} - {address}"
-    cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (1, %s, 'Einsatz', 1.0, %s, 'Leitstelle')", (date_str, desc))
-    c.commit(); cur.close(); c.close()
-    return {"status": "success"}
 
 @app.get("/api/gahrgut/ericard/{un_number}")
 def get_eri_card(un_number: str, r: Request):
@@ -522,7 +536,7 @@ def list_hydrants(r: Request):
 @app.post("/api/hydranten")
 async def add_hydrant(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -545,7 +559,7 @@ def list_events(r: Request):
 @app.post("/api/events")
 async def save_event(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -560,7 +574,7 @@ async def save_event(r: Request):
 @app.delete("/api/events/{e_id}")
 def del_event(e_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM events WHERE id = %s", (e_id,))
@@ -581,7 +595,7 @@ def list_archive(r: Request):
 @app.post("/api/archive/upload")
 async def upload_archive_doc(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
@@ -593,7 +607,7 @@ async def upload_archive_doc(r: Request):
 @app.delete("/api/archive/{doc_id}")
 def delete_archive_doc(doc_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401)
+        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM archive_docs WHERE id = %s", (doc_id,))
