@@ -25,6 +25,13 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# --- HILFSFUNKTIONEN ZUR FEHLERPRÄVENTION ---
+def parse_date(date_str):
+    """Verhindert, dass leere Strings MySQL zum Absturz bringen."""
+    if date_str and len(date_str.strip()) > 0:
+        return date_str.strip()
+    return None
+
 # --- PYDANTIC SYSTEM MODELLE ---
 class LoginRequest(BaseModel):
     username: str
@@ -47,8 +54,6 @@ class InventoryItemDto(BaseModel):
     min_amount: int = 5
     unit: str = "Stück"
     location: str = "Lager"
-    barcode: Optional[str] = ""
-    size: Optional[str] = ""
     qr_code_id: Optional[str] = ""
     last_check: Optional[str] = None
     next_check: Optional[str] = None
@@ -189,7 +194,7 @@ def init_db():
             ('alamos_fe2_url', ''), 
             ('groupalarm_token', ''), 
             ('int_g26', '36'), 
-            ('station_name', 'Freiwillige Feuerwehr Buxheim'), 
+            ('station_name', 'Freiwillige Feuerwehr'), 
             ('station_lat', '47.9942'), 
             ('station_lon', '10.1344')
         ]:
@@ -201,7 +206,7 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS vehicle_log (id INT AUTO_INCREMENT PRIMARY KEY, vehicle_id INT, date DATE, driver_name VARCHAR(255), purpose VARCHAR(255), km_start INT, km_end INT) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, date DATE, category VARCHAR(50), duration FLOAT, description TEXT, instructors TEXT) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS attendance (id INT AUTO_INCREMENT PRIMARY KEY, session_id INT, person_id INT, is_present BOOLEAN, vehicle VARCHAR(100)) ENGINE=InnoDB;")
-        cur.execute("CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255), amount INT DEFAULT 0, min_amount INT DEFAULT 5, unit VARCHAR(50) DEFAULT 'Stück', location VARCHAR(100) DEFAULT 'Lager', barcode VARCHAR(100) DEFAULT '', size VARCHAR(50) DEFAULT '') ENGINE=InnoDB;")
+        cur.execute("CREATE TABLE IF NOT EXISTS inventory (id INT AUTO_INCREMENT PRIMARY KEY, item_name VARCHAR(255), amount INT DEFAULT 0, min_amount INT DEFAULT 5, unit VARCHAR(50) DEFAULT 'Stück', location VARCHAR(100) DEFAULT 'Lager', qr_code_id VARCHAR(100) DEFAULT '') ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS tickets (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), content TEXT, vehicle_id INT NULL, inventory_id INT NULL, priority VARCHAR(50) DEFAULT 'normal', status VARCHAR(50) DEFAULT 'neu', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS active_alarm (id INT AUTO_INCREMENT PRIMARY KEY, address VARCHAR(255), keyword VARCHAR(100), alert_text TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS hydranten (id INT AUTO_INCREMENT PRIMARY KEY, lat DOUBLE, lon DOUBLE, hydrant_type VARCHAR(100), diameter VARCHAR(50), last_check DATE NULL) ENGINE=InnoDB;")
@@ -211,9 +216,7 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
-        cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Dienststellen Administrator', 'Brandmeister', 'Aktiv')")
-
-        # --- SELF-HEALING MIGRATION MANAGER ---
+        
         migrations = [
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
@@ -232,14 +235,14 @@ def init_db():
 
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s, %s, %s, 1)", ("admin", hash_password("admin123"), "admin"))
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
             
         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
         c.commit()
         cur.close()
         c.close()
     except Exception as e:
-        print(f"Migration abgefangen: {str(e)}")
+        print(f"Migration error: {str(e)}")
 
 init_db()
 
@@ -409,9 +412,11 @@ def save_pers(d: PersonnelCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    g26 = d.g26_3_date if d.g26_3_date and d.g26_3_date.strip() != "" else None
-    bd = d.birth_date if d.birth_date and d.birth_date.strip() != "" else None
-    ed = d.entry_date if d.entry_date and d.entry_date.strip() != "" else None
+    
+    # SAUBERES PARSEN UM DATENBANK-CRASHES ZU VERHINDERN
+    g26 = parse_date(d.g26_3_date)
+    bd = parse_date(d.birth_date)
+    ed = parse_date(d.entry_date)
     
     if d.id:
         cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""", 
@@ -451,8 +456,8 @@ def save_vehicle(d: VehicleCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    td = d.tuv_date if d.tuv_date and d.tuv_date.strip() != "" else None
-    sd = d.sp_date if d.sp_date and d.sp_date.strip() != "" else None
+    td = parse_date(d.tuv_date)
+    sd = parse_date(d.sp_date)
     if d.id:
         cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km, d.id))
     else:
@@ -498,10 +503,11 @@ def list_logs():
 def save_log(d: VehicleLogDto):
     c = get_db_connection()
     cur = c.cursor()
+    ld = parse_date(d.date)
     if d.id:
-        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", (d.vehicle_id, d.date, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters, d.id))
+        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", (d.vehicle_id, ld, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters, d.id))
     else:
-        cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end, fuel_liters) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.vehicle_id, d.date, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters))
+        cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end, fuel_liters) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.vehicle_id, ld, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters))
         cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (d.km_end, d.vehicle_id))
     c.commit()
     cur.close()
@@ -585,7 +591,7 @@ def list_inv(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, item_name, amount, min_amount, unit, location, barcode, size, qr_code_id, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check, DATE_FORMAT(next_check, '%Y-%m-%d') as next_check FROM inventory ORDER BY item_name ASC")
+    cur.execute("SELECT id, item_name, amount, min_amount, unit, location, qr_code_id, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check, DATE_FORMAT(next_check, '%Y-%m-%d') as next_check FROM inventory ORDER BY item_name ASC")
     res = cur.fetchall()
     cur.close()
     c.close()
@@ -596,15 +602,14 @@ def save_inv(d: InventoryItemDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = d.last_check if d.last_check and d.last_check.strip() != "" else None
-    nc = d.next_check if d.next_check and d.next_check.strip() != "" else None
-    qr_id = d.qr_code_id
-    if not qr_id or qr_id.strip() == "":
-        qr_id = f"FEUERWEHR-QR-{secrets.token_hex(4).upper()}"
+    lc = parse_date(d.last_check)
+    nc = parse_date(d.next_check)
+    qr_id = d.qr_code_id if d.qr_code_id and len(d.qr_code_id.strip()) > 0 else f"FEUERWEHR-QR-{secrets.token_hex(4).upper()}"
+    
     if d.id:
-        cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, barcode=%s, size=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.item_name, d.amount, d.min_amount, d.unit, d.location, d.barcode, d.size, qr_id, lc, nc, d.id))
+        cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc, d.id))
     else:
-        cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location, barcode, size, qr_code_id, last_check, next_check) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (d.item_name, d.amount, d.min_amount, d.unit, d.location, d.barcode, d.size, qr_id, lc, nc))
+        cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location, qr_code_id, last_check, next_check) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc))
     c.commit()
     cur.close()
     c.close()
@@ -690,18 +695,13 @@ def get_eri_card(un_number: str, r: Request):
     if res: return res
     try:
         un_int = int(un_clean)
-        if 1 <= un_int < 1000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Thermische Verbrennungen sofort kühlen."}
-        elif 1000 <= un_int < 2000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Flüssigkeiten): Schwere Gaswolken kriechen am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten! Funken vermeiden.", "first_aid": "Rettung unter Atemschutz. Frischluft."}
-        elif 2000 <= un_int < 3000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5 (Reaktive Stoffe): Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz. Pulver prüfen.", "first_aid": "Trocken abwischen, danach spülen."}
-        elif 3000 <= un_int <= 3600:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxisch / Ätzend): Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit schwerem CSA. Dämpfe niederschlagen. Löschwasser auffangen.", "first_aid": "Sofort Dekontamination einleiten."}
+        if 1 <= un_int < 1000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 1: Akute Detonationsgefahr.", "safety_measures": "Radius 500m einrichten!", "first_aid": "Verbrennungen kühlen."}
+        elif 1000 <= un_int < 2000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3: Gaswolken am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten!", "first_aid": "Rettung unter Atemschutz."}
+        elif 2000 <= un_int < 3000: return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5: Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz.", "first_aid": "Trocken abwischen."}
+        elif 3000 <= un_int <= 3600: return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8: Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit CSA.", "first_aid": "Sofort Dekontamination."}
     except: pass
     return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "GAMS-Regel einhalten.", "first_aid": "Eigenschutz beachten."}
 
-# --- SERVERSIDE PARSTHESIS REPAIRED ---
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -718,7 +718,7 @@ def add_hydrant(d: HydrantDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    lc = d.last_check if d.last_check and d.last_check.strip() != "" else None
+    lc = parse_date(d.last_check)
     cur.execute("INSERT INTO hydranten (lat, lon, hydrant_type, diameter, last_check) VALUES (%s,%s,%s,%s,%s)", (d.lat, d.lon, d.hydrant_type, d.diameter, lc))
     c.commit()
     cur.close()
@@ -741,8 +741,9 @@ def save_event(d: EventCreateDto, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor()
-    if d.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (d.date, d.title, d.responsible, d.id))
-    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (d.date, d.title, d.responsible))
+    ed = parse_date(d.date)
+    if d.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (ed, d.title, d.responsible, d.id))
+    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (ed, d.title, d.responsible))
     c.commit()
     cur.close()
     c.close()
@@ -759,7 +760,6 @@ def del_event(e_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- SYSTEM-ARCHIV PLATTFORM ---
 @app.get("/api/archive/list")
 def list_archive(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
