@@ -526,7 +526,7 @@ def save_inv(d: InventoryItemDto, r: Request):
     cur = c.cursor()
     lc = parse_val(d.last_check)
     nc = parse_val(d.next_check)
-    qr_id = d.qr_code_id if d.qr_code_id and len(d.qr_code_id.strip()) > 0 else f"FEUERWEHR-QR-{secrets.token_hex(4).upper()}"
+    qr_id = d.qr_code_id if d.qr_code_id and len(d.qr_code_id.strip()) > 0 else f"FW-QR-{secrets.token_hex(4).upper()}"
     if d.id:
         cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc, d.id))
     else:
@@ -573,7 +573,6 @@ def update_ticket_status(t_id: int, d: KanbanUpdateRequest, r: Request):
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
-# --- SYSTEM INTEGRATIONEN (WEBHOOKS SCHARF) ---
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -598,12 +597,10 @@ def trigger_alarm_webhook(d: AlarmPayloadDto):
     payload = json.dumps({"title": d.keyword, "text": d.alert_text, "address": d.address}).encode('utf-8')
     headers = {'Content-Type': 'application/json'}
     
-    # 1. Divera 24/7 Schnittstelle
     if st.get('divera_webhook'):
         try: urllib.request.urlopen(urllib.request.Request(st['divera_webhook'], method="POST", data=payload, headers=headers), timeout=2)
         except: pass
         
-    # 2. Alamos FE2 Schnittstelle
     if st.get('alamos_fe2_url'):
         try: urllib.request.urlopen(urllib.request.Request(st['alamos_fe2_url'], method="POST", data=payload, headers=headers), timeout=2)
         except: pass
