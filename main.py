@@ -20,7 +20,7 @@ from routers import notes_manager
 from routers import personnel_mgr
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.40"
+CURRENT_VERSION = "2.50"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -97,12 +97,35 @@ def get_current_user(request: Request) -> Optional[dict]:
     except Exception:
         return None
 
+# --- AUTOMATISCHE GRUPPEN-SYNCHRONISATION (FIX FÜR DIE FEHLENDEN KAMERADEN) ---
+def sync_personnel_to_editor_groups():
+    """ Gleicht fehlende Kameraden zwischen Personalakte und Editor-Listen im Hintergrund ab """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Findet jeden Kameraden aus personnel, der in einer Gruppe der persons-Tabelle fehlt, und fügt ihn ein
+        sync_query = """
+            INSERT INTO persons (group_id, name)
+            SELECT g.id, p.name 
+            FROM groups_table g
+            CROSS JOIN personnel p
+            WHERE NOT EXISTS (
+                SELECT 1 FROM persons src 
+                WHERE src.group_id = g.id AND src.name = p.name
+            );
+        """
+        cur.execute(sync_query)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Hintergrund-Synchronisationsfehler: {e}")
+
 def init_db_extensions():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # FIX: Atemschutz- & Untersuchungsspalten in BEIDEN Tabellen absichern um Queries vor Abstürzen zu schützen
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
@@ -208,6 +231,9 @@ def init_db_extensions():
         conn.commit()
         cur.close()
         conn.close()
+        
+        # Startet den Abgleich direkt beim Hochfahren des Containers
+        sync_personnel_to_editor_groups()
     except Exception as e:
         print(f"Fehler bei DB-Erweiterung: {e}")
 
@@ -329,12 +355,14 @@ def get_notes_page(request: Request):
 def get_personnel_page(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": return FileResponse("static/dashboard.html")
+    # Führt die Synchronisation aus, sobald der Admin den Personalreiter öffnet
+    sync_personnel_to_editor_groups()
     return FileResponse("static/personnel.html") 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
-# --- AUTHENTIFIZIERUNG UND LOGIN ---
+# --- AUTHENTIFIZIERUNG UND LOGIN SPERREN ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     username_clean = data.username.strip()
@@ -744,18 +772,15 @@ async def save_leader_sig(session_id: int, data: dict):
     cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
     c.commit(); c.close(); return {"status": "success"}
 
-# --- FIX: EINTRÄGE / DIENSTE PERMANENT LÖSCHEN ---
+# --- EINTRÄGE / DIENSTE PERMANENT LÖSCHEN ---
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: int, request: Request):
     user = get_current_user(request)
     if not user or user["role"] == "mannschaft": 
         raise HTTPException(status_code=403, detail="Schreibgeschützt")
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "EINTRAG_LOESCHEN", f"Diensteintrag ID {session_id} wurde unwiderruflich gelöscht.")
     return {"status": "success"}
 
