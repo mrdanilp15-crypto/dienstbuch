@@ -11,8 +11,6 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import List, Optional
 from datetime import datetime
 
 # --- SYSTEM-KONFIGURATION ---
@@ -25,128 +23,11 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- HILFSFUNKTIONEN ZUR FEHLERPRÄVENTION ---
+# --- HILFSFUNKTIONEN ---
 def parse_val(v):
-    if v == "" or v == "null": return None
+    """Macht Schluss mit 422-Abstürzen: Filtert leere Felder sauber zu NULL"""
+    if v == "" or v == "null" or v is None: return None
     return v
-
-# --- PYDANTIC SYSTEM MODELLE ---
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-class UserCreateDto(BaseModel):
-    id: Optional[int] = None
-    username: str
-    password: Optional[str] = None
-    role: str = "user"
-    personnel_id: Optional[int] = None
-
-class KanbanUpdateRequest(BaseModel):
-    status: str
-
-class InventoryItemDto(BaseModel):
-    id: Optional[int] = None
-    item_name: str
-    amount: int = 0
-    min_amount: int = 5
-    unit: Optional[str] = "Stück"
-    location: Optional[str] = "Lager"
-    qr_code_id: Optional[str] = None
-    last_check: Optional[str] = None
-    next_check: Optional[str] = None
-
-class VehicleStatusDto(BaseModel):
-    status: int
-
-class VehicleCreateDto(BaseModel):
-    id: Optional[int] = None
-    name: str
-    radio_name: Optional[str] = None
-    status: int = 2
-    milage: int = 0
-    tuv_date: Optional[str] = None
-    sp_date: Optional[str] = None
-    next_oil_change_km: int = 10000
-
-class VehicleLogDto(BaseModel):
-    id: Optional[int] = None
-    vehicle_id: int
-    date: str
-    driver_name: str
-    purpose: str
-    km_start: int
-    km_end: int
-    fuel_liters: Optional[float] = 0.0
-
-class EventCreateDto(BaseModel):
-    id: Optional[int] = None
-    date: str
-    title: str
-    responsible: str = "Leitung"
-
-class EntryDto(BaseModel):
-    person_id: int
-    is_present: bool = False
-    vehicle: Optional[str] = None
-
-class LegacySessionPayload(BaseModel):
-    session_id: Optional[int] = None
-    date: str
-    group_id: int
-    category: str = "Übung"
-    duration: float = 2.0
-    description: str
-    instructors: Optional[str] = None
-    entries: List[EntryDto]
-
-class PersonnelCreateDto(BaseModel):
-    id: Optional[int] = None
-    name: str
-    rank: str = "Feuerwehranwärter"
-    membership_status: str = "Aktiv"
-    is_agt: bool = False
-    is_maschinist: bool = False
-    is_gf: bool = False
-    g26_3_date: Optional[str] = None
-    birth_date: Optional[str] = None
-    entry_date: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    address: Optional[str] = None
-    ice_contact: Optional[str] = None
-    drive_b: bool = False
-    drive_be: bool = False
-    drive_c: bool = False
-    drive_ce: bool = False
-    profile_picture: Optional[str] = None
-
-class TicketCreateDto(BaseModel):
-    id: Optional[int] = None
-    title: str
-    content: Optional[str] = None
-    vehicle_id: Optional[int] = None
-    inventory_id: Optional[int] = None
-    priority: str = "normal"
-    status: str = "neu"
-
-class AlarmPayloadDto(BaseModel):
-    address: str
-    keyword: str
-    alert_text: str
-
-class HydrantDto(BaseModel):
-    id: Optional[int] = None
-    lat: float
-    lon: float
-    hydrant_type: str = "Unterflurhydrant"
-    diameter: str = "H100"
-    last_check: Optional[str] = None
-
-class ArchiveUploadDto(BaseModel):
-    title: str
-    keywords: Optional[str] = None
-    file_blob: str
 
 # --- DATABASE ENGINE ---
 def get_db_connection():
@@ -183,10 +64,7 @@ def init_db():
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-        for k, v in [
-            ('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), ('groupalarm_token', ''),
-            ('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')
-        ]:
+        for k, v in [('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
             
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL, failed_logins INT DEFAULT 0, lockout_until DATETIME NULL) ENGINE=InnoDB;")
@@ -207,17 +85,14 @@ def init_db():
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         
         migrations = [
-            ("users", "personnel_id", "INT NULL"),
-            ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
+            ("users", "personnel_id", "INT NULL"), ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
             ("personnel", "address", "TEXT NULL"), ("personnel", "ice_contact", "VARCHAR(255) DEFAULT ''"),
             ("personnel", "drive_b", "BOOLEAN DEFAULT 0"), ("personnel", "drive_be", "BOOLEAN DEFAULT 0"),
             ("personnel", "drive_c", "BOOLEAN DEFAULT 0"), ("personnel", "drive_ce", "BOOLEAN DEFAULT 0"),
-            ("personnel", "profile_picture", "LONGTEXT NULL"),
-            ("vehicles", "next_oil_change_km", "INT DEFAULT 10000"),
-            ("vehicle_log", "fuel_liters", "FLOAT DEFAULT 0.0"),
-            ("inventory", "qr_code_id", "VARCHAR(100) DEFAULT ''"),
+            ("personnel", "profile_picture", "LONGTEXT NULL"), ("vehicles", "next_oil_change_km", "INT DEFAULT 10000"),
+            ("vehicle_log", "fuel_liters", "FLOAT DEFAULT 0.0"), ("inventory", "qr_code_id", "VARCHAR(100) DEFAULT ''"),
             ("inventory", "last_check", "DATE NULL"), ("inventory", "next_check", "DATE NULL")
         ]
         for table, col, schema in migrations:
@@ -234,7 +109,7 @@ def init_db():
 
 init_db()
 
-# --- ROUTES ---
+# --- WEB ROUTES ---
 @app.get("/")
 def route_root(r: Request):
     if get_current_user(r): return FileResponse("static/dashboard.html")
@@ -255,12 +130,13 @@ def route_editor_page(r: Request):
 
 # --- AUTH API ---
 @app.post("/api/login")
-def api_login(d: LoginRequest, res: Response):
+async def api_login(r: Request, res: Response):
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT * FROM users WHERE username = %s", (d.username.strip(),))
+    cur.execute("SELECT * FROM users WHERE username = %s", (d.get('username','').strip(),))
     u = cur.fetchone()
-    if not u or not verify_password(u['password_hash'], d.password):
+    if not u or not verify_password(u['password_hash'], d.get('password','')):
         cur.close(); c.close(); raise HTTPException(status_code=401)
     token = create_token(u['username'], u['role'])
     res.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
@@ -308,8 +184,9 @@ def get_settings(r: Request):
     return res
 
 @app.post("/api/settings")
-def save_settings(d: dict, r: Request):
+async def save_settings(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
     for k, v in d.items():
@@ -328,18 +205,24 @@ def list_users(r: Request):
     return res
 
 @app.post("/api/users")
-def save_user(d: UserCreateDto, r: Request):
+async def save_user(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    p_id = d.personnel_id if d.personnel_id and d.personnel_id > 0 else None
-    if d.id:
-        if d.password and len(d.password.strip()) > 0:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (d.role, p_id, hash_password(d.password), d.id))
+    u_id = d.get('id')
+    p_id = parse_val(d.get('personnel_id'))
+    pw = d.get('password')
+    role = d.get('role', 'user')
+    uname = d.get('username', '').strip()
+    
+    if u_id:
+        if pw and len(pw.strip()) > 0:
+            cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (role, p_id, hash_password(pw), u_id))
         else:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (d.role, p_id, d.id))
+            cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (role, p_id, u_id))
     else:
-        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (d.username.strip(), hash_password(d.password), d.role, p_id))
+        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (uname, hash_password(pw), role, p_id))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -364,20 +247,23 @@ def list_pers(r: Request):
     return res
 
 @app.post("/api/personnel")
-def save_pers(d: PersonnelCreateDto, r: Request):
+async def save_pers(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    g26 = parse_val(d.g26_3_date)
-    bd = parse_val(d.birth_date)
-    ed = parse_val(d.entry_date)
     
-    if d.id:
+    g26 = parse_val(d.get('g26_3_date'))
+    bd = parse_val(d.get('birth_date'))
+    ed = parse_val(d.get('entry_date'))
+    p_id = d.get('id')
+    
+    if p_id:
         cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""", 
-                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture, d.id))
+                    (d.get('name'), d.get('rank'), d.get('membership_status'), int(d.get('is_agt',0)), int(d.get('is_maschinist',0)), int(d.get('is_gf',0)), g26, bd, ed, d.get('phone'), d.get('email'), d.get('address'), d.get('ice_contact'), int(d.get('drive_b',0)), int(d.get('drive_be',0)), int(d.get('drive_c',0)), int(d.get('drive_ce',0)), d.get('profile_picture'), p_id))
     else:
         cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", 
-                    (d.name, d.rank, d.membership_status, int(d.is_agt), int(d.is_maschinist), int(d.is_gf), g26, bd, ed, d.phone, d.email, d.address, d.ice_contact, int(d.drive_b), int(d.drive_be), int(d.drive_c), int(d.drive_ce), d.profile_picture))
+                    (d.get('name'), d.get('rank'), d.get('membership_status'), int(d.get('is_agt',0)), int(d.get('is_maschinist',0)), int(d.get('is_gf',0)), g26, bd, ed, d.get('phone'), d.get('email'), d.get('address'), d.get('ice_contact'), int(d.get('drive_b',0)), int(d.get('drive_be',0)), int(d.get('drive_c',0)), int(d.get('drive_ce',0)), d.get('profile_picture')))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -401,16 +287,18 @@ def list_vehicles(r: Request):
     return res
 
 @app.post("/api/vehicles")
-def save_vehicle(d: VehicleCreateDto, r: Request):
+async def save_vehicle(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    td = parse_val(d.tuv_date)
-    sd = parse_val(d.sp_date)
-    if d.id:
-        cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km, d.id))
+    td = parse_val(d.get('tuv_date'))
+    sd = parse_val(d.get('sp_date'))
+    v_id = d.get('id')
+    if v_id:
+        cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s, next_oil_change_km=%s WHERE id=%s", (d.get('name'), d.get('radio_name'), d.get('status',2), d.get('milage',0), td, sd, d.get('next_oil_change_km',10000), v_id))
     else:
-        cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date, next_oil_change_km) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.name, d.radio_name, d.status, d.milage, td, sd, d.next_oil_change_km))
+        cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date, next_oil_change_km) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.get('name'), d.get('radio_name'), d.get('status',2), d.get('milage',0), td, sd, d.get('next_oil_change_km',10000)))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -424,11 +312,12 @@ def del_vehicle(v_id: int, r: Request):
     return {"status": "success"}
 
 @app.put("/api/vehicles/{v_id}/status")
-def vehicle_status(v_id: int, d: VehicleStatusDto, r: Request):
+async def vehicle_status(v_id: int, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (d.status, v_id))
+    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (d.get('status',2), v_id))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -442,15 +331,17 @@ def list_logs():
     return res
 
 @app.post("/api/vehicles/logs")
-def save_log(d: VehicleLogDto):
+async def save_log(r: Request):
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    ld = parse_val(d.date)
-    if d.id:
-        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", (d.vehicle_id, ld, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters, d.id))
+    ld = parse_val(d.get('date'))
+    l_id = d.get('id')
+    if l_id:
+        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", (d.get('vehicle_id'), ld, d.get('driver_name'), d.get('purpose'), d.get('km_start',0), d.get('km_end',0), d.get('fuel_liters',0), l_id))
     else:
-        cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end, fuel_liters) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.vehicle_id, ld, d.driver_name, d.purpose, d.km_start, d.km_end, d.fuel_liters))
-        cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (d.km_end, d.vehicle_id))
+        cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end, fuel_liters) VALUES (%s,%s,%s,%s,%s,%s,%s)", (d.get('vehicle_id'), ld, d.get('driver_name'), d.get('purpose'), d.get('km_start',0), d.get('km_end',0), d.get('fuel_liters',0)))
+        cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (d.get('km_end',0), d.get('vehicle_id')))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -472,43 +363,6 @@ def list_sessions(r: Request):
     cur.close(); c.close()
     return res
 
-@app.get("/groups/{group_id}/attendance")
-def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
-    if not get_current_user(r): raise HTTPException(status_code=401)
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
-    sd = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
-    if session_id and session_id != 0:
-        cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
-        row = cur.fetchone()
-        if row: sd = row
-    cur.execute("SELECT p.id as personnel_id, p.name, p.rank, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC", (session_id,))
-    persons = cur.fetchall()
-    for p in persons: p['is_present'] = bool(p['is_present'])
-    cur.execute("SELECT DISTINCT description FROM sessions ORDER BY id DESC LIMIT 5")
-    pt = [row_t['description'] for row_t in cur.fetchall()]
-    cur.execute("SELECT DISTINCT instructors FROM sessions ORDER BY id DESC LIMIT 5")
-    pl = [row_l['instructors'] for row_l in cur.fetchall()]
-    cur.close(); c.close()
-    return {**sd, "persons": persons, "presets": {"topics": pt, "leaders": pl}}
-
-@app.post("/attendance")
-def save_attendance(d: LegacySessionPayload, r: Request):
-    if not get_current_user(r): raise HTTPException(status_code=401)
-    c = get_db_connection()
-    cur = c.cursor()
-    s_id = d.session_id
-    if s_id and s_id != 0:
-        cur.execute("UPDATE sessions SET date=%s, duration=%s, description=%s, instructors=%s, category=%s WHERE id=%s", (d.date, d.duration, d.description, d.instructors, d.category, s_id))
-        cur.execute("DELETE FROM attendance WHERE session_id = %s", (s_id,))
-    else:
-        cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (%s,%s,%s,%s,%s,%s)", (d.group_id, d.date, d.category, d.duration, d.description, d.instructors))
-        s_id = cur.lastrowid
-    for e in d.entries:
-        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
-    c.commit(); cur.close(); c.close()
-    return {"status": "success", "session_id": s_id}
-
 @app.get("/api/inventory")
 def list_inv(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -520,19 +374,24 @@ def list_inv(r: Request):
     return res
 
 @app.post("/api/inventory")
-def save_inv(d: InventoryItemDto, r: Request):
+async def save_inv(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    lc = parse_val(d.last_check)
-    nc = parse_val(d.next_check)
-    qr_id = d.qr_code_id if d.qr_code_id and len(d.qr_code_id.strip()) > 0 else f"FW-QR-{secrets.token_hex(4).upper()}"
-    if d.id:
-        cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc, d.id))
+    lc = parse_val(d.get('last_check'))
+    nc = parse_val(d.get('next_check'))
+    
+    qr_id = parse_val(d.get('qr_code_id'))
+    if not qr_id: qr_id = f"FW-QR-{secrets.token_hex(4).upper()}"
+    
+    i_id = d.get('id')
+    if i_id:
+        cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, qr_code_id=%s, last_check=%s, next_check=%s WHERE id=%s", (d.get('item_name'), d.get('amount',0), d.get('min_amount',0), d.get('unit'), d.get('location'), qr_id, lc, nc, i_id))
     else:
-        cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location, qr_code_id, last_check, next_check) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (d.item_name, d.amount, d.min_amount, d.unit, d.location, qr_id, lc, nc))
+        cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location, qr_code_id, last_check, next_check) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (d.get('item_name'), d.get('amount',0), d.get('min_amount',0), d.get('unit'), d.get('location'), qr_id, lc, nc))
     c.commit(); cur.close(); c.close()
-    return {"status": "success"}
+    return {"status": "success", "qr_code_id": qr_id}
 
 @app.delete("/api/inventory/{i_id}")
 def del_inv(i_id: int, r: Request):
@@ -554,25 +413,28 @@ def list_tickets(r: Request):
     return res
 
 @app.post("/api/tickets")
-def create_ticket(d: TicketCreateDto, r: Request):
+async def create_ticket(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    v_id = d.vehicle_id if d.vehicle_id and d.vehicle_id > 0 else None
-    i_id = d.inventory_id if d.inventory_id and d.inventory_id > 0 else None
-    cur.execute("INSERT INTO tickets (title, content, vehicle_id, inventory_id, priority, status) VALUES (%s,%s,%s,%s,%s,%s)", (d.title, d.content, v_id, i_id, d.priority, d.status))
+    v_id = parse_val(d.get('vehicle_id'))
+    i_id = parse_val(d.get('inventory_id'))
+    cur.execute("INSERT INTO tickets (title, content, vehicle_id, inventory_id, priority, status) VALUES (%s,%s,%s,%s,%s,%s)", (d.get('title'), d.get('content'), v_id, i_id, d.get('priority','normal'), d.get('status','neu')))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
 @app.put("/api/tickets/{t_id}/status")
-def update_ticket_status(t_id: int, d: KanbanUpdateRequest, r: Request):
+async def update_ticket_status(t_id: int, r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    cur.execute("UPDATE tickets SET status = %s WHERE id = %s", (d.status, t_id))
+    cur.execute("UPDATE tickets SET status = %s WHERE id = %s", (d.get('status'), t_id))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
+# --- SYSTEM INTEGRATIONEN (INBOUND WEBHOOK & AUTO-REPORT) ---
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -583,29 +445,33 @@ def get_active_alarm(r: Request):
     cur.close(); c.close()
     return res if res else {"status": "clear"}
 
-@app.post("/api/alarm/trigger")
-def trigger_alarm_webhook(d: AlarmPayloadDto):
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
-    cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (d.address, d.keyword, d.alert_text))
-    c.commit()
+@app.post("/api/webhook/alarm")
+async def inbound_webhook(req: Request):
+    """
+    Diese Schnittstelle empfängt Alarme von APAGER, DIVERA oder der Leitstelle!
+    Sie zeigt den Alarm sofort im Cockpit und legt AUTOMATISCH einen Einsatzbericht an.
+    """
+    try: payload = await req.json()
+    except: payload = {}
     
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    st = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
-    cur.close(); c.close()
-    
-    payload = json.dumps({"title": d.keyword, "text": d.alert_text, "address": d.address}).encode('utf-8')
-    headers = {'Content-Type': 'application/json'}
-    
-    if st.get('divera_webhook'):
-        try: urllib.request.urlopen(urllib.request.Request(st['divera_webhook'], method="POST", data=payload, headers=headers), timeout=2)
-        except: pass
-        
-    if st.get('alamos_fe2_url'):
-        try: urllib.request.urlopen(urllib.request.Request(st['alamos_fe2_url'], method="POST", data=payload, headers=headers), timeout=2)
-        except: pass
+    # 1. Heuristik: Finde die Alarmdaten egal aus welchem System
+    keyword = payload.get("title") or payload.get("keyword") or payload.get("alarmName") or payload.get("title1") or "Einsatz"
+    address = payload.get("address") or payload.get("location") or payload.get("street") or "Ort unbekannt"
+    text = payload.get("text") or payload.get("message") or payload.get("description") or payload.get("content") or "Keine Einsatzdetails"
 
-    return {"status": "alarm_broadcasted"}
+    c = get_db_connection()
+    cur = c.cursor()
+    
+    # 2. Alarm ins Cockpit jagen
+    cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (address, keyword, text))
+    
+    # 3. AUTOMATISCHER DIENSTBUCH-EINTRAG (EINSATZBERICHT)!
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    desc = f"Einsatz: {keyword} - {address}"
+    cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (1, %s, 'Einsatz', 1.0, %s, 'Leitstelle')", (date_str, desc))
+    
+    c.commit(); cur.close(); c.close()
+    return {"status": "success", "message": "Alarm received, report auto-drafted!"}
 
 @app.get("/api/gahrgut/ericard/{un_number}")
 def get_eri_card(un_number: str, r: Request):
@@ -637,12 +503,13 @@ def list_hydrants(r: Request):
     return res
 
 @app.post("/api/hydranten")
-def add_hydrant(d: HydrantDto, r: Request):
+async def add_hydrant(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    lc = parse_val(d.last_check)
-    cur.execute("INSERT INTO hydranten (lat, lon, hydrant_type, diameter, last_check) VALUES (%s,%s,%s,%s,%s)", (d.lat, d.lon, d.hydrant_type, d.diameter, lc))
+    lc = parse_val(d.get('last_check'))
+    cur.execute("INSERT INTO hydranten (lat, lon, hydrant_type, diameter, last_check) VALUES (%s,%s,%s,%s,%s)", (d.get('lat'), d.get('lon'), d.get('hydrant_type'), d.get('diameter'), lc))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -657,13 +524,15 @@ def list_events(r: Request):
     return res
 
 @app.post("/api/events")
-def save_event(d: EventCreateDto, r: Request):
+async def save_event(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    ed = parse_val(d.date)
-    if d.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (ed, d.title, d.responsible, d.id))
-    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (ed, d.title, d.responsible))
+    ed = parse_val(d.get('date'))
+    e_id = d.get('id')
+    if e_id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (ed, d.get('title'), d.get('responsible'), e_id))
+    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (ed, d.get('title'), d.get('responsible')))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
@@ -687,11 +556,12 @@ def list_archive(r: Request):
     return res
 
 @app.post("/api/archive/upload")
-def upload_archive_doc(d: ArchiveUploadDto, r: Request):
+async def upload_archive_doc(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
+    d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
-    cur.execute("INSERT INTO archive_docs (title, keywords, file_blob) VALUES (%s, %s, %s)", (d.title, d.keywords, d.file_blob))
+    cur.execute("INSERT INTO archive_docs (title, keywords, file_blob) VALUES (%s, %s, %s)", (d.get('title'), d.get('keywords'), d.get('file_blob')))
     c.commit(); cur.close(); c.close()
     return {"status": "success"}
 
