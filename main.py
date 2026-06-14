@@ -213,7 +213,7 @@ def init_db():
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Dienststellen Administrator', 'Brandmeister', 'Aktiv')")
 
-        # --- AUTOMATISCHE STRUKTUR-MIGRATION (MÄNGELBEHEBUNG) ---
+        # --- SELF-HEALING MIGRATION MANAGER ---
         migrations = [
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
             ("personnel", "phone", "VARCHAR(100) DEFAULT ''"), ("personnel", "email", "VARCHAR(255) DEFAULT ''"),
@@ -262,7 +262,7 @@ def route_editor_page(r: Request):
     if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- CORE API COCKPIT ---
+# --- AUTH API ---
 @app.post("/api/login")
 def api_login(d: LoginRequest, res: Response):
     c = get_db_connection()
@@ -691,16 +691,17 @@ def get_eri_card(un_number: str, r: Request):
     try:
         un_int = int(un_clean)
         if 1 <= un_int < 1000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe / Munition): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Thermische Verbrennungen sofort kühlen."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 1 (Explosivstoffe): Akute Detonationsgefahr.", "safety_measures": "Sicherheitsradius mind. 500 Meter einrichten!", "first_aid": "Verbrennungen kühlen."}
         elif 1000 <= un_int < 2000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Entzündbare Flüssigkeiten): Schwere Gaswolken kriechen am Boden.", "safety_measures": "Ex-Schutz-Zone (mind. 100m) einrichten! Funkenbildung vermeiden.", "first_aid": "Verunglückte unter Atemschutz retten. Frischluft."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 2/3 (Gase / Flüssigkeiten): Gaswolken am Boden.", "safety_measures": "Ex-Schutz-Zone einrichten! Funken vermeiden.", "first_aid": "Rettung unter Atemschutz. Frischluft."}
         elif 2000 <= un_int < 3000:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5 (Selbstentzündliche / oxidierende Stoffe): Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz. Erstickende Löschmittel prüfen.", "first_aid": "Chemische Pulverreste trocken abwischen, danach spülen."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 4/5 (Reaktive Stoffe): Heftige Reaktion mit Wasser!", "safety_measures": "Vorsicht bei Wassereinsatz. Pulver prüfen.", "first_aid": "Trocken abwischen, danach spülen."}
         elif 3000 <= un_int <= 3600:
-            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxische / Ätzende Chemikalien): Akute Lebensgefahr bei Einatmen oder Hautkontakt.", "safety_measures": "Einsatz nur mit schwerem CSA. Dämpfe niederschlagen. Löschwasser auffangen.", "first_aid": "Sofortige Not-Dekontamination. Augen 15 Minuten spülen."}
+            return {"un_number": un_clean, "danger_text": "ADR KLASSE 6/8 (Toxisch / Ätzend): Lebensgefahr bei Kontakt.", "safety_measures": "Einsatz nur mit CSA. Löschwasser auffangen.", "first_aid": "Sofort Dekontamination einleiten."}
     except: pass
-    return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "Standard-Gefahrgut-Sicherheitsabstand (GAMS-Regel) einhalten.", "first_aid": "Allgemeine Rettungsmaßnahmen unter Eigenschutz durchführen."}
+    return {"un_number": un_clean, "danger_text": "ADR Klasse Unbekannt", "safety_measures": "GAMS-Regel einhalten.", "first_aid": "Eigenschutz beachten."}
 
+# --- FIX: KLAMMERFEHLER ENTFERNT ---
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
@@ -758,7 +759,7 @@ def del_event(e_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- INTERACTIVE ARCHIVE SYSTEM ---
+# --- SYSTEM-ARCHIV PLATTFORM ---
 @app.get("/api/archive/list")
 def list_archive(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
