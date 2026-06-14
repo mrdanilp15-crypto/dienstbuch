@@ -692,7 +692,7 @@ def list_hydrants(r: Request):
     if not get_current_user(r): raise HTTPException(status_code=401)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, lat, lon, hydrant_type, diameter, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check) FROM hydranten")
+    cur.execute("SELECT id, lat, lon, hydrant_type, diameter, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check FROM hydranten")
     res = cur.fetchall()
     cur.close()
     c.close()
