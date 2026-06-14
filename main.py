@@ -1,15 +1,6 @@
-import os
-import mysql.connector
-import urllib.request
-import urllib.parse
-import time
-import hashlib
-import secrets
-import hmac
-import base64
-import json
+import os, mysql.connector, urllib.request, urllib.parse, time, hashlib, secrets, hmac, base64, json
 from fastapi import FastAPI, HTTPException, Request, Response, BackgroundTasks
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
@@ -46,7 +37,7 @@ class InventoryItemDto(BaseModel):
     amount: int = 0
     min_amount: int = 5
     unit: str = "Stück"
-    location: str = "Zentrallager"
+    location: str = "Lager"
     barcode: Optional[str] = ""
     size: Optional[str] = ""
 
@@ -147,24 +138,18 @@ def get_current_user(request: Request):
             return json.loads(base64.b64decode(payload_b64).decode())
     except: return None
 
-# --- DATABASE AUTOMATION & MIGRATION ---
+# --- DATABASE ENGINE & REPARATUR ---
 def init_db():
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-    
-    # REPARATUR: Ändere Spaltentyp von INT auf VARCHAR in der Live-Datenbank gegen Error 1366
     try: cur.execute("ALTER TABLE settings MODIFY COLUMN setting_value VARCHAR(255);")
+    except: pass
+    try: cur.execute("DROP TABLE IF EXISTS attendance;")
     except: pass
 
     cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-    
-    default_settings = [
-        ('apager_api_key', '0'), ('int_g26', '36'), 
-        ('station_name', 'Freiwillige Feuerwehr Buxheim'),
-        ('station_lat', '47.9942'), ('station_lon', '10.1344')
-    ]
-    for k, v in default_settings:
-        cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
+    default_settings = [('apager_api_key', '0'), ('int_g26', '36'), ('station_name', 'Dienststelle Hauptwache'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]
+    for k, v in default_settings: cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
 
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL, failed_logins INT DEFAULT 0, lockout_until DATETIME NULL) ENGINE=InnoDB;")
     cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL) ENGINE=InnoDB;")
@@ -180,86 +165,39 @@ def init_db():
     cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
     cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Dienststellen Administrator', 'Brandmeister', 'Aktiv')")
     
-    # SCHEMA-ERWEITERUNG: Füge erweiterte Stammdaten-Spalten falls nicht vorhanden hinzu
-    columns_to_add = [
-        ("birth_date", "DATE NULL"),
-        ("entry_date", "DATE NULL"),
-        ("phone", "VARCHAR(100) DEFAULT ''"),
-        ("email", "VARCHAR(255) DEFAULT ''"),
-        ("address", "TEXT NULL"),
-        ("ice_contact", "VARCHAR(255) DEFAULT ''"),
-        ("drive_b", "BOOLEAN DEFAULT 0"),
-        ("drive_be", "BOOLEAN DEFAULT 0"),
-        ("drive_c", "BOOLEAN DEFAULT 0"),
-        ("drive_ce", "BOOLEAN DEFAULT 0"),
-        ("profile_picture", "LONGTEXT NULL")
-    ]
-    for col, col_type in columns_to_add:
+    columns = [("birth_date", "DATE NULL"), ("entry_date", "DATE NULL"), ("phone", "VARCHAR(100) DEFAULT ''"), ("email", "VARCHAR(255) DEFAULT ''"), ("address", "TEXT NULL"), ("ice_contact", "VARCHAR(255) DEFAULT ''"), ("drive_b", "BOOLEAN DEFAULT 0"), ("drive_be", "BOOLEAN DEFAULT 0"), ("drive_c", "BOOLEAN DEFAULT 0"), ("drive_ce", "BOOLEAN DEFAULT 0"), ("profile_picture", "LONGTEXT NULL")]
+    for col, col_type in columns:
         try: cur.execute(f"ALTER TABLE personnel ADD COLUMN {col} {col_type};")
         except: pass
 
     cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
-    if cur.fetchone()[0] == 0:
-        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s, %s, %s, 1)", ("admin", hash_password("admin123"), "admin"))
-    
+    if cur.fetchone()[0] == 0: cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s, %s, %s, 1)", ("admin", hash_password("admin123"), "admin"))
     cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
     conn.commit(); cur.close(); conn.close()
 
 init_db()
 
-# --- AUTOMATISIERTER NOMINATIM GEOCÒDING PROXY ---
-@app.get("/api/geocode")
-def geocode_address(q: str, request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401)
-    try:
-        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={urllib.parse.quote(q)}"
-        req = urllib.request.Request(url, headers={'User-Agent': 'DigitalesDienstbuch/1.0 (feuerwehr-hub-app)'})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode())
-            if data:
-                item = data[0]
-                return {"status": "success", "name": item.get("display_name"), "lat": item.get("lat"), "lon": item.get("lon")}
-            return {"status": "error", "message": "Ort konnte weltweit nicht aufgelöst werden."}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+# --- WEB SEITEN INTERFACES (ZUR ABSICHERUNG GANZ OBEN) ---
+@app.get("/")
+def route_root(request: Request): return FileResponse("static/dashboard.html") if get_current_user(request) else FileResponse("static/login.html")
 
-# --- GLOBAL WEATHER ENGINE ---
-@app.get("/api/weather")
-def get_global_weather(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401)
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    settings = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
-    cur.close(); conn.close()
-    
-    lat = settings.get("station_lat", "47.9942")
-    lon = settings.get("station_lon", "10.1344")
-    name = settings.get("station_name", "Hauptdienststelle")
-    
-    try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            data = json.loads(response.read().decode())
-            cw = data.get("current_weather", {})
-            return {
-                "station": name, "temperature": f"{cw.get('temperature', '--')} °C",
-                "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live Satelliten-Wetterdaten aktiv synchronisiert."
-            }
-    except:
-        return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "Wetter-Gateway offline."}
+@app.get("/dashboard")
+def route_dashboard(request: Request): return FileResponse("static/dashboard.html") if get_current_user(request) else FileResponse("static/login.html")
 
-# --- AUTH API MIT LOCKOUT PROTECTION ---
+@app.get("/login")
+def route_login_page(): return FileResponse("static/login.html")
+
+@app.get("/editor")
+def route_editor_page(request: Request): return FileResponse("static/editor.html") if get_current_user(request) else FileResponse("static/login.html")
+
+# --- AUTH API MIT LOCKOUT ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE username = %s", (data.username.strip(),))
     user = cur.fetchone()
-    
     if not user:
-        cur.close(); conn.close()
-        raise HTTPException(status_code=401, detail="Zugangsdaten ungültig!")
-        
+        cur.close(); conn.close(); raise HTTPException(status_code=401, detail="Zugangsdaten ungültig!")
     if user.get('lockout_until'):
         lockout = user['lockout_until']
         if isinstance(lockout, str):
@@ -267,9 +205,7 @@ def api_login(data: LoginRequest, response: Response):
             except: lockout = None
         if lockout and datetime.now() < lockout:
             remaining = int((lockout - datetime.now()).total_seconds() / 60)
-            cur.close(); conn.close()
-            raise HTTPException(status_code=423, detail=f"Sicherheits-Lockout aktiv. Bitte in {max(1, remaining)} Minuten versuchen.")
-
+            cur.close(); conn.close(); raise HTTPException(status_code=423, detail=f"Sicherheits-Lockout aktiv. Bitte in {max(1, remaining)} Minuten versuchen.")
     if verify_password(user['password_hash'], data.password):
         cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (user['id'],))
         conn.commit(); cur.close(); conn.close()
@@ -278,20 +214,14 @@ def api_login(data: LoginRequest, response: Response):
         return {"status": "success", "redirect": "/dashboard"}
     else:
         new_failed = user['failed_logins'] + 1
-        lockout_time = None
-        detail_msg = "Zugangsdaten ungültig!"
-        if new_failed >= 5:
-            lockout_time = datetime.now() + timedelta(minutes=15)
-            cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (new_failed, lockout_time, user['id']))
-            detail_msg = "Konto wurde wegen zu vieler Fehlversuche für 15 Minuten gesperrt."
-        else:
-            cur.execute("UPDATE users SET failed_logins = %s WHERE id = %s", (new_failed, user['id']))
+        lockout_time = datetime.now() + timedelta(minutes=15) if new_failed >= 5 else None
+        if lockout_time: cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (new_failed, lockout_time, user['id']))
+        else: cur.execute("UPDATE users SET failed_logins = %s WHERE id = %s", (new_failed, user['id']))
         conn.commit(); cur.close(); conn.close()
-        raise HTTPException(status_code=401, detail=detail_msg)
+        raise HTTPException(status_code=401, detail="Konto gesperrt für 15 Min." if lockout_time else "Zugangsdaten ungültig!")
 
 @app.post("/api/logout")
-def api_logout(response: Response):
-    response.delete_cookie("session_token"); return {"status": "success"}
+def api_logout(response: Response): response.delete_cookie("session_token"); return {"status": "success"}
 
 @app.get("/api/auth/me")
 def api_me(request: Request):
@@ -299,88 +229,93 @@ def api_me(request: Request):
     if not user: raise HTTPException(status_code=401)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT u.username, u.role, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf, DATE_FORMAT(p.g26_3_date, '%d.%m.%Y') as g26 FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user['u'],))
-    res = cur.fetchone(); cur.close(); conn.close()
-    return res
+    res = cur.fetchone(); cur.close(); conn.close(); return res
 
-# --- REGISTRY ---
+# --- SYSTEM PARAMETERS & GEOCÒDING ---
+@app.get("/api/geocode")
+def geocode_address(q: str, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401)
+    try:
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={urllib.parse.quote(q)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'DigitalesDienstbuch/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            if data: return {"status": "success", "name": data[0].get("display_name"), "lat": data[0].get("lat"), "lon": data[0].get("lon")}
+            return {"status": "error", "message": "Ort weltweit nicht gefunden."}
+    except Exception as e: return {"status": "error", "message": str(e)}
+
+@app.get("/api/weather")
+def get_global_weather(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True); cur.execute("SELECT setting_key, setting_value FROM settings")
+    settings = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}; cur.close(); conn.close()
+    lat, lon, name = settings.get("station_lat", "47.9942"), settings.get("station_lon", "10.1344"), settings.get("station_name", "Hauptdienststelle")
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}), timeout=3) as response:
+            cw = json.loads(response.read().decode()).get("current_weather", {})
+            return {"station": name, "temperature": f"{cw.get('temperature', '--')} °C", "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live Satelliten-Wetter aktiv."}
+    except: return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "Wetter-Gateway offline."}
+
 @app.get("/api/settings")
 def get_registry_settings(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    res = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
-    cur.close(); conn.close(); return res
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT setting_key, setting_value FROM settings")
+    res = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}; cur.close(); c.close(); return res
 
 @app.post("/api/settings")
 def save_registry_settings(data: dict, request: Request):
-    conn = get_db_connection(); cur = conn.cursor()
-    for k, v in data.items():
-        cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (k, str(v), str(v)))
-    conn.commit(); cur.close(); conn.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor()
+    for k, v in data.items(): cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (k, str(v), str(v)))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- SYSTEM ACCOUNTS CRUD (LOGINS MIT EDITIERBARKEIT) ---
+# --- SYSTEM ACCOUNTS CRUD ---
 @app.get("/api/users")
 def list_users(request: Request):
-    c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, username, role, personnel_id FROM users ORDER BY username ASC")
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT id, username, role, personnel_id FROM users ORDER BY username ASC")
     r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.post("/api/users")
 def create_or_update_user(data: UserCreateDto, request: Request):
     c = get_db_connection(); cur = c.cursor()
     if data.id:
-        if data.password and len(data.password.strip()) > 0:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (data.role, data.personnel_id, hash_password(data.password), data.id))
-        else:
-            cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (data.role, data.personnel_id, data.id))
-    else:
-        cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (data.username.strip(), hash_password(data.password), data.role, data.personnel_id))
+        if data.password and len(data.password.strip()) > 0: cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (data.role, data.personnel_id, hash_password(data.password), data.id))
+        else: cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (data.role, data.personnel_id, data.id))
+    else: cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s,%s,%s,%s)", (data.username.strip(), hash_password(data.password), data.role, data.personnel_id))
     c.commit(); cur.close(); c.close(); return {"status": "success"}
 
 @app.delete("/api/users/{u_id}")
 def delete_user(u_id: int, request: Request):
-    c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE FROM users WHERE id = %s", (u_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM users WHERE id = %s", (u_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- KAMERADEN STAMMAKTEN INTERNATIONALE ENGINE ---
+# --- KAMERADEN CRUD ---
 @app.get("/api/personnel/list")
 def list_personnel_records(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("""SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture,
-                   DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date,
-                   DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date,
-                   DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date FROM personnel ORDER BY name ASC""")
+                   DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date FROM personnel ORDER BY name ASC""")
     r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.post("/api/personnel")
 def save_personnel_record(data: PersonnelCreateDto, request: Request):
     c = get_db_connection(); cur = c.cursor()
-    g26 = data.g26_3_date if data.g26_3_date else None
-    b_date = data.birth_date if data.birth_date else None
-    e_date = data.entry_date if data.entry_date else None
-    
+    g26, b_date, e_date = data.g26_3_date or None, data.birth_date or None, data.entry_date or None
     if data.id:
-        cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s,
-                       birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""",
-                    (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26,
-                     b_date, e_date, data.phone, data.email, data.address, data.ice_contact, int(data.drive_b), int(data.drive_be), int(data.drive_c), int(data.drive_ce), data.profile_picture, data.id))
+        cur.execute("""UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s WHERE id=%s""",
+                    (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, b_date, e_date, data.phone, data.email, data.address, data.ice_contact, int(data.drive_b), int(data.drive_be), int(data.drive_c), int(data.drive_ce), data.profile_picture, data.id))
     else:
-        cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26,
-                     b_date, e_date, data.phone, data.email, data.address, data.ice_contact, int(data.drive_b), int(data.drive_be), int(data.drive_c), int(data.drive_ce), data.profile_picture))
+        cur.execute("""INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, birth_date, entry_date, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, b_date, e_date, data.phone, data.email, data.address, data.ice_contact, int(data.drive_b), int(data.drive_be), int(data.drive_c), int(data.drive_ce), data.profile_picture))
     c.commit(); cur.close(); c.close(); return {"status": "success"}
 
 @app.delete("/api/personnel/{p_id}")
 def delete_personnel_record(p_id: int, request: Request):
-    c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- FUHRPARK ENGINE ---
+# --- FUHRPARK & FAHRTENBUCH CRUD ---
 @app.get("/api/vehicles")
 def list_vehicles(request: Request):
-    c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date FROM vehicles ORDER BY name ASC")
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date FROM vehicles ORDER BY name ASC")
     r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.post("/api/vehicles")
@@ -392,26 +327,21 @@ def create_vehicle_record(data: VehicleCreateDto, request: Request):
 
 @app.delete("/api/vehicles/{v_id}")
 def delete_vehicle_record(v_id: int, request: Request):
-    c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
 @app.put("/api/vehicles/{v_id}/status")
 def update_vehicle_status_code(v_id: int, data: VehicleStatusDto, request: Request):
-    c = get_db_connection(); cur = c.cursor()
-    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- FAHRTENBUCH ---
 @app.get("/api/vehicles/logs")
 def list_vehicle_logs():
-    c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT l.*, v.name as vehicle_name, DATE_FORMAT(l.date, '%Y-%m-%d') as date, DATE_FORMAT(l.date, '%d.%m.%Y') as date_formatted FROM vehicle_log l LEFT JOIN vehicles v ON l.vehicle_id = v.id ORDER BY l.id DESC")
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT l.*, v.name as vehicle_name, DATE_FORMAT(l.date, '%Y-%m-%d') as date, DATE_FORMAT(l.date, '%d.%m.%Y') as date_formatted FROM vehicle_log l LEFT JOIN vehicles v ON l.vehicle_id = v.id ORDER BY l.id DESC")
     r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.post("/api/vehicles/logs")
 def save_vehicle_log(data: VehicleLogDto):
     c = get_db_connection(); cur = c.cursor()
-    if data.id:
-        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s WHERE id=%s", (data.vehicle_id, data.date, data.driver_name, data.purpose, data.km_start, data.km_end, data.id))
+    if data.id: cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s WHERE id=%s", (data.vehicle_id, data.date, data.driver_name, data.purpose, data.km_start, data.km_end, data.id))
     else:
         cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end) VALUES (%s,%s,%s,%s,%s,%s)", (data.vehicle_id, data.date, data.driver_name, data.purpose, data.km_start, data.km_end))
         cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (data.km_end, data.vehicle_id))
@@ -419,19 +349,16 @@ def save_vehicle_log(data: VehicleLogDto):
 
 @app.delete("/api/vehicles/logs/{log_id}")
 def delete_vehicle_log(log_id: int):
-    c = get_db_connection(); cur = c.cursor()
-    cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- ATTENDANCE REAKTIV ---
+# --- SESSIONS & REAKTIVE ATTENDANCE ---
 @app.get("/groups")
 def list_groups_all(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table"); r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.get("/groups/{group_id}/sessions")
 def list_sessions_dashboard(group_id: int, request: Request):
-    c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
-    r = cur.fetchall(); cur.close(); c.close(); return r
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,)); r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.get("/groups/{group_id}/attendance")
 def get_group_attendance_matrix(group_id: int, request: Request, session_id: Optional[int] = None):
@@ -441,17 +368,13 @@ def get_group_attendance_matrix(group_id: int, request: Request, session_id: Opt
         cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
         row = cur.fetchone()
         if row: session_data = row
-    
-    query = "SELECT p.id as personnel_id, p.name, p.rank, p.is_agt, p.is_maschinist, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC"
-    cur.execute(query, (session_id,))
+    cur.execute("SELECT p.id as personnel_id, p.name, p.rank, p.is_agt, p.is_maschinist, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC", (session_id,))
     persons = cur.fetchall()
     for p in persons: p['is_present'] = bool(p['is_present'])
-    
     cur.execute("SELECT DISTINCT description FROM sessions ORDER BY id DESC LIMIT 5")
     presets_topics = [row_t['description'] for row_t in cur.fetchall()]
     cur.execute("SELECT DISTINCT instructors FROM sessions ORDER BY id DESC LIMIT 5")
     presets_leaders = [row_l['instructors'] for row_l in cur.fetchall()]
-    
     cur.close(); c.close()
     return {**session_data, "persons": persons, "presets": {"topics": presets_topics, "leaders": presets_leaders}}
 
@@ -465,13 +388,10 @@ def save_attendance(data: LegacySessionPayload, request: Request):
     else:
         cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (%s,%s,%s,%s,%s,%s)", (data.group_id, data.date, data.category, data.duration, data.description, data.instructors))
         s_id = cur.lastrowid
-    
-    for e in data.entries:
-        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
-    c.commit(); cur.close(); c.close()
-    return {"status": "success", "session_id": s_id}
+    for e in data.entries: cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
+    c.commit(); cur.close(); c.close(); return {"status": "success", "session_id": s_id}
 
-# --- LAGER BESTÄNDE ---
+# --- INVENTAR / BESTÄNDE CRUD ---
 @app.get("/api/inventory")
 def api_inventory_list(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM inventory ORDER BY item_name ASC"); r = cur.fetchall(); cur.close(); c.close(); return r
@@ -487,15 +407,14 @@ def api_inventory_save(data: InventoryItemDto, request: Request):
 def api_inventory_delete(i_id: int, request: Request):
     c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- MÄNGEL KANBAN & EVENT BUCH ---
+# --- WHITEBOARD MÄNGEL KANBAN ---
 @app.get("/api/notes")
 def api_notes_list(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM notes ORDER BY id DESC"); r = cur.fetchall(); cur.close(); c.close(); return r
 
 @app.post("/api/notes")
 def api_notes_create(data: NoteCreateDto, background_tasks: BackgroundTasks, request: Request):
-    user = get_current_user(request)
-    c = get_db_connection(); cur = c.cursor()
+    user = get_current_user(request); c = get_db_connection(); cur = c.cursor()
     cur.execute("INSERT INTO notes (username, title, content, priority, kanban_status) VALUES (%s,%s,%s,%s,'neu')", (user['u'], data.title, data.content, data.priority))
     c.commit(); cur.close(); c.close(); return {"status": "success"}
 
@@ -507,6 +426,7 @@ def api_notes_status_update(n_id: int, data: KanbanUpdateRequest, request: Reque
 def api_notes_delete(n_id: int, request: Request):
     c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM notes WHERE id = %s", (n_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
+# --- VEREINSKALENDER CRUD ---
 @app.get("/api/events")
 def api_events_list(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT id, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, DATE_FORMAT(date, '%Y-%m-%d') as date, title, responsible FROM events ORDER BY date ASC"); r = cur.fetchall(); cur.close(); c.close(); return r
