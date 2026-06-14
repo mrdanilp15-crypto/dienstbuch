@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- SYSTEM-KONFIGURATION ---
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -24,7 +24,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- PYDANTIC DATA TRANSFER OBJECTS (Ganz oben definiert) ---
+# --- PYDANTIC DATA TRANSFER OBJECTS ---
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -133,17 +133,15 @@ def get_current_user(request: Request):
 def init_db():
     conn = get_db_connection(); cur = conn.cursor()
     
-    # Kappe blockierende Altreste zur fehlerfreien Migration
     for fk in ["attendance_ibfk_1", "attendance_ibfk_2", "fk_attendance_personnel"]:
         try: cur.execute(f"ALTER TABLE attendance DROP FOREIGN KEY {fk};")
         except: pass
 
     cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
     
-    # Globale Standortparameter initialisieren (Weltweit anpassbar!)
     default_settings = [
         ('apager_api_key', '0'), ('int_g26', '36'), 
-        ('station_name', 'Freiwillige Feuerwehr Buxheim'),
+        ('station_name', 'Dienststelle Hauptwache'),
         ('station_lat', '47.9942'), ('station_lon', '10.1344')
     ]
     for k, v in default_settings:
@@ -160,8 +158,14 @@ def init_db():
     cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE) ENGINE=InnoDB;")
     
     cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktive Wehr')")
-    cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Daniel (Zentrale)', 'Kommandant', 'Aktiv')")
+    cur.execute("INSERT IGNORE INTO personnel (id, name, rank, membership_status) VALUES (1, 'Administrator', 'Leiter der Dienststelle', 'Aktiv')")
     
+    # Automatische Migration für Brute-Force Parameter (Fügt Spalten hinzu falls nicht existent)
+    try: cur.execute("ALTER TABLE users ADD COLUMN failed_logins INT DEFAULT 0;")
+    except: pass
+    try: cur.execute("ALTER TABLE users ADD COLUMN lockout_until DATETIME NULL;")
+    except: pass
+
     cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
     if cur.fetchone()[0] == 0:
         cur.execute("INSERT INTO users (username, password_hash, role, personnel_id) VALUES (%s, %s, %s, 1)", ("admin", hash_password("admin123"), "admin"))
@@ -170,7 +174,7 @@ def init_db():
 
 init_db()
 
-# --- GLOBALE INTERNATIONALE WETTER-ABFRAGE (OPEN-METEO ANBINDUNG) ---
+# --- LIVE WETTER API ---
 @app.get("/api/weather")
 def get_global_weather(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -191,10 +195,10 @@ def get_global_weather(request: Request):
             cw = data.get("current_weather", {})
             return {
                 "station": name, "temperature": f"{cw.get('temperature', '--')} °C",
-                "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live-Wetterdaten über Open-Meteo Satellitennavigation geladen."
+                "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live-Wetterdaten aktiv synchronisiert."
             }
     except:
-        return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "API-Schnittstelle temporär offline."}
+        return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "API-Schnittstelle offline."}
 
 # --- APPLIKATIONS ROUTEN ---
 @app.get("/")
@@ -215,17 +219,52 @@ def route_editor_page(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
     return FileResponse("static/editor.html")
 
-# --- AUTH API ---
+# --- AUTH API MIT BRUTE-FORCE SCHUTZ ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE username = %s", (data.username.strip(),))
-    user = cur.fetchone(); cur.close(); conn.close()
-    if user and verify_password(user['password_hash'], data.password):
+    user = cur.fetchone()
+    
+    if not user:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=401, detail="Zugangsdaten ungültig!")
+        
+    # 1. Lockout-Prüfung ausführen
+    if user.get('lockout_until'):
+        lockout = user['lockout_until']
+        if isinstance(lockout, str):
+            try: lockout = datetime.strptime(lockout, "%Y-%m-%d %H:%M:%S")
+            except: lockout = None
+        if lockout and datetime.now() < lockout:
+            remaining = int((lockout - datetime.now()).total_seconds() / 60)
+            cur.close(); conn.close()
+            raise HTTPException(status_code=423, detail=f"Konto temporär gesperrt. Bitte in {max(1, remaining)} Minuten erneut versuchen.")
+
+    # 2. Passwort verifizieren
+    if verify_password(user['password_hash'], data.password):
+        # Login erfolgreich: Counter zurücksetzen
+        cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (user['id'],))
+        conn.commit(); cur.close(); conn.close()
+        
         token = create_token(user['username'], user['role'])
         response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
         return {"status": "success", "redirect": "/dashboard"}
-    raise HTTPException(status_code=401, detail="Zugangsdaten ungültig!")
+    else:
+        # Login fehlgeschlagen: Counter erhöhen
+        new_failed = user['failed_logins'] + 1
+        lockout_time = None
+        detail_msg = "Zugangsdaten ungültig!"
+        
+        if new_failed >= 5:
+            lockout_time = datetime.now() + timedelta(minutes=15)
+            cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (new_failed, lockout_time, user['id']))
+            detail_msg = "Konto wurde wegen zu vieler Fehlversuche für 15 Minuten gesperrt."
+        else:
+            cur.execute("UPDATE users SET failed_logins = %s WHERE id = %s", (new_failed, user['id']))
+            
+        conn.commit(); cur.close(); conn.close()
+        raise HTTPException(status_code=401, detail=detail_msg)
 
 @app.post("/api/logout")
 def api_logout(response: Response):
@@ -239,22 +278,6 @@ def api_me(request: Request):
     cur.execute("SELECT u.username, u.role, p.name as personnel_name, p.rank, p.membership_status, p.phone, p.email, p.address, p.profile_picture, p.is_agt, p.is_maschinist, p.is_gf FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user['u'],))
     res = cur.fetchone(); cur.close(); conn.close()
     return res
-
-# --- REGISTRY ---
-@app.get("/api/settings")
-def get_registry_settings(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401)
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    res = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
-    cur.close(); conn.close(); return res
-
-@app.post("/api/settings")
-def save_registry_settings(data: dict, request: Request):
-    conn = get_db_connection(); cur = conn.cursor()
-    for k, v in data.items():
-        cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (k, str(v), str(v)))
-    conn.commit(); cur.close(); conn.close(); return {"status": "success"}
 
 # --- SYSTEM PROFILE LOGINS ---
 @app.get("/api/users")
@@ -320,7 +343,7 @@ def update_vehicle_status_code(v_id: int, data: VehicleStatusDto, request: Reque
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- DIGITALES DIENSTBUCH LOGIKSTACK ---
+# --- ATTENDANCE SUITE ---
 @app.get("/groups")
 def list_groups_all(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table"); r = cur.fetchall(); cur.close(); c.close(); return r
@@ -356,6 +379,7 @@ def get_group_attendance_matrix(group_id: int, request: Request, session_id: Opt
 
 @app.post("/attendance")
 def save_attendance(data: LegacySessionPayload, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401)
     c = get_db_connection(); cur = c.cursor()
     s_id = data.session_id
     if s_id and s_id != 0:
