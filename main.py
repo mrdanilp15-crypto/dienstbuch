@@ -27,7 +27,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- HILFSFUNKTIONEN ZUR FEHLERPRÄVENTION ---
 def parse_val(v):
-    """Verhindert 422 Abstürze durch leere Strings aus dem Frontend"""
     if v == "" or v == "null": return None
     return v
 
@@ -207,7 +206,6 @@ def init_db():
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         
-        # Sichert, dass alle neuen Spalten auch in alten Systemen existieren!
         migrations = [
             ("users", "personnel_id", "INT NULL"),
             ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
@@ -584,7 +582,7 @@ def get_active_alarm(r: Request):
     cur.execute("SELECT id, address, keyword, alert_text, DATE_FORMAT(timestamp, '%d.%m.%Y %H:%i') as timestamp FROM active_alarm ORDER BY id DESC LIMIT 1")
     res = cur.fetchone()
     cur.close(); c.close()
-    return res if res else {"status": "clear", "message": "Keine Alarme."}
+    return res if res else {"status": "clear"}
 
 @app.post("/api/alarm/trigger")
 def trigger_alarm_webhook(d: AlarmPayloadDto):
