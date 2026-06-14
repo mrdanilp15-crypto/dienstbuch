@@ -6,7 +6,7 @@
     <title>FeuerwehrHub - Leitstand & Wache</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=7.0">
+    <link rel="stylesheet" href="/static/style.css?v=7.5">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
@@ -17,7 +17,7 @@
             <div class="sidebar">
                 <div class="sidebar-header">
                     <h4 class="m-0 fw-bold text-dark"><i class="fa fa-shield-halved text-danger me-2"></i>WEHR<span class="text-danger">HUB</span></h4>
-                    <small class="text-muted font-monospace fw-bold">ENTERPRISE v7.0</small>
+                    <small class="text-muted font-monospace fw-bold">ENTERPRISE v7.5</small>
                 </div>
                 <div class="flex-grow-1 overflow-y-auto">
                     <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Leitstand Zentrale</div>
@@ -25,12 +25,12 @@
                     <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer & Lager</div>
                     <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users"></i> Personal & Logins</div>
                     <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck"></i> Fuhrpark-Zentrale</div>
-                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Vereinsleben</div>
-                    <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Schnittstellen</div>
+                    <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Verein & Kalender</div>
+                    <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
                 </div>
                 <div class="p-3 bg-light border-top text-center">
                     <div class="small fw-bold mb-2 text-dark"><i class="fa fa-circle text-success me-1"></i> {{ identity.username }}</div>
-                    <button class="btn btn-sm btn-danger w-100 rounded-pill fw-bold" @click="triggerLogout">Verbindung trennen</button>
+                    <button class="btn btn-sm btn-danger w-100 rounded-pill fw-bold" @click="triggerLogout">Abmelden</button>
                 </div>
             </div>
 
@@ -41,9 +41,20 @@
                         <h2>Führungs-Leitstand</h2>
                         <button class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="goToEditor(null)"><i class="fa fa-plus me-1"></i> Protokoll schreiben</button>
                     </div>
+
+                    <div class="card mb-4 bg-white shadow-sm border-start border-4 border-info" v-if="weather">
+                        <h6 class="fw-bold text-muted text-uppercase mb-2"><i class="fa fa-cloud-sun text-info me-2"></i>Automatisches Wetter- & Unwetter-Radar</h6>
+                        <div class="row align-items-center">
+                            <div class="col-md-3"><strong>Station:</strong> {{ weather.station }}</div>
+                            <div class="col-md-3"><strong>Temperatur:</strong> {{ weather.temperature }}</div>
+                            <div class="col-md-6">
+                                <span class="badge bg-success py-1.5 px-3 rounded-pill"><i class="fa fa-shield-check"></i> {{ weather.warning_text }}</span>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="card mb-4 bg-white shadow-sm">
-                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Live BOS Funk-Statusübersicht</h6>
+                        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>BOS Funk-Statusübersicht</h6>
                         <div class="row g-2">
                             <div v-for="v in vehicles" :key="v.id" class="col-md-4 col-6">
                                 <div class="p-2 border rounded d-flex justify-content-between align-items-center bg-light">
@@ -58,6 +69,7 @@
                     </div>
 
                     <h5 class="fw-bold mb-3">Erfasste Dienstbücher</h5>
+                    <div v-if="sessions.length === 0" class="text-muted">Keine Einträge vorhanden.</div>
                     <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 shadow-sm border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h5 class="m-0 text-dark">{{ s.description }}</h5><small class="text-muted">Ausbilder: {{ s.instructors }}</small></div>
@@ -69,21 +81,18 @@
                 <div v-if="currentTab === 'meinbereich'">
                     <h2 class="mb-4">Mein Bereich</h2>
                     <div class="card p-4 bg-white shadow-sm border-0">
-                        <div v-if="identity.personnel_name">
-                            <h3 class="text-dark fw-bold mb-1">{{ identity.personnel_name }}</h3>
-                            <span class="badge bg-danger mb-3 text-uppercase font-monospace">{{ identity.role }}</span>
-                            <hr class="mb-4">
-                            <div class="row text-center">
-                                <div class="col-4 border-end"><h4 class="text-success">{{ identity.is_agt ? 'Aktivträger':'Nein' }}</h4><small class="text-muted fw-bold">Atemschutztauglichkeit</small></div>
-                                <div class="col-8"><h4>{{ identity.g26 || 'Keine Akte verknüpft' }}</h4><small class="text-muted fw-bold">Nächste G26.3 Untersuchung</small></div>
-                            </div>
+                        <h4 class="text-dark fw-bold mb-1">{{ identity.personnel_name }}</h4>
+                        <span class="badge bg-danger mb-3 text-uppercase font-monospace w-auto d-inline-block">{{ identity.role }}</span>
+                        <hr>
+                        <div class="row text-center mt-3">
+                            <div class="col-6 border-end"><h4 class="text-success">{{ identity.is_agt ? 'Aktivträger (A)':'Nein' }}</h4><small class="text-muted fw-bold">Atemschutzfähigkeit</small></div>
+                            <div class="col-6"><h4>{{ identity.g26 || 'Kein Datum' }}</h4><small class="text-muted fw-bold">Nächste G26.3 Validierung</small></div>
                         </div>
-                        <div v-else class="alert alert-info border-0 fw-semibold">Dein System-Login ist mit keinem Kameradenstamm verknüpft.</div>
                     </div>
                 </div>
 
                 <div v-if="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer & Materialbestand</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal">Artikel einbuchen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer & Materialbestand</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal">Material einbuchen</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Ausrüstungsgegenstand</th><th>Menge</th><th>Soll-Mindestmenge</th><th>Lagerort</th><th>Status</th><th class="text-end">Aktion</th></tr></thead>
@@ -106,14 +115,14 @@
                     </ul>
 
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden shadow-sm bg-white">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Name</th><th>Dienstgrad</th><th>Abteilung</th><th>Atemschutz</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td>{{ p.membership_status }}</td><td><span class="badge" :class="p.is_agt?'bg-dark':'bg-light text-muted'">{{ p.is_agt?'AGT':'-' }}</span></td>
-                                        <td class="text-end"><button class="btn btn-xs btn-outline-dark rounded me-1" @click="openMemberModal(p)">Edit</button><button class="btn btn-xs btn-danger rounded" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td>{{ p.membership_status }}</td>
+                                        <td class="text-end"><button class="btn btn-xs btn-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -124,11 +133,11 @@
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal"><i class="fa fa-key me-1"></i> System-Login erstellen</button></div>
                         <div class="card p-0 overflow-hidden shadow-sm bg-white">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Benutzername</th><th>Berechtigungsstufe</th><th>Akte ID</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Personnel ID</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
-                                        <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ u.personnel_id || 'Keine Verknüpfung' }}</td>
-                                        <td class="text-end"><button class="btn btn-xs btn-danger rounded" @click="delUser(u.id)">Zugang löschen</button></td>
+                                        <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ u.personnel_id || 'Keine' }}</td>
+                                        <td class="text-end"><button class="btn btn-xs btn-danger" @click="delUser(u.id)">Löschen</button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -140,7 +149,7 @@
                     <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark-Zentrale</h2><button class="btn btn-dark rounded-pill fw-bold px-3" @click="openVehModal"><i class="fa fa-plus me-1"></i> Fahrzeug registrieren</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>KM-Stand</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Nächste HU</th><th>SP Frist</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="v in vehicles" :key="v.id">
                                     <td><h5 class="fw-bold m-0 text-dark">{{ v.name }}</h5></td><td class="font-monospace text-muted">{{ v.radio_name }}</td>
@@ -154,13 +163,13 @@
                 </div>
 
                 <div v-if="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Veranstaltungen</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal"><i class="fa fa-plus me-1"></i> Termin eintragen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Vereinskalender & Kalender</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal"><i class="fa fa-calendar-plus me-1"></i> Termin eintragen</button></div>
                     <div class="card p-0 overflow-hidden shadow-sm bg-white">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Termin</th><th>Veranstaltung / Fest</th><th>Zuständig</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="e in events" :key="e.id">
-                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td class="fw-bold text-darkfs-5">{{ e.title }}</td><td>{{ e.responsible }}</td>
+                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td class="fw-bold text-dark">{{ e.title }}</td><td>{{ e.responsible }}</td>
                                     <td class="text-end"><button class="btn btn-sm text-danger bg-transparent border-0" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
@@ -169,7 +178,7 @@
                 </div>
 
                 <div v-if="currentTab === 'einstellungen'">
-                    <h2 class="mb-4">Schnittstellen Gateways</h2>
+                    <h2 class="mb-4">Systemparameter Registry</h2>
                     <div class="card p-4 bg-white shadow-sm border-0">
                         <h5 class="fw-bold text-dark mb-3">Alamos aPager PRO Integration</h5>
                         <div class="mb-3">
@@ -183,27 +192,24 @@
             </div>
         </div>
 
-        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-body p-4 bg-white">
-            <h5 class="fw-bold text-dark mb-3">Kameradenstamm bearbeiten</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Klarname</label><input type="text" v-model="activeMem.name" class="form-control"></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Dienstgrad</label><input type="text" v-model="activeMem.rank" class="form-control"></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Abteilung</label><select v-model="activeMem.membership_status" class="form-select"><option value="Aktiv">Aktiv</option><option value="Jugend">Jugendabteilung</option><option value="Ehrenabteilung">Ehrenabteilung</option></select></div>
-            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="activeMem.is_agt" id="a1"><label class="form-check-label fw-bold" for="a1">Atemschutzträger (AGT)</label></div>
-            <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" v-model="activeMem.is_maschinist" id="a2"><label class="form-check-label fw-bold" for="a2">Maschinist (Führerschein C/CE)</label></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Letzte G26.3 Untersuchung</label><input type="date" v-model="activeMem.g26_3_date" class="form-control"></div>
-            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember">Akte in Datenbank sichern</button>
+        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
+            <h5 class="fw-bold text-dark mb-3">Kamerad anlegen</h5>
+            <div class="mb-2"><label class="small fw-bold text-muted">Klarname</label><input type="text" v-model="newMem.name" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Dienstgrad</label><input type="text" v-model="newMem.rank" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktiv</option><option value="Jugend">Jugend</option></select></div>
+            <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveMember">In Datenbank speichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-body p-4 bg-white">
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">System-Zugang (Login) anlegen</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" v-model="newUser.username" class="form-control" placeholder="Kürzel..."></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Initial-Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Berechtigung</label><select v-model="newUser.role" class="form-select"><option value="user">Schriftführer / User</option><option value="admin">Administrator</option></select></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Stammakte ID (Optional)</label><input type="number" v-model="newUser.personnel_id" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Benutzername</label><input type="text" v-model="newUser.username" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">Rolle</label><select v-model="newUser.role" class="form-select"><option value="user">User</option><option value="admin">Admin</option></select></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">Verknüpfte Akte ID (Optional)</label><input type="number" v-model="newUser.personnel_id" class="form-control"></div>
             <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveUser">Login freischalten</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-body p-4 bg-white">
+        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">Lagerbestand einbuchen</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Gegenstand</label><input type="text" v-model="newInv.item_name" class="form-control" required></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold text-muted">Menge</label><input type="number" v-model="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">Mindestmenge</label><input type="number" v-model="newInv.min_amount" class="form-control"></div></div>
@@ -211,20 +217,19 @@
             <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveInv">Material erfassen</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-body p-4 bg-white">
+        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">Einsatzfahrzeug registrieren</h5>
-            <div class="mb-2"><label class="small fw-bold text-muted">Modell / Typ</label><input type="text" v-model="newVeh.name" class="form-control" placeholder="z.B. HLF 20" required></div>
-            <div class="mb-2"><label class="small fw-bold text-muted">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" placeholder="z.B. Florian Buxheim 40/1" required></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Modell / Typ</label><input type="text" v-model="newVeh.name" class="form-control" required></div>
+            <div class="mb-2"><label class="small fw-bold text-muted">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" required></div>
             <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-muted">Nächste HU</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div><div class="col-6"><label class="small fw-bold text-muted">SP Frist</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Kilometerstand</label><input type="number" v-model="newVeh.milage" class="form-control"></div>
-            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveVeh">Fahrzeug in Fuhrpark aufnehmen</button>
+            <button class="btn btn-dark w-100 rounded-pill fw-bold py-2 shadow" @click="saveVeh">Fahrzeug registrieren</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-body p-4 bg-white">
+        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow rounded-4"><div class="modal-body p-4 bg-white">
             <h5 class="fw-bold text-dark mb-3">Neuer Vereinstermin</h5>
             <div class="mb-2"><label class="small fw-bold text-muted">Termindatum</label><input type="date" v-model="newEvent.date" class="form-control" required></div>
             <div class="mb-2"><label class="small fw-bold text-muted">Veranstaltungstitel</label><input type="text" v-model="newEvent.title" class="form-control" required></div>
-            <div class="mb-3"><label class="small fw-bold text-muted">Zuständigkeit</label><input type="text" v-model="newEvent.responsible" class="form-control" placeholder="Vorstand"></div>
+            <div class="mb-3"><label class="small fw-bold text-muted">Zuständigkeit</label><input type="text" v-model="newEvent.responsible" class="form-control"></div>
             <button class="btn btn-danger w-100 rounded-pill fw-bold py-2 shadow" @click="saveEvent">Termin eintragen</button>
         </div></div></div></div>
 
@@ -236,20 +241,22 @@
         createApp({
             data() {
                 return {
-                    ready: false, currentTab: 'leitstand', subTabPers: 'akte', identity: {},
+                    ready: false, currentTab: 'leitstand', subTabPers: 'akte', identity: {}, weather: null,
                     groups: [], vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], registry: {},
-                    activeMem: { id: null, name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '' },
+                    newMem: { name: '', rank: 'Feuerwehrmann', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false },
                     newUser: { username: '', password: '', role: 'user', personnel_id: null },
-                    newInv: { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Hauptmagazin' },
+                    newInv: { item_name: '', amount: 1, min_amount: 1, unit: 'Stück', location: 'Zentrallager' },
                     newVeh: { name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '' },
                     newEvent: { date: '', title: '', responsible: 'Vorstand' }
                 }
             },
-            async sampledRefresh() {
+            async refreshAllData() {
                 this.vehicles = await (await fetch('/api/vehicles')).json();
                 this.inventory = await (await fetch('/api/inventory')).json();
                 this.personnel = await (await fetch('/api/personnel/list')).json();
                 this.events = await (await fetch('/api/events')).json();
+                this.weather = await (await fetch('/api/weather')).json();
+                this.registry = await (await fetch('/api/settings')).json();
                 if(this.identity.role === 'admin') this.users = await (await fetch('/api/users')).json();
                 if(this.groups.length > 0) this.sessions = await (await fetch(`/groups/${this.groups[0].id}/sessions`)).json();
             },
@@ -258,9 +265,8 @@
                 if(!res.ok) { window.location.href = '/login'; return; }
                 this.identity = await res.json();
                 this.groups = await (await fetch('/groups')).json();
-                this.registry = await (await fetch('/api/settings')).json();
                 
-                await this.sampledRefresh();
+                await this.refreshAllData();
                 memberModal = new bootstrap.Modal(document.getElementById('memberModal'));
                 userModal = new bootstrap.Modal(document.getElementById('userModal'));
                 invModal = new bootstrap.Modal(document.getElementById('invModal'));
@@ -273,27 +279,27 @@
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                openMemberModal(p) { this.activeMem = p ? {...p} : {id:null, name:'', rank:'Feuerwehrmann', membership_status:'Aktiv', is_agt:false, is_maschinist:false, is_gf:false, g26_3_date:''}; memberModal.show(); },
-                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeMem)}); memberModal.hide(); await this.sampledRefresh(); },
-                async delMember(id) { if(confirm("Akte vernichten?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.sampledRefresh(); } },
+                openMemberModal() { memberModal.show(); },
+                async saveMember() { await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); memberModal.hide(); await this.refreshAllData(); },
+                async delMember(id) { if(confirm("Kamerad aus Datenbank löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                openUserModal() { this.newUser = { username:'', password:'', role:'user', personnel_id:null }; userModal.show(); },
-                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.sampledRefresh(); },
-                async delUser(id) { if(confirm("Login sperren?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.sampledRefresh(); } },
+                openUserModal() { userModal.show(); },
+                async saveUser() { await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); userModal.hide(); await this.refreshAllData(); },
+                async delUser(id) { if(confirm("Login sperren?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
                 openInvModal() { invModal.show(); },
-                async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newInv)}); invModal.hide(); await this.sampledRefresh(); },
-                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.sampledRefresh(); } },
+                async saveInv() { await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newInv)}); invModal.hide(); await this.refreshAllData(); },
+                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
                 openVehModal() { vehModal.show(); },
-                async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.sampledRefresh(); },
-                async delVeh(id) { if(confirm("Fahrzeug ausmustern?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.sampledRefresh(); } },
+                async saveVeh() { await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); vehModal.hide(); await this.refreshAllData(); },
+                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
                 openEventModal() { eventModal.show(); },
-                async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.sampledRefresh(); },
-                async delEvent(id) { if(confirm("Termin absagen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.sampledRefresh(); } },
+                async saveEvent() { await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); eventModal.hide(); await this.refreshAllData(); },
+                async delEvent(id) { if(confirm("Termin löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); await this.refreshAllData(); } },
                 
-                async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Registry synchronisiert!"); }
+                async saveSettings() { await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); alert("Registry gesichert!"); }
             }
         }).mount('#app');
     </script>
