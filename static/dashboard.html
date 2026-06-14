@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch</title>
+    <title>Digitales Dienstbuch — Operationszentrale</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         [v-cloak] { display: none !important; }
-        .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; }
+        .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; z-index: 100; }
         .sidebar-header { padding: 20px; border-bottom: 1px solid #334155; }
         .menu-link { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #cbd5e1; font-weight: 500; transition: all 0.2s; }
-        .menu-link:hover, .menu-link.active { background: #334155; color: white; }
+        .menu-link:hover, .menu-link.active { background: #334155; color: white; text-decoration: none; }
         .main-content { margin-left: 260px; padding: 40px; background: #f8fafc; min-height: 100vh; }
-        .avatar-container { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #e2e8f0; display: inline-block; }
+        .avatar-container { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #e2e8f0; display: inline-block; vertical-align: middle; }
         .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
-        .status-btn { width: 40px; height: 40px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; }
+        .status-btn { width: 40px; height: 40px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; transition: all 0.15s; }
         .status-btn.s-2.active { background: #22c55e; color: white; border-color: #15803d; }
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
     </style>
@@ -71,7 +71,7 @@
                     <div class="d-flex justify-content-between mb-4"><h2>Zentrale Dashboard</h2><button class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neuer Dienstbucheintrag</button></div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
-                            <div class="card p-3 bg-white border">
+                            <div class="card p-3 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Fahrzeug-Statustableau (FMS)</h6>
                                 <div class="row g-2">
                                     <div v-for="v in vehicles" :key="v.id" class="col-6">
@@ -87,7 +87,7 @@
                             </div>
                         </div>
                         <div class="col-md-4" v-if="weather">
-                            <div class="card p-3 bg-white border h-100 d-flex flex-column justify-content-between">
+                            <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
                                 <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Wetter {{ weather.station }}</h6>
                                 <h2 class="fw-bold text-dark m-0 my-2">{{ weather.temperature }}</h2>
                                 <span class="badge bg-success py-1.5 font-monospace">{{ weather.warning_text }}</span>
@@ -95,7 +95,7 @@
                         </div>
                     </div>
                     <h5 class="fw-bold mb-3">Zuletzt erfasste Berichte</h5>
-                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 border-start border-4 border-primary" @click="goToEditor(s.id)" style="cursor:pointer">
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 border-start border-4 border-primary shadow-sm" @click="goToEditor(s.id)" style="cursor:pointer">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold text-dark">{{ s.description }}</h6><small class="text-muted">Ausbilder: {{ s.instructors }}</small></div>
                             <div class="text-end text-muted small">{{ s.date }}<br><b>{{ s.duration }} Std.</b></div>
@@ -105,12 +105,12 @@
 
                 <div v-show="currentTab === 'lagekarte'">
                     <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
-                    <div class="card p-2 bg-white rounded-4"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
+                    <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
                 <div v-show="currentTab === 'gefahrgut'">
                     <h2 class="mb-4">Gefahrgutdatenbank</h2>
-                    <div class="card p-4 bg-white border-0 mb-4">
+                    <div class="card p-4 bg-white border shadow-sm mb-4">
                         <label class="small fw-bold text-muted mb-2">UN-Nummer eingeben (4-stellig)</label>
                         <div class="input-group" style="max-width: 450px;">
                             <span class="input-group-text bg-danger text-white fw-bold">UN</span>
@@ -129,18 +129,18 @@
                 </div>
 
                 <div v-show="currentTab === 'tickets'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel Melsden</button></div>
-                    <div class="row">
+                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
+                    <div class="row g-3">
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
-                            <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border">
+                            <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <button class="btn btn-sm btn-outline-dark w-100 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt verschieben</button>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
-                            <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border">
+                            <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <button class="btn btn-sm btn-success w-100 rounded-pill" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
                             </div>
@@ -159,7 +159,7 @@
                     <div class="card p-4 border bg-white shadow-sm">
                         <div class="d-flex align-items-center gap-4 mb-3">
                             <div class="avatar-container border" style="width:80px; height:80px;">
-                                <img :src="identity.profile_picture" v-if="identity.profile_picture">
+                                <img :src="identity.profile_picture" v-if="identity.profile_picture && identity.profile_picture.length > 0">
                                 <div class="w-100 h-100 bg-secondary text-white d-flex align-items-center justify-content-center fw-bold" v-else>PSA</div>
                             </div>
                             <div>
@@ -184,7 +184,7 @@
 
                 <div v-show="currentTab === 'lager'">
                     <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
-                    <div class="card p-0 overflow-hidden bg-white border">
+                    <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
@@ -207,12 +207,12 @@
                     </ul>
                     <div v-if="subTabPers === 'akte'">
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white border">
+                        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><div class="avatar-container"><img :src="p.profile_picture" v-if="p.profile_picture"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold" v-else>PSA</div></div></td>
+                                        <td><div class="avatar-container"><img :src="p.profile_picture" v-if="p.profile_picture && p.profile_picture.length > 0"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold" v-else>PSA</div></div></td>
                                         <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
                                         <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
                                         <td class="text-end"><button class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
@@ -223,7 +223,7 @@
                     </div>
                     <div v-if="subTabPers === 'login'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
-                        <div class="card p-0 overflow-hidden bg-white border">
+                        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -245,7 +245,7 @@
                     </ul>
                     <div v-if="subTabVeh === 'fahrzeuge'">
                         <div class="text-end mb-3"><button class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white border">
+                        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -260,7 +260,7 @@
                     </div>
                     <div v-if="subTabVeh === 'log'">
                         <div class="text-end mb-3"><button class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
-                        <div class="card p-0 overflow-hidden bg-white border">
+                        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
@@ -277,7 +277,7 @@
 
                 <div v-show="currentTab === 'verein'">
                     <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
-                    <div class="card p-0 overflow-hidden bg-white border">
+                    <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
@@ -292,29 +292,29 @@
 
                 <div v-show="currentTab === 'archiv'">
                     <h2 class="mb-4">Dienstbuch-Archiv</h2>
-                    <div class="card p-4 bg-white border text-center text-muted mb-3"><h6>Historische Berichte, Chroniken und Dokumente verwalten</h6></div>
-                    <div class="card p-3 bg-white border mb-2"><b>Festschrift_140_Jahre.pdf</b> <br><small class="text-muted">Schlagworte: Jubiläum, Geschichte, Chronik</small></div>
+                    <div class="card p-4 bg-white border shadow-sm text-center text-muted mb-3"><h6>Historische Berichte, Chroniken und Dokumente verwalten</h6></div>
+                    <div class="card p-3 bg-white border shadow-sm mb-2"><b>Festschrift_140_Jahre.pdf</b> <br><small class="text-muted">Schlagworte: Jubiläum, Geschichte, Chronik</small></div>
                 </div>
 
                 <div v-show="currentTab === 'quiz'">
                     <h2 class="mb-4">Schulungs-Quiz</h2>
-                    <div class="card p-4 bg-white border">
+                    <div class="card p-4 bg-white border shadow-sm">
                         <span class="badge bg-secondary mb-2 align-self-start">Ausbildungsthema: UVV</span>
                         <h4 class="fw-bold mb-3">Welche Mindest-Restdruck-Sperre schützt die Flasche eines Pressluftatmers vor Feuchtigkeit?</h4>
                         <div class="d-flex flex-column gap-2">
-                            <button class="btn btn-outline-dark text-start p-2" @click="alert('Falsch. Versuche es noch einmal!')">A) Keine Restdrucksperre vorhanden.</button>
-                            <button class="btn btn-outline-dark text-start p-2" @click="alert('Richtig! Das integrierte Ventil hält ca. 5 bar Restdruck.')">B) ca. 5 bar Überdruck-Restdruckventil.</button>
+                            <button class="btn btn-outline-dark text-start p-2 shadow-sm" @click="alert('Falsch. Versuche es noch einmal!')">A) Keine Restdrucksperre vorhanden.</button>
+                            <button class="btn btn-outline-dark text-start p-2 shadow-sm" @click="alert('Richtig! Das integrierte Ventil hält ca. 5 bar Restdruck.')">B) ca. 5 bar Überdruck-Restdruckventil.</button>
                         </div>
                     </div>
                 </div>
 
                 <div v-show="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Systemeinstellungen</h2>
-                    <div class="card p-4 bg-white border">
+                    <div class="card p-4 bg-white border shadow-sm">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <button class="btn btn-danger rounded-pill fw-bold" @click="saveSettings()">Konfiguration sichern</button>
+                        <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
 
