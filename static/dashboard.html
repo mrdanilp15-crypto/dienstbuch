@@ -19,7 +19,7 @@
         .status-btn { width: 40px; height: 40px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; transition: all 0.15s; }
         .status-btn.s-2.active { background: #22c55e; color: white; border-color: #15803d; }
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
-        .service-report-card { border-left: 4px solid #94a3b8 !important; } /* Dienstbuch neutrales Grau */
+        .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -43,7 +43,7 @@
                         <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
                         <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Tankbuch</div>
                         <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Dienstplan & Termine</div>
-                        <div class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Dienstbuch-Archiv</div>
+                        <div class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-clock-rotate-left"></i> Dienstbuch-Archiv</div>
                         <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
                     </div>
                 </div>
@@ -136,8 +136,8 @@
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <div class="d-flex gap-1">
-                                    <button class="btn btn-xs btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
-                                    <button class="btn btn-xs btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -295,6 +295,8 @@
 
                 <div v-show="currentTab === 'archiv'">
                     <h2 class="mb-4">Dienstbuch-Archiv</h2>
+                    <div class="card p-4 bg-white border shadow-sm text-center text-muted mb-4"><h6>Historische Berichte, Chroniken und Dokumente verwalten</h6></div>
+                    
                     <div class="card p-4 bg-white border shadow-sm mb-4">
                         <h5 class="fw-bold mb-3"><i class="fa fa-upload text-danger me-2"></i> Dokument archivieren</h5>
                         <div class="row g-2 mb-2">
@@ -304,6 +306,7 @@
                         <div class="mb-3"><input type="file" id="archiveFileInput" class="form-control" @change="processArchiveFile"></div>
                         <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()"><i class="fa fa-cloud-arrow-up me-1"></i> Archivieren</button>
                     </div>
+                    
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>ID</th><th>Titel</th><th>Schlagworte</th><th>Datum</th><th class="text-end">Aktion</th></tr></thead>
@@ -321,16 +324,11 @@
                 </div>
 
                 <div v-show="currentTab === 'einstellungen'">
-                    <h2 class="mb-4">Systemeinstellungen & Integrationen</h2>
+                    <h2 class="mb-4">Systemeinstellungen</h2>
                     <div class="card p-4 bg-white border shadow-sm">
                         <div class="mb-3"><label for="geoSearchInput" class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" name="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
                         <hr class="my-3">
                         <div class="mb-3"><label for="stationNameInput" class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" id="stationNameInput" name="stationNameInput" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <h5 class="fw-bold text-danger mt-4 mb-2"><i class="fa fa-network-wired me-2"></i> Digitale Alarm-Schnittstellen</h5>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold">aPager PRO API Key</label><input type="text" v-model="registry.apager_api_key" class="form-control font-monospace"></div>
-                            <div class="col-md-6"><label class="small fw-bold">Divera 24/7 Webhook URL</label><input type="text" v-model="registry.divera_webhook" class="form-control font-monospace"></div>
-                        </div>
                         <button class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
@@ -501,7 +499,6 @@
                 },
                 async delTicket(id) {
                     if(confirm("Mangel löschen?")) {
-                        // Da Tickets über Whiteboard gesteuert werden, Status auf 'gelöscht' setzen oder API aufrufen
                         await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'erledigt'})});
                         await this.refreshAllData();
                     }
