@@ -24,7 +24,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- PYDANTIC SYSTEM MODELLE (Zwingend ganz oben definiert) ---
+# --- PYDANTIC SYSTEM MODELLE ---
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -139,12 +139,12 @@ def get_current_user(request: Request):
             return json.loads(base64.b64decode(payload_b64).decode())
     except: return None
 
-# --- DATABASE SOVEREIGN AUTOMATION & SCHEMA SANIERUNG ---
+# --- DATABASE AUTOMATION & REPARATUR ---
 def init_db():
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
     
-    # Altreste blockierender Tabellen entfernen, um Datenintegrität herzustellen
+    # Repariert alte blockierende Tabellenüberreste zur fehlerfreien Migration
     try: cur.execute("DROP TABLE IF EXISTS attendance;")
     except: pass
     try: cur.execute("DROP TABLE IF EXISTS persons;")
@@ -183,30 +183,7 @@ def init_db():
 
 init_db()
 
-# --- AUTOMATISIERTE BERIKHTS- & KPI STATISTIK ENGINE ---
-@app.get("/api/reports/summary")
-def get_kpi_summary(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401)
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    
-    cur.execute("SELECT COALESCE(SUM(duration), 0) as total_hours, COUNT(*) as total_sessions FROM sessions")
-    sess_stats = cur.fetchone()
-    
-    cur.execute("SELECT COUNT(*) as total_count FROM personnel")
-    pers_stats = cur.fetchone()
-    
-    cur.execute("SELECT COUNT(*) as total_count FROM vehicles")
-    veh_stats = cur.fetchone()
-    
-    cur.close(); conn.close()
-    return {
-        "total_hours": float(sess_stats["total_hours"]),
-        "total_sessions": sess_stats["total_sessions"],
-        "crew_strength": pers_stats["total_count"],
-        "vehicle_count": veh_stats["total_count"]
-    }
-
-# --- GLOBAL OPEN-METEO WEATHER ENGINE ---
+# --- GEOGRAFISCHE OPEN-METEO WEATHER ENGINE ---
 @app.get("/api/weather")
 def get_global_weather(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -232,7 +209,7 @@ def get_global_weather(request: Request):
     except:
         return {"station": name, "temperature": "N/A", "wind": "N/A", "warning_text": "Wetter-Gateway offline."}
 
-# --- APPLIKATIONS ROUTEN ---
+# --- WEB SEITEN INTERFACES ---
 @app.get("/")
 def route_root(request: Request):
     if get_current_user(request): return FileResponse("static/dashboard.html")
@@ -251,7 +228,7 @@ def route_editor_page(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
     return FileResponse("static/editor.html")
 
-# --- AUTH SEKTION MIT ACCOUNT LOCKOUT BRUTE-FORCE PROTECTION ---
+# --- BRUTE-FORCE LOCKOUT AUTHENTIFIZIERUNG ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -275,7 +252,6 @@ def api_login(data: LoginRequest, response: Response):
     if verify_password(user['password_hash'], data.password):
         cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (user['id'],))
         conn.commit(); cur.close(); conn.close()
-        
         token = create_token(user['username'], user['role'])
         response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
         return {"status": "success", "redirect": "/dashboard"}
@@ -283,14 +259,12 @@ def api_login(data: LoginRequest, response: Response):
         new_failed = user['failed_logins'] + 1
         lockout_time = None
         detail_msg = "Zugangsdaten ungültig!"
-        
         if new_failed >= 5:
             lockout_time = datetime.now() + timedelta(minutes=15)
             cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (new_failed, lockout_time, user['id']))
             detail_msg = "Konto wurde wegen zu vieler Fehlversuche für 15 Minuten gesperrt."
         else:
             cur.execute("UPDATE users SET failed_logins = %s WHERE id = %s", (new_failed, user['id']))
-            
         conn.commit(); cur.close(); conn.close()
         raise HTTPException(status_code=401, detail=detail_msg)
 
@@ -307,7 +281,7 @@ def api_me(request: Request):
     res = cur.fetchone(); cur.close(); conn.close()
     return res
 
-# --- REGISTRY ---
+# --- SYSTEM PARAMETERS ---
 @app.get("/api/settings")
 def get_registry_settings(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401)
@@ -344,7 +318,7 @@ def delete_user(u_id: int, request: Request):
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM users WHERE id = %s", (u_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
 
-# --- KAMERADEN & PERSONALAKTEN CRUD ---
+# --- KAMERADEN CRUD ---
 @app.get("/api/personnel/list")
 def list_personnel_records(request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
@@ -356,4 +330,161 @@ def save_personnel_record(data: PersonnelCreateDto, request: Request):
     c = get_db_connection(); cur = c.cursor()
     g26 = data.g26_3_date if data.g26_3_date else None
     if data.id:
-        cur.execute("UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, phone=%s, email=%s, address=%s, profile_picture=%s WHERE id=%s", (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, data.phone, data.email, data.address, data.profile
+        cur.execute("UPDATE personnel SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, g26_3_date=%s, phone=%s, email=%s, address=%s, profile_picture=%s WHERE id=%s", (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, data.phone, data.email, data.address, data.profile_picture, data.id))
+    else:
+        cur.execute("INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, phone, email, address, profile_picture) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (data.name, data.rank, data.membership_status, int(data.is_agt), int(data.is_maschinist), int(data.is_gf), g26, data.phone, data.email, data.address, data.profile_picture))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/personnel/{p_id}")
+def delete_personnel_record(p_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+# --- FUHRPARK ASSETS & FRISTEN CRUD ---
+@app.get("/api/vehicles")
+def list_vehicles(request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, name, radio_name, status, milage, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date FROM vehicles ORDER BY name ASC")
+    r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.post("/api/vehicles")
+def create_vehicle_record(data: VehicleCreateDto, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    if data.id: cur.execute("UPDATE vehicles SET name=%s, radio_name=%s, status=%s, milage=%s, tuv_date=%s, sp_date=%s WHERE id=%s", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None, data.id))
+    else: cur.execute("INSERT INTO vehicles (name, radio_name, status, milage, tuv_date, sp_date) VALUES (%s,%s,%s,%s,%s,%s)", (data.name, data.radio_name, data.status, data.milage, data.tuv_date or None, data.sp_date or None))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/vehicles/{v_id}")
+def delete_vehicle_record(v_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.put("/api/vehicles/{v_id}/status")
+def update_vehicle_status_code(v_id: int, data: VehicleStatusDto, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("UPDATE vehicles SET status = %s WHERE id = %s", (data.status, v_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+# --- FAHRTENBUCH LOG ENGINE ---
+@app.get("/api/vehicles/logs")
+def list_vehicle_logs():
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT l.*, v.name as vehicle_name, DATE_FORMAT(l.date, '%d.%m.%Y') as date_formatted FROM vehicle_log l LEFT JOIN vehicles v ON l.vehicle_id = v.id ORDER BY l.id DESC")
+    r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.post("/api/vehicles/logs")
+def save_vehicle_log(data: VehicleLogDto):
+    c = get_db_connection(); cur = c.cursor()
+    if data.id:
+        cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s WHERE id=%s", (data.vehicle_id, data.date, data.driver_name, data.purpose, data.km_start, data.km_end, data.id))
+    else:
+        cur.execute("INSERT INTO vehicle_log (vehicle_id, date, driver_name, purpose, km_start, km_end) VALUES (%s,%s,%s,%s,%s,%s)", (data.vehicle_id, data.date, data.driver_name, data.purpose, data.km_start, data.km_end))
+        cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (data.km_end, data.vehicle_id))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/vehicles/logs/{log_id}")
+def delete_vehicle_log(log_id: int):
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+# --- SESSIONS & REAKTIVER ATTENDANCE MERGE ---
+@app.get("/groups")
+def list_groups_all(request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM groups_table"); r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.get("/groups/{group_id}/sessions")
+def list_sessions_dashboard(group_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions WHERE group_id = %s ORDER BY date DESC", (group_id,))
+    r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.get("/groups/{group_id}/attendance")
+def get_group_attendance_matrix(group_id: int, request: Request, session_id: Optional[int] = None):
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
+    
+    if session_id and session_id != 0:
+        cur.execute("SELECT id as session_id, description, duration, DATE_FORMAT(date, '%Y-%m-%d') as date, category, instructors FROM sessions WHERE id = %s", (session_id,))
+        row = cur.fetchone()
+        if row: session_data = row
+    
+    query = "SELECT p.id as personnel_id, p.name, p.rank, p.is_agt, p.is_maschinist, CASE WHEN a.is_present IS NOT NULL THEN a.is_present ELSE 0 END as is_present, COALESCE(a.vehicle, '') as vehicle FROM personnel p LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s ORDER BY p.name ASC"
+    cur.execute(query, (session_id,))
+    persons = cur.fetchall()
+    for p in persons: p['is_present'] = bool(p['is_present'])
+    
+    cur.execute("SELECT DISTINCT description FROM sessions ORDER BY id DESC LIMIT 5")
+    presets_topics = [row_t['description'] for row_t in cur.fetchall()]
+    cur.execute("SELECT DISTINCT instructors FROM sessions ORDER BY id DESC LIMIT 5")
+    presets_leaders = [row_l['instructors'] for row_l in cur.fetchall()]
+    
+    cur.close(); c.close()
+    return {**session_data, "persons": persons, "presets": {"topics": presets_topics, "leaders": presets_leaders}}
+
+@app.post("/attendance")
+def save_attendance(data: LegacySessionPayload, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    s_id = data.session_id
+    if s_id and s_id != 0:
+        cur.execute("UPDATE sessions SET date=%s, duration=%s, description=%s, instructors=%s, category=%s WHERE id=%s", (data.date, data.duration, data.description, data.instructors, data.category, s_id))
+        cur.execute("DELETE FROM attendance WHERE session_id = %s", (s_id,))
+    else:
+        cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (%s,%s,%s,%s,%s,%s)", (data.group_id, data.date, data.category, data.duration, data.description, data.instructors))
+        s_id = cur.lastrowid
+    
+    for e in data.entries:
+        cur.execute("INSERT INTO attendance (session_id, person_id, is_present, vehicle) VALUES (%s,%s,%s,%s)", (s_id, e.person_id, 1 if e.is_present else 0, e.vehicle or ""))
+    c.commit(); cur.close(); c.close()
+    return {"status": "success", "session_id": s_id}
+
+# --- INVENTAR / BESTÄNDE CRUD ---
+@app.get("/api/inventory")
+def api_inventory_list(request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM inventory ORDER BY item_name ASC"); r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.post("/api/inventory")
+def api_inventory_save(data: InventoryItemDto, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    if data.id: cur.execute("UPDATE inventory SET item_name=%s, amount=%s, min_amount=%s, unit=%s, location=%s, barcode=%s, size=%s WHERE id=%s", (data.item_name, data.amount, data.min_amount, data.unit, data.location, data.barcode, data.size, data.id))
+    else: cur.execute("INSERT INTO inventory (item_name, amount, min_amount, unit, location, barcode, size) VALUES (%s,%s,%s,%s,%s,%s,%s)", (data.item_name, data.amount, data.min_amount, data.unit, data.location, data.barcode, data.size))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/inventory/{i_id}")
+def api_inventory_delete(i_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+# --- WHITEBOARD MÄNGEL KANBAN ---
+@app.get("/api/notes")
+def api_notes_list(request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT * FROM notes ORDER BY id DESC"); r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.post("/api/notes")
+def api_notes_create(data: NoteCreateDto, background_tasks: BackgroundTasks, request: Request):
+    user = get_current_user(request)
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("INSERT INTO notes (username, title, content, priority, kanban_status) VALUES (%s,%s,%s,%s,'neu')", (user['u'], data.title, data.content, data.priority))
+    c.commit(); cur.close(); c.close()
+    return {"status": "success"}
+
+@app.put("/api/notes/{n_id}/status")
+def api_notes_status_update(n_id: int, data: KanbanUpdateRequest, request: Request):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("UPDATE notes SET kanban_status = %s WHERE id = %s", (data.status, n_id)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/notes/{n_id}")
+def api_notes_delete(n_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM notes WHERE id = %s", (n_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+# --- VEREINSKALENDER CRUD ---
+@app.get("/api/events")
+def api_events_list(request: Request):
+    c = get_db_connection(); cur = c.cursor(dictionary=True); cur.execute("SELECT id, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, DATE_FORMAT(date, '%Y-%m-%d') as date, title, responsible FROM events ORDER BY date ASC"); r = cur.fetchall(); cur.close(); c.close(); return r
+
+@app.post("/api/events")
+def api_events_add(data: EventCreateDto, request: Request):
+    c = get_db_connection(); cur = c.cursor()
+    if data.id: cur.execute("UPDATE events SET date=%s, title=%s, responsible=%s WHERE id=%s", (data.date, data.title, data.responsible, data.id))
+    else: cur.execute("INSERT INTO events (date, title, responsible) VALUES (%s,%s,%s)", (data.date, data.title, data.responsible))
+    c.commit(); cur.close(); c.close(); return {"status": "success"}
+
+@app.delete("/api/events/{e_id}")
+def api_events_delete(e_id: int, request: Request):
+    c = get_db_connection(); cur = c.cursor(); cur.execute("DELETE FROM events WHERE id = %s", (e_id,)); c.commit(); cur.close(); c.close(); return {"status": "success"}
