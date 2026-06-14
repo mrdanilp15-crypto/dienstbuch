@@ -24,7 +24,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
@@ -43,7 +43,7 @@
                         <div class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
                         <div class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Tankbuch</div>
                         <div class="menu-link" :class="{active: currentTab === 'verein'}" @click="currentTab = 'verein'"><i class="fa fa-calendar-days"></i> Dienstplan & Termine</div>
-                        <div class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-clock-rotate-left"></i> Dienstbuch-Archiv</div>
+                        <div class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Dienstbuch-Archiv</div>
                         <div class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
                     </div>
                 </div>
@@ -158,7 +158,7 @@
                 </div>
 
                 <div v-show="currentTab === 'meinbereich'">
-                    <h2 class="mb-4">Mein Dienstbuch Profil</h2>
+                    <h2 class="mb-4">Mein Profil</h2>
                     <div class="card p-4 border bg-white shadow-sm">
                         <div class="d-flex align-items-center gap-4 mb-3">
                             <div class="avatar-container border" style="width:80px; height:80px;">
@@ -389,7 +389,6 @@
     <script>
         const { createApp } = Vue;
         let map = null;
-        let memberModal, userModal, invModal, vehModal, vehLogModal, eventModal, hydrantModal, ticketModal, qrModalInstance;
 
         createApp({
             data() {
@@ -469,7 +468,7 @@
                         if(!qrBox) return;
                         qrBox.innerHTML = "";
                         new QRCode(qrBox, {text: id, width: 128, height: 128});
-                        qrModalInstance.show();
+                        new bootstrap.Modal(document.getElementById('qrModal')).show();
                     });
                 },
                 processArchiveFile(e) {
@@ -481,7 +480,7 @@
                 },
                 async saveArchiveDoc() {
                     if(!this.newArchiveDoc.title) { alert("Bitte einen Titel eingeben."); return; }
-                    const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newArchiveDoc)});
+                    const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.dumps(this.newArchiveDoc)});
                     if(!res.ok) { alert("Fehler beim Archivieren!"); return; }
                     this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
                     document.getElementById('archiveFileInput').value = "";
@@ -489,7 +488,7 @@
                 },
                 async delArchiveDoc(id) {
                     if(confirm("Dokument löschen?")) {
-                        const res = await fetch(`/api/archive/${id}`, {method:'DELETE'});
+                        const res = await fetch(`/api/archive/${doc_id}`, {method:'DELETE'});
                         if(res.ok) await this.refreshAllData();
                     }
                 },
@@ -506,18 +505,18 @@
                 async saveTicket() {
                     const res = await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
                     if(!res.ok) { alert("Mangel konnte nicht gespeichert werden!"); return; }
-                    ticketModal.hide();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal')).hide();
                     this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
                     await this.refreshAllData();
                 },
                 async saveHydrant() {
                     const res = await fetch('/api/hydranten', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newHyd)});
                     if(!res.ok) { alert("Hydrant konnte nicht gespeichert werden!"); return; }
-                    hydrantModal.hide();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal')).hide();
                     this.initMap();
                 },
-                openTicketModal() { ticketModal.show(); },
-                openHydrantModal() { hydrantModal.show(); },
+                openTicketModal() { bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal')).show(); },
+                openHydrantModal() { bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal')).show(); },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
@@ -525,34 +524,34 @@
                 
                 openMemberModal(p) { 
                     this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: '' }; 
-                    memberModal.show(); 
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).show(); 
                 },
                 async saveMember() { 
                     const res = await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); 
                     if(!res.ok) { alert("Akte konnte nicht gespeichert werden!"); return; }
-                    memberModal.hide(); 
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal')).hide(); 
                     await this.refreshAllData(); 
                 },
                 async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await fetch(`/api/personnel/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
-                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; userModal.show(); },
-                async saveUser() { const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); if(!res.ok) { alert("Login konnte nicht gespeichert werden!"); return; } userModal.hide(); await this.refreshAllData(); },
+                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: null }; bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show(); },
+                async saveUser() { const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); if(!res.ok) { alert("Login konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).hide(); await this.refreshAllData(); },
                 async delUser(id) { if(confirm("Zugang löschen?")) { const res = await fetch(`/api/users/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
-                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: '', next_check: '' }; invModal.show(); },
-                async saveInv() { const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); if(!res.ok) { alert("Material konnte nicht gespeichert werden!"); return; } invModal.hide(); await this.refreshAllData(); },
+                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: '', next_check: '' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).show(); },
+                async saveInv() { const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); if(!res.ok) { alert("Material konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal')).hide(); await this.refreshAllData(); },
                 async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
-                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '', next_oil_change_km: 10000 }; vehModal.show(); },
-                async saveVeh() { const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); if(!res.ok) { alert("Fahrzeug konnte nicht gespeichert werden!"); return; } vehModal.hide(); await this.refreshAllData(); },
+                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: '', sp_date: '', next_oil_change_km: 10000 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).show(); },
+                async saveVeh() { const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); if(!res.ok) { alert("Fahrzeug konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal')).hide(); await this.refreshAllData(); },
                 async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
-                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; vehLogModal.show(); },
-                async saveLog() { const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); if(!res.ok) { alert("Eintrag konnte nicht gespeichert werden!"); return; } vehLogModal.hide(); await this.refreshAllData(); },
+                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : null, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).show(); },
+                async saveLog() { const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); if(!res.ok) { alert("Eintrag konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal')).hide(); await this.refreshAllData(); },
                 async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
-                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; eventModal.show(); },
-                async saveEvent() { const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); if(!res.ok) { alert("Termin konnte nicht gespeichert werden!"); return; } eventModal.hide(); await this.refreshAllData(); },
+                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).show(); },
+                async saveEvent() { const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); if(!res.ok) { alert("Termin konnte nicht gespeichert werden!"); return; } bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).hide(); await this.refreshAllData(); },
                 async delEvent(id) { if(confirm("Termin absagen?")) { const res = await fetch(`/api/events/${id}`, {method:'DELETE'}); if(res.ok) await this.refreshAllData(); } },
                 
                 async triggerGeocodingLookup() {
@@ -573,17 +572,6 @@
                     const res = await fetch('/api/auth/me');
                     if(!res.ok) { window.location.href = '/login'; return; }
                     this.identity = await res.json();
-                    
-                    memberModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('memberModal'));
-                    userModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal'));
-                    invModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('invModal'));
-                    vehModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('vehModal'));
-                    vehLogModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('vehLogModal'));
-                    eventModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal'));
-                    hydrantModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('hydrantModal'));
-                    ticketModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('ticketModal'));
-                    qrModalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('qrModal'));
-                    
                     await this.refreshAllData();
                 } catch(e) { console.error("Boot-Fehler:", e); } finally { this.ready = true; }
             }
