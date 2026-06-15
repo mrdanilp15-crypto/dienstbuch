@@ -24,7 +24,7 @@
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
     
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -149,10 +149,11 @@
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
-                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
+                                <p class="small text-muted mt-1 mb-1">{{ t.content }}</p>
+                                <div class="small mb-2 text-primary font-monospace" v-if="t.vehicle_name"><i class="fa fa-truck text-dark me-1"></i> Bezug: {{ t.vehicle_name }}</div>
                                 <div class="d-flex gap-1">
                                     <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -167,6 +168,7 @@
                             <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
                                 <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
+                                <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Endgültig löschen</button>
                             </div>
                         </div>
                     </div>
@@ -322,8 +324,8 @@
                                     <td><span class="badge bg-secondary me-1" v-for="tag in (doc.keywords || '').split(',')">{{ tag }}</span></td>
                                     <td><small class="text-muted">{{ doc.date_formatted }}</small></td>
                                     <td class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-dark me-1" @click="viewArchiveDoc(doc)"><i class="fa fa-eye"></i> Ansehen</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @click="delArchiveDoc(doc.id)"><i class="fa fa-trash"></i></button>
+                                        <button type="button" class="btn btn-xs btn-outline-dark me-1" @click="viewArchiveDoc(doc)"><i class="fa fa-eye"></i> Ansehen</button>
+                                        <button type="button" class="btn btn-xs btn-outline-danger" @click="delArchiveDoc(doc.id)"><i class="fa fa-trash"></i></button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -341,16 +343,25 @@
                             <input type="text" class="form-control font-monospace fw-bold bg-white text-danger" readonly :value="webhookUrl">
                         </div>
 
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label>
+                            <div class="input-group">
+                                <input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen">
+                                <button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button>
+                            </div>
+                            <small class="text-muted">Hinweis: Lädt direkt über die OpenStreetMap Cloud.</small>
+                        </div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
                         
                         <h5 class="fw-bold text-danger mt-4 mb-2"><i class="fa fa-bell me-2"></i> Outbound Webhooks (Zusatz-Alarmierung)</h5>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold">Divera 24/7 API-Schnittstelle</label><input type="text" v-model="registry.divera_webhook" class="form-control font-monospace" placeholder="https://app.divera247.de/api/v2/alerts/..."></div>
-                            <div class="col-md-6"><label class="small fw-bold">Alamos FE2 URL</label><input type="text" v-model="registry.alamos_fe2_url" class="form-control font-monospace" placeholder="http://localhost:8380/..."></div>
+                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">aPager PRO API Key</label><input type="text" v-model="registry.apager_api_key" class="form-control font-monospace"></div>
+                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Divera 24/7 Webhook URL</label><input type="text" v-model="registry.divera_webhook" class="form-control font-monospace"></div>
                         </div>
-                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Alamos FE2 Server-Schnittstelle</label><input type="text" v-model="registry.alamos_fe2_url" class="form-control font-monospace"></div>
+                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">GroupAlarm API Token</label><input type="text" v-model="registry.groupalarm_token" class="form-control font-monospace"></div>
+                        </div>
                         <div class="d-flex gap-2 mt-2">
                             <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
                             <button type="button" class="btn btn-warning rounded-pill fw-bold px-4" @click="testWebhooks()"><i class="fa fa-triangle-exclamation me-1"></i> Test-Alarm simulieren</button>
@@ -361,21 +372,21 @@
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center">
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center">
             <h5 class="fw-bold mb-3">Smart-QR Etikett</h5>
             <p class="small text-muted">Dieser Code enthält einen direkten Link zur Kleiderkammer. Einfach mit dem Smartphone scannen.</p>
             <div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
             <button type="button" class="btn btn-dark w-100 rounded-pill" onclick="window.print()" @click="closeModal('qrModal')"><i class="fa fa-print"></i> Etikett drucken</button>
         </div></div></div></div>
         
-        <div class="modal fade" id="hydrantModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Wasserentnahmestelle</h5><button type="button" class="btn-close" @click="closeModal('hydrantModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
             <div class="mb-2"><label class="small fw-bold">Durchmesser</label><input type="text" v-model="newHyd.diameter" class="form-control"></div>
             <button type="button" class="btn btn-danger w-100 mt-2 rounded-pill fw-bold" @click="saveHydrant()">Speichern</button>
         </div></div></div></div>
         
-        <div class="modal fade" id="ticketModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold"><i class="fa fa-clipboard-list text-danger me-2"></i> Mangel erfassen</h5><button type="button" class="btn-close" @click="closeModal('ticketModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Titel / Bezeichnung *</label><input type="text" v-model="newTicket.title" class="form-control" placeholder="z. B. Heckblitzer defekt"></div>
             <div class="mb-2"><label class="small fw-bold">Beschreibung des Defekts</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
@@ -384,7 +395,7 @@
             <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveTicket()">Mängelbericht einspeichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="memberModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
+        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
             <div class="d-flex justify-content-between mb-2"><h5>Kameradenstamm verwalten</h5><button type="button" class="btn-close" @click="closeModal('memberModal')"></button></div>
             <div class="row g-2 mb-2">
                 <div class="col-md-6"><label class="small fw-bold">Klarname *</label><input type="text" v-model="newMem.name" class="form-control"></div>
@@ -414,7 +425,7 @@
             <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold mt-2" @click="saveMember()">Kameradenakte speichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>System-Zugang verwalten</h5><button type="button" class="btn-close" @click="closeModal('userModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Benutzername *</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
             <div class="mb-2"><label class="small fw-bold">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
@@ -423,7 +434,7 @@
             <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login speichern</button>
         </div></div></div></div>
         
-        <div class="modal fade" id="invModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Materialbestand</h5><button type="button" class="btn-close" @click="closeModal('invModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Gegenstand *</label><input type="text" v-model="newInv.item_name" class="form-control"></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control"></div></div>
@@ -431,7 +442,7 @@
             <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="vehModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Einsatzfahrzeug registrieren</h5><button type="button" class="btn-close" @click="closeModal('vehModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Fahrzeugbezeichnung *</label><input type="text" v-model="newVeh.name" class="form-control" placeholder="z. B. HLF 20"></div>
             <div class="mb-2"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control"></div>
@@ -439,17 +450,16 @@
             <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
         </div></div></div></div>
 
-        <div class="modal fade" id="vehLogModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Fahrtenbucheintrag</h5><button type="button" class="btn-close" @click="closeModal('vehLogModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Fahrzeug</label><select v-model.number="activeLog.vehicle_id" class="form-select"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
             <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
             <div class="mb-2"><label class="small fw-bold">Maschinist</label><input type="text" v-model="activeLog.driver_name" class="form-control"></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">KM Start</label><input type="number" v-model.number="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold">KM Ende</label><input type="number" v-model.number="activeLog.km_end" class="form-control"></div></div>
-            <div class="mb-3"><label class="small fw-bold">Getankte Liter</label><input type="number" step="0.1" v-model.number="activeLog.fuel_liters" class="form-control"></div>
             <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
         </div></div></div></div>
         
-        <div class="modal fade" id="eventModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Termin / Dienstplanung</h5><button type="button" class="btn-close" @click="closeModal('eventModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="newEvent.date" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold">Titel *</label><input type="text" v-model="newEvent.title" class="form-control"></div>
@@ -461,6 +471,9 @@
     <script>
         const { createApp } = Vue;
         let map = null;
+        
+        // Globale Modal-Verwaltungsobjekte
+        let bsModals = {};
 
         createApp({
             data() {
@@ -487,15 +500,14 @@
                 showToast(msg, isError = false) {
                     const t = document.getElementById('sysToast');
                     const m = document.getElementById('toastMessage');
-                    if(!t || !m) return;
                     t.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
                     m.innerText = msg;
                     bootstrap.Toast.getOrCreateInstance(t).show();
                 },
                 closeToast() { bootstrap.Toast.getInstance(document.getElementById('sysToast'))?.hide(); },
                 
-                openModal(id) { bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show(); },
-                closeModal(id) { bootstrap.Modal.getInstance(document.getElementById(id))?.hide(); },
+                openModal(id) { bsModals[id].show(); },
+                closeModal(id) { bsModals[id].hide(); },
                 
                 cleanData(obj) {
                     if (!obj) return {};
@@ -512,43 +524,31 @@
                     }
                     try {
                         const res = await fetch(url, options);
-                        if (!res.ok) { console.warn(`API Error ${url}: ${res.status}`); return null; }
+                        if (!res.ok) { this.showToast(`Serverfehler! Code: ${res.status}`, true); return null; }
                         return await res.json();
-                    } catch (err) { console.error(`Network crash on ${url}`, err); return null; }
+                    } catch (err) { this.showToast(`Netzwerkfehler!`, true); return null; }
                 },
                 async fetchJson(url) {
                     try { 
                         const r = await fetch(url + '?t=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); 
                         return r.ok ? await r.json() : null; 
-                    } catch(e) { 
-                        console.warn("Endpoints target offline/not built yet:", url);
-                        return null; 
-                    }
+                    } catch(e) { return null; }
                 },
                 
-                // KORREKTUR: Fehlertolerantes Laden. Stürzt nie wieder ab, wenn Routen fehlen (404)
                 async refreshAllData() {
-                    const endpoints = {
-                        vehicles: '/api/vehicles', inventory: '/api/inventory', personnel: '/api/personnel/list',
-                        events: '/api/events', weather: '/api/weather', registry: '/api/settings',
-                        vehicleLogs: '/api/vehicles/logs', users: '/api/users', tickets: '/api/tickets',
-                        activeAlarm: '/api/alarm/active', archiveDocs: '/api/archive/list', sessions: '/groups/1/sessions'
-                    };
-
-                    for (let key in endpoints) {
-                        try {
-                            const data = await this.fetchJson(endpoints[key]);
-                            if (data) {
-                                if (key === 'activeAlarm') {
-                                    this.activeAlarm = data.status === 'clear' ? {} : data;
-                                } else {
-                                    this[key] = data;
-                                }
-                            }
-                        } catch (e) {
-                            console.error(`Error loading key ${key}:`, e);
-                        }
-                    }
+                    try {
+                        const ts = '?t=' + new Date().getTime();
+                        const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
+                            fetch('/api/vehicles'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/inventory'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/personnel/list'+ts).then(r=>r.ok ? r.json() : []),
+                            fetch('/api/events'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/weather'+ts).then(r=>r.ok ? r.json() : null), fetch('/api/settings'+ts).then(r=>r.ok ? r.json() : {}),
+                            fetch('/api/vehicles/logs'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/users'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/tickets'+ts).then(r=>r.ok ? r.json() : []),
+                            fetch('/api/alarm/active'+ts).then(r=>r.ok ? r.json() : {}), fetch('/api/archive/list'+ts).then(r=>r.ok ? r.json() : []), fetch('/groups/1/sessions'+ts).then(r=>r.ok ? r.json() : [])
+                        ]);
+                        this.vehicles = v; this.inventory = i; this.personnel = p;
+                        this.events = e; this.weather = w; this.registry = s;
+                        this.vehicleLogs = l; this.users = u; this.tickets = t;
+                        this.activeAlarm = a.status === 'clear' ? {} : a; this.archiveDocs = arc; this.sessions = sess;
+                    } catch (e) { console.error("Daten-Refresh Fehler", e); }
                 },
                 
                 initMap() {
@@ -576,7 +576,7 @@
                                     `); 
                                 });
                             }
-                        }).catch(() => {});
+                        });
                     });
                 },
                 
@@ -618,7 +618,6 @@
                     });
                 },
                 
-                // === ERWEITERTES ARCHIV-MANAGEMENT ===
                 processArchiveFile(e) {
                     const file = e.target.files[0];
                     if(!file) return;
@@ -637,22 +636,14 @@
                 },
                 async delArchiveDoc(id) { if(confirm("Wirklich löschen?")) { const res = await this.apiCall(`/api/archive/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                // KORREKTUR: Funktion macht hochgeladene PDFs/Bilder im neuen Tab sichtbar
+                // Vorschau-Funktion (Öffnet Blob im Browser-Tab)
                 viewArchiveDoc(doc) {
-                    if (!doc.file_blob) {
-                        this.showToast("Keine Datei-Inhalte auf dem Server hinterlegt.", true);
-                        return;
-                    }
+                    if (!doc.file_blob) { this.showToast("Keine Datei hinterlegt.", true); return; }
                     try {
                         const win = window.open();
-                        if(win) {
-                            win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                        } else {
-                            this.showToast("Pop-Up Blocker verhinderte das Öffnen!", true);
-                        }
-                    } catch(e) {
-                        this.showToast("Fehler beim Öffnen des Dokuments.", true);
-                    }
+                        if(win) win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                        else this.showToast("Pop-Up Blocker verhinderte das Öffnen!", true);
+                    } catch(e) { this.showToast("Fehler beim Öffnen.", true); }
                 },
                 
                 openTicketModal() { this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0}; this.openModal('ticketModal'); },
@@ -672,7 +663,6 @@
                 async setVehicleStatus(v, s) { v.status = s; await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                // CRUD Formulare Handler
                 openEditMember(p) { 
                     this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
                     this.openModal('memberModal'); 
@@ -723,6 +713,23 @@
                 },
                 async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
+                // Direkter Geocoding-Call zum Client, kein Server-Timeout mehr
+                async triggerGeocodingLookup() {
+                    const q = document.getElementById('geoSearchInput').value;
+                    if(!q) return;
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`).then(r=>r.json());
+                        if(res && res.length > 0) {
+                            this.registry.station_lat = res[0].lat;
+                            this.registry.station_lon = res[0].lon;
+                            this.showToast("Ort erfolgreich aufgelöst!");
+                        } else { this.showToast("Ort nicht gefunden.", true); }
+                    } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
+                },
+                async saveSettings() { 
+                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
+                    if(res) this.showToast("Systemeinstellungen gesichert!"); 
+                },
                 async testWebhooks() {
                     try {
                         const res = await fetch('/api/webhook/alarm', {
@@ -731,26 +738,20 @@
                         });
                         if(res.ok) { this.showToast("Test-Alarm erfolgreich ausgelöst!"); this.refreshAllData(); }
                     } catch(e) { this.showToast("Test-Alarm fehlgeschlagen!", true); }
-                },
-                async triggerGeocodingLookup() {
-                    const q = document.getElementById('geoSearchInput').value;
-                    if(!q) return;
-                    const res = await this.fetchJson('/api/geocode?q=' + encodeURIComponent(q));
-                    if(res && res.status === 'success') {
-                        this.registry.station_lat = res.lat;
-                        this.registry.station_lon = res.lon;
-                        this.showToast("Ort erfolgreich aufgelöst!");
-                    } else { this.showToast("Ort nicht gefunden.", true); }
-                },
-                async saveSettings() { 
-                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
-                    if(res) this.showToast("Systemeinstellungen gesichert!"); 
                 }
             },
             async mounted() {
                 window.vueApp = this;
                 this.webhookUrl = window.location.origin + '/api/webhook/alarm';
-                const res = await this.apiCall('/api/auth/me');
+                
+                // Native Bootstrap Modals initialisieren um Aria-Bugs zu umgehen
+                const mIds = ['qrModal', 'hydrantModal', 'ticketModal', 'memberModal', 'userModal', 'invModal', 'vehModal', 'vehLogModal', 'eventModal'];
+                mIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el) bsModals[id] = new bootstrap.Modal(el);
+                });
+
+                const res = await this.fetchJson('/api/auth/me');
                 if(!res || res.detail) { window.location.href = '/login'; return; }
                 this.identity = res;
                 await this.refreshAllData();
