@@ -12,31 +12,43 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
+from typing import Optional  # <--- HIER FEHLTE DER IMPORT!
 
-# --- KONFIGURATION ---
+# ==========================================
+# 1. KONFIGURATION & GRUNDEINSTELLUNGEN
+# ==========================================
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112")
 
 app = FastAPI(title="Digitales Dienstbuch")
 
+# Statische Dateien (HTML, CSS, JS) einbinden
 if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- HILFSFUNKTIONEN ---
+# ==========================================
+# 2. HILFSFUNKTIONEN (Sicherheit & Parsing)
+# ==========================================
 def parse_val(v):
-    if v == "" or v == "null" or v is None:
+    """
+    Verhindert Datenbank-Crashes. Wandelt leere Strings ("") aus 
+    dem Vue-Frontend in echte NULL-Werte um, die MySQL versteht.
+    """
+    if v == "" or v == "null" or v is None: 
         return None
-    if isinstance(v, str):
+    if isinstance(v, str): 
         return v.strip()
     return v
 
 def to_int(v):
-    if str(v).lower() in ['true', '1', 'yes']:
+    """Sichere Umwandlung von Checkbox-Werten in 0 oder 1 für MySQL Boolean-Felder."""
+    if str(v).lower() in ['true', '1', 'yes']: 
         return 1
     return 0
 
 def get_db_connection():
+    """Baut die Verbindung zum MariaDB/MySQL Container auf."""
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
 
 def hash_password(p: str) -> str:
@@ -47,7 +59,7 @@ def verify_password(stored, prov) -> bool:
     try:
         s, h = stored.split(":")
         return hashlib.pbkdf2_hmac('sha256', prov.encode(), s.encode(), 100000).hex() == h
-    except:
+    except: 
         return False
 
 def create_token(u: str, r: str) -> str:
@@ -55,37 +67,36 @@ def create_token(u: str, r: str) -> str:
     return f"{p}.{hmac.new(SECRET_KEY.encode(), p.encode(), hashlib.sha256).hexdigest()}"
 
 def get_current_user(req: Request):
+    """Prüft das Cookie auf ein gültiges, signiertes Login-Token."""
     t = req.cookies.get("session_token")
-    if not t:
+    if not t: 
         return None
     try:
         p, sig = t.split(".")
         if hmac.compare_digest(sig, hmac.new(SECRET_KEY.encode(), p.encode(), hashlib.sha256).hexdigest()):
             return json.loads(base64.b64decode(p).decode())
-    except:
+    except: 
         return None
 
-# --- DATENBANK INITIALISIERUNG ---
+# ==========================================
+# 3. DATENBANK INITIALISIERUNG & MIGRATION
+# ==========================================
 def init_db():
+    """
+    Wird beim Server-Start ausgeführt. Legt alle fehlenden Tabellen an 
+    und integriert neue Spalten (Migration), falls die Datenbank noch auf einem alten Stand ist.
+    """
     try:
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
+        # Einstellungen
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-        
-        settings_defaults = [
-            ('apager_api_key', ''), 
-            ('divera_webhook', ''), 
-            ('alamos_fe2_url', ''), 
-            ('groupalarm_token', ''), 
-            ('station_name', 'Freiwillige Feuerwehr'), 
-            ('station_lat', '47.9942'), 
-            ('station_lon', '10.1344')
-        ]
-        for k, v in settings_defaults:
+        for k, v in [('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), ('groupalarm_token', ''), ('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
             
+        # Tabellen
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
         cur.execute("""CREATE TABLE IF NOT EXISTS personnel (
             id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), 
@@ -109,6 +120,7 @@ def init_db():
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         
+        # Fehlende Spalten nachtragen (Fallback für Updates)
         migrations = [
             ("users", "personnel_id", "INT NULL"), 
             ("tickets", "vehicle_id", "INT NULL"), 
@@ -138,10 +150,11 @@ def init_db():
         
         for table, col, schema in migrations:
             try: 
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {schema}")
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {schema};")
             except: 
                 pass
 
+        # Super-Admin anlegen, falls System komplett leer ist
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
@@ -150,35 +163,40 @@ def init_db():
         c.commit()
         cur.close()
         c.close()
+        print("Datenbank erfolgreich initialisiert.")
     except Exception as e: 
         print(f"DB Init Error: {e}")
 
 init_db()
 
-# --- WEB CONTROLLERS ---
+# ==========================================
+# 4. BASIS-ROUTEN (Frontend Auslieferung)
+# ==========================================
 @app.get("/")
 def route_root(r: Request):
-    if get_current_user(r):
+    if get_current_user(r): 
         return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
 @app.get("/dashboard")
 def route_dashboard(r: Request):
-    if get_current_user(r):
+    if get_current_user(r): 
         return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
 @app.get("/login")
-def route_login_page():
+def route_login_page(): 
     return FileResponse("static/login.html")
 
 @app.get("/editor")
 def route_editor_page(r: Request):
-    if get_current_user(r):
+    if get_current_user(r): 
         return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- AUTH ---
+# ==========================================
+# 5. AUTHENTIFIZIERUNG & EINSTELLUNGEN
+# ==========================================
 @app.post("/api/login")
 async def api_login(r: Request, res: Response):
     d = await r.json()
@@ -186,11 +204,12 @@ async def api_login(r: Request, res: Response):
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE username = %s", (d.get('username','').strip(),))
     u = cur.fetchone()
+    
     if not u or not verify_password(u['password_hash'], d.get('password','')):
         cur.close()
         c.close()
-        return Response(status_code=401)
-    
+        raise HTTPException(status_code=401)
+        
     token = create_token(u['username'], u['role'])
     res.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
     cur.close()
@@ -205,8 +224,8 @@ def api_logout(res: Response):
 @app.get("/api/auth/me")
 def api_me(r: Request):
     u = get_current_user(r)
-    if not u:
-        return Response(status_code=401)
+    if not u: 
+        raise HTTPException(status_code=401)
         
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
@@ -215,23 +234,6 @@ def api_me(r: Request):
     cur.close()
     c.close()
     return res
-
-# --- EINSTELLUNGEN & WIDGETS ---
-@app.get("/api/weather")
-def get_weather(r: Request):
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    s = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
-    cur.close()
-    c.close()
-    try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={s.get('station_lat','47.99')}&longitude={s.get('station_lon','10.13')}&current_weather=true"
-        with urllib.request.urlopen(url, timeout=2) as res:
-            cw = json.loads(res.read().decode()).get("current_weather", {})
-            return {"station": s.get("station_name", "Wache"), "temperature": f"{cw.get('temperature', '--')} °C", "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live-Wetter synchronisiert"}
-    except:
-        return {"station": s.get("station_name", "Wache"), "temperature": "N/A", "wind": "N/A", "warning_text": "Wetter-API blockiert."}
 
 @app.get("/api/settings")
 def get_settings(r: Request):
@@ -245,6 +247,9 @@ def get_settings(r: Request):
 
 @app.post("/api/settings")
 async def save_settings(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -255,7 +260,45 @@ async def save_settings(r: Request):
     c.close()
     return {"status": "success"}
 
-# --- USERS ---
+# ==========================================
+# 6. EXTERNE ABFRAGEN (Wetter & Geocoding)
+# ==========================================
+@app.get("/api/weather")
+def get_weather(r: Request):
+    """Ruft Live-Wetterdaten ab."""
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    cur.execute("SELECT setting_key, setting_value FROM settings")
+    s = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
+    cur.close()
+    c.close()
+    
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={s.get('station_lat','47.99')}&longitude={s.get('station_lon','10.13')}&current_weather=true"
+        with urllib.request.urlopen(url, timeout=2) as res:
+            cw = json.loads(res.read().decode()).get("current_weather", {})
+            return {"station": s.get("station_name", "Wache"), "temperature": f"{cw.get('temperature', '--')} °C", "wind": f"{cw.get('windspeed', '--')} km/h", "warning_text": "Live-Wetter synchronisiert"}
+    except: 
+        return {"station": s.get("station_name", "Wache"), "temperature": "N/A", "wind": "N/A", "warning_text": "Wetter-API blockiert."}
+
+@app.get("/api/geocode")
+def geocode(q: str, r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+    try:
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={urllib.parse.quote(q)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'DigitalesDienstbuch/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            data = json.loads(res.read().decode())
+            if data: 
+                return {"status": "success", "name": data[0].get("display_name"), "lat": data[0].get("lat"), "lon": data[0].get("lon")}
+    except: 
+        pass
+    return {"status": "error"}
+
+# ==========================================
+# 7. PERSONAL & BENUTZERVERWALTUNG
+# ==========================================
 @app.get("/api/users")
 def list_users(r: Request):
     c = get_db_connection()
@@ -268,21 +311,24 @@ def list_users(r: Request):
 
 @app.post("/api/users")
 async def save_user(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
     
     u_id = d.get('id')
     p_id = parse_val(d.get('personnel_id'))
-    if str(p_id) == "0":
+    if str(p_id) == "0": 
         p_id = None
         
-    pw = d.get('password') or ""
+    pw = d.get('password')
     role = d.get('role', 'user')
     uname = d.get('username', '').strip()
     
     if u_id:
-        if pw.strip():
+        if pw and len(pw.strip()) > 0:
             cur.execute("UPDATE users SET role=%s, personnel_id=%s, password_hash=%s WHERE id=%s", (role, p_id, hash_password(pw), u_id))
         else:
             cur.execute("UPDATE users SET role=%s, personnel_id=%s WHERE id=%s", (role, p_id, u_id))
@@ -296,6 +342,9 @@ async def save_user(r: Request):
 
 @app.delete("/api/users/{u_id}")
 def del_user(u_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM users WHERE id = %s", (u_id,))
@@ -304,9 +353,11 @@ def del_user(u_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- PERSONNEL ---
 @app.get("/api/personnel/list")
 def list_pers(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture, DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date, DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date, DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date FROM personnel ORDER BY name ASC")
@@ -317,29 +368,20 @@ def list_pers(r: Request):
 
 @app.post("/api/personnel")
 async def save_pers(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
     
     p_id = d.get('id')
     params = (
-        d.get('name'), 
-        d.get('rank'), 
-        d.get('membership_status'), 
-        to_int(d.get('is_agt')), 
-        to_int(d.get('is_maschinist')), 
-        to_int(d.get('is_gf')), 
-        parse_val(d.get('g26_3_date')), 
-        parse_val(d.get('birth_date')), 
-        parse_val(d.get('entry_date')), 
-        d.get('phone'), 
-        d.get('email'), 
-        d.get('address'), 
-        d.get('ice_contact'), 
-        to_int(d.get('drive_b')), 
-        to_int(d.get('drive_be')), 
-        to_int(d.get('drive_c')), 
-        to_int(d.get('drive_ce')), 
+        d.get('name'), d.get('rank'), d.get('membership_status'), 
+        to_int(d.get('is_agt')), to_int(d.get('is_maschinist')), to_int(d.get('is_gf')), 
+        parse_val(d.get('g26_3_date')), parse_val(d.get('birth_date')), parse_val(d.get('entry_date')), 
+        d.get('phone'), d.get('email'), d.get('address'), d.get('ice_contact'), 
+        to_int(d.get('drive_b')), to_int(d.get('drive_be')), to_int(d.get('drive_c')), to_int(d.get('drive_ce')), 
         d.get('profile_picture')
     )
     
@@ -355,6 +397,9 @@ async def save_pers(r: Request):
 
 @app.delete("/api/personnel/{p_id}")
 def del_pers(p_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,))
@@ -363,9 +408,14 @@ def del_pers(p_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- VEHICLES ---
+# ==========================================
+# 8. FUHRPARK & FAHRTENBUCH
+# ==========================================
 @app.get("/api/vehicles")
 def list_vehicles(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, milage, license_plate, vehicle_type, DATE_FORMAT(tuv_date, '%Y-%m-%d') as tuv_date, DATE_FORMAT(sp_date, '%Y-%m-%d') as sp_date, next_oil_change_km FROM vehicles ORDER BY name ASC")
@@ -376,21 +426,18 @@ def list_vehicles(r: Request):
 
 @app.post("/api/vehicles")
 async def save_vehicle(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
     
     v_id = d.get('id')
     params = (
-        d.get('name'), 
-        d.get('radio_name'), 
-        d.get('status', 2), 
-        d.get('milage', 0), 
-        parse_val(d.get('tuv_date')), 
-        parse_val(d.get('sp_date')), 
-        d.get('next_oil_change_km', 10000),
-        d.get('license_plate', ''), 
-        d.get('vehicle_type', '')
+        d.get('name'), d.get('radio_name'), d.get('status', 2), d.get('milage', 0), 
+        parse_val(d.get('tuv_date')), parse_val(d.get('sp_date')), d.get('next_oil_change_km', 10000),
+        d.get('license_plate', ''), d.get('vehicle_type', '')
     )
     
     if v_id:
@@ -405,6 +452,9 @@ async def save_vehicle(r: Request):
 
 @app.delete("/api/vehicles/{v_id}")
 def del_vehicle(v_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM vehicles WHERE id = %s", (v_id,))
@@ -415,6 +465,9 @@ def del_vehicle(v_id: int, r: Request):
 
 @app.put("/api/vehicles/{v_id}/status")
 async def vehicle_status(v_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -426,6 +479,9 @@ async def vehicle_status(v_id: int, r: Request):
 
 @app.get("/api/vehicles/logs")
 def list_logs(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT l.*, v.name as vehicle_name, DATE_FORMAT(l.date, '%Y-%m-%d') as date, DATE_FORMAT(l.date, '%d.%m.%Y') as date_formatted FROM vehicle_log l LEFT JOIN vehicles v ON l.vehicle_id = v.id ORDER BY l.id DESC")
@@ -436,19 +492,17 @@ def list_logs(r: Request):
 
 @app.post("/api/vehicles/logs")
 async def save_log(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
     
     l_id = d.get('id')
     params = (
-        d.get('vehicle_id'), 
-        parse_val(d.get('date')), 
-        d.get('driver_name'), 
-        d.get('purpose'), 
-        d.get('km_start', 0), 
-        d.get('km_end', 0), 
-        d.get('fuel_liters', 0.0)
+        d.get('vehicle_id'), parse_val(d.get('date')), d.get('driver_name'), 
+        d.get('purpose'), d.get('km_start', 0), d.get('km_end', 0), d.get('fuel_liters', 0.0)
     )
     
     if l_id:
@@ -464,6 +518,9 @@ async def save_log(r: Request):
 
 @app.delete("/api/vehicles/logs/{log_id}")
 def del_log(log_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,))
@@ -472,9 +529,14 @@ def del_log(log_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- INVENTORY ---
+# ==========================================
+# 9. KLEIDERKAMMER & TICKET-SYSTEM
+# ==========================================
 @app.get("/api/inventory")
 def list_inv(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, item_name, amount, min_amount, unit, location, qr_code_id, category, manufacturer, serial_number, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check, DATE_FORMAT(next_check, '%Y-%m-%d') as next_check FROM inventory ORDER BY item_name ASC")
@@ -485,6 +547,9 @@ def list_inv(r: Request):
 
 @app.post("/api/inventory")
 async def save_inv(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -495,17 +560,10 @@ async def save_inv(r: Request):
         
     i_id = d.get('id')
     params = (
-        d.get('item_name'), 
-        d.get('amount', 0), 
-        d.get('min_amount', 5), 
-        d.get('unit', 'Stück'), 
-        d.get('location', 'Lager'), 
-        qr_id, 
-        parse_val(d.get('last_check')), 
-        parse_val(d.get('next_check')),
-        d.get('category', ''), 
-        d.get('manufacturer', ''), 
-        d.get('serial_number', '')
+        d.get('item_name'), d.get('amount', 0), d.get('min_amount', 5), 
+        d.get('unit', 'Stück'), d.get('location', 'Lager'), qr_id, 
+        parse_val(d.get('last_check')), parse_val(d.get('next_check')),
+        d.get('category', ''), d.get('manufacturer', ''), d.get('serial_number', '')
     )
     
     if i_id:
@@ -520,6 +578,9 @@ async def save_inv(r: Request):
 
 @app.delete("/api/inventory/{i_id}")
 def del_inv(i_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM inventory WHERE id = %s", (i_id,))
@@ -528,9 +589,11 @@ def del_inv(i_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- TICKETS ---
 @app.get("/api/tickets")
 def list_tickets(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT t.*, v.name as vehicle_name, i.item_name FROM tickets t LEFT JOIN vehicles v ON t.vehicle_id = v.id LEFT JOIN inventory i ON t.inventory_id = i.id ORDER BY t.id DESC")
@@ -541,6 +604,9 @@ def list_tickets(r: Request):
 
 @app.post("/api/tickets")
 async def create_ticket(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -561,6 +627,9 @@ async def create_ticket(r: Request):
 
 @app.put("/api/tickets/{t_id}/status")
 async def update_ticket_status(t_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -572,6 +641,9 @@ async def update_ticket_status(t_id: int, r: Request):
 
 @app.delete("/api/tickets/{t_id}")
 def del_ticket(t_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM tickets WHERE id = %s", (t_id,))
@@ -580,9 +652,14 @@ def del_ticket(t_id: int, r: Request):
     c.close()
     return {"status": "success"}
 
-# --- ALARM & WEBHOOKS ---
+# ==========================================
+# 10. EINSATZ ALARME & WEBHOOKS
+# ==========================================
 @app.get("/api/alarm/active")
 def get_active_alarm(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, address, keyword, alert_text, DATE_FORMAT(timestamp, '%d.%m.%Y %H:%i') as timestamp FROM active_alarm ORDER BY id DESC LIMIT 1")
@@ -593,6 +670,9 @@ def get_active_alarm(r: Request):
 
 @app.delete("/api/alarm/active")
 def clear_active_alarm(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM active_alarm")
@@ -639,9 +719,14 @@ async def inbound_webhook(req: Request):
         
     return {"status": "success"}
 
-# --- EDITOR & SESSIONS ---
+# ==========================================
+# 11. EDITOR DATEN ROUTEN (DER 404 FIX!)
+# ==========================================
 @app.get("/groups/1/sessions")
 def list_sessions(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, description, duration, DATE_FORMAT(date, '%d.%m.%Y') as date, category, instructors FROM sessions ORDER BY date DESC")
@@ -652,6 +737,9 @@ def list_sessions(r: Request):
 
 @app.get("/groups/{group_id}/attendance")
 def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     sd = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "instructors": ""}
@@ -678,6 +766,9 @@ def get_attendance(group_id: int, r: Request, session_id: Optional[int] = None):
 
 @app.post("/attendance")
 async def save_attendance(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -701,6 +792,9 @@ async def save_attendance(r: Request):
 # --- SONSTIGES ---
 @app.get("/api/gahrgut/ericard/{un_number}")
 def get_eri_card(un_number: str, r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     un_clean = un_number.strip().zfill(4)
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
@@ -721,6 +815,9 @@ def get_eri_card(un_number: str, r: Request):
 
 @app.get("/api/hydranten")
 def list_hydrants(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, lat, lon, hydrant_type, diameter, DATE_FORMAT(last_check, '%Y-%m-%d') as last_check FROM hydranten")
@@ -731,6 +828,9 @@ def list_hydrants(r: Request):
 
 @app.post("/api/hydranten")
 async def add_hydrant(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -742,6 +842,9 @@ async def add_hydrant(r: Request):
 
 @app.delete("/api/hydranten/{h_id}")
 def delete_hydrant(h_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM hydranten WHERE id = %s", (h_id,))
@@ -752,6 +855,9 @@ def delete_hydrant(h_id: int, r: Request):
 
 @app.get("/api/events")
 def list_events(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, DATE_FORMAT(date, '%d.%m.%Y') as date_formatted, DATE_FORMAT(date, '%Y-%m-%d') as date, title, responsible FROM events ORDER BY date ASC")
@@ -762,6 +868,9 @@ def list_events(r: Request):
 
 @app.post("/api/events")
 async def save_event(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -777,6 +886,9 @@ async def save_event(r: Request):
 
 @app.delete("/api/events/{e_id}")
 def del_event(e_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM events WHERE id = %s", (e_id,))
@@ -787,6 +899,9 @@ def del_event(e_id: int, r: Request):
 
 @app.get("/api/archive/list")
 def list_archive(r: Request):
+    if not get_current_user(r): 
+        raise HTTPException(status_code=401)
+        
     c = get_db_connection()
     cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, title, keywords, file_blob, DATE_FORMAT(uploaded_at, '%d.%m.%Y %H:%i') as date_formatted FROM archive_docs ORDER BY id DESC")
@@ -797,6 +912,9 @@ def list_archive(r: Request):
 
 @app.post("/api/archive/upload")
 async def upload_archive_doc(r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     d = await r.json()
     c = get_db_connection()
     cur = c.cursor()
@@ -808,6 +926,9 @@ async def upload_archive_doc(r: Request):
 
 @app.delete("/api/archive/{doc_id}")
 def delete_archive_doc(doc_id: int, r: Request):
+    if not get_current_user(r): 
+        return Response(status_code=401, content="Unauthorized")
+        
     c = get_db_connection()
     cur = c.cursor()
     cur.execute("DELETE FROM archive_docs WHERE id = %s", (doc_id,))
