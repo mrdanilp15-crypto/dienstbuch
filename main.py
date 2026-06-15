@@ -11,6 +11,8 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
 
 # --- SYSTEM-KONFIGURATION ---
@@ -68,11 +70,17 @@ def init_db():
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
-        for k, v in [('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
+        for k, v in [('apager_api_key', ''), ('divera_webhook', ''), ('alamos_fe2_url', ''), ('groupalarm_token', ''), ('station_name', 'Freiwillige Feuerwehr'), ('station_lat', '47.9942'), ('station_lon', '10.1344')]:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
             
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL, failed_logins INT DEFAULT 0, lockout_until DATETIME NULL) ENGINE=InnoDB;")
-        cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
+        cur.execute("""CREATE TABLE IF NOT EXISTS personnel (
+            id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), 
+            is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, 
+            birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', 
+            address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, 
+            drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL
+        ) ENGINE=InnoDB;""")
         cur.execute("CREATE TABLE IF NOT EXISTS vehicles (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), radio_name VARCHAR(255), status INT DEFAULT 2, milage INT DEFAULT 0, tuv_date DATE NULL, sp_date DATE NULL, next_oil_change_km INT DEFAULT 10000) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS vehicle_log (id INT AUTO_INCREMENT PRIMARY KEY, vehicle_id INT, date DATE, driver_name VARCHAR(255), purpose VARCHAR(255), km_start INT, km_end INT, fuel_liters FLOAT DEFAULT 0.0) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS sessions (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, date DATE, category VARCHAR(50), duration FLOAT, description TEXT, instructors TEXT) ENGINE=InnoDB;")
@@ -88,7 +96,6 @@ def init_db():
 
         cur.execute("INSERT IGNORE INTO groups_table (id, name) VALUES (1, 'Aktiver Dienstverband')")
         
-        # Sicherstellen, dass alte Datenbanken zwingend migriert werden
         migrations = [
             ("users", "personnel_id", "INT NULL"), ("tickets", "vehicle_id", "INT NULL"), ("tickets", "inventory_id", "INT NULL"),
             ("personnel", "birth_date", "DATE NULL"), ("personnel", "entry_date", "DATE NULL"),
@@ -133,7 +140,7 @@ def route_editor_page(r: Request):
     if get_current_user(r): return FileResponse("static/editor.html")
     return FileResponse("static/login.html")
 
-# --- AUTH API ---
+# --- API ROUTES ---
 @app.post("/api/login")
 async def api_login(r: Request, res: Response):
     d = await r.json()
@@ -356,12 +363,12 @@ def list_logs():
 @app.post("/api/vehicles/logs")
 async def save_log(r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
+        ld = parse_val(d.get('date'))
         l_id = d.get('id')
-        params = (d.get('vehicle_id'), parse_val(d.get('date')), d.get('driver_name'), d.get('purpose'), d.get('km_start',0), d.get('km_end',0), d.get('fuel_liters',0.0))
+        params = (d.get('vehicle_id'), ld, d.get('driver_name'), d.get('purpose'), d.get('km_start',0), d.get('km_end',0), d.get('fuel_liters',0.0))
         
         if l_id: cur.execute("UPDATE vehicle_log SET vehicle_id=%s, date=%s, driver_name=%s, purpose=%s, km_start=%s, km_end=%s, fuel_liters=%s WHERE id=%s", params + (l_id,))
         else:
@@ -374,7 +381,6 @@ async def save_log(r: Request):
 @app.delete("/api/vehicles/logs/{log_id}")
 def del_log(log_id: int, r: Request):
     try:
-        if not get_current_user(r): return Response(status_code=401, content="Unauthorized")
         c = get_db_connection()
         cur = c.cursor()
         cur.execute("DELETE FROM vehicle_log WHERE id = %s", (log_id,))
@@ -471,10 +477,28 @@ async def update_ticket_status(t_id: int, r: Request):
         return {"status": "success"}
     except Exception as e: return Response(status_code=500, content=f"DB Error: {str(e)}")
 
-# --- SYSTEM INTEGRATIONEN: DER AUTO-BERICHT WEBHOOK ---
+@app.get("/api/alarm/active")
+def get_active_alarm(r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, address, keyword, alert_text, DATE_FORMAT(timestamp, '%d.%m.%Y %H:%i') as timestamp FROM active_alarm ORDER BY id DESC LIMIT 1")
+    res = cur.fetchone()
+    cur.close(); c.close()
+    return res if res else {"status": "clear"}
+
+# ALARM BEENDEN FUNKTION
+@app.delete("/api/alarm/active")
+def clear_active_alarm(r: Request):
+    if not get_current_user(r): raise HTTPException(status_code=401)
+    c = get_db_connection()
+    cur = c.cursor()
+    cur.execute("DELETE FROM active_alarm")
+    c.commit(); cur.close(); c.close()
+    return {"status": "success"}
+
 @app.post("/api/webhook/alarm")
 async def inbound_webhook(req: Request):
-    """Dies fängt die Alarme von Leitstelle/aPager/Divera ab und legt automatisch einen Bericht an!"""
     try: payload = await req.json()
     except: payload = {}
     
@@ -486,23 +510,12 @@ async def inbound_webhook(req: Request):
     cur = c.cursor()
     cur.execute("INSERT INTO active_alarm (address, keyword, alert_text) VALUES (%s, %s, %s)", (address, keyword, text))
     
-    # AUTOMATISCHER BERICHT
     date_str = datetime.now().strftime('%Y-%m-%d')
     desc = f"Einsatz: {keyword} - {address}"
     cur.execute("INSERT INTO sessions (group_id, date, category, duration, description, instructors) VALUES (1, %s, 'Einsatz', 1.0, %s, 'Leitstelle')", (date_str, desc))
     
     c.commit(); cur.close(); c.close()
-    return {"status": "success", "message": "Einsatzbericht wurde automatisch angelegt!"}
-
-@app.get("/api/alarm/active")
-def get_active_alarm(r: Request):
-    if not get_current_user(r): raise HTTPException(status_code=401)
-    c = get_db_connection()
-    cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, address, keyword, alert_text, DATE_FORMAT(timestamp, '%d.%m.%Y %H:%i') as timestamp FROM active_alarm ORDER BY id DESC LIMIT 1")
-    res = cur.fetchone()
-    cur.close(); c.close()
-    return res if res else {"status": "clear"}
+    return {"status": "success"}
 
 @app.get("/api/gahrgut/ericard/{un_number}")
 def get_eri_card(un_number: str, r: Request):
