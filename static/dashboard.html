@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Digitales Dienstbuch</title>
-    
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" rel="stylesheet" />
-    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         [v-cloak] { display: none !important; }
         .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; z-index: 100; }
@@ -23,10 +21,9 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -71,7 +68,10 @@
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 class="m-0 text-uppercase fw-bold font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> Aktiver Alarm</h5>
-                            <span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span>
+                            <div>
+                                <button class="btn btn-light btn-sm fw-bold text-danger me-2" @click="clearAlarm()">Alarm quittieren</button>
+                                <span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span>
+                            </div>
                         </div>
                         <h2 class="fw-bold font-monospace text-warning m-0 mb-1">{{ activeAlarm.keyword }}</h2>
                         <h5 class="mb-3"><i class="fa fa-location-dot me-1"></i> {{ activeAlarm.address }}</h5>
@@ -191,7 +191,7 @@
                 </div>
 
                 <div v-show="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openEditInv(null)">Material hinzufügen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
@@ -214,7 +214,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openEditMember(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
@@ -230,7 +230,7 @@
                         </div>
                     </div>
                     <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openEditUser(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
@@ -252,7 +252,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch</button></li>
                     </ul>
                     <div v-if="subTabVeh === 'fahrzeuge'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openEditVeh(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
@@ -267,7 +267,7 @@
                         </div>
                     </div>
                     <div v-if="subTabVeh === 'log'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openEditLog(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
@@ -284,7 +284,7 @@
                 </div>
 
                 <div v-show="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEditEvent(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
@@ -328,35 +328,17 @@
                 <div v-show="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Systemeinstellungen & Integrationen</h2>
                     <div class="card p-4 bg-white border shadow-sm">
-                        
-                        <div class="p-3 bg-light rounded mb-4">
-                            <h6 class="fw-bold text-dark"><i class="fa fa-link me-2 text-primary"></i> Deine Inbound-Webhook URL</h6>
-                            <p class="small text-muted mb-2">Trage diese URL bei aPager PRO, Divera oder in eurer Leitstellen-Software ein, damit Alarme automatisch in dieses Dienstbuch gepusht werden und ein neuer Einsatzbericht gestartet wird:</p>
-                            <input type="text" class="form-control font-monospace fw-bold" readonly value="http://<deine-server-ip>:8000/api/webhook/alarm">
-                        </div>
-
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
-                        <h5 class="fw-bold text-danger mt-4 mb-2"><i class="fa fa-network-wired me-2"></i> Digitale Alarm-Schnittstellen (Outbound)</h5>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">aPager PRO API Key</label><input type="text" v-model="registry.apager_api_key" class="form-control font-monospace"></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Divera 24/7 Webhook URL</label><input type="text" v-model="registry.divera_webhook" class="form-control font-monospace"></div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Alamos FE2 Server-Schnittstelle</label><input type="text" v-model="registry.alamos_fe2_url" class="form-control font-monospace"></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">GroupAlarm API Token</label><input type="text" v-model="registry.groupalarm_token" class="form-control font-monospace"></div>
-                        </div>
-                        <div class="d-flex gap-2 mt-2">
-                            <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
-                        </div>
+                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4 mt-2" @click="saveSettings()">Konfiguration sichern</button>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="d-flex justify-content-center my-3"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3" style="width:160px; height:160px;"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
         
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Wasserentnahmestelle erfassen</h5>
@@ -367,9 +349,9 @@
         
         <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Mangel / Defekt melden</h5>
-            <div class="mb-2"><label class="small fw-bold">Titel</label><input type="text" v-model="newTicket.title" class="form-control"></div>
-            <div class="mb-2"><label class="small fw-bold">Beschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
-            <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
+            <div class="mb-2"><label class="small">Titel</label><input type="text" v-model="newTicket.title" class="form-control"></div>
+            <div class="mb-2"><label class="small">Beschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
+            <div class="mb-3"><label class="small">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
             <button type="button" class="btn btn-dark w-100" @click="saveTicket()">Ticket anlegen</button>
         </div></div></div></div>
 
@@ -466,309 +448,303 @@
         const { createApp } = Vue;
         let map = null;
 
-        // VERHINDERT VUE ABSTÜRZE WENN CDNs FEHLEN
-        if (typeof Vue === 'undefined') {
-            document.body.innerHTML = "<h2 style='padding:50px;color:red;'>Kritischer Fehler: Vue.js Framework blockiert. Bitte Adblocker/Firewall prüfen!</h2>";
-        } else {
-            createApp({
-                data() {
-                    return {
-                        ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
-                        vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], vehicleLogs: [], registry: {}, tickets: [], archiveDocs: [],
-                        activeAlarm: {}, activeEriCard: null, hazmatSearchQuery: '',
-                        newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
-                        newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
-                        newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null },
-                        newUser: { id: null, username: '', password: '', role: 'user', personnel_id: 0 },
-                        newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null },
-                        newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 },
-                        activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 },
-                        newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' },
-                        newArchiveDoc: { title: '', keywords: '', file_blob: '' }
+        createApp({
+            data() {
+                return {
+                    ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
+                    vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], vehicleLogs: [], registry: {}, tickets: [], archiveDocs: [],
+                    activeAlarm: {}, activeEriCard: null, hazmatSearchQuery: '',
+                    newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
+                    newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
+                    newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null },
+                    newUser: { id: null, username: '', password: '', role: 'user', personnel_id: 0 },
+                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null },
+                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 },
+                    activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 },
+                    newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' },
+                    newArchiveDoc: { title: '', keywords: '', file_blob: '' }
+                }
+            },
+            watch: {
+                currentTab(newVal) { if (newVal === 'lagekarte') this.initMap(); }
+            },
+            methods: {
+                showToast(msg, isError = false) {
+                    const t = document.getElementById('sysToast');
+                    const m = document.getElementById('toastMessage');
+                    t.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
+                    m.innerText = msg;
+                    bootstrap.Toast.getOrCreateInstance(t).show();
+                },
+                cleanData(obj) {
+                    if (!obj) return {};
+                    let res = {};
+                    for(let k in obj) {
+                        if(obj[k] === '') res[k] = null;
+                        else res[k] = obj[k];
                     }
+                    return res;
                 },
-                watch: {
-                    currentTab(newVal) { if (newVal === 'lagekarte') this.initMap(); }
-                },
-                methods: {
-                    showToast(msg, isError = false) {
-                        const t = document.getElementById('sysToast');
-                        const m = document.getElementById('toastMessage');
-                        t.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
-                        m.innerText = msg;
-                        bootstrap.Toast.getOrCreateInstance(t).show();
-                    },
-                    
-                    // DER ZENTRALE REQUEST-FILTER (Verhindert 422 Abstürze!)
-                    cleanData(obj) {
-                        if (!obj) return {};
-                        let res = {};
-                        for(let k in obj) {
-                            if(obj[k] === '') res[k] = null;
-                            else res[k] = obj[k];
-                        }
-                        return res;
-                    },
-                    
-                    // ZENTRALER API AUFRUF MIT DIAGNOSE
-                    async apiCall(url, method = 'GET', body = null) {
-                        const options = { method, headers: {} };
-                        if (body) {
-                            options.headers['Content-Type'] = 'application/json';
-                            options.body = JSON.stringify(this.cleanData(body));
-                        }
-                        try {
-                            const res = await fetch(url, options);
-                            if (!res.ok) {
-                                const txt = await res.text();
-                                this.showToast(`Speicherfehler: Server meldet Code ${res.status}`, true);
-                                return null;
-                            }
-                            return await res.json();
-                        } catch (err) {
-                            this.showToast(`Netzwerkfehler: Backend unerreichbar!`, true);
+                async apiCall(url, method = 'GET', body = null) {
+                    const options = { method, headers: {} };
+                    if (body) {
+                        options.headers['Content-Type'] = 'application/json';
+                        options.body = JSON.stringify(this.cleanData(body));
+                    }
+                    try {
+                        const res = await fetch(url, options);
+                        if (!res.ok) {
+                            this.showToast(`Speicherfehler: Server meldet Code ${res.status}`, true);
                             return null;
                         }
-                    },
-                    
-                    async refreshAllData() {
-                        try {
-                            const ts = '?t=' + new Date().getTime(); // Cache-Buster
-                            const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
-                                fetch('/api/vehicles'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/inventory'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/personnel/list'+ts).then(r=>r.ok ? r.json() : []),
-                                fetch('/api/events'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/weather'+ts).then(r=>r.ok ? r.json() : null), fetch('/api/settings'+ts).then(r=>r.ok ? r.json() : {}),
-                                fetch('/api/vehicles/logs'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/users'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/tickets'+ts).then(r=>r.ok ? r.json() : []),
-                                fetch('/api/alarm/active'+ts).then(r=>r.ok ? r.json() : {}), fetch('/api/archive/list'+ts).then(r=>r.ok ? r.json() : []), fetch('/groups/1/sessions'+ts).then(r=>r.ok ? r.json() : [])
-                            ]);
-                            this.vehicles = v; this.inventory = i; this.personnel = p;
-                            this.events = e; this.weather = w; this.registry = s;
-                            this.vehicleLogs = l; this.users = u; this.tickets = t;
-                            this.activeAlarm = a.status === 'clear' ? {} : a; this.archiveDocs = arc; this.sessions = sess;
-                        } catch (e) { console.error("Refresh Fehler:", e); }
-                    },
-                    
-                    initMap() {
-                        this.$nextTick(() => {
-                            const mapEl = document.getElementById('map');
-                            if (!mapEl) return;
-                            if (map) { map.remove(); map = null; }
-                            const lat = parseFloat(this.registry.station_lat) || 47.9942;
-                            const lon = parseFloat(this.registry.station_lon) || 10.1344;
-                            map = L.map('map').setView([lat, lon], 15);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                            L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Dienststelle") + "</b>").openPopup();
-
-                            map.on('click', (e) => {
-                                this.newHyd.lat = e.latlng.lat;
-                                this.newHyd.lon = e.latlng.lng;
-                                this.openModal('hydrantModal');
-                            });
-                            fetch('/api/hydranten').then(res => res.json()).then(data => {
-                                if(data && Array.isArray(data)){
-                                    data.forEach(h => { L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Durchmesser: " + h.diameter); });
-                                }
-                            }).catch(err => console.error(err));
-                        });
-                    },
-                    openModal(id) {
-                        const el = document.getElementById(id);
-                        if(el) bootstrap.Modal.getOrCreateInstance(el).show();
-                    },
-                    closeModal(id) {
-                        const el = document.getElementById(id);
-                        if(el) bootstrap.Modal.getInstance(el)?.hide();
-                    },
-                    async searchHazmat() {
-                        if(!this.hazmatSearchQuery) return;
-                        const res = await this.apiCall('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
-                        if(res && !res.detail) this.activeEriCard = res;
-                    },
-                    async generateQRWindow(i) {
-                        let id = i.qr_code_id;
-                        if (!id || id.trim() === '') {
-                            id = 'FW-QR-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-                            i.qr_code_id = id;
-                            await this.apiCall('/api/inventory', 'POST', i);
-                            await this.refreshAllData();
-                        }
-                        this.$nextTick(() => {
-                            const qrBox = document.getElementById('qrcode');
-                            if(!qrBox) return;
-                            qrBox.innerHTML = "";
-                            if(typeof QRCode !== 'undefined') {
-                                new QRCode(qrBox, {text: id, width: 160, height: 160});
-                            } else {
-                                qrBox.innerHTML = "<b class='text-danger'>QR-Bibliothek fehlt</b>";
-                            }
-                            this.openModal('qrModal');
-                        });
-                    },
-                    processArchiveFile(e) {
-                        const file = e.target.files[0];
-                        if(!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (event) => { this.newArchiveDoc.file_blob = event.target.result; };
-                        reader.readAsDataURL(file);
-                    },
-                    async saveArchiveDoc() {
-                        if(!this.newArchiveDoc.title) { this.showToast("Bitte Titel eingeben.", true); return; }
-                        const res = await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
-                        if(res) {
-                            this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
-                            document.getElementById('archiveFileInput').value = "";
-                            this.showToast("Dokument archiviert!");
-                            this.refreshAllData();
-                        }
-                    },
-                    async delArchiveDoc(id) {
-                        if(confirm("Wirklich löschen?")) {
-                            const res = await this.apiCall(`/api/archive/${id}`, 'DELETE');
-                            if(res) this.refreshAllData();
-                        }
-                    },
-                    async setTicketStatus(id, status) {
-                        const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status});
-                        if(res) this.refreshAllData();
-                    },
-                    async delTicket(id) {
-                        if(confirm("Mangel löschen?")) {
-                            const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status: 'erledigt'});
-                            if(res) this.refreshAllData();
-                        }
-                    },
-                    async saveTicket() {
-                        if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
-                        const res = await this.apiCall('/api/tickets', 'POST', this.newTicket);
-                        if(res) {
-                            this.closeModal('ticketModal');
-                            this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
-                            this.showToast("Mangel erfasst!");
-                            this.refreshAllData();
-                        }
-                    },
-                    async saveHydrant() {
-                        const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd);
-                        if(res) {
-                            this.closeModal('hydrantModal');
-                            this.showToast("Hydrant gespeichert!");
-                            this.initMap();
-                        }
-                    },
-                    getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
-                    goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
-                    async setVehicleStatus(v, s) { 
-                        v.status = s; 
-                        await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s});
-                    },
-                    async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
-                    
-                    openEditMember(p) { 
-                        this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
-                        this.openModal('memberModal'); 
-                    },
-                    async saveMember() { 
-                        if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
-                        const res = await this.apiCall('/api/personnel', 'POST', this.newMem);
-                        if(res) {
-                            this.closeModal('memberModal'); 
-                            this.showToast("Akte gesichert!");
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
-                    async saveUser() { 
-                        if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
-                        const res = await this.apiCall('/api/users', 'POST', this.newUser);
-                        if(res) {
-                            this.closeModal('userModal'); 
-                            this.showToast("Login angelegt!"); 
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
-                    async saveInv() { 
-                        if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
-                        const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
-                        if(res) {
-                            this.closeModal('invModal'); 
-                            this.showToast("Material erfasst!"); 
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
-                    async saveVeh() { 
-                        if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
-                        const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
-                        if(res) {
-                            this.closeModal('vehModal'); 
-                            this.showToast("Fahrzeug gesichert!"); 
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
-                    async saveLog() { 
-                        const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
-                        if(res) {
-                            this.closeModal('vehLogModal'); 
-                            this.showToast("Fahrt protokolliert!"); 
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
-                    async saveEvent() { 
-                        if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
-                        const res = await this.apiCall('/api/events', 'POST', this.newEvent);
-                        if(res) {
-                            this.closeModal('eventModal'); 
-                            this.showToast("Termin eingetragen!"); 
-                            this.refreshAllData(); 
-                        }
-                    },
-                    async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
-                    
-                    async triggerGeocodingLookup() {
-                        const q = document.getElementById('geoSearchInput').value;
-                        if(!q) return;
-                        try {
-                            const res = await fetch('/api/geocode?q=' + encodeURIComponent(q)).then(r=>r.json());
-                            if(res && res.status === 'success') {
-                                this.registry.station_lat = res.lat;
-                                this.registry.station_lon = res.lon;
-                                this.showToast("Ort erfolgreich aufgelöst!");
-                            } else { this.showToast("Ort nicht gefunden.", true); }
-                        } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
-                    },
-                    async saveSettings() { 
-                        const res = await this.apiCall('/api/settings', 'POST', this.registry);
-                        if(res) {
-                            this.showToast("Systemeinstellungen gesichert!"); 
-                            this.refreshAllData(); 
-                        }
+                        return await res.json();
+                    } catch (err) {
+                        this.showToast(`Netzwerkfehler: Backend unerreichbar!`, true);
+                        return null;
                     }
                 },
-                async mounted() {
+                async refreshAllData() {
                     try {
-                        const res = await fetch('/api/auth/me').then(r=>r.json());
-                        if(!res || res.detail) { window.location.href = '/login'; return; }
-                        this.identity = res;
+                        const ts = '?t=' + new Date().getTime();
+                        const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
+                            fetch('/api/vehicles'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/inventory'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/personnel/list'+ts).then(r=>r.ok ? r.json() : []),
+                            fetch('/api/events'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/weather'+ts).then(r=>r.ok ? r.json() : null), fetch('/api/settings'+ts).then(r=>r.ok ? r.json() : {}),
+                            fetch('/api/vehicles/logs'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/users'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/tickets'+ts).then(r=>r.ok ? r.json() : []),
+                            fetch('/api/alarm/active'+ts).then(r=>r.ok ? r.json() : {}), fetch('/api/archive/list'+ts).then(r=>r.ok ? r.json() : []), fetch('/groups/1/sessions'+ts).then(r=>r.ok ? r.json() : [])
+                        ]);
+                        this.vehicles = v; this.inventory = i; this.personnel = p;
+                        this.events = e; this.weather = w; this.registry = s;
+                        this.vehicleLogs = l; this.users = u; this.tickets = t;
+                        this.activeAlarm = a.status === 'clear' ? {} : a; this.archiveDocs = arc; this.sessions = sess;
+                    } catch (e) { console.error("Refresh Fehler:", e); }
+                },
+                initMap() {
+                    this.$nextTick(() => {
+                        const mapEl = document.getElementById('map');
+                        if (!mapEl) return;
+                        if (map) { map.remove(); map = null; }
+                        const lat = parseFloat(this.registry.station_lat) || 47.9942;
+                        const lon = parseFloat(this.registry.station_lon) || 10.1344;
+                        map = L.map('map').setView([lat, lon], 15);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                        L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Dienststelle") + "</b>").openPopup();
+
+                        map.on('click', (e) => {
+                            this.newHyd.lat = e.latlng.lat;
+                            this.newHyd.lon = e.latlng.lng;
+                            this.openModal('hydrantModal');
+                        });
+                        fetch('/api/hydranten').then(res => res.json()).then(data => {
+                            if(data && Array.isArray(data)){
+                                data.forEach(h => { L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Durchmesser: " + h.diameter); });
+                            }
+                        }).catch(err => console.error(err));
+                    });
+                },
+                openModal(id) {
+                    const el = document.getElementById(id);
+                    if(el) bootstrap.Modal.getOrCreateInstance(el).show();
+                },
+                closeModal(id) {
+                    const el = document.getElementById(id);
+                    if(el) bootstrap.Modal.getInstance(el)?.hide();
+                },
+                
+                async clearAlarm() {
+                    const res = await this.apiCall('/api/alarm/active', 'DELETE');
+                    if(res) {
+                        this.activeAlarm = {};
+                        this.showToast("Alarm beendet und Einsatz quittiert.");
+                    }
+                },
+                async searchHazmat() {
+                    if(!this.hazmatSearchQuery) return;
+                    const res = await this.apiCall('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
+                    if(res && !res.detail) this.activeEriCard = res;
+                },
+                async generateQRWindow(i) {
+                    let id = i.qr_code_id;
+                    if (!id || id.trim() === '') {
+                        id = 'FW-QR-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                        i.qr_code_id = id;
+                        await this.apiCall('/api/inventory', 'POST', i);
                         await this.refreshAllData();
-                        this.ready = true;
-                    } catch(e) { 
-                        this.showToast("Kritischer Systemfehler beim Laden der Daten.", true);
+                    }
+                    this.$nextTick(() => {
+                        const qrBox = document.getElementById('qrcode');
+                        if(!qrBox) return;
+                        qrBox.innerHTML = "";
+                        if(typeof QRCode !== 'undefined') {
+                            new QRCode(qrBox, {text: id, width: 160, height: 160});
+                        }
+                        this.openModal('qrModal');
+                    });
+                },
+                processArchiveFile(e) {
+                    const file = e.target.files[0];
+                    if(!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => { this.newArchiveDoc.file_blob = event.target.result; };
+                    reader.readAsDataURL(file);
+                },
+                async saveArchiveDoc() {
+                    if(!this.newArchiveDoc.title) { this.showToast("Bitte Titel eingeben.", true); return; }
+                    const res = await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
+                    if(res) {
+                        this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
+                        document.getElementById('archiveFileInput').value = "";
+                        this.showToast("Dokument archiviert!");
+                        this.refreshAllData();
+                    }
+                },
+                async delArchiveDoc(id) {
+                    if(confirm("Wirklich löschen?")) {
+                        const res = await this.apiCall(`/api/archive/${id}`, 'DELETE');
+                        if(res) this.refreshAllData();
+                    }
+                },
+                async setTicketStatus(id, status) {
+                    const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status});
+                    if(res) this.refreshAllData();
+                },
+                async delTicket(id) {
+                    if(confirm("Mangel löschen?")) {
+                        const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status: 'erledigt'});
+                        if(res) this.refreshAllData();
+                    }
+                },
+                async saveTicket() {
+                    if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
+                    const res = await this.apiCall('/api/tickets', 'POST', this.newTicket);
+                    if(res) {
+                        this.closeModal('ticketModal');
+                        this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
+                        this.showToast("Mangel erfasst!");
+                        this.refreshAllData();
+                    }
+                },
+                async saveHydrant() {
+                    const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd);
+                    if(res) {
+                        this.closeModal('hydrantModal');
+                        this.showToast("Hydrant gespeichert!");
+                        this.initMap();
+                    }
+                },
+                getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
+                goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
+                async setVehicleStatus(v, s) { 
+                    v.status = s; 
+                    await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s});
+                },
+                async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
+                
+                openEditMember(p) { 
+                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
+                    this.openModal('memberModal'); 
+                },
+                async saveMember() { 
+                    if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
+                    const res = await this.apiCall('/api/personnel', 'POST', this.newMem);
+                    if(res) {
+                        this.closeModal('memberModal'); 
+                        this.showToast("Akte gesichert!");
+                        this.refreshAllData(); 
+                    }
+                },
+                async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
+                async saveUser() { 
+                    if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
+                    const res = await this.apiCall('/api/users', 'POST', this.newUser);
+                    if(res) {
+                        this.closeModal('userModal'); 
+                        this.showToast("Login angelegt!"); 
+                        this.refreshAllData(); 
+                    }
+                },
+                async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
+                async saveInv() { 
+                    if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
+                    const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
+                    if(res) {
+                        this.closeModal('invModal'); 
+                        this.showToast("Material erfasst!"); 
+                        this.refreshAllData(); 
+                    }
+                },
+                async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
+                async saveVeh() { 
+                    if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
+                    const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
+                    if(res) {
+                        this.closeModal('vehModal'); 
+                        this.showToast("Fahrzeug gesichert!"); 
+                        this.refreshAllData(); 
+                    }
+                },
+                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
+                async saveLog() { 
+                    const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
+                    if(res) {
+                        this.closeModal('vehLogModal'); 
+                        this.showToast("Fahrt protokolliert!"); 
+                        this.refreshAllData(); 
+                    }
+                },
+                async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
+                async saveEvent() { 
+                    if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
+                    const res = await this.apiCall('/api/events', 'POST', this.newEvent);
+                    if(res) {
+                        this.closeModal('eventModal'); 
+                        this.showToast("Termin eingetragen!"); 
+                        this.refreshAllData(); 
+                    }
+                },
+                async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                async triggerGeocodingLookup() {
+                    const q = document.getElementById('geoSearchInput').value;
+                    if(!q) return;
+                    try {
+                        const res = await fetch('/api/geocode?q=' + encodeURIComponent(q)).then(r=>r.json());
+                        if(res && res.status === 'success') {
+                            this.registry.station_lat = res.lat;
+                            this.registry.station_lon = res.lon;
+                            this.showToast("Ort erfolgreich aufgelöst!");
+                        } else { this.showToast("Ort nicht gefunden.", true); }
+                    } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
+                },
+                async saveSettings() { 
+                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
+                    if(res) {
+                        this.showToast("Systemeinstellungen gesichert!"); 
+                        this.refreshAllData(); 
                     }
                 }
-            }).mount('#app');
-        }
+            },
+            async mounted() {
+                try {
+                    const res = await fetch('/api/auth/me').then(r=>r.json());
+                    if(!res || res.detail) { window.location.href = '/login'; return; }
+                    this.identity = res;
+                    await this.refreshAllData();
+                    this.ready = true;
+                } catch(e) { 
+                    this.showToast("Kritischer Systemfehler beim Laden der Daten.", true);
+                }
+            }
+        }).mount('#app');
     </script>
 </body>
 </html>
