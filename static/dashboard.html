@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Digitales Dienstbuch</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
         [v-cloak] { display: none !important; }
         .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; z-index: 100; }
@@ -20,21 +22,18 @@
         .status-btn.s-2.active { background: #22c55e; color: white; border-color: #15803d; }
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
-        
-        /* REINES VUE MODAL (Identisch zum Bootstrap Original-Look ohne Fokus-Trap Fehler) */
-        .fw-bootstrap-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 1040; }
-        .fw-bootstrap-modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; z-index: 1050; display: block; padding-top: 50px; }
     </style>
+    
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         
-        <!-- POP-UP MELDUNG (TOAST) -->
         <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 9999;">
-            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert">
+            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
               <div class="d-flex">
                 <div class="toast-body fw-bold fs-6" id="toastMessage"></div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" @click="closeToast()"></button>
@@ -43,13 +42,13 @@
         </div>
 
         <div class="d-flex">
-            <!-- Navigation -->
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-book-open me-2"></i>Dienstbuch</h4></div>
                     <div class="flex-grow-1 overflow-y-auto">
                         <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
                         <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
+                        <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
                         <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
                         <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
                         <div class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer</div>
@@ -66,7 +65,6 @@
                 </div>
             </div>
 
-            <!-- Hauptfenster -->
             <div class="main-content flex-grow-1">
                 
                 <div class="card mb-4 bg-danger text-white border-0 shadow" v-if="activeAlarm && activeAlarm.address">
@@ -84,9 +82,8 @@
                     </div>
                 </div>
 
-                <!-- ZENTRALE -->
                 <div v-show="currentTab === 'leitstand'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Zentrale Dashboard</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Zentrale Dashboard</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(null)">Neuer Dienstbucheintrag</button></div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
                             <div class="card p-3 bg-white border shadow-sm">
@@ -121,24 +118,41 @@
                     </div>
                 </div>
 
-                <!-- LAGEKARTE -->
                 <div v-show="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill btn-sm shadow-sm" @click="openModal('hydrantModal')"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
                     <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
-                <!-- GERÄTEWART MÄNGELBERICHTE -->
+                <div v-show="currentTab === 'gefahrgut'">
+                    <h2 class="mb-4">Gefahrgutdatenbank</h2>
+                    <div class="card p-4 bg-white border shadow-sm mb-4">
+                        <label class="small fw-bold text-muted mb-2">UN-Nummer eingeben (4-stellig)</label>
+                        <div class="input-group" style="max-width: 450px;">
+                            <span class="input-group-text bg-danger text-white fw-bold">UN</span>
+                            <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace" placeholder="1203">
+                            <button class="btn btn-dark fw-bold" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
+                        </div>
+                    </div>
+                    <div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
+                        <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt UN {{ activeEriCard.un_number }}</h4>
+                        <div class="row g-3">
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Taktische Gefahr</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.danger_text }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Schutzmaßnahmen</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.safety_measures }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100"><h6 class="fw-bold text-dark mb-2">Erste Hilfe</h6><p class="small text-dark font-monospace m-0">{{ activeEriCard.first_aid }}</p></div></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div v-show="currentTab === 'tickets'">
                     <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
-                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
-                                <p class="small text-muted mt-1 mb-1">{{ t.content }}</p>
-                                <div class="small mb-2 text-primary font-monospace" v-if="t.vehicle_name"><i class="fa fa-truck text-dark me-1"></i> Bezug: {{ t.vehicle_name }}</div>
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <div class="d-flex gap-1">
                                     <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -158,7 +172,6 @@
                     </div>
                 </div>
 
-                <!-- MEIN PROFIL -->
                 <div v-show="currentTab === 'meinbereich'">
                     <h2 class="mb-4">Mein Dienstbuch Profil</h2>
                     <div class="card p-4 border bg-white shadow-sm">
@@ -171,10 +184,15 @@
                                 <span class="badge bg-danger text-uppercase font-monospace">{{ identity.role }}</span>
                             </div>
                         </div>
+                        <hr>
+                        <div class="row text-center mt-3 text-dark">
+                            <div class="col-4 border-end"><h5>{{ identity.rank || 'Feuerwehranwärter' }}</h5><small class="text-muted fw-bold">Dienstgrad</small></div>
+                            <div class="col-4 border-end"><h5>{{ identity.membership_status || 'Aktiv' }}</h5><small class="text-muted fw-bold">Abteilung</small></div>
+                            <div class="col-4"><h5>{{ identity.g26_3_date || '-' }}</h5><small class="text-muted fw-bold">G26.3 Validierung</small></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- KLEIDERKAMMER -->
                 <div v-show="currentTab === 'lager'">
                     <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
@@ -192,7 +210,6 @@
                     </div>
                 </div>
 
-                <!-- PERSONAL REGISTER -->
                 <div v-show="currentTab === 'personal'">
                     <h2 class="mb-4">Personalstamm</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
@@ -200,13 +217,15 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
+                                        <td><div class="avatar-container"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold">PSA</div></div></td>
+                                        <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
+                                        <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
                                         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
@@ -214,7 +233,7 @@
                         </div>
                     </div>
                     <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
@@ -229,7 +248,6 @@
                     </div>
                 </div>
 
-                <!-- FUHRPARK -->
                 <div v-show="currentTab === 'fuhrpark'">
                     <h2 class="mb-4">Fuhrpark & Tankbuch</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
@@ -240,10 +258,11 @@
                         <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="v in vehicles" :key="v.id">
                                         <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td><td>{{ v.milage }} km</td>
+                                        <td><span class="badge" :class="v.milage >= v.next_oil_change_km ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
                                         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openVehModal(v)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
@@ -251,7 +270,7 @@
                         </div>
                     </div>
                     <div v-if="subTabVeh === 'log'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
@@ -259,7 +278,7 @@
                                     <tr v-for="l in vehicleLogs" :key="l.id">
                                         <td><b>{{ l.vehicle_name }}</b></td><td>{{ l.date_formatted }}</td><td>{{ l.driver_name }}</td><td>{{ l.km_start }} - {{ l.km_end }} km</td>
                                         <td><span v-if="l.fuel_liters > 0" class="badge bg-info text-white font-monospace"><i class="fa fa-gas-pump"></i> {{ l.fuel_liters }} L</span><span class="text-muted" v-else>-</span></td>
-                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openLogModal(l)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -267,7 +286,21 @@
                     </div>
                 </div>
 
-                <!-- ARCHIV -->
+                <div v-show="currentTab === 'verein'">
+                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
+                    <div class="card p-0 overflow-hidden bg-white border shadow-sm">
+                        <table class="table mb-0 align-middle">
+                            <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
+                            <tbody>
+                                <tr v-for="e in events" :key="e.id">
+                                    <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td><b>{{ e.title }}</b></td><td>{{ e.responsible }}</td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEventModal(e)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div v-show="currentTab === 'archiv'">
                     <h2 class="mb-4">Dienstbuch-Archiv</h2>
                     <div class="card p-4 bg-white border shadow-sm mb-4">
@@ -295,7 +328,6 @@
                     </div>
                 </div>
 
-                <!-- INTEGRATIONEN & ALARM WEBHOOKS -->
                 <div v-show="currentTab === 'einstellungen'">
                     <h2 class="mb-4">Systemeinstellungen & Integrationen</h2>
                     <div class="card p-4 bg-white border shadow-sm">
@@ -306,7 +338,9 @@
                             <input type="text" class="form-control font-monospace fw-bold bg-white text-danger" readonly :value="webhookUrl">
                         </div>
 
-                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Dienststellen Bezeichnung</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label><div class="input-group"><input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen"><button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button></div></div>
+                        <hr class="my-3">
+                        <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
                         
                         <h5 class="fw-bold text-danger mt-4 mb-2"><i class="fa fa-bell me-2"></i> Outbound Webhooks (Zusatz-Alarmierung)</h5>
                         <div class="row g-2 mb-3">
@@ -324,110 +358,100 @@
             </div>
         </div>
 
-        <!-- ================= PURE JAVASCRIPT-FREE BOOTSTRAP LOOK MODALS ================= -->
-        <div class="fw-bootstrap-modal-backdrop" v-if="modalActive"></div>
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center">
+            <h5 class="fw-bold mb-3">Smart-QR Etikett</h5>
+            <p class="small text-muted">Dieser Code enthält einen direkten Link zur Kleiderkammer. Einfach mit dem Smartphone scannen.</p>
+            <div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" onclick="window.print()" @click="closeModal('qrModal')"><i class="fa fa-print"></i> Etikett drucken</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>Wasserentnahmestelle</h5><button type="button" class="btn-close" @click="closeModal('hydrantModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
+            <div class="mb-2"><label class="small fw-bold">Durchmesser</label><input type="text" v-model="newHyd.diameter" class="form-control"></div>
+            <button type="button" class="btn btn-danger w-100 mt-2 rounded-pill fw-bold" @click="saveHydrant()">Speichern</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="ticketModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold"><i class="fa fa-clipboard-list text-danger me-2"></i> Mangel erfassen</h5><button type="button" class="btn-close" @click="closeModal('ticketModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Titel / Bezeichnung *</label><input type="text" v-model="newTicket.title" class="form-control" placeholder="z. B. Heckblitzer defekt"></div>
+            <div class="mb-2"><label class="small fw-bold">Beschreibung des Defekts</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
+            <div class="mb-3"><label class="small fw-bold">Fahrzeug-Zuordnung</label><select v-model.number="newTicket.vehicle_id" class="form-select"><option :value="0">Kein Fahrzeugbezug</option><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
+            <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Fahrzeug unklar!)</option></select></div>
+            <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveTicket()">Mängelbericht einspeichern</button>
+        </div></div></div></div>
 
-        <!-- QR CODE MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'qrModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 text-center">
-                <h5 class="fw-bold mb-3">Kleiderkammer Deep-Link QR</h5>
-                <div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
-                <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="closeModal()">Schließen</button>
-            </div></div>
-        </div>
-
-        <!-- HYDRANT MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'hydrantModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Wasserentnahmestelle erfassen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Typ</label><select v-model="newHyd.hydrant_type" class="form-select"><option>Unterflurhydrant</option><option>Überflurhydrant</option></select></div>
-                <div class="mb-2"><label class="small fw-bold">Durchmesser</label><input type="text" v-model="newHyd.diameter" class="form-control"></div>
-                <button type="button" class="btn btn-danger w-100 mt-2 rounded-pill fw-bold" @click="saveHydrant()">Speichern</button>
-            </div></div>
-        </div>
-
-        <!-- MÄNGEL MODAL (TICKET SYSTEM FIX) -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'ticketModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold text-dark"><i class="fa fa-clipboard-list text-danger me-2"></i> Mangel erfassen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Titel / Bezeichnung *</label><input type="text" v-model="newTicket.title" class="form-control" placeholder="z. B. Heckblitzer defekt"></div>
-                <div class="mb-2"><label class="small fw-bold">Beschreibung des Defekts</label><textarea v-model="newTicket.content" class="form-control" placeholder="Welches Bauteil streikt exakt?"></textarea></div>
-                <div class="mb-3"><label class="small fw-bold">Fahrzeug-Zuordnung</label><select v-model.number="newTicket.vehicle_id" class="form-select"><option :value="0">Kein Fahrzeugbezug</option><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
-                <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal (Werkstatttermin)</option><option value="hoch">Hoch (Fahrzeug unklar!)</option></select></div>
-                <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveTicket()">Mängelbericht einspeichern</button>
-            </div></div>
-        </div>
-
-        <!-- KAMERADEN MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'memberModal'">
-            <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
-                <div class="d-flex justify-content-between mb-2"><h5>Kameradenstamm verwalten</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="row g-2 mb-2">
-                    <div class="col-md-6"><label class="small fw-bold">Klarname *</label><input type="text" v-model="newMem.name" class="form-control"></div>
-                    <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label><select v-model="newMem.rank" class="form-select"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option><option value="Brandmeister">Brandmeister</option></select></div>
+        <div class="modal fade" id="memberModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4 bg-white">
+            <div class="d-flex justify-content-between mb-2"><h5>Kameradenstamm verwalten</h5><button type="button" class="btn-close" @click="closeModal('memberModal')"></button></div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-6"><label class="small fw-bold">Klarname *</label><input type="text" v-model="newMem.name" class="form-control"></div>
+                <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label><select v-model="newMem.rank" class="form-select"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option><option value="Brandmeister">Brandmeister</option></select></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-4"><label class="small fw-bold">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugend">Jugendfeuerwehr</option><option value="Passiv">Passiv</option></select></div>
+                <div class="col-md-4"><label class="small fw-bold">Geburtsdatum</label><input type="date" v-model="newMem.birth_date" class="form-control"></div>
+                <div class="col-md-4"><label class="small fw-bold">Diensteintritt</label><input type="date" v-model="newMem.entry_date" class="form-control"></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-4"><label class="small fw-bold">Telefonnummer</label><input type="text" v-model="newMem.phone" class="form-control"></div>
+                <div class="col-md-4"><label class="small fw-bold">E-Mail Adresse</label><input type="email" v-model="newMem.email" class="form-control"></div>
+                <div class="col-md-4"><label class="small fw-bold">G26.3 Untersuchung Frist</label><input type="date" v-model="newMem.g26_3_date" class="form-control"></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-6"><label class="small fw-bold">Anschrift</label><input type="text" v-model="newMem.address" class="form-control"></div>
+                <div class="col-md-6"><label class="small fw-bold">Notfallkontakt (ICE)</label><input type="text" v-model="newMem.ice_contact" class="form-control"></div>
+            </div>
+            <div class="p-2 bg-light rounded mb-2"><label class="small fw-bold mb-1">Qualifikationsstatus</label>
+                <div class="d-flex gap-4">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt"><label class="form-check-label small">Atemschutzträger</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist"><label class="form-check-label small">Maschinist</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf"><label class="form-check-label small">Gruppenführer</label></div>
                 </div>
-                <div class="row g-2 mb-2">
-                    <div class="col-md-4"><label class="small fw-bold">Abteilung</label><select v-model="newMem.membership_status" class="form-select"><option value="Aktiv">Aktive Wehr</option><option value="Jugend">Jugendfeuerwehr</option><option value="Passiv">Passiv</option></select></div>
-                    <div class="col-md-4"><label class="small fw-bold">Geburtsdatum</label><input type="date" v-model="newMem.birth_date" class="form-control"></div>
-                    <div class="col-md-4"><label class="small fw-bold">Diensteintritt</label><input type="date" v-model="newMem.entry_date" class="form-control"></div>
-                </div>
-                <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold mt-2" @click="saveMember()">Kameradenakte speichern</button>
-            </div></div>
-        </div>
+            </div>
+            <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold mt-2" @click="saveMember()">Kameradenakte speichern</button>
+        </div></div></div></div>
 
-        <!-- USER MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'userModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>System-Zugang verwalten</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Benutzername *</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
-                <div class="mb-2"><label class="small fw-bold">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
-                <div class="mb-3"><label class="small fw-bold">Rolle</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div>
-                <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login speichern</button>
-            </div></div>
-        </div>
+        <div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>System-Zugang verwalten</h5><button type="button" class="btn-close" @click="closeModal('userModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Benutzername *</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
+            <div class="mb-2"><label class="small fw-bold">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold">Rolle</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div>
+            <div class="mb-3"><label class="small fw-bold">Verknüpfte Akte</label><select v-model.number="newUser.personnel_id" class="form-select"><option :value="0">Keine</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Login speichern</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>Materialbestand</h5><button type="button" class="btn-close" @click="closeModal('invModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Gegenstand *</label><input type="text" v-model="newInv.item_name" class="form-control"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control"></div></div>
+            <div class="mb-3"><label class="small fw-bold">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
+        </div></div></div></div>
 
-        <!-- INVENTORY MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'invModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Materialbestand</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Gegenstand *</label><input type="text" v-model="newInv.item_name" class="form-control"></div>
-                <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control"></div></div>
-                <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
-            </div></div>
-        </div>
+        <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>Einsatzfahrzeug registrieren</h5><button type="button" class="btn-close" @click="closeModal('vehModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Fahrzeugbezeichnung *</label><input type="text" v-model="newVeh.name" class="form-control" placeholder="z. B. HLF 20"></div>
+            <div class="mb-2"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold">Aktueller Kilometerstand</label><input type="number" v-model.number="newVeh.milage" class="form-control"></div>
+            <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
+        </div></div></div></div>
 
-        <!-- VEHICLE MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'vehModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Einsatzfahrzeug registrieren</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Fahrzeugbezeichnung *</label><input type="text" v-model="newVeh.name" class="form-control"></div>
-                <div class="mb-2"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control"></div>
-                <div class="mb-2"><label class="small fw-bold">Aktueller Kilometerstand</label><input type="number" v-model.number="newVeh.milage" class="form-control"></div>
-                <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
-            </div></div>
-        </div>
-
-        <!-- LOG MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'vehLogModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Fahrtenbucheintrag</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Fahrzeug</label><select v-model.number="activeLog.vehicle_id" class="form-select"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
-                <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
-                <div class="mb-2"><label class="small fw-bold">Maschinist</label><input type="text" v-model="activeLog.driver_name" class="form-control"></div>
-                <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">KM Start</label><input type="number" v-model.number="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold">KM Ende</label><input type="number" v-model.number="activeLog.km_end" class="form-control"></div></div>
-                <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
-            </div></div>
-        </div>
-
-        <!-- EVENT MODAL -->
-        <div class="fw-bootstrap-modal-container modal fade show" v-if="modalActive === 'eventModal'">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Termin / Dienstplanung</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
-                <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="newEvent.date" class="form-control"></div>
-                <div class="mb-3"><label class="small fw-bold">Titel *</label><input type="text" v-model="newEvent.title" class="form-control"></div>
-                <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button>
-            </div></div>
-        </div>
+        <div class="modal fade" id="vehLogModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>Fahrtenbucheintrag</h5><button type="button" class="btn-close" @click="closeModal('vehLogModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Fahrzeug</label><select v-model.number="activeLog.vehicle_id" class="form-select"><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
+            <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
+            <div class="mb-2"><label class="small fw-bold">Maschinist</label><input type="text" v-model="activeLog.driver_name" class="form-control"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">KM Start</label><input type="number" v-model.number="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold">KM Ende</label><input type="number" v-model.number="activeLog.km_end" class="form-control"></div></div>
+            <div class="mb-3"><label class="small fw-bold">Getankte Liter</label><input type="number" step="0.1" v-model.number="activeLog.fuel_liters" class="form-control"></div>
+            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
+        </div></div></div></div>
+        
+        <div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+            <div class="d-flex justify-content-between mb-2"><h5>Termin / Dienstplanung</h5><button type="button" class="btn-close" @click="closeModal('eventModal')"></button></div>
+            <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="newEvent.date" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold">Titel *</label><input type="text" v-model="newEvent.title" class="form-control"></div>
+            <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button>
+        </div></div></div></div>
 
     </div>
 
@@ -440,21 +464,24 @@
                 return {
                     ready: false, currentTab: 'leitstand', subTabPers: 'akte', subTabVeh: 'fahrzeuge', identity: {}, weather: null,
                     vehicles: [], sessions: [], inventory: [], personnel: [], users: [], events: [], vehicleLogs: [], registry: {}, tickets: [], archiveDocs: [],
-                    activeAlarm: {}, activeEriCard: null, hazmatSearchQuery: '',
-                    modalActive: null, webhookUrl: '',
+                    activeAlarm: {}, activeEriCard: null, hazmatSearchQuery: '', webhookUrl: '',
                     
                     newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
                     newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
                     newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null },
                     newUser: { id: null, username: '', password: '', role: 'user', personnel_id: 0 },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '' },
+                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null },
                     newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 },
-                    activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: 'Dienstfahrt', km_start: 0, km_end: 0, fuel_liters: 0.0 },
-                    newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Führungskraft' },
+                    activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 },
+                    newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' },
                     newArchiveDoc: { title: '', keywords: '', file_blob: '' }
                 }
             },
+            watch: {
+                currentTab(newVal) { if (newVal === 'lagekarte') this.initMap(); }
+            },
             methods: {
+                // Toasts als sichtbare Rückmeldung für Erfolge / Fehler
                 showToast(msg, isError = false) {
                     const t = document.getElementById('sysToast');
                     const m = document.getElementById('toastMessage');
@@ -463,128 +490,250 @@
                     bootstrap.Toast.getOrCreateInstance(t).show();
                 },
                 closeToast() { bootstrap.Toast.getInstance(document.getElementById('sysToast'))?.hide(); },
-                openModal(id) { this.modalActive = id; },
-                closeModal() { this.modalActive = null; },
+                
+                openModal(id) { bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show(); },
+                closeModal(id) { bootstrap.Modal.getInstance(document.getElementById(id))?.hide(); },
+                
+                // Reinigt leere Felder, bevor sie an den Server gehen
+                cleanData(obj) {
+                    if (!obj) return {};
+                    let res = {};
+                    for(let k in obj) { if(obj[k] === '') res[k] = null; else res[k] = obj[k]; }
+                    return res;
+                },
                 
                 async apiCall(url, method = 'GET', body = null) {
-                    const options = { method, headers: { 'Content-Type': 'application/json' } };
-                    if (body) options.body = JSON.stringify(body);
-                    const res = await fetch(url, options);
-                    if (!res.ok) { this.showToast("Befehl abgelehnt.", true); return null; }
-                    return await res.json();
+                    const options = { method, headers: {} };
+                    if (body) {
+                        options.headers['Content-Type'] = 'application/json';
+                        options.body = JSON.stringify(this.cleanData(body));
+                    }
+                    try {
+                        const res = await fetch(url, options);
+                        if (!res.ok) { this.showToast(`Server meldet Fehlercode ${res.status}.`, true); return null; }
+                        return await res.json();
+                    } catch (err) { this.showToast(`Netzwerkfehler! Backend offline?`, true); return null; }
                 },
+                async fetchJson(url) {
+                    try { const r = await fetch(url + '?t=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); return r.ok ? await r.json() : null; } catch(e) { return null; }
+                },
+                
+                // Synchronisiert alle Daten im Hintergrund
                 async refreshAllData() {
-                    const ts = '?t=' + new Date().getTime();
-                    this.vehicles = await (await fetch('/api/vehicles'+ts)).json() || [];
-                    this.inventory = await (await fetch('/api/inventory'+ts)).json() || [];
-                    this.personnel = await (await fetch('/api/personnel/list'+ts)).json() || [];
-                    this.events = await (await fetch('/api/events'+ts)).json() || [];
-                    this.weather = await (await fetch('/api/weather'+ts)).json() || null;
-                    this.registry = await (await fetch('/api/settings'+ts)).json() || {};
-                    this.vehicleLogs = await (await fetch('/api/vehicles/logs'+ts)).json() || [];
-                    this.users = await (await fetch('/api/users'+ts)).json() || [];
-                    this.tickets = await (await fetch('/api/tickets'+ts)).json() || [];
-                    this.activeAlarm = await (await fetch('/api/alarm/active'+ts)).json() || {};
-                    this.archiveDocs = await (await fetch('/api/archive/list'+ts)).json() || [];
-                    const s = await fetch('/groups/1/sessions'+ts); if(s.ok) this.sessions = await s.json();
+                    try {
+                        const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
+                            this.fetchJson('/api/vehicles'), this.fetchJson('/api/inventory'), this.fetchJson('/api/personnel/list'),
+                            this.fetchJson('/api/events'), this.fetchJson('/api/weather'), this.fetchJson('/api/settings'),
+                            this.fetchJson('/api/vehicles/logs'), this.fetchJson('/api/users'), this.fetchJson('/api/tickets'),
+                            this.fetchJson('/api/alarm/active'), this.fetchJson('/api/archive/list'), this.fetchJson('/groups/1/sessions')
+                        ]);
+                        if(v) this.vehicles = v; if(i) this.inventory = i; if(p) this.personnel = p;
+                        if(e) this.events = e; if(w) this.weather = w; if(s) this.registry = s;
+                        if(l) this.vehicleLogs = l; if(u) this.users = u; if(t) this.tickets = t;
+                        if(a) this.activeAlarm = a.status === 'clear' ? {} : a; if(arc) this.archiveDocs = arc; if(sess) this.sessions = sess;
+                    } catch (e) { console.error("Sync Error", e); }
                 },
+                
+                // Lagekarte inkl. Löschen von Hydranten per Popup
                 initMap() {
                     this.$nextTick(() => {
-                        const mapEl = document.getElementById('map'); if (!mapEl) return;
+                        const mapEl = document.getElementById('map');
+                        if (!mapEl) return;
                         if (map) { map.remove(); map = null; }
                         const lat = parseFloat(this.registry.station_lat) || 47.9942;
                         const lon = parseFloat(this.registry.station_lon) || 10.1344;
                         map = L.map('map').setView([lat, lon], 15);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                         
+                        map.on('click', (e) => {
+                            this.newHyd.lat = e.latlng.lat;
+                            this.newHyd.lon = e.latlng.lng;
+                            this.openModal('hydrantModal');
+                        });
+                        
                         fetch('/api/hydranten').then(res => res.json()).then(data => {
                             if(data && Array.isArray(data)){
                                 data.forEach(h => { 
                                     L.marker([h.lat, h.lon]).addTo(map).bindPopup(`
                                         <b>${h.hydrant_type}</b><br>NW: ${h.diameter}<br>
-                                        <button class="btn btn-xs btn-danger mt-1 w-100 rounded-pill" onclick="window.vueInstance.deleteHydrant(${h.id})">Löschen</button>
+                                        <button type="button" class="btn btn-sm btn-danger mt-2 w-100" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
                                     `); 
                                 });
                             }
                         });
                     });
                 },
+                
                 async deleteHydrant(id) {
                     if(confirm("Wasserentnahmestelle entfernen?")) {
-                        await fetch(`/api/hydranten/${id}`, { method: 'DELETE' });
-                        this.showToast("Hydrant entfernt."); this.initMap();
+                        const res = await this.apiCall(`/api/hydranten/${id}`, 'DELETE');
+                        if(res) { this.showToast("Hydrant gelöscht."); this.initMap(); }
                     }
                 },
+                
+                // Alarm & Gefahrgut Management
                 async clearAlarm() {
-                    await fetch('/api/alarm/active', { method: 'DELETE' });
-                    this.activeAlarm = {}; this.showToast("Alarm erfolgreich zurückgesetzt."); this.refreshAllData();
+                    const res = await this.apiCall('/api/alarm/active', 'DELETE');
+                    if(res) { this.activeAlarm = {}; this.showToast("Alarm beendet."); this.refreshAllData(); }
                 },
+                async searchHazmat() {
+                    if(!this.hazmatSearchQuery) return;
+                    const res = await this.fetchJson('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
+                    if(res) this.activeEriCard = res;
+                    else this.showToast("Keine ERI-Card gefunden.", true);
+                },
+                
+                // Smartphone QR Code Deep-Link System
                 async generateQRWindow(i) {
                     let id = i.qr_code_id;
-                    if (!id) {
-                        i.qr_code_id = 'QR-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-                        await this.apiCall('/api/inventory', 'POST', i); await this.refreshAllData();
-                        id = i.qr_code_id;
+                    if (!id || id.trim() === '') {
+                        id = 'FW-QR-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                        i.qr_code_id = id;
+                        await this.apiCall('/api/inventory', 'POST', i);
+                        await this.refreshAllData();
                     }
-                    this.openModal('qrModal');
                     this.$nextTick(() => {
-                        const box = document.getElementById('qrcode'); if(!box) return;
-                        box.innerHTML = "";
-                        // Echter, smarter Smartphone Deep-Link
-                        new QRCode(box, { text: `${window.location.origin}/dashboard?tab=lager&qr=${id}`, width: 160, height: 160 });
+                        const qrBox = document.getElementById('qrcode');
+                        if(!qrBox) return;
+                        qrBox.innerHTML = "";
+                        if(typeof QRCode !== 'undefined') {
+                            const targetUrl = window.location.origin + '/dashboard?tab=lager&qr=' + id;
+                            new QRCode(qrBox, {text: targetUrl, width: 160, height: 160});
+                        }
+                        this.openModal('qrModal');
                     });
                 },
+                
+                // Archiv Management
+                processArchiveFile(e) {
+                    const file = e.target.files[0];
+                    if(!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => { this.newArchiveDoc.file_blob = event.target.result; };
+                    reader.readAsDataURL(file);
+                },
+                async saveArchiveDoc() {
+                    if(!this.newArchiveDoc.title) { this.showToast("Bitte Titel eingeben.", true); return; }
+                    const res = await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
+                    if(res) {
+                        this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
+                        document.getElementById('archiveFileInput').value = "";
+                        this.showToast("Dokument archiviert!"); this.refreshAllData();
+                    }
+                },
+                async delArchiveDoc(id) { if(confirm("Wirklich löschen?")) { const res = await this.apiCall(`/api/archive/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Ticket Management
+                openTicketModal() { this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0}; this.openModal('ticketModal'); },
+                async setTicketStatus(id, status) { const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status}); if(res) this.refreshAllData(); },
+                async delTicket(id) { if(confirm("Mangel löschen?")) { const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status:'erledigt'}); if(res) this.refreshAllData(); } },
                 async saveTicket() {
+                    if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
                     const res = await this.apiCall('/api/tickets', 'POST', this.newTicket);
-                    if(res) { this.closeModal(); this.showToast("Mangel erfolgreich gemeldet!"); this.refreshAllData(); }
+                    if(res) { this.closeModal('ticketModal'); this.showToast("Mangel erfasst!"); this.refreshAllData(); }
                 },
-                openTicketModal() { this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0}; this.openModal('ticketModal'); },
-                async setTicketStatus(id, status) { await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status}); this.refreshAllData(); },
-                async delTicket(id) { if(confirm("Mangel löschen?")) { await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status:'erledigt'}); this.refreshAllData(); } },
                 
-                openMemberModal(p) { this.newMem = p ? { ...p } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv' }; this.openModal('memberModal'); },
-                async saveMember() { const res = await this.apiCall('/api/personnel', 'POST', this.newMem); if(res) { this.closeModal(); this.showToast("Personalakte gesichert!"); this.refreshAllData(); } },
-                async delMember(id) { if(confirm("Löschen?")) { await fetch(`/api/personnel/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
+                // Hydranten
+                openHydrantModal() { this.newHyd = {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'}; this.openModal('hydrantModal'); },
+                async saveHydrant() { const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd); if(res) { this.closeModal('hydrantModal'); this.showToast("Hydrant gespeichert!"); this.initMap(); } },
                 
-                openUserModal(u) { this.newUser = u ? { ...u } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
-                async saveUser() { const res = await this.apiCall('/api/users', 'POST', this.newUser); if(res) { this.closeModal(); this.showToast("Zugang eingerichtet!"); this.refreshAllData(); } },
-                async delUser(id) { if(confirm("Löschen?")) { await fetch(`/api/users/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5 }; this.openModal('invModal'); },
-                async saveInv() { const res = await this.apiCall('/api/inventory', 'POST', this.newInv); if(res) { this.closeModal(); this.showToast("Bestand aktualisiert!"); this.refreshAllData(); } },
-                async delInv(id) { if(confirm("Löschen?")) { await fetch(`/api/inventory/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0 }; this.openModal('vehModal'); },
-                async saveVeh() { const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh); if(res) { this.closeModal(); this.showToast("Fahrzeug eingepflegt!"); this.refreshAllData(); } },
-                async delVeh(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles[0]?.id || 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: 'Dienstfahrt', km_start: 0, km_end: 0 }; this.openModal('vehLogModal'); },
-                async saveLog() { const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog); if(res) { this.closeModal(); this.showToast("Fahrt protokolliert!"); this.refreshAllData(); } },
-                async delLog(id) { if(confirm("Löschen?")) { await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '' }; this.openModal('eventModal'); },
-                async saveEvent() { const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); if(res.ok) { this.closeModal(); this.showToast("Termin gesichert!"); this.refreshAllData(); } },
-                async delEvent(id) { if(confirm("Löschen?")) { await fetch(`/api/events/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                async saveHydrant() { const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd); if(res) { this.closeModal(); this.showToast("Hydrant gesetzt!"); this.initMap(); } },
-                processArchiveFile(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev) => { this.newArchiveDoc.file_blob = ev.target.result; }; reader.readAsDataURL(file); },
-                async saveArchiveDoc() { if(!this.newArchiveDoc.title) return; await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc); this.newArchiveDoc = {title:'', keywords:'', file_blob:''}; document.getElementById('archiveFileInput').value = ""; this.showToast("Dokument archiviert."); this.refreshAllData(); },
-                async delArchiveDoc(id) { if(confirm("Löschen?")) { await fetch(`/api/archive/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
-                
-                async testWebhooks() {
-                    await fetch('/api/webhook/alarm', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: "B3 - PERSON IN GEFAHR", address: "Hauptplatz 1, Memmingen", text: "Zimmerbrand, Rauchentwicklung aus Fenster im 1. OG"}) });
-                    this.showToast("Test-Alarm ausgelöst!"); this.refreshAllData();
-                },
-                getPersonnelName(id) { return this.personnel.find(x => x.id === id)?.name || 'Keine Zuordnung'; },
+                // Allgemeine Helfer
+                getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
-                async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
-                async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; }
+                async setVehicleStatus(v, s) { v.status = s; await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s}); },
+                async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
+                
+                // --- KORRIGIERTE SYNCHRONISIERTE BUTTON-FUNKTIONEN ---
+                
+                // Personal
+                openEditMember(p) { 
+                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
+                    this.openModal('memberModal'); 
+                },
+                async saveMember() { 
+                    if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
+                    const res = await this.apiCall('/api/personnel', 'POST', this.newMem);
+                    if(res) { this.closeModal('memberModal'); this.showToast("Akte gesichert!"); this.refreshAllData(); }
+                },
+                async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Benutzerlogins
+                openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
+                async saveUser() { 
+                    if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
+                    const res = await this.apiCall('/api/users', 'POST', this.newUser);
+                    if(res) { this.closeModal('userModal'); this.showToast("Login angelegt!"); this.refreshAllData(); }
+                },
+                async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Kleiderkammer Inventar
+                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
+                async saveInv() { 
+                    if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
+                    const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
+                    if(res) { this.closeModal('invModal'); this.showToast("Material erfasst!"); this.refreshAllData(); }
+                },
+                async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Fahrzeuge
+                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
+                async saveVeh() { 
+                    if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
+                    const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
+                    if(res) { this.closeModal('vehModal'); this.showToast("Fahrzeug gesichert!"); this.refreshAllData(); }
+                },
+                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Fahrtenbuch Log
+                openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
+                async saveLog() { 
+                    const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
+                    if(res) { this.closeModal('vehLogModal'); this.showToast("Fahrt protokolliert!"); this.refreshAllData(); }
+                },
+                async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Dienstplan Events
+                openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
+                async saveEvent() { 
+                    if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
+                    const res = await this.apiCall('/api/events', 'POST', this.newEvent);
+                    if(res) { this.closeModal('eventModal'); this.showToast("Termin eingetragen!"); this.refreshAllData(); }
+                },
+                async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                
+                // Webhooks & Systemeinstellungen
+                async testWebhooks() {
+                    try {
+                        const res = await fetch('/api/webhook/alarm', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({title: "B3 - PERSON IN GEFAHR", address: "Hauptplatz 1, Memmingen", text: "Zimmerbrand im 1. OG. System Test-Alarm."})
+                        });
+                        if(res.ok) { this.showToast("Test-Alarm erfolgreich ausgelöst!"); this.refreshAllData(); }
+                    } catch(e) { this.showToast("Test-Alarm fehlgeschlagen!", true); }
+                },
+                async triggerGeocodingLookup() {
+                    const q = document.getElementById('geoSearchInput').value;
+                    if(!q) return;
+                    const res = await this.fetchJson('/api/geocode?q=' + encodeURIComponent(q));
+                    if(res && res.status === 'success') {
+                        this.registry.station_lat = res.lat;
+                        this.registry.station_lon = res.lon;
+                        this.showToast("Ort erfolgreich aufgelöst!");
+                    } else { this.showToast("Ort nicht gefunden.", true); }
+                },
+                async saveSettings() { 
+                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
+                    if(res) this.showToast("Systemeinstellungen gesichert!"); 
+                }
             },
             async mounted() {
-                window.vueInstance = this;
+                window.vueApp = this;
                 this.webhookUrl = window.location.origin + '/api/webhook/alarm';
-                const res = await fetch('/api/auth/me'); if(!res.ok) { window.location.href = '/login'; return; }
-                this.identity = await res.json(); await this.refreshAllData(); this.ready = true;
+                const res = await this.fetchJson('/api/auth/me');
+                if(!res || res.detail) { window.location.href = '/login'; return; }
+                this.identity = res;
+                await this.refreshAllData();
+                this.ready = true;
             }
         }).mount('#app');
     </script>
