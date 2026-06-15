@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Digitales Dienstbuch</title>
-    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         [v-cloak] { display: none !important; }
         .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; z-index: 100; }
@@ -23,7 +21,6 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
     </style>
-    
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -33,7 +30,7 @@
     <div id="app" v-cloak v-show="ready">
         
         <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 9999;">
-            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert">
               <div class="d-flex">
                 <div class="toast-body fw-bold fs-6" id="toastMessage"></div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" @click="closeToast()"></button>
@@ -71,10 +68,7 @@
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 class="m-0 text-uppercase fw-bold font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> Aktiver Alarm</h5>
-                            <div>
-                                <button type="button" class="btn btn-light btn-sm fw-bold text-danger me-2" @click="clearAlarm()">Alarm beenden</button>
-                                <span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span>
-                            </div>
+                            <div><button type="button" class="btn btn-light btn-sm fw-bold text-danger me-2" @click="clearAlarm()">Alarm beenden</button><span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span></div>
                         </div>
                         <h2 class="fw-bold font-monospace text-warning m-0 mb-1">{{ activeAlarm.keyword }}</h2>
                         <h5 class="mb-3"><i class="fa fa-location-dot me-1"></i> {{ activeAlarm.address }}</h5>
@@ -119,7 +113,7 @@
                 </div>
 
                 <div v-show="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openModal('hydrantModal')"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
                     <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
@@ -149,11 +143,10 @@
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
-                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6>
-                                <p class="small text-muted mt-1 mb-1">{{ t.content }}</p>
-                                <div class="small mb-2 text-primary font-monospace" v-if="t.vehicle_name"><i class="fa fa-truck text-dark me-1"></i> Bezug: {{ t.vehicle_name }}</div>
+                                <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <div class="d-flex gap-1">
                                     <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -168,7 +161,6 @@
                             <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
                                 <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
-                                <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Endgültig löschen</button>
                             </div>
                         </div>
                     </div>
@@ -179,7 +171,8 @@
                     <div class="card p-4 border bg-white shadow-sm">
                         <div class="d-flex align-items-center gap-4 mb-3">
                             <div class="avatar-container border" style="width:80px; height:80px;">
-                                <div class="w-100 h-100 bg-secondary text-white d-flex align-items-center justify-content-center fw-bold">PSA</div>
+                                <img :src="identity.profile_picture" v-if="identity.profile_picture" alt="Profil">
+                                <div v-else class="w-100 h-100 bg-secondary text-white d-flex align-items-center justify-content-center fw-bold">PSA</div>
                             </div>
                             <div>
                                 <h4 class="text-dark fw-bold mb-1">{{ identity.personnel_name || identity.username || 'Benutzer' }}</h4>
@@ -199,12 +192,13 @@
                     <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openEditInv(null)">Material hinzufügen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Details</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
                                     <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code generieren' }}</span></td>
                                     <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
-                                    <td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
+                                    <td><small class="text-muted">{{ i.category || '-' }} <br> SN: {{ i.serial_number || '-' }}</small></td>
+                                    <td><span class="badge bg-secondary">{{ i.location }}</span></td>
                                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditInv(i)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
@@ -225,7 +219,7 @@
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in personnel" :key="p.id">
-                                        <td><div class="avatar-container"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold">PSA</div></div></td>
+                                        <td><div class="avatar-container"><img :src="p.profile_picture" v-if="p.profile_picture"><div v-else class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold">PSA</div></div></td>
                                         <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
                                         <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
                                         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditMember(p)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
@@ -260,11 +254,12 @@
                         <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openEditVeh(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Kennzeichen</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="v in vehicles" :key="v.id">
-                                        <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td><td>{{ v.milage }} km</td>
-                                        <td><span class="badge" :class="v.milage >= v.next_oil_change_km ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
+                                        <td><b>{{ v.name }}</b> <br><small class="text-muted">{{ v.vehicle_type }}</small></td>
+                                        <td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td><td>{{ v.milage }} km</td>
+                                        <td><span class="badge bg-secondary font-monospace">{{ v.license_plate || '-' }}</span></td>
                                         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditVeh(v)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
@@ -346,9 +341,8 @@
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Standort-Suchfeld (Geocoding)</label>
                             <div class="input-group">
                                 <input type="text" id="geoSearchInput" class="form-control" placeholder="z. B. Memmingen">
-                                <button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Suchen</button>
+                                <button class="btn btn-dark" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Karte zentrieren</button>
                             </div>
-                            <small class="text-muted">Hinweis: Lädt direkt über die OpenStreetMap Cloud.</small>
                         </div>
                         <hr class="my-3">
                         <div class="mb-3"><label class="small fw-bold text-muted mb-1">Name der Dienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
@@ -364,7 +358,6 @@
                         </div>
                         <div class="d-flex gap-2 mt-2">
                             <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
-                            <button type="button" class="btn btn-warning rounded-pill fw-bold px-4" @click="testWebhooks()"><i class="fa fa-triangle-exclamation me-1"></i> Test-Alarm simulieren</button>
                         </div>
                     </div>
                 </div>
@@ -376,7 +369,7 @@
             <h5 class="fw-bold mb-3">Smart-QR Etikett</h5>
             <p class="small text-muted">Dieser Code enthält einen direkten Link zur Kleiderkammer. Einfach mit dem Smartphone scannen.</p>
             <div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
-            <button type="button" class="btn btn-dark w-100 rounded-pill" onclick="window.print()" @click="closeModal('qrModal')"><i class="fa fa-print"></i> Etikett drucken</button>
+            <button type="button" class="btn btn-dark w-100 rounded-pill" onclick="window.print()">Etikett drucken</button>
         </div></div></div></div>
         
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
@@ -391,7 +384,7 @@
             <div class="mb-2"><label class="small fw-bold">Titel / Bezeichnung *</label><input type="text" v-model="newTicket.title" class="form-control" placeholder="z. B. Heckblitzer defekt"></div>
             <div class="mb-2"><label class="small fw-bold">Beschreibung des Defekts</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
             <div class="mb-3"><label class="small fw-bold">Fahrzeug-Zuordnung</label><select v-model.number="newTicket.vehicle_id" class="form-select"><option :value="0">Kein Fahrzeugbezug</option><option v-for="v in vehicles" :value="v.id">{{ v.name }}</option></select></div>
-            <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Fahrzeug unklar!)</option></select></div>
+            <div class="mb-3"><label class="small fw-bold">Priorität</label><select v-model="newTicket.priority" class="form-select"><option value="normal">Normal</option><option value="hoch">Hoch (Dringend)</option></select></div>
             <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveTicket()">Mängelbericht einspeichern</button>
         </div></div></div></div>
 
@@ -413,7 +406,7 @@
             </div>
             <div class="row g-2 mb-2">
                 <div class="col-md-6"><label class="small fw-bold">Anschrift</label><input type="text" v-model="newMem.address" class="form-control"></div>
-                <div class="col-md-6"><label class="small fw-bold">Notfallkontakt (ICE)</label><input type="text" v-model="newMem.ice_contact" class="form-control"></div>
+                <div class="col-md-6"><label class="small fw-bold">Profilbild</label><input type="file" accept="image/*" @change="processProfilePic" class="form-control"></div>
             </div>
             <div class="p-2 bg-light rounded mb-2"><label class="small fw-bold mb-1">Qualifikationsstatus</label>
                 <div class="d-flex gap-4">
@@ -436,8 +429,9 @@
         
         <div class="modal fade" id="invModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Materialbestand</h5><button type="button" class="btn-close" @click="closeModal('invModal')"></button></div>
-            <div class="mb-2"><label class="small fw-bold">Gegenstand *</label><input type="text" v-model="newInv.item_name" class="form-control"></div>
-            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control"></div></div>
+            <div class="mb-2"><label class="small fw-bold">Gegenstand *</label><input type="text" v-model="newInv.item_name" class="form-control" placeholder="Gegenstand"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Kategorie</label><input type="text" v-model="newInv.category" class="form-control" placeholder="z.B. Schlauch"></div><div class="col-6"><label class="small fw-bold">Hersteller</label><input type="text" v-model="newInv.manufacturer" class="form-control" placeholder="z.B. AWG"></div></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control"></div><div class="col-6"><label class="small fw-bold">Seriennummer</label><input type="text" v-model="newInv.serial_number" class="form-control"></div></div>
             <div class="mb-3"><label class="small fw-bold">Lagerort</label><input type="text" v-model="newInv.location" class="form-control"></div>
             <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveInv()">Material erfassen</button>
         </div></div></div></div>
@@ -445,8 +439,10 @@
         <div class="modal fade" id="vehModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <div class="d-flex justify-content-between mb-2"><h5>Einsatzfahrzeug registrieren</h5><button type="button" class="btn-close" @click="closeModal('vehModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Fahrzeugbezeichnung *</label><input type="text" v-model="newVeh.name" class="form-control" placeholder="z. B. HLF 20"></div>
-            <div class="mb-2"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control"></div>
-            <div class="mb-2"><label class="small fw-bold">Aktueller Kilometerstand</label><input type="number" v-model.number="newVeh.milage" class="form-control"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Fahrzeug-Typ</label><input type="text" v-model="newVeh.vehicle_type" class="form-control" placeholder="z.B. Löschfahrzeug"></div><div class="col-6"><label class="small fw-bold">Kennzeichen</label><input type="text" v-model="newVeh.license_plate" class="form-control" placeholder="z.B. MM-FW-1"></div></div>
+            <div class="mb-2"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control" placeholder="z. B. Florian Buxheim 40/1"></div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">Kilometerstand</label><input type="number" v-model.number="newVeh.milage" class="form-control"></div><div class="col-6"><label class="small fw-bold">Ölwechsel (km)</label><input type="number" v-model.number="newVeh.next_oil_change_km" class="form-control"></div></div>
+            <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold">Nächste HU</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div><div class="col-6"><label class="small fw-bold">Nächste SP</label><input type="date" v-model="newVeh.sp_date" class="form-control"></div></div>
             <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Fahrzeug sichern</button>
         </div></div></div></div>
 
@@ -456,6 +452,7 @@
             <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="activeLog.date" class="form-control"></div>
             <div class="mb-2"><label class="small fw-bold">Maschinist</label><input type="text" v-model="activeLog.driver_name" class="form-control"></div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold">KM Start</label><input type="number" v-model.number="activeLog.km_start" class="form-control"></div><div class="col-6"><label class="small fw-bold">KM Ende</label><input type="number" v-model.number="activeLog.km_end" class="form-control"></div></div>
+            <div class="mb-3"><label class="small fw-bold">Getankte Liter</label><input type="number" step="0.1" v-model.number="activeLog.fuel_liters" class="form-control"></div>
             <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveLog()">Protokollieren</button>
         </div></div></div></div>
         
@@ -463,6 +460,7 @@
             <div class="d-flex justify-content-between mb-2"><h5>Termin / Dienstplanung</h5><button type="button" class="btn-close" @click="closeModal('eventModal')"></button></div>
             <div class="mb-2"><label class="small fw-bold">Datum</label><input type="date" v-model="newEvent.date" class="form-control"></div>
             <div class="mb-3"><label class="small fw-bold">Titel *</label><input type="text" v-model="newEvent.title" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold">Zuständig</label><input type="text" v-model="newEvent.responsible" class="form-control"></div>
             <button type="button" class="btn btn-danger w-100 rounded-pill" @click="saveEvent()">Eintragen</button>
         </div></div></div></div>
 
@@ -471,8 +469,6 @@
     <script>
         const { createApp } = Vue;
         let map = null;
-        
-        // Globale Modal-Verwaltungsobjekte
         let bsModals = {};
 
         createApp({
@@ -486,8 +482,8 @@
                     newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
                     newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null },
                     newUser: { id: null, username: '', password: '', role: 'user', personnel_id: 0 },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null },
-                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 },
+                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null, category: '', manufacturer: '', serial_number: '' },
+                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000, license_plate: '', vehicle_type: '' },
                     activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 },
                     newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' },
                     newArchiveDoc: { title: '', keywords: '', file_blob: '' }
@@ -500,6 +496,7 @@
                 showToast(msg, isError = false) {
                     const t = document.getElementById('sysToast');
                     const m = document.getElementById('toastMessage');
+                    if(!t || !m) return;
                     t.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
                     m.innerText = msg;
                     bootstrap.Toast.getOrCreateInstance(t).show();
@@ -524,15 +521,12 @@
                     }
                     try {
                         const res = await fetch(url, options);
-                        if (!res.ok) { this.showToast(`Serverfehler! Code: ${res.status}`, true); return null; }
+                        if (!res.ok) { this.showToast(`Fehler beim Speichern!`, true); return null; }
                         return await res.json();
-                    } catch (err) { this.showToast(`Netzwerkfehler!`, true); return null; }
+                    } catch (err) { this.showToast(`Netzwerkfehler! Backend offline?`, true); return null; }
                 },
                 async fetchJson(url) {
-                    try { 
-                        const r = await fetch(url + '?t=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); 
-                        return r.ok ? await r.json() : null; 
-                    } catch(e) { return null; }
+                    try { const r = await fetch(url + '?t=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); return r.ok ? await r.json() : null; } catch(e) { return null; }
                 },
                 
                 async refreshAllData() {
@@ -548,7 +542,7 @@
                         this.events = e; this.weather = w; this.registry = s;
                         this.vehicleLogs = l; this.users = u; this.tickets = t;
                         this.activeAlarm = a.status === 'clear' ? {} : a; this.archiveDocs = arc; this.sessions = sess;
-                    } catch (e) { console.error("Daten-Refresh Fehler", e); }
+                    } catch (e) { console.error("Refresh Fehler:", e); }
                 },
                 
                 initMap() {
@@ -560,7 +554,8 @@
                         const lon = parseFloat(this.registry.station_lon) || 10.1344;
                         map = L.map('map').setView([lat, lon], 15);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                        
+                        L.marker([lat, lon]).addTo(map).bindPopup("<b>" + (this.registry.station_name || "Dienststelle") + "</b>").openPopup();
+
                         map.on('click', (e) => {
                             this.newHyd.lat = e.latlng.lat;
                             this.newHyd.lon = e.latlng.lng;
@@ -636,7 +631,6 @@
                 },
                 async delArchiveDoc(id) { if(confirm("Wirklich löschen?")) { const res = await this.apiCall(`/api/archive/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                // Vorschau-Funktion (Öffnet Blob im Browser-Tab)
                 viewArchiveDoc(doc) {
                     if (!doc.file_blob) { this.showToast("Keine Datei hinterlegt.", true); return; }
                     try {
@@ -663,8 +657,15 @@
                 async setVehicleStatus(v, s) { v.status = s; await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s}); },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
+                processProfilePic(e) {
+                    const file = e.target.files[0];
+                    if(!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => { this.newMem.profile_picture = event.target.result; };
+                    reader.readAsDataURL(file);
+                },
                 openEditMember(p) { 
-                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
+                    this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
                     this.openModal('memberModal'); 
                 },
                 async saveMember() { 
@@ -682,7 +683,7 @@
                 },
                 async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
+                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', category: '', manufacturer: '', serial_number: '' }; this.openModal('invModal'); },
                 async saveInv() { 
                     if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
                     const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
@@ -690,7 +691,7 @@
                 },
                 async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
+                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, next_oil_change_km: 10000, license_plate: '', vehicle_type: '' }; this.openModal('vehModal'); },
                 async saveVeh() { 
                     if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
                     const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
@@ -713,7 +714,6 @@
                 },
                 async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
                 
-                // Direkter Geocoding-Call zum Client, kein Server-Timeout mehr
                 async triggerGeocodingLookup() {
                     const q = document.getElementById('geoSearchInput').value;
                     if(!q) return;
@@ -722,29 +722,21 @@
                         if(res && res.length > 0) {
                             this.registry.station_lat = res[0].lat;
                             this.registry.station_lon = res[0].lon;
-                            this.showToast("Ort erfolgreich aufgelöst!");
+                            this.showToast("Ort aufgelöst! Karte wird aktualisiert.");
+                            await this.saveSettings();
+                            this.initMap();
                         } else { this.showToast("Ort nicht gefunden.", true); }
                     } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
                 },
                 async saveSettings() { 
                     const res = await this.apiCall('/api/settings', 'POST', this.registry);
-                    if(res) this.showToast("Systemeinstellungen gesichert!"); 
-                },
-                async testWebhooks() {
-                    try {
-                        const res = await fetch('/api/webhook/alarm', {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({title: "B3 - PERSON IN GEFAHR", address: "Hauptplatz 1, Memmingen", text: "Zimmerbrand im 1. OG. System Test-Alarm."})
-                        });
-                        if(res.ok) { this.showToast("Test-Alarm erfolgreich ausgelöst!"); this.refreshAllData(); }
-                    } catch(e) { this.showToast("Test-Alarm fehlgeschlagen!", true); }
+                    if(res) { this.showToast("Systemeinstellungen gesichert!"); this.refreshAllData(); }
                 }
             },
             async mounted() {
                 window.vueApp = this;
                 this.webhookUrl = window.location.origin + '/api/webhook/alarm';
                 
-                // Native Bootstrap Modals initialisieren um Aria-Bugs zu umgehen
                 const mIds = ['qrModal', 'hydrantModal', 'ticketModal', 'memberModal', 'userModal', 'invModal', 'vehModal', 'vehLogModal', 'eventModal'];
                 mIds.forEach(id => {
                     const el = document.getElementById(id);
