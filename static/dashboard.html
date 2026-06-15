@@ -69,7 +69,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 class="m-0 text-uppercase fw-bold font-monospace"><i class="fa fa-triangle-exclamation me-2"></i> Aktiver Alarm</h5>
                             <div>
-                                <button class="btn btn-light btn-sm fw-bold text-danger me-2" @click="clearAlarm()">Alarm quittieren</button>
+                                <button type="button" class="btn btn-light btn-sm fw-bold text-danger me-2" @click="clearAlarm()">Alarm beenden</button>
                                 <span class="badge bg-white text-danger font-monospace">{{ activeAlarm.timestamp }}</span>
                             </div>
                         </div>
@@ -116,7 +116,7 @@
                 </div>
 
                 <div v-show="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openModal('hydrantModal')"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openHydrantModal()"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
                     <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
                 </div>
 
@@ -141,7 +141,7 @@
                 </div>
 
                 <div v-show="currentTab === 'tickets'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openModal('ticketModal')"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Gerätewart Mängelberichte</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
@@ -191,7 +191,7 @@
                 </div>
 
                 <div v-show="currentTab === 'lager'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openEditInv(null)">Material hinzufügen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Kleiderkammer Materialverwaltung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openInvModal(null)">Material hinzufügen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Mindestmenge</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
@@ -200,7 +200,7 @@
                                     <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code generieren' }}</span></td>
                                     <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
                                     <td>{{ i.min_amount }}</td><td><span class="badge bg-secondary">{{ i.location }}</span></td>
-                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditInv(i)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openInvModal(i)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delInv(i.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -214,7 +214,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
                     <div v-if="subTabPers === 'akte'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openEditMember(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm px-3" @click="openMemberModal(null)"><i class="fa fa-user-plus me-1"></i> Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>Abteilung</th><th class="text-end">Aktion</th></tr></thead>
@@ -223,21 +223,21 @@
                                         <td><div class="avatar-container"><div class="w-100 h-100 bg-light text-muted d-flex align-items-center justify-content-center small fw-bold">PSA</div></div></td>
                                         <td><b>{{ p.name }}</b><br><small class="text-muted">{{ p.email || 'Keine E-Mail' }}</small></td>
                                         <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td><td><span class="badge bg-dark">{{ p.membership_status }}</span></td>
-                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditMember(p)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delMember(p.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                     <div v-if="subTabPers === 'login'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openEditUser(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm px-3" @click="openUserModal(null)"><i class="fa fa-key me-1"></i> Zugang freischalten</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Benutzername</th><th>Rolle</th><th>Verknüpfter Klarname</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="u in users" :key="u.id">
                                         <td><b>{{ u.username }}</b></td><td><span class="badge bg-primary text-uppercase">{{ u.role }}</span></td><td>{{ getPersonnelName(u.personnel_id) }}</td>
-                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditUser(u)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delUser(u.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openUserModal(u)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delUser(u.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -252,7 +252,7 @@
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabVeh === 'log'}" @click="subTabVeh = 'log'">Fahrtenbuch</button></li>
                     </ul>
                     <div v-if="subTabVeh === 'fahrzeuge'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openEditVeh(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm" @click="openVehModal(null)"><i class="fa fa-plus me-1"></i> Fahrzeug anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Einsatzfahrzeug</th><th>Funkrufname</th><th>Kilometerstand</th><th>Ölwechsel In</th><th class="text-end">Aktion</th></tr></thead>
@@ -260,14 +260,14 @@
                                     <tr v-for="v in vehicles" :key="v.id">
                                         <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace">{{ v.radio_name }}</span></td><td>{{ v.milage }} km</td>
                                         <td><span class="badge" :class="v.milage >= v.next_oil_change_km ? 'bg-danger':'bg-success'">{{ v.next_oil_change_km - v.milage }} km</span></td>
-                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditVeh(v)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openVehModal(v)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delVeh(v.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                     <div v-if="subTabVeh === 'log'">
-                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openEditLog(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
+                        <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm" @click="openLogModal(null)"><i class="fa fa-pen me-1"></i> Fahrt loggen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
                                 <thead class="table-light"><tr><th>Fahrzeug</th><th>Datum</th><th>Maschinist</th><th>KM Stand</th><th>Betankung</th><th class="text-end">Aktion</th></tr></thead>
@@ -275,7 +275,7 @@
                                     <tr v-for="l in vehicleLogs" :key="l.id">
                                         <td><b>{{ l.vehicle_name }}</b></td><td>{{ l.date_formatted }}</td><td>{{ l.driver_name }}</td><td>{{ l.km_start }} - {{ l.km_end }} km</td>
                                         <td><span v-if="l.fuel_liters > 0" class="badge bg-info text-white font-monospace"><i class="fa fa-gas-pump"></i> {{ l.fuel_liters }} L</span><span class="text-muted" v-else>-</span></td>
-                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditLog(l)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openLogModal(l)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delLog(l.id)"><i class="fa fa-trash-alt"></i></button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -284,14 +284,14 @@
                 </div>
 
                 <div v-show="currentTab === 'verein'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEditEvent(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Dienstplan & Termine</h2><button type="button" class="btn btn-danger rounded-pill fw-bold" @click="openEventModal(null)"><i class="fa fa-calendar-plus me-1"></i> Termin anlegen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
                             <thead class="table-light"><tr><th>Datum</th><th>Veranstaltung</th><th>Verantwortlich</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="e in events" :key="e.id">
                                     <td class="fw-bold font-monospace text-danger">{{ e.date_formatted }}</td><td><b>{{ e.title }}</b></td><td>{{ e.responsible }}</td>
-                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEditEvent(e)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark me-1" @click="openEventModal(e)"><i class="fa fa-edit"></i></button><button type="button" class="btn btn-sm btn-outline-danger" @click="delEvent(e.id)"><i class="fa fa-trash-alt"></i></button></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -307,7 +307,7 @@
                             <div class="col-md-6"><input type="text" v-model="newArchiveDoc.keywords" class="form-control" placeholder="Tags (Kommagetrennt)"></div>
                         </div>
                         <div class="mb-3"><input type="file" id="archiveFileInput" class="form-control" @change="processArchiveFile"></div>
-                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()"><i class="fa fa-cloud-arrow-up me-1"></i> Archivieren</button>
+                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()">Archivieren</button>
                     </div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
@@ -338,7 +338,7 @@
             </div>
         </div>
 
-        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="mx-auto mb-3" style="width:160px; height:160px;"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()" data-bs-dismiss="modal">Drucken & Schließen</button></div></div></div></div>
+        <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-center"><h5>QR-Code Etikett</h5><div id="qrcode" class="d-flex justify-content-center my-3"></div><button type="button" class="btn btn-dark w-100" onclick="window.print()">Etikett drucken</button></div></div></div></div>
         
         <div class="modal fade" id="hydrantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
             <h5>Wasserentnahmestelle erfassen</h5>
@@ -479,10 +479,7 @@
                 cleanData(obj) {
                     if (!obj) return {};
                     let res = {};
-                    for(let k in obj) {
-                        if(obj[k] === '') res[k] = null;
-                        else res[k] = obj[k];
-                    }
+                    for(let k in obj) { if(obj[k] === '') res[k] = null; else res[k] = obj[k]; }
                     return res;
                 },
                 async apiCall(url, method = 'GET', body = null) {
@@ -494,29 +491,37 @@
                     try {
                         const res = await fetch(url, options);
                         if (!res.ok) {
-                            this.showToast(`Speicherfehler: Server meldet Code ${res.status}`, true);
+                            const txt = await res.text();
+                            this.showToast(`Fehler: Server verweigert Befehl.`, true);
                             return null;
                         }
                         return await res.json();
                     } catch (err) {
-                        this.showToast(`Netzwerkfehler: Backend unerreichbar!`, true);
+                        this.showToast(`Netzwerk-Timeout!`, true);
                         return null;
                     }
+                },
+                async fetchJson(url) {
+                    try { 
+                        const sep = url.includes('?') ? '&' : '?';
+                        const r = await fetch(url + sep + 't=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } }); 
+                        return r.ok ? await r.json() : null; 
+                    } catch(e) { return null; }
                 },
                 async refreshAllData() {
                     try {
                         const ts = '?t=' + new Date().getTime();
                         const [v, i, p, e, w, s, l, u, t, a, arc, sess] = await Promise.all([
-                            fetch('/api/vehicles'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/inventory'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/personnel/list'+ts).then(r=>r.ok ? r.json() : []),
-                            fetch('/api/events'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/weather'+ts).then(r=>r.ok ? r.json() : null), fetch('/api/settings'+ts).then(r=>r.ok ? r.json() : {}),
-                            fetch('/api/vehicles/logs'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/users'+ts).then(r=>r.ok ? r.json() : []), fetch('/api/tickets'+ts).then(r=>r.ok ? r.json() : []),
-                            fetch('/api/alarm/active'+ts).then(r=>r.ok ? r.json() : {}), fetch('/api/archive/list'+ts).then(r=>r.ok ? r.json() : []), fetch('/groups/1/sessions'+ts).then(r=>r.ok ? r.json() : [])
+                            this.fetchJson('/api/vehicles'+ts), this.fetchJson('/api/inventory'+ts), this.fetchJson('/api/personnel/list'+ts),
+                            this.fetchJson('/api/events'+ts), this.fetchJson('/api/weather'+ts), this.fetchJson('/api/settings'+ts),
+                            this.fetchJson('/api/vehicles/logs'+ts), this.fetchJson('/api/users'+ts), this.fetchJson('/api/tickets'+ts),
+                            this.fetchJson('/api/alarm/active'+ts), this.fetchJson('/api/archive/list'+ts), this.fetchJson('/groups/1/sessions'+ts)
                         ]);
-                        this.vehicles = v; this.inventory = i; this.personnel = p;
-                        this.events = e; this.weather = w; this.registry = s;
-                        this.vehicleLogs = l; this.users = u; this.tickets = t;
-                        this.activeAlarm = a.status === 'clear' ? {} : a; this.archiveDocs = arc; this.sessions = sess;
-                    } catch (e) { console.error("Refresh Fehler:", e); }
+                        if(v) this.vehicles = v; if(i) this.inventory = i; if(p) this.personnel = p;
+                        if(e) this.events = e; if(w) this.weather = w; if(s) this.registry = s;
+                        if(l) this.vehicleLogs = l; if(u) this.users = u; if(t) this.tickets = t;
+                        if(a) this.activeAlarm = a.status === 'clear' ? {} : a; if(arc) this.archiveDocs = arc; if(sess) this.sessions = sess;
+                    } catch (e) { console.error("Sync Error", e); }
                 },
                 initMap() {
                     this.$nextTick(() => {
@@ -532,13 +537,13 @@
                         map.on('click', (e) => {
                             this.newHyd.lat = e.latlng.lat;
                             this.newHyd.lon = e.latlng.lng;
-                            this.openModal('hydrantModal');
+                            this.openHydrantModal();
                         });
-                        fetch('/api/hydranten').then(res => res.json()).then(data => {
+                        this.fetchJson('/api/hydranten').then(data => {
                             if(data && Array.isArray(data)){
                                 data.forEach(h => { L.marker([h.lat, h.lon]).addTo(map).bindPopup("<b>" + h.hydrant_type + "</b><br>Durchmesser: " + h.diameter); });
                             }
-                        }).catch(err => console.error(err));
+                        });
                     });
                 },
                 openModal(id) {
@@ -554,13 +559,15 @@
                     const res = await this.apiCall('/api/alarm/active', 'DELETE');
                     if(res) {
                         this.activeAlarm = {};
-                        this.showToast("Alarm beendet und Einsatz quittiert.");
+                        this.showToast("Alarm erfolgreich gelöscht.");
+                        await this.refreshAllData();
                     }
                 },
                 async searchHazmat() {
                     if(!this.hazmatSearchQuery) return;
-                    const res = await this.apiCall('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
-                    if(res && !res.detail) this.activeEriCard = res;
+                    const res = await this.fetchJson('/api/gahrgut/ericard/' + this.hazmatSearchQuery);
+                    if(res) this.activeEriCard = res;
+                    else this.showToast("Keine ERI-Card gefunden.", true);
                 },
                 async generateQRWindow(i) {
                     let id = i.qr_code_id;
@@ -574,9 +581,7 @@
                         const qrBox = document.getElementById('qrcode');
                         if(!qrBox) return;
                         qrBox.innerHTML = "";
-                        if(typeof QRCode !== 'undefined') {
-                            new QRCode(qrBox, {text: id, width: 160, height: 160});
-                        }
+                        new QRCode(qrBox, {text: id, width: 160, height: 160});
                         this.openModal('qrModal');
                     });
                 },
@@ -589,135 +594,145 @@
                 },
                 async saveArchiveDoc() {
                     if(!this.newArchiveDoc.title) { this.showToast("Bitte Titel eingeben.", true); return; }
-                    const res = await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
-                    if(res) {
+                    try {
+                        const res = await fetch('/api/archive/upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.cleanData(this.newArchiveDoc))});
+                        if(!res.ok) throw new Error();
                         this.newArchiveDoc = { title: '', keywords: '', file_blob: '' };
                         document.getElementById('archiveFileInput').value = "";
                         this.showToast("Dokument archiviert!");
                         this.refreshAllData();
-                    }
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
                 async delArchiveDoc(id) {
                     if(confirm("Wirklich löschen?")) {
-                        const res = await this.apiCall(`/api/archive/${id}`, 'DELETE');
-                        if(res) this.refreshAllData();
+                        try {
+                            const res = await fetch(`/api/archive/${id}`, {method:'DELETE'});
+                            if(res.ok) this.refreshAllData();
+                        } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); }
                     }
                 },
                 async setTicketStatus(id, status) {
-                    const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status});
-                    if(res) this.refreshAllData();
+                    try {
+                        const res = await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+                        if(res.ok) this.refreshAllData();
+                    } catch(err) { this.showToast("Statusänderung fehlgeschlagen!", true); }
                 },
                 async delTicket(id) {
                     if(confirm("Mangel löschen?")) {
-                        const res = await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status: 'erledigt'});
-                        if(res) this.refreshAllData();
+                        try {
+                            const res = await fetch(`/api/tickets/${id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'erledigt'})});
+                            if(res.ok) this.refreshAllData();
+                        } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); }
                     }
                 },
                 async saveTicket() {
-                    if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
-                    const res = await this.apiCall('/api/tickets', 'POST', this.newTicket);
-                    if(res) {
+                    try {
+                        if(!this.newTicket.title) { this.showToast("Titel fehlt!", true); return; }
+                        const res = await fetch('/api/tickets', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newTicket)});
+                        if(!res.ok) throw new Error();
                         this.closeModal('ticketModal');
                         this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0};
                         this.showToast("Mangel erfasst!");
                         this.refreshAllData();
-                    }
+                    } catch(err) { this.showToast("Fehler beim Erfassen!", true); }
                 },
                 async saveHydrant() {
-                    const res = await this.apiCall('/api/hydranten', 'POST', this.newHyd);
-                    if(res) {
+                    try {
+                        const res = await fetch('/api/hydranten', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newHyd)});
+                        if(!res.ok) throw new Error();
                         this.closeModal('hydrantModal');
                         this.showToast("Hydrant gespeichert!");
                         this.initMap();
-                    }
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
                 getPersonnelName(id) { const p = this.personnel.find(x => x.id === id); return p ? p.name : 'Keine Verknüpfung'; },
                 goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
                 async setVehicleStatus(v, s) { 
-                    v.status = s; 
-                    await this.apiCall(`/api/vehicles/${v.id}/status`, 'PUT', {status: s});
+                    try {
+                        v.status = s; 
+                        await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); 
+                    } catch(err) { this.showToast("Status-Fehler!", true); }
                 },
                 async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; },
                 
-                openEditMember(p) { 
+                openHydrantModal() { this.newHyd = {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'}; this.openModal('hydrantModal'); },
+                openTicketModal() { this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0}; this.openModal('ticketModal'); },
+                
+                openMemberModal(p) { 
                     this.newMem = p ? { ...p, is_agt: !!p.is_agt, is_maschinist: !!p.is_maschinist, is_gf: !!p.is_gf, drive_b: !!p.drive_b, drive_be: !!p.drive_be, drive_c: !!p.drive_c, drive_ce: !!p.drive_ce } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', ice_contact: '', drive_b: false, drive_be: false, drive_c: false, drive_ce: false, profile_picture: null }; 
                     this.openModal('memberModal'); 
                 },
                 async saveMember() { 
-                    if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
-                    const res = await this.apiCall('/api/personnel', 'POST', this.newMem);
-                    if(res) {
+                    try {
+                        if(!this.newMem.name) { this.showToast("Name ist Pflicht!", true); return; }
+                        const res = await fetch('/api/personnel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newMem)}); 
+                        if(!res.ok) throw new Error();
                         this.closeModal('memberModal'); 
                         this.showToast("Akte gesichert!");
                         this.refreshAllData(); 
-                    }
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delMember(id) { if(confirm("Kamerad löschen?")) { const res = await this.apiCall(`/api/personnel/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delMember(id) { if(confirm("Kamerad wirklich löschen?")) { try { const res = await fetch(`/api/personnel/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
                 
-                openEditUser(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
+                openUserModal(u) { this.newUser = u ? { ...u, password: '' } : { id: null, username: '', password: '', role: 'user', personnel_id: 0 }; this.openModal('userModal'); },
                 async saveUser() { 
-                    if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
-                    const res = await this.apiCall('/api/users', 'POST', this.newUser);
-                    if(res) {
-                        this.closeModal('userModal'); 
-                        this.showToast("Login angelegt!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        if(!this.newUser.username) { this.showToast("Benutzername fehlt!", true); return; }
+                        const res = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newUser)}); 
+                        if(!res.ok) throw new Error();
+                        this.closeModal('userModal'); this.showToast("Login angelegt!"); this.refreshAllData(); 
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delUser(id) { if(confirm("Zugang löschen?")) { const res = await this.apiCall(`/api/users/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delUser(id) { if(confirm("Zugang löschen?")) { try { const res = await fetch(`/api/users/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
                 
-                openEditInv(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
+                openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null }; this.openModal('invModal'); },
                 async saveInv() { 
-                    if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
-                    const res = await this.apiCall('/api/inventory', 'POST', this.newInv);
-                    if(res) {
-                        this.closeModal('invModal'); 
-                        this.showToast("Material erfasst!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        if(!this.newInv.item_name) { this.showToast("Gegenstand fehlt!", true); return; }
+                        const res = await fetch('/api/inventory', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.newInv)}); 
+                        if(!res.ok) throw new Error();
+                        this.closeModal('invModal'); this.showToast("Material erfasst!"); this.refreshAllData(); 
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delInv(id) { if(confirm("Ausrüstung löschen?")) { const res = await this.apiCall(`/api/inventory/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delInv(id) { if(confirm("Ausrüstung löschen?")) { try { const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
                 
-                openEditVeh(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
+                openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000 }; this.openModal('vehModal'); },
                 async saveVeh() { 
-                    if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
-                    const res = await this.apiCall('/api/vehicles', 'POST', this.newVeh);
-                    if(res) {
-                        this.closeModal('vehModal'); 
-                        this.showToast("Fahrzeug gesichert!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        if(!this.newVeh.name) { this.showToast("Bezeichnung fehlt!", true); return; }
+                        const res = await fetch('/api/vehicles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newVeh)}); 
+                        if(!res.ok) throw new Error();
+                        this.closeModal('vehModal'); this.showToast("Fahrzeug gesichert!"); this.refreshAllData(); 
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { const res = await this.apiCall(`/api/vehicles/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delVeh(id) { if(confirm("Fahrzeug löschen?")) { try { const res = await fetch(`/api/vehicles/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
                 
-                openEditLog(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
+                openLogModal(l) { this.activeLog = l ? { ...l } : { id: null, vehicle_id: this.vehicles.length > 0 ? this.vehicles[0].id : 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: '', km_start: 0, km_end: 0, fuel_liters: 0.0 }; this.openModal('vehLogModal'); },
                 async saveLog() { 
-                    const res = await this.apiCall('/api/vehicles/logs', 'POST', this.activeLog);
-                    if(res) {
-                        this.closeModal('vehLogModal'); 
-                        this.showToast("Fahrt protokolliert!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        const res = await fetch('/api/vehicles/logs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.activeLog)}); 
+                        if(!res.ok) throw new Error();
+                        this.closeModal('vehLogModal'); this.showToast("Fahrt protokolliert!"); this.refreshAllData(); 
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delLog(id) { if(confirm("Eintrag stornieren?")) { const res = await this.apiCall(`/api/vehicles/logs/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delLog(id) { if(confirm("Eintrag stornieren?")) { try { const res = await fetch(`/api/vehicles/logs/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Löschen fehlgeschlagen!", true); } } },
                 
-                openEditEvent(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
+                openEventModal(e) { this.newEvent = e ? { ...e } : { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }; this.openModal('eventModal'); },
                 async saveEvent() { 
-                    if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
-                    const res = await this.apiCall('/api/events', 'POST', this.newEvent);
-                    if(res) {
-                        this.closeModal('eventModal'); 
-                        this.showToast("Termin eingetragen!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        if(!this.newEvent.title) { this.showToast("Bitte Titel eintragen!", true); return; }
+                        const res = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newEvent)}); 
+                        if(!res.ok) throw new Error();
+                        this.closeModal('eventModal'); this.showToast("Termin eingetragen!"); this.refreshAllData(); 
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 },
-                async delEvent(id) { if(confirm("Termin absagen?")) { const res = await this.apiCall(`/api/events/${id}`, 'DELETE'); if(res) this.refreshAllData(); } },
+                async delEvent(id) { if(confirm("Termin absagen?")) { try { const res = await fetch(`/api/events/${id}`, {method:'DELETE'}); if(res.ok) this.refreshAllData(); } catch(err) { this.showToast("Absagen fehlgeschlagen!", true); } } },
                 
                 async triggerGeocodingLookup() {
                     const q = document.getElementById('geoSearchInput').value;
                     if(!q) return;
                     try {
-                        const res = await fetch('/api/geocode?q=' + encodeURIComponent(q)).then(r=>r.json());
+                        const res = await this.fetchJson('/api/geocode?q=' + encodeURIComponent(q));
                         if(res && res.status === 'success') {
                             this.registry.station_lat = res.lat;
                             this.registry.station_lon = res.lon;
@@ -726,23 +741,18 @@
                     } catch(err) { this.showToast("Fehler bei der Ortssuche.", true); }
                 },
                 async saveSettings() { 
-                    const res = await this.apiCall('/api/settings', 'POST', this.registry);
-                    if(res) {
-                        this.showToast("Systemeinstellungen gesichert!"); 
-                        this.refreshAllData(); 
-                    }
+                    try {
+                        const res = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.registry)}); 
+                        if(res.ok) this.showToast("Systemeinstellungen gesichert!");
+                    } catch(err) { this.showToast("Speichern fehlgeschlagen!", true); }
                 }
             },
             async mounted() {
-                try {
-                    const res = await fetch('/api/auth/me').then(r=>r.json());
-                    if(!res || res.detail) { window.location.href = '/login'; return; }
-                    this.identity = res;
-                    await this.refreshAllData();
-                    this.ready = true;
-                } catch(e) { 
-                    this.showToast("Kritischer Systemfehler beim Laden der Daten.", true);
-                }
+                const res = await this.fetchJson('/api/auth/me');
+                if(!res) { window.location.href = '/login'; return; }
+                this.identity = res;
+                await this.refreshAllData();
+                this.ready = true;
             }
         }).mount('#app');
     </script>
