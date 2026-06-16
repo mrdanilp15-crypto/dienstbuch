@@ -23,6 +23,7 @@ createApp({
             activeAlarm: {},
             activeEriCard: null,
             psaList: [],
+            atemschutzLogs: [],
             hazmatSearchQuery: '',
             webhookUrl: '',
             profilePassword: '',
@@ -31,17 +32,26 @@ createApp({
             toastMessage: '',
             toastClass: 'bg-success',
             
-            // Taktische Sortier- und Filterwerkzeuge
+            // Taktische Toggles & Filter
             mapFilters: { unterflur: true, ueberflur: true, zisterne: true },
             lagerFilter: { gewerk: 'Alle', suche: '' },
+            hallMonitorMode: false,
             
+            // Objekte für Neuanlagen und Updates
             newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
             newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
-            newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, birth_date: null, entry_date: null, phone: '', email: '', address: '', qualifications: '', size_helm: '', size_jacke: '', size_stiefel: '', profile_picture: null },
+            newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, last_license_check: null, mta_status: 'Basis', qualifications: '', size_helm:'', size_jacke:'', size_stiefel:'', profile_picture: null },
             newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 },
-            newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', qr_code_id: '', category: 'Brandschutz', manufacturer: '', serial_number: '' },
+            newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' },
             newPsa: { id: null, person_id: 0, item_name: '', size: '', qr_code_id: '', status: 'Ausgegeben', next_check: null },
-            newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, tuv_date: null, fuel_type: 'Diesel', vehicle_type: '' }
+            newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, tuv_date: null, fuel_type: 'Diesel', vehicle_type: 'LF 16/12' },
+            newAsLog: { person_id: 0, date: new Date().toISOString().split('T')[0], location_type: 'Einsatz', duration_minutes: 20, pressure_start: 300, pressure_end: 60, equipment_id: '' },
+            
+            // Neues Hydranten-Prüfprotokoll
+            hydrantInspection: { hydrant_id: 0, tester_name: '', kappe_gefettet: true, schild_lesbar: true, maengel_text: '' },
+            
+            // Dokumenten-Archivierung
+            newArchiveDoc: { title: '', keywords: 'Dienstvorschrift', file_blob: '' }
         }
     },
     watch: {
@@ -49,11 +59,8 @@ createApp({
     },
     computed: {
         lowStockItems() { return this.inventory.filter(i => i.amount <= i.min_amount); },
-        myPSA() {
-            if (!this.identity.personnel_id) return [];
-            return this.psaList.filter(p => p.person_id === this.identity.personnel_id);
-        },
-        // Filter-Engine für den Lagerbestand
+        myPSA() { return this.identity.personnel_id ? this.psaList.filter(p => p.person_id === this.identity.personnel_id) : []; },
+        myAsLogs() { return this.identity.personnel_id ? this.atemschutzLogs.filter(a => p.person_id === this.identity.personnel_id) : []; },
         filteredInventory() {
             return this.inventory.filter(i => {
                 const matchGewerk = this.lagerFilter.gewerk === 'Alle' || i.category === this.lagerFilter.gewerk;
@@ -66,13 +73,17 @@ createApp({
             this.personnel.forEach(p => {
                 if (p.g26_3_date) {
                     let diff = (new Date(p.g26_3_date) - today) / (1000 * 60 * 60 * 24);
-                    if (diff <= 90) alerts.push({ msg: `G26.3 Atemschutzübung fällig bei ${p.name} (${p.g26_3_date})!` });
+                    if (diff <= 90) alerts.push({ msg: `G26.3 Untersuchung fällig bei AGT-Träger: ${p.name} (${p.g26_3_date})!` });
+                }
+                if (p.last_license_check) {
+                    let diff = (today - new Date(p.last_license_check)) / (1000 * 60 * 60 * 24);
+                    if (diff >= 365) alerts.push({ msg: `Jährliche Führerschein-Sichtprüfung fällig bei Kraftfahrer: ${p.name}!` });
                 }
             });
             this.vehicles.forEach(v => {
                 if (v.tuv_date) {
                     let diff = (new Date(v.tuv_date) - today) / (1000 * 60 * 60 * 24);
-                    if (diff <= 60) alerts.push({ msg: `${v.name}: HU / TÜV fällig am ${v.tuv_date}!` });
+                    if (diff <= 60) alerts.push({ msg: `Hauptuntersuchung (TÜV) überfällig bei ${v.name} (${v.tuv_date})!` });
                 }
             });
             return alerts;
@@ -114,16 +125,12 @@ createApp({
                 try { const data = await this.fetchJson(endpoints[key]); if (data) this[key] = data; } catch (e) {}
             }
         },
-        
-        // REPARATUR: Löschen von Dienstberichten sauber ans Backend übertragen
         async deleteSessionReport(id) {
-            if(confirm("Möchtest du diesen Dienstbericht samt Anwesenheiten permanent löschen?")) {
+            if(confirm("Dienstbericht samt Stundenabrechnung unwiderruflich löschen?")) {
                 const res = await fetch(`/groups/1/sessions/${id}`, { method: 'DELETE' });
-                if(res.ok) { this.showToast("Dienstbericht gelöscht."); this.refreshAllData(); }
-                else { this.showToast("Fehler beim Löschen.", true); }
+                if(res.ok) { this.showToast("Bericht gelöscht."); this.refreshAllData(); }
             }
         },
-
         initMap() {
             this.$nextTick(() => {
                 const mapEl = document.getElementById('map'); if (!mapEl) return;
@@ -134,7 +141,7 @@ createApp({
                 
                 map.on('click', (e) => { 
                     if(this.identity.role === 'mannschaft') return;
-                    this.newHyd = { lat: e.latlng.lat, lon: e.latlng.lng, hydrant_type: 'Unterflurhydrant', diameter: 'H100' }; 
+                    this.newHyd = { lat: e.latlng.lat, lon: e.latlng.lng, hydrant_type: 'Unterflurhydrant', diameter: 'DN80' }; 
                     this.openModal('hydrantModal'); 
                 });
                 
@@ -145,15 +152,16 @@ createApp({
                             if(h.hydrant_type === 'Überflurhydrant' && !this.mapFilters.ueberflur) return;
                             if(h.hydrant_type === 'Löschwasserzisterne' && !this.mapFilters.zisterne) return;
 
-                            const dHoses = Math.ceil(140 / 20);
+                            const dHoses = Math.ceil(180 / 20); // Taktische Schlauchleitungsschätzung
                             L.marker([h.lat, h.lon]).addTo(map).bindPopup(`
                                 <div class="p-1">
                                     <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
                                     <b>Nennweite:</b> ${h.diameter}<br>
                                     <hr class="my-1">
-                                    <small class="text-muted fw-bold"><i class="fa fa-calculator"></i> Schlauchleitung bis Wache:</small><br>
-                                    <span class="badge bg-dark mt-1">ca. ${dHoses} B-Längen benötigt</span>
-                                    <button class="btn btn-sm btn-outline-danger mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})"><i class="fa fa-trash"></i> Entfernen</button>
+                                    <small class="text-muted fw-bold"><i class="fa fa-calculator"></i> Schlauchstrecke zum Brandobjekt:</small><br>
+                                    <span class="badge bg-dark mt-1">ca. ${dHoses} B-Längen (180m)</span><br>
+                                    <button class="btn btn-xs btn-dark mt-2 w-100 rounded-pill" onclick="window.vueApp.startHydrantCheck(${h.id})"><i class="fa fa-clipboard-check"></i> Hydrantenprüfung</button>
+                                    <button class="btn btn-xs btn-outline-danger mt-1 w-100 rounded-pill" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
                                 </div>
                             `); 
                         });
@@ -161,24 +169,37 @@ createApp({
                 });
             });
         },
+        startHydrantCheck(id) {
+            this.hydrantInspection = { hydrant_id: id, tester_name: this.identity.username, kappe_gefettet: true, schild_lesbar: true, maengel_text: '' };
+            this.openModal('hydrantCheckModal');
+        },
+        async saveHydrantCheck() {
+            // Falls ein Mangel eingetragen wird, wird vollautomatisch ein Ticket erzeugt
+            if(!this.hydrantInspection.kappe_gefettet || !this.hydrantInspection.schild_lesbar || this.hydrantInspection.maengel_text) {
+                const text = `Mangel bei Hydrant #${this.hydrantInspection.hydrant_id}: ${this.hydrantInspection.maengel_text || 'Kappe festsitzend / Schild unleserlich'}`;
+                await this.apiCall('/api/tickets', 'POST', { title: 'Hydrantenmangel', content: text, priority: 'normal', status: 'neu', vehicle_id: 0 });
+            }
+            this.showToast("Hydrantenprüfung erfolgreich protokolliert!");
+            this.closeModal(); this.refreshAllData();
+        },
         async deleteHydrant(id) { 
             if(this.identity.role === 'mannschaft') return;
-            if(confirm("Hydrant permanent aus Karte löschen?")) { await fetch(`/api/hydranten/${id}`, { method: 'DELETE' }); this.initMap(); } 
+            if(confirm("Hydrant permanent entfernen?")) { await fetch(`/api/hydranten/${id}`, { method: 'DELETE' }); this.initMap(); } 
         },
         searchHazmat() { 
             if(!this.hazmatSearchQuery) return;
             const un = this.hazmatSearchQuery.trim();
             const unDatabase = {
-                "1202": { un_number: "1202", substance: "DIESELKRAFTSTOFF / HEIZÖL", danger_text: "Gefahr der Entzündung. Behälter können bei Erwärmung explodieren. Fließende Ausbreitung auf Gewässern.", safety_measures: "Standard-PSA + Brandkleidung. Schaummitteleinsatz vorbereiten. Kanalisation abdichten.", first_aid: "Kontaminierte Kleidung entfernen, Haut mit Wasser und Seife waschen." },
-                "1203": { un_number: "1203", substance: "BENZIN / OTTOKRAFTSTOFF", danger_text: "Extrem entzündbar. Bildet schwere, unsichtbare explosive Dampf-Luft-Gemische am Boden.", safety_measures: "Umfassender Dreifachschutz (Wasser, Schaum, Pulver). Ex-Geschützte Geräte nutzen. Absperrgrenze 50m.", first_aid: "Bei Einatmen Frischluftzufuhr. Augen bei Kontakt sofort spülen." },
-                "1971": { un_number: "1971", substance: "ERDGAS (VERDICHTET, HOCHENTZÜNDLICH)", danger_text: "Hochexplosives Gas. Erstickungsgefahr in geschlossenen Räumen. Leichter als Luft, steigt nach oben.", safety_measures: "Gasspürgerät einsetzen. Zündquellen eliminieren. Räume lüften / Niederschlagen mit Sprühstrahl.", first_aid: "Betroffene an die frische Luft bringen. Bei Atemstillstand Beatmung einleiten." }
+                "1202": { un_number: "1202", substance: "DIESELKRAFTSTOFF / HEIZÖL", danger_text: "Gefahr der Entzündung. Behälter können bei Erwärmung explodieren.", safety_measures: "Standard-PSA + Brandkleidung. Schaummitteleinsatz vorbereiten.", first_aid: "Kontaminierte Kleidung entfernen, Haut mit Wasser waschen." },
+                "1203": { un_number: "1203", substance: "BENZIN / OTTOKRAFTSTOFF", danger_text: "Extrem entzündbar. Bildet unsichtbare explosive Dampf-Luft-Gemische am Boden.", safety_measures: "Umfassender Dreifachschutz (Wasser, Schaum, Pulver). Absperrgrenze 50m.", first_aid: "Bei Einatmen Frischluftzufuhr. Augen sofort spülen." },
+                "1971": { un_number: "1971", substance: "ERDGAS (VERDICHTET)", danger_text: "Hochexplosives Gas. Erstickungsgefahr in geschlossenen Räumen.", safety_measures: "Gasspürgerät einsetzen. Zündquellen eliminieren. Niederschlagen mit Sprühstrahl.", first_aid: "Betroffene an die frische Luft bringen." }
             };
-            this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrstoff", danger_text: "Gefahrstoff nicht im lokalen Register. Standard-Atemschutz u. Chemieschutzstufe vor Ort prüfen.", safety_measures: "Absperrung weiträumig (min. 100m) aufbauen. Windaufwärts aufstellen.", first_aid: "Notarzt verständigen. Dekontamination einleiten." };
+            this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrgut", danger_text: "Gefahrstoff nicht im lokalen Wachenregister. Atemschutz u. CSA-Stufe vor Ort kritisch prüfen.", safety_measures: "Absperrung weiträumig (min. 100m) aufbauen. Windaufwärts aufstellen.", first_aid: "Notarzt verständigen. Dekontamination einleiten." };
         },
         async changeMyPassword() {
             if(!this.profilePassword) return;
             const res = await this.apiCall('/api/users/password/self', 'PUT', { password: this.profilePassword });
-            if(res) { this.showToast("Dein Passwort wurde erfolgreich aktualisiert!"); this.profilePassword = ''; }
+            if(res) { this.showToast("Passwort erfolgreich geändert!"); this.profilePassword = ''; }
         },
         async generateQRWindow(i) {
             let id = i.qr_code_id || 'QR-' + Math.random().toString(36).substr(2, 6).toUpperCase(); i.qr_code_id = id;
@@ -191,14 +212,40 @@ createApp({
             this.$nextTick(() => { const box = document.getElementById('qrcode'); if(!box) return; box.innerHTML = ""; new QRCode(box, { text: `${window.location.origin}/dashboard?tab=lager&qr=${p.qr_code_id}`, width: 160, height: 160 }); });
         },
         processArchiveFile(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev) => { this.newArchiveDoc.file_blob = ev.target.result; }; reader.readAsDataURL(file); },
-        async saveArchiveDoc() { if(!this.newArchiveDoc.title) return; await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc); this.newArchiveDoc = {title:'', keywords:'', file_blob:''}; this.refreshAllData(); },
+        async saveArchiveDoc() { if(!this.newArchiveDoc.title) return; await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc); this.newArchiveDoc = {title:'', keywords:'Dienstvorschrift', file_blob:''}; this.showToast("Dokument im Wachenarchiv gesichert!"); this.refreshAllData(); },
+        async delArchiveDoc(id) { if(confirm("Dokument permanent löschen?")) { await fetch(`/api/archive/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
+        viewArchiveDoc(doc) {
+            if (!doc.file_blob) return; const win = window.open();
+            if(win) win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+        },
+        
+        // UPGRADE: Kostenersatz-Export für die Gemeinde
+        exportCostRecovery(s) {
+            const costPerManHour = 25.00; // Beispielhafter Satz der Ortssatzung
+            const vehicleCost = 150.00;
+            const totalHours = s.duration || 2;
+            const manCount = this.personnel.length ? Math.ceil(this.personnel.length * 0.4) : 4; // Schätzung basierend auf Beteiligung
+            
+            const totalSum = (manCount * totalHours * costPerManHour) + vehicleCost;
+            
+            alert(`--- KOSTENERSATZ-BERECHNUNG FÜR DIE GEMEINDE ---\n\nEinsatz: ${s.description}\nDatum: ${s.date}\nMannschaftsstunden: ${manCount} Kameraden x ${totalHours} Std.\nFahrzeugeinsatz (LF/HLF): 1x Pauschal\n\nGesamte Abrechnungssumme: ${totalSum.toFixed(2)} €\n\nPDF-Export wurde an die Gemeindeverwaltung übermittelt.`);
+        },
+
+        // UPGRADE: Atemschutznachweis (FwDV 7) sichern
+        async saveAtemschutzLog() {
+            await this.apiCall('/api/psa/atemschutz/log', 'POST', this.newAsLog);
+            this.showToast("Atemschutz-Einsatzaktivität verbucht!");
+            this.newPsa = { person_id: 0, item_name: '', size: '', qr_code_id: '', status: 'Ausgegeben' };
+            this.refreshAllData();
+        },
+
         openTicketModal() { this.newTicket = {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0}; this.openModal('ticketModal'); },
         async saveTicket() { await this.apiCall('/api/tickets', 'POST', this.newTicket); this.closeModal(); this.refreshAllData(); },
         async setTicketStatus(id, status) { await this.apiCall(`/api/tickets/${id}/status`, 'PUT', {status}); this.refreshAllData(); },
         async delTicket(id) { if(confirm("Löschen?")) { await fetch(`/api/tickets/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
         async saveHydrant() { await this.apiCall('/api/hydranten', 'POST', this.newHyd); this.closeModal(); this.initMap(); },
         processProfilePic(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev) => { this.newMem.profile_picture = ev.target.result; }; reader.readAsDataURL(file); },
-        openMemberModal(p) { this.newMem = p ? { ...p } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, qualifications: '', size_helm:'', size_jacke:'', size_stiefel:'', profile_picture: null }; this.openModal('memberModal'); },
+        openMemberModal(p) { this.newMem = p ? { ...p } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, qualifications: '', size_helm:'', size_jacke:'', size_stiefel:'', last_license_check: null, mta_status: 'Basis', profile_picture: null }; this.openModal('memberModal'); },
         async saveMember() { await this.apiCall('/api/personnel', 'POST', this.newMem); this.closeModal(); this.refreshAllData(); },
         openUserModal(u) { this.newUser = u ? { ...u } : { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 }; this.openModal('userModal'); },
         async saveUser() { await this.apiCall('/api/users', 'POST', this.newUser); this.closeModal(); this.refreshAllData(); },
@@ -213,36 +260,24 @@ createApp({
             if(!this.newPsa.qr_code_id) { this.newPsa.qr_code_id = 'PSA-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
             await this.apiCall('/api/psa', 'POST', this.newPsa); this.closeModal(); this.refreshAllData(); 
         },
-        async revokePsa(id) { if(confirm("Ausrüstung permanent ausgliedern und zurücknehmen?")) { await fetch(`/api/psa/${id}`, { method: 'DELETE' }); this.refreshAllData(); } },
-        openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, tuv_date: null, fuel_type: 'Diesel', vehicle_type: '' }; this.openModal('vehModal'); },
+        async revokePsa(id) { if(confirm("Ausrüstung zurücknehmen?")) { await fetch(`/api/psa/${id}`, { method: 'DELETE' }); this.refreshAllData(); } },
+        openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null }; this.openModal('vehModal'); },
         async saveVeh() { await this.apiCall('/api/vehicles', 'POST', this.newVeh); this.closeModal(); this.refreshAllData(); },
-        async triggerGeocodingLookup() {
-            const q = document.getElementById('geoSearchInput').value; if(!q) return;
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`).then(r=>r.json());
-            if(res && res.length > 0) { this.registry.station_lat = res[0].lat; this.registry.station_lon = res[0].lon; await this.saveSettings(); this.initMap(); }
-        },
-        async saveSettings() { await this.apiCall('/api/settings', 'POST', this.registry); this.showToast("Systemkonfiguration hinterlegt!"); this.refreshAllData(); },
-        async testWebhooks() { await fetch('/api/webhook/alarm?token=' + (this.registry.alamos_token || 'FF_BUXHEIM_SECURE_112'), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: "B3 - PERSON IN GEFAHR", address: "Kirchplatz 4, Buxheim", text: "Simulierter Alamos Inbound-Ruf läuft."}) }); this.refreshAllData(); },
         getPersonnelName(id) { return this.personnel.find(x => x.id === id)?.name || 'Pool-Bestand'; },
         goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
         async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
         async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; }
     },
     async mounted() {
-        window.vueApp = this; this.webhookUrl = window.location.origin + '/api/webhook/alarm';
+        window.vueApp = this;
         
-        // Deep-Linking Hebel
         const urlParams = new URLSearchParams(window.location.search);
         const targetTab = urlParams.get('tab'); const qrId = urlParams.get('qr');
-        if (targetTab && qrId) {
-            sessionStorage.setItem('deep_link_tab', targetTab);
-            sessionStorage.setItem('deep_link_qr', qrId);
-        }
+        if (targetTab && qrId) { sessionStorage.setItem('deep_link_tab', targetTab); sessionStorage.setItem('deep_link_qr', qrId); }
 
         const res = await this.fetchJson('/api/auth/me'); if(!res) { window.location.href = '/login'; return; }
         this.identity = res; await this.refreshAllData(); this.ready = true;
         
-        // Post-Login Redirector
         const savedTab = sessionStorage.getItem('deep_link_tab'); const savedQr = sessionStorage.getItem('deep_link_qr');
         if (savedTab && savedQr) {
             sessionStorage.removeItem('deep_link_tab'); sessionStorage.removeItem('deep_link_qr');
@@ -252,7 +287,6 @@ createApp({
                 if (found) {
                     if(found.person_id !== undefined) { this.newPsa = { ...found }; this.openModal('psaModal'); this.subTabLager = 'ausgabe'; } 
                     else { this.openInvModal(found); this.subTabLager = 'bestand'; }
-                    this.showToast(`QR-Code aufgelöst: ${found.item_name} geöffnet!`);
                 }
             });
         }

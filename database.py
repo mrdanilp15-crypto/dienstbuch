@@ -39,7 +39,7 @@ def init_db():
         cur = c.cursor()
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
-        # Basistabellen erzeugen
+        # --- BASIS TABELLEN ---
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
@@ -54,7 +54,7 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
 
-        # Unabhängige PSA Ausgabetabelle
+        # --- ENTKOPPELTE PERSONEN-PSA AUSGABETABELLE ---
         cur.execute("""
             CREATE TABLE IF NOT EXISTS psa (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -68,22 +68,50 @@ def init_db():
             ) ENGINE=InnoDB;
         """)
 
-        # Absolut krisensichere Einzel-Migrationen zur Vermeidung von SyntaxWarnings
-        try: cur.execute("ALTER TABLE tickets ADD COLUMN created_by INT NULL;")
-        except: pass
-        try: cur.execute("ALTER TABLE vehicles ADD COLUMN operating_hours FLOAT DEFAULT 0.0;")
-        except: pass
-        try: cur.execute("ALTER TABLE vehicles ADD COLUMN fuel_type VARCHAR(50) DEFAULT 'Diesel';")
-        except: pass
-        try: cur.execute("ALTER TABLE personnel ADD COLUMN qualifications TEXT NULL;")
-        except: pass
-        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_helm VARCHAR(50) DEFAULT '';")
-        except: pass
-        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_jacke VARCHAR(50) DEFAULT '';")
-        except: pass
-        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_stiefel VARCHAR(50) DEFAULT '';")
-        except: pass
+        # --- UPGRADE: HYDRANTEN PRÜFPROTOKOLL TABELLE ---
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hydranten_checks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                hydrant_id INT NOT NULL,
+                check_date DATE NOT NULL,
+                tester_name VARCHAR(255),
+                kappe_gefettet BOOLEAN DEFAULT 1,
+                schild_lesbar BOOLEAN DEFAULT 1,
+                maengel_text TEXT NULL
+            ) ENGINE=InnoDB;
+        """)
 
+        # --- UPGRADE: ATEMSCHUTZNACHWEIS (FwDV 7) TABELLE ---
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS atemschutz_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                person_id INT NOT NULL,
+                date DATE NOT NULL,
+                location_type VARCHAR(50) DEFAULT 'Einsatz', -- Übung, Strecke, Einsatz
+                duration_minutes INT DEFAULT 20,
+                pressure_start INT DEFAULT 300,
+                pressure_end INT DEFAULT 60,
+                equipment_id VARCHAR(100) DEFAULT ''
+            ) ENGINE=InnoDB;
+        """)
+
+        # --- ABSOLUT SICHERE EINZEL-MIGRATIONEN (Fahrberechtigung & UVV) ---
+        alterations = [
+            ("tickets", "created_by", "INT NULL"),
+            ("vehicles", "operating_hours", "FLOAT DEFAULT 0.0"),
+            ("vehicles", "fuel_type", "VARCHAR(50) DEFAULT 'Diesel'"),
+            ("personnel", "qualifications", "TEXT NULL"),
+            ("personnel", "size_helm", "VARCHAR(50) DEFAULT ''"),
+            ("personnel", "size_jacke", "VARCHAR(50) DEFAULT ''"),
+            ("personnel", "size_stiefel", "VARCHAR(50) DEFAULT ''"),
+            ("personnel", "last_license_check", "DATE NULL"), # Jährliche Führerscheinkontrolle
+            ("personnel", "mta_status", "VARCHAR(100) DEFAULT 'Basis'") # Modulare Truppausbildung
+        ]
+        for table, col, dtype in alterations:
+            try: cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {dtype};")
+            except: pass
+
+        # Standardeinstellungen setzen
         settings_defaults = [
             ('station_name', 'Freiwillige Feuerwehr Buxheim'),
             ('station_lat', '47.9994'),
@@ -94,6 +122,7 @@ def init_db():
         for k, v in settings_defaults:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
 
+        # Admin-Account absichern
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
@@ -102,6 +131,6 @@ def init_db():
         c.commit()
         cur.close()
         c.close()
-        print("-> [Datenbank] Alle Strukturen und PSA-Tabellen erfolgreich geladen.")
+        print("-> [Datenbank] Alle Tabellenstrukturen und Fristen-Upgrades erfolgreich geladen.")
     except Exception as e:
         print(f"-> [Datenbank] KRITISCHER FEHLER beim Tabellenaufbau: {e}")

@@ -9,86 +9,232 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <style>
+        :root {
+            --fw-red: #dc2626;
+            --fw-red-glow: rgba(220, 38, 38, 0.25);
+            --dark-bg: #090d16;
+            --card-bg: rgba(21, 32, 54, 0.65);
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
         body {
-            background: #0f172a;
-            color: #cbd5e1;
+            background: radial-gradient(circle at center, #1e1b4b 0%, var(--dark-bg) 100%);
+            color: #f1f5f9;
             font-family: system-ui, -apple-system, sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            overflow: hidden;
+            position: relative;
         }
-        .login-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 16px;
-            padding: 40px;
+
+        /* Subtiler taktischer Hintergrund-Effekt */
+        body::before {
+            content: "";
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background-image: radial-gradient(rgba(220, 38, 38, 0.03) 1px, transparent 0);
+            background-size: 24px 24px;
+            top: -50%;
+            left: -50%;
+            z-index: 1;
+            transform: rotate(15deg);
+        }
+
+        .login-container {
+            position: relative;
+            z-index: 10;
             width: 100%;
-            max-width: 420px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 440px;
         }
+
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .brand-badge {
+            width: 80px;
+            height: 80px;
+            background: rgba(220, 38, 38, 0.1);
+            border: 2px solid var(--fw-red);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            box-shadow: 0 0 20px var(--fw-red-glow);
+            animation: pulse-glow 2.5s infinite alternate;
+        }
+
         .fire-icon {
-            font-size: 3.5rem;
+            font-size: 2.5rem;
             color: #ef4444;
-            text-shadow: 0 0 15px rgba(239,68,68,0.4);
         }
-        .form-control {
-            background: #0f172a;
-            border: 1px solid #334155;
-            color: white;
-            font-weight: 500;
+
+        .system-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            margin-bottom: 4px;
         }
-        .form-control:focus {
-            background: #0f172a;
-            border-color: #ef4444;
-            color: white;
-            box-shadow: 0 0 0 0.25rem rgba(239,68,68,0.25);
+
+        .system-subtitle {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 36px;
         }
-        .btn-danger {
-            background: #ef4444;
+
+        .form-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .input-group {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--fw-red);
+            box-shadow: 0 0 0 3px var(--fw-red-glow);
+        }
+
+        .input-group-text {
+            background: transparent;
             border: none;
-            font-weight: bold;
-            transition: all 0.2s;
+            color: #64748b;
+            padding-left: 16px;
+            padding-right: 8px;
         }
+
+        .form-control {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            padding: 12px 16px 12px 8px;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .form-control:focus {
+            background: transparent;
+            color: #ffffff;
+            box-shadow: none;
+            border: none;
+        }
+
+        .form-control::placeholder {
+            color: #475569;
+        }
+
+        .btn-danger {
+            background: var(--fw-red);
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            margin-top: 12px;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2);
+            transition: all 0.2s ease-in-out;
+        }
+
         .btn-danger:hover {
-            background: #dc2626;
-            box-shadow: 0 0 15px rgba(239,68,68,0.4);
+            background: #b91c1c;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+        }
+
+        .btn-danger:active {
+            transform: translateY(1px);
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        .station-footer {
+            font-size: 0.75rem;
+            color: #475569;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: 20px;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.2); border-color: #b91c1c; }
+            100% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.5); border-color: #ef4444; }
         }
     </style>
 </head>
 <body>
 
-    <div class="login-card text-center">
-        <div class="mb-3">
-            <i class="fa fa-fire-extinguisher fire-icon"></i>
+    <div class="login-container">
+        <div class="login-card text-center">
+            
+            <div class="brand-badge">
+                <i class="fa fa-shield-halved fire-icon"></i>
+            </div>
+            
+            <div class="system-title">OPERATIONSZENTRALE</div>
+            <div class="system-subtitle">FF Wache Buxheim</div>
+
+            <div id="error-box" class="alert alert-danger d-none fw-bold py-2.5 mb-4 text-start animate__animated animate__fadeIn">
+                <i class="fa fa-circle-exclamation me-2"></i><span id="error-msg"></span>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-3 text-start">
+                    <label class="form-label">Benutzerkennung</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-user-shield"></i></span>
+                        <input type="text" id="username" class="form-control" placeholder="z. B. geratewart" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="mb-4 text-start">
+                    <label class="form-label">Kryptografisches Kennwort</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-lock-open"></i></span>
+                        <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-danger w-100 shadow">
+                    <i class="fa fa-right-to-bracket me-2"></i>Dienstbuch öffnen
+                </button>
+            </form>
+            
+            <div class="station-footer text-uppercase">
+                <i class="fa fa-satellite-dish me-1"></i> Verschlüsselte Leitstandverbindung
+            </div>
         </div>
-        <h3 class="fw-bold text-white mb-1">Operationszentrale</h3>
-        <p class="text-muted small mb-4">Freiwillige Feuerwehr Dienstbuch-Sitzung</p>
-
-        <div id="error-box" class="alert alert-danger d-none small fw-bold py-2 mb-3"></div>
-
-        <form id="loginForm" onsubmit="handleLogin(event)">
-            <div class="mb-3 text-start">
-                <label class="form-label small fw-bold text-muted text-uppercase">Benutzername</label>
-                <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="fa fa-user"></i></span>
-                    <input type="text" id="username" class="form-control" placeholder="admin" required autocomplete="username">
-                </div>
-            </div>
-
-            <div class="mb-4 text-start">
-                <label class="form-label small fw-bold text-muted text-uppercase">Kennwort</label>
-                <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="fa fa-lock"></i></span>
-                    <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
-                </div>
-            </div>
-
-            <button type="submit" id="submitBtn" class="btn btn-danger w-100 py-2.5 rounded-pill shadow">
-                <i class="fa fa-sign-in-alt me-2"></i>Am System anmelden
-            </button>
-        </form>
     </div>
 
     <script>
@@ -96,11 +242,12 @@
             e.preventDefault();
             
             const errorBox = document.getElementById("error-box");
+            const errorMsg = document.getElementById("error-msg");
             const btn = document.getElementById("submitBtn");
             
             errorBox.classList.add("d-none");
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Prüfe Autorisierung...';
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Autorisiere Sitzung...';
 
             const payload = {
                 username: document.getElementById("username").value,
@@ -117,15 +264,15 @@
                 const data = await res.json();
 
                 if (res.ok && data.status === "success") {
-                    // Reines Deep-Linking-Sicherheitsnetz: Direkt auf die Dashboard-Route springen
+                    // Verhindert das "undefined"-Loch: Leitet direkt ins Haupt-Dashboard weiter
                     window.location.href = "/dashboard";
                 } else {
-                    errorBox.textContent = data.detail || "Zugriff verweigert: Login-Daten fehlerhaft.";
+                    errorMsg.textContent = data.detail || "Zugriff verweigert: Kennung fehlerhaft.";
                     errorBox.classList.remove("d-none");
                     resetButton();
                 }
             } catch (err) {
-                errorBox.textContent = "Netzwerkfehler: Verbindung zum Wachen-Server unterbrochen.";
+                errorMsg.textContent = "Verbindungsfehler zum Wachen-Server.";
                 errorBox.classList.remove("d-none");
                 resetButton();
             }
@@ -134,7 +281,7 @@
         function resetButton() {
             const btn = document.getElementById("submitBtn");
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa fa-sign-in-alt me-2"></i>Am System anmelden';
+            btn.innerHTML = '<i class="fa fa-right-to-bracket me-2"></i>Dienstbuch öffnen';
         }
     </script>
 </body>
