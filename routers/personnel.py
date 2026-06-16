@@ -1,103 +1,91 @@
-from fastapi import APIRouter, Request, Response, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 from database import get_db_connection
+from routers.auth import get_current_user
 
-# Prefix sorgt dafür, dass alle Routen automatisch mit /api/personnel starten
-router = APIRouter(prefix="/api/personnel", tags=["Personnel"])
+router = APIRouter(prefix="/api/personnel", tags=["Personalstamm & Dienstakten"])
 
-# --- MODUL-INTERNE CLEANER (Keine Pydantic-Abstürze mehr) ---
-def parse_val(v):
-    if v == "" or v == "null" or v is None:
-        return None
-    if isinstance(v, str):
-        return v.strip()
-    return v
-
-def to_int(v):
-    if str(v).lower() in ['true', '1', 'yes', 't']:
-        return 1
-    return 0
-
-# --- ROUTE 1: KAMERADEN-LISTE ABFRAGEN ---
+# --- 1. KAMERADEN AUFLISTEN ---
 @router.get("/list")
 def list_personnel(r: Request):
+    user = get_current_user(r)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht autorisiert")
     try:
         c = get_db_connection()
         cur = c.cursor(dictionary=True)
-        # Alle Daten und sauber formatierte Datumsfelder abrufen
-        query = """
-            SELECT id, name, rank, membership_status, is_agt, is_maschinist, is_gf, 
-                   phone, email, address, ice_contact, drive_b, drive_be, drive_c, drive_ce, 
-                   profile_picture, 
-                   DATE_FORMAT(g26_3_date, '%Y-%m-%d') as g26_3_date, 
-                   DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date, 
-                   DATE_FORMAT(entry_date, '%Y-%m-%d') as entry_date 
-            FROM personnel 
-            ORDER BY name ASC
-        """
-        cur.execute(query)
+        cur.execute("SELECT * FROM personnel ORDER BY name ASC")
         res = cur.fetchall()
         cur.close()
         c.close()
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Auflisten: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# --- ROUTE 2: KAMERAD SPEICHERN ODER AKTUALISIEREN ---
+# --- 2. KAMERAD ANLEGEN ODER AKTUALISIEREN ---
 @router.post("")
 async def save_member(r: Request):
+    user = get_current_user(r)
+    # SERVER-SIDE RECHTEPRÜFUNG: Nur Admins dürfen Akten modifizieren
+    if not user or user.get("r") != "admin":
+        raise HTTPException(status_code=403, detail="Berechtigung verweigert: Nur Administratoren dürfen Personalakten bearbeiten.")
+        
     try:
         d = await r.json()
         c = get_db_connection()
         cur = c.cursor()
         
         p_id = d.get('id')
-        params = (
-            d.get('name'), d.get('rank'), d.get('membership_status'), 
-            to_int(d.get('is_agt')), to_int(d.get('is_maschinist')), to_int(d.get('is_gf')), 
-            parse_val(d.get('g26_3_date')), parse_val(d.get('birth_date')), parse_val(d.get('entry_date')), 
-            d.get('phone'), d.get('email'), d.get('address'), d.get('ice_contact'), 
-            to_int(d.get('drive_b')), to_int(d.get('drive_be')), to_int(d.get('drive_c')), to_int(d.get('drive_ce')), 
-            d.get('profile_picture')
-        )
-        
         if p_id:
-            # Update bestehender Kamerad
+            # Bestehenden Kameraden aktualisieren
             query = """
-                UPDATE personnel SET 
-                    name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, 
-                    g26_3_date=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, 
-                    ice_contact=%s, drive_b=%s, drive_be=%s, drive_c=%s, drive_ce=%s, profile_picture=%s 
+                UPDATE personnel 
+                SET name=%s, rank=%s, membership_status=%s, is_agt=%s, is_maschinist=%s, is_gf=%s, 
+                    g26_3_date=%s, qualifications=%s, size_helm=%s, size_jacke=%s, size_stiefel=%s, profile_picture=%s
                 WHERE id=%s
             """
-            cur.execute(query, params + (p_id,))
+            params = (d.get('name'), d.get('rank'), d.get('membership_status'), int(d.get('is_agt', 0)), 
+                      int(d.get('is_maschinist', 0)), int(d.get('is_gf', 0)), d.get('g26_3_date') or None, 
+                      d.get('qualifications'), d.get('size_helm'), d.get('size_jacke'), d.get('size_stiefel'), 
+                      d.get('profile_picture'), p_id)
         else:
-            # Neuen Kamerad anlegen
+            # Neuen Kameraden anlegen
             query = """
-                INSERT INTO personnel (
-                    name, rank, membership_status, is_agt, is_maschinist, is_gf, 
-                    g26_3_date, birth_date, entry_date, phone, email, address, 
-                    ice_contact, drive_b, drive_be, drive_c, drive_ce, profile_picture
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO personnel (name, rank, membership_status, is_agt, is_maschinist, is_gf, g26_3_date, qualifications, size_helm, size_jacke, size_stiefel, profile_picture)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cur.execute(query, params)
-            
+            params = (d.get('name'), d.get('rank'), d.get('membership_status'), int(d.get('is_agt', 0)), 
+                      int(d.get('is_maschinist', 0)), int(d.get('is_gf', 0)), d.get('g26_3_date') or None, 
+                      d.get('qualifications'), d.get('size_helm'), d.get('size_jacke'), d.get('size_stiefel'), d.get('profile_picture'))
+        
+        cur.execute(query, params)
         c.commit()
         cur.close()
         c.close()
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Speichern: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fehler beim Sichern der Akte: {str(e)}")
 
-# --- ROUTE 3: KAMERAD LÖSCHEN ---
-@router.delete("/{p_id}")
-def delete_member(p_id: int, r: Request):
+# --- 3. KAMERADEN LÖSCHEN (REPARATUR: Gefundene Lücke geschlossen) ---
+@router.delete("/{member_id}")
+def delete_member(member_id: int, r: Request):
+    user = get_current_user(r)
+    # Nur der Admin darf Personal permanent aus dem System entfernen
+    if not user or user.get("r") != "admin":
+        raise HTTPException(status_code=403, detail="Berechtigung verweigert.")
+        
     try:
         c = get_db_connection()
         cur = c.cursor()
-        cur.execute("DELETE FROM personnel WHERE id = %s", (p_id,))
+        
+        # 1. Optionale Sicherheitsstufe: Verknüpfte PSA-Einträge vorher entkoppeln
+        cur.execute("DELETE FROM psa WHERE person_id = %s", (member_id,))
+        
+        # 2. Kamerad aus dem System löschen
+        cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
+        
         c.commit()
         cur.close()
         c.close()
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Löschen: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fehler beim Löschen des Kameraden: {str(e)}")

@@ -71,10 +71,14 @@ def init_db():
             ("tickets", "created_by", "INT NULL"),
             ("vehicles", "operating_hours", "FLOAT DEFAULT 0.0"),
             ("personnel", "qualifications", "TEXT NULL")
+            ("personnel", "size_helm", "VARCHAR(50) DEFAULT ''"),   # NEU
+            ("personnel", "size_jacke", "VARCHAR(50) DEFAULT ''"),  # NEU
+            ("personnel", "size_stiefel", "VARCHAR(50) DEFAULT ''") # NEU
         ]
         for table, column, definition in migrations:
             try:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
+                print(f"-> [Migration] Spalte '{column}' in '{table}' erfolgreich geprüft/nachgezogen.")
             except:
                 pass
 

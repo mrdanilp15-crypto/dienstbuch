@@ -149,3 +149,52 @@ def del_user(u_id: int, r: Request):
     cur.close()
     c.close()
     return {"status": "success"}
+
+@router.put("/api/users/password/self")
+async def change_password_self(r: Request):
+    user = get_current_user(r)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht autorisiert")
+    
+    d = await r.json()
+    new_pw = d.get("password")
+    if not new_pw or len(new_pw.strip()) < 4:
+        raise HTTPException(status_code=400, detail="Passwort zu kurz!")
+        
+    from database import hash_password
+    h = hash_password(new_pw.strip())
+    
+    try:
+        c = get_db_connection()
+        cur = c.cursor()
+        cur.execute("UPDATE users SET password_hash = %s WHERE username = %s", (h, user.get("u")))
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/auth/me")
+def api_auth_me(r: Request):
+    user = get_current_user(r)
+    if not user:
+        return None
+        
+    c = get_db_connection()
+    cur = c.cursor(dictionary=True)
+    
+    # REPARATUR: Lädt lückenlos alle PSA-Größen und das Profilbild des verknüpften Kameraden
+    query = """
+        SELECT u.username, u.role, u.personnel_id, 
+               p.name as personnel_name, p.profile_picture,
+               p.size_helm, p.size_jacke, p.size_stiefel
+        FROM users u
+        LEFT JOIN personnel p ON u.personnel_id = p.id
+        WHERE u.username = %s
+    """
+    cur.execute(query, (user.get("u"),))
+    res = cur.fetchone()
+    cur.close()
+    c.close()
+    return res
