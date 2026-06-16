@@ -2,445 +2,154 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dienstbuch Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dienstbericht-Editor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise: #0d6efd; --incident: #dc3545; --misc: #ffc107; }
-        body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
-        .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
-        
-        .header-bar { 
-            background: white; border-bottom: 3px solid var(--primary-color); 
-            padding: 10px 15px; position: sticky; top: 0; z-index: 1000;
-            display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        
-        .btn-cat { border: 2px solid transparent; opacity: 0.5; transition: 0.3s; font-weight: bold; color: #666; }
-        .btn-cat:hover { opacity: 0.8; }
-        
-        .btn-cat-Übung.active { background-color: var(--exercise) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
-        .btn-cat-Einsatz.active { background-color: var(--incident) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
-        .btn-cat-Sonstiges.active { background-color: var(--misc) !important; color: black !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
-        
-        .person-row { 
-            display: flex; align-items: center; padding: 12px; 
-            border-bottom: 1px solid #edf2f7; transition: 0.2s;
-        }
-        .person-row:last-child { border-bottom: none; }
-        .person-row.absent { background-color: #fff5f5; opacity: 0.8; }
-        
-        /* Blutrote Fristenwarnung im Original-Layout */
-        .person-row.g26-expired-alert { background-color: #fef2f2 !important; border-left: 4px solid var(--primary-color); }
-        .g26-crit-text { color: var(--primary-color) !important; font-weight: bold; font-size: 0.75rem; display: block; margin-top: 2px; }
-
-        .name-area { flex-grow: 1; min-width: 0; }
-        .name-text { font-weight: 600; font-size: 1.05rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
-        .editor-avatar { width: 42px; height: 42px; border-radius: 10px; background: #e2e8f0; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1; flex-shrink: 0; }
-        .editor-avatar img { width: 100%; height: 100%; object-fit: cover; }
-
-        .sig-box { 
-            width: 70px; height: 40px; border: 1px dashed #cbd5e0; border-radius: 6px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            background: #f8fafc; overflow: hidden;
-        }
-        .sig-box img { max-width: 100%; max-height: 100%; }
-        
-        .vehicle-btn { 
-            padding: 4px 8px; font-size: 0.75rem; border-radius: 6px; 
-            border: 1px solid #e2e8f0; background: white; color: #64748b;
-        }
-        .vehicle-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-
-        .save-indicator { position: fixed; bottom: 85px; right: 20px; z-index: 999; }
-        .bottom-nav { 
-            position: fixed; bottom: 0; left: 0; right: 0; background: white; 
-            padding: 15px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; z-index: 1000;
-        }
-
-        #sigCanvas { border: 1px solid #ccc; width: 100%; height: 250px; touch-action: none; background: white; }
-        .pool-item { cursor: pointer; padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-        .pool-item:hover { background: #f0f7ff; }
-        [v-cloak] { display: none; }
+        body { background: #f8fafc; color: #1e293b; padding: 40px 0; }
+        .editor-container { max-width: 900px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 35px; }
     </style>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body>
-
-<div id="app" v-cloak>
-    <div class="header-bar">
-        <button class="btn btn-outline-secondary btn-sm" @click="goBack">
-            <i class="fas fa-chevron-left"></i> Zurück
-        </button>
-        <h5 class="m-0 fw-bold">Dienstbuch Protokoll</h5>
-        <div>
-            <span v-if="isReadOnly" class="badge bg-secondary"><i class="fa fa-eye me-1"></i> Schreibgeschützt (Mannschaft)</span>
-            <span v-else-if="isAdmin" class="badge bg-danger">Admin</span>
-            <span v-else class="badge bg-primary">User</span>
+    <div id="app" class="container editor-container shadow-sm" v-if="ready">
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <h3 class="fw-bold m-0 text-danger"><i class="fa fa-pen-to-square me-2"></i>Dienstbericht erfassen / bearbeiten</h3>
+            <button class="btn btn-outline-secondary rounded-pill fw-bold btn-sm" @click="goBack()"><i class="fa fa-arrow-left me-1"></i> Abbrechen</button>
         </div>
-    </div>
 
-    <div class="main-content">
-        <div class="card p-3">
-            <div class="row g-2 mb-3">
-                <div class="col-6">
-                    <label class="small text-muted fw-bold">DATUM</label>
-                    <input type="date" class="form-control" v-model="currentDate" @change="autoSave" :disabled="isReadOnly">
+        <form @submit.prevent="saveReport">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <label class="small fw-bold mb-1">Datum</label>
+                    <input type="date" v-model="report.date" class="form-control fw-bold" required>
                 </div>
-                <div class="col-6">
-                    <label class="small text-muted fw-bold">DAUER (Std.)</label>
-                    <input type="number" step="0.5" class="form-control" v-model="duration" @input="autoSave" :disabled="isReadOnly">
+                <div class="col-md-3">
+                    <label class="small fw-bold mb-1">Kategorie</label>
+                    <select v-model="report.category" class="form-select fw-bold" required>
+                        <option value="Übung">Übung / Ausbildung</option>
+                        <option value="Einsatz">Einsatzbericht</option>
+                        <option value="Dienst">Sonstiger Dienstabend</option>
+                        <option value="Verein">Vereinsveranstaltung</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="small fw-bold mb-1">Dauer (Stunden)</label>
+                    <input type="number" step="0.5" v-model.number="report.duration" class="form-control fw-bold" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="small fw-bold mb-1">Ausbilder / Einsatzleiter</label>
+                    <input type="text" v-model="report.instructors" class="form-control" placeholder="Name eintragen" list="leaderPresets" required>
+                    <datalist id="leaderPresets"><option v-for="l in presets.leaders" :value="l"></datalist>
                 </div>
             </div>
 
-            <label class="small text-muted fw-bold">KATEGORIE</label>
-            <div class="d-flex gap-2 mb-3">
-                <button v-for="cat in ['Übung', 'Einsatz', 'Sonstiges']" 
-                        :key="cat"
-                        @click="setCat(cat)"
-                        :class="['btn', 'flex-fill', 'btn-cat', 'btn-cat-' + cat, category === cat ? 'active' : 'bg-light']">
-                    {{cat}}
+            <div class="mb-4">
+                <label class="small fw-bold mb-1">Einsatzstichwort / Thema des Dienstabends *</label>
+                <input type="text" v-model="report.description" class="form-control fw-bold fs-5" placeholder="z. B. Brandbekämpfung oder Technische Hilfeleistung" list="topicPresets" required>
+                <datalist id="topicPresets"><option v-for="t in presets.topics" :value="t"></datalist>
+            </div>
+
+            <h5 class="fw-bold text-dark mb-3 border-bottom pb-2"><i class="fa fa-users me-2"></i>Mannschaft & Fahrzeug-Einteilung</h5>
+            
+            <div class="table-responsive">
+                <table class="table table-hover align-middle border">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 80px;" class="text-center">Anwesend</th>
+                            <th>Name des Kameraden</th>
+                            <th>Dienstgrad</th>
+                            <th style="width: 250px;">Fahrzeug-Zuordnung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="p in report.persons" :key="p.personnel_id">
+                            <td class="text-center">
+                                <input type="checkbox" v-model="p.is_present" class="form-check-input p-2" style="cursor: pointer;">
+                            </td>
+                            <td><b :class="p.is_present ? 'text-dark':'text-muted'">{{ p.name }}</b></td>
+                            <td><span class="badge bg-light text-dark border">{{ p.rank }}</span></td>
+                            <td>
+                                <input type="text" v-model="p.vehicle" class="form-control form-control-sm font-monospace" placeholder="z. B. HLF 20" :disabled="!p.is_present">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="text-end mt-4 border-top pt-3">
+                <button type="submit" class="btn btn-danger rounded-pill fw-bold px-5 py-2.5 shadow-sm">
+                    <i class="fa fa-floppy-disk me-1"></i> Bericht final abspeichern
                 </button>
             </div>
-
-            <div class="mb-3">
-                <label class="small text-muted fw-bold">THEMA / BESCHREIBUNG</label>
-                <input list="topicList" class="form-control" v-model="description" @input="autoSave" placeholder="Was wurde gemacht?" :disabled="isReadOnly">
-                <datalist id="topicList">
-                    <option v-for="t in topicOptions" :key="t" :value="t"></option>
-                </datalist>
-            </div>
-
-            <div class="mb-0">
-                <label class="small text-muted fw-bold">ÜBUNGSLEITUNG / AUSBILDER</label>
-                <input list="instrList" class="form-control" v-model="instructors" @input="autoSave" placeholder="Name(n)..." :disabled="isReadOnly">
-                <datalist id="instrList">
-                    <option v-for="i in instrOptions" :key="i" :value="i"></option>
-                </datalist>
-            </div>
-        </div>
-
-        <div class="card p-3 mb-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="small text-muted fw-bold d-block">BESTÄTIGUNG ÜBUNGSLEITUNG</span>
-                    <small v-if="!leaderSignature" class="text-danger">Unterschrift fehlt</small>
-                    <small v-else class="text-success">Erfasst <i class="fas fa-check"></i></small>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button v-if="leaderSignature && !isReadOnly" class="btn btn-sm btn-outline-secondary" @click="clearLeaderSig">
-                        <i class="fas fa-undo"></i>
-                    </button>
-                    <div class="sig-box" @click="openSig('LEADER')">
-                        <img v-if="leaderSignature" :src="leaderSignature">
-                        <i v-else class="fas fa-pen text-muted"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center px-1 mb-2">
-            <h6 class="m-0 fw-bold">Anwesenheit ({{presentCount}}/{{persons.length}})</h6>
-            <button v-if="!isReadOnly" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#poolModal">
-                <i class="fas fa-plus"></i> Personen
-            </button>
-        </div>
-
-        <div class="card overflow-hidden">
-            <div class="p-2 bg-light border-bottom">
-                <input type="text" class="form-control form-control-sm" v-model="q" placeholder="Suchen...">
-            </div>
-            
-            <!-- --- DIE INTEGRIERTE G26.3 OPTIK-WARNUNG --- -->
-            <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
-                <div class="me-3">
-                    <input type="checkbox" class="form-check-input" style="transform: scale(1.3)" 
-                           :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
-                </div>
-
-                <div class="me-3">
-                    <div class="editor-avatar">
-                        <img :src="p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'" alt="Profilbild">
-                    </div>
-                </div>
-                
-                <div class="name-area" @click="togglePresence(p)">
-                    <span class="name-text">{{p.name}}</span>
-                    <!-- Rote Textwarnung unter dem Namen -->
-                    <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzverbot!</span>
-                    
-                    <div class="d-flex gap-1 mt-1 overflow-auto pb-1" v-if="globalVehicles.length">
-                        <button v-for="v in globalVehicles" 
-                                :key="v.id"
-                                @click.stop="setVehicle(p, v.name)"
-                                :class="['vehicle-btn', p.vehicle === v.name ? 'active' : '']">
-                            {{v.name}}
-                        </button>
-                    </div>
-                </div>
-
-                <div class="ms-2 d-flex align-items-center gap-2">
-                    <button v-if="p.signature && !isReadOnly" class="btn btn-sm btn-link text-muted p-0" @click.stop="clearP(p)">
-                        <i class="fas fa-eraser"></i>
-                    </button>
-                    <div class="sig-box" @click.stop="openSig(p)">
-                        <img v-if="p.signature" :src="p.signature">
-                        <i v-else class="fas fa-signature text-muted"></i>
-                    </div>
-                    <button v-if="isAdmin && !isReadOnly" class="btn btn-sm text-danger" @click.stop="removePerson(p)">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
+        </form>
     </div>
 
-    <div class="save-indicator" v-if="!isReadOnly">
-        <span v-if="saveState === 'saving'" class="badge bg-warning text-dark p-2 shadow-sm">
-            <i class="fas fa-sync fa-spin me-1"></i> Speichert...
-        </span>
-        <span v-if="saveState === 'saved'" class="badge bg-success p-2 shadow-sm">
-            <i class="fas fa-check me-1"></i> Gespeichert
-        </span>
-    </div>
-
-    <div class="bottom-nav">
-        <button class="btn btn-dark flex-fill py-2 fw-bold shadow" @click="saveAndExit">
-            {{ isReadOnly ? 'EDITOR BEENDEN' : 'BEENDEN & SCHLIESSEN' }}
-        </button>
-    </div>
-
-    <div class="modal fade" id="poolModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-            <div class="modal-content">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold">Personen hinzufügen</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex gap-2 mb-3">
-                        <input type="text" class="form-control" v-model="poolSearch" placeholder="Name suchen...">
-                        <button class="btn btn-outline-secondary text-nowrap" @click="selectAllPool">Alle an/aus</button>
-                    </div>
-                    <div class="list-group list-group-flush border rounded" style="max-height: 400px; overflow-y: auto;">
-                        <div v-for="p in filteredPool" :key="p.id" class="pool-item" @click="p.selected = !p.selected">
-                            <input type="checkbox" class="form-check-input me-3" v-model="p.selected" @click.stop>
-                            <div class="me-3" style="width: 35px; height: 35px; border-radius: 8px; overflow: hidden; background: #cbd5e1; display:flex; align-items:center; justify-content:center;">
-                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">
-                            </div>
-                            <span class="fw-semibold">{{p.name}}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-primary px-4" @click="addSelectedFromPool">Hinzufügen</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="sigModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-body p-3 text-center">
-                    <canvas id="sigCanvas"></canvas>
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-outline-secondary flex-fill" @click="clearModal">Löschen</button>
-                        <button class="btn btn-primary flex-fill" @click="saveSig">Speichern</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    const { createApp } = Vue;
-    let sigPad = null, sigModal = null, saveTimer = null;
-
-    createApp({
-        data() {
-            return {
-                isAdmin: false, 
-                isReadOnly: false, 
-                groupId: null, 
-                sessionId: null,
-                globalVehicles: [], persons: [], pool: [],
-                topicOptions: [], instrOptions: [],
-                q: '', poolSearch: '', category: 'Übung', duration: 2.0,
-                description: '', instructors: '', leaderSignature: null,
-                currentDate: new Date().toISOString().split('T')[0],
-                saveState: 'idle', activeSigner: null,
-                isLoading: true,
-                cacheBuster: Date.now()
-            }
-        },
-        computed: {
-            presentCount() { return this.persons.filter(p => p.is_present).length; },
-            filtered() {
-                let list = [...this.persons];
-                if (this.q) list = list.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
-                return list.sort((a, b) => a.name.localeCompare(b.name));
-            },
-            filteredPool() {
-                const s = this.poolSearch.toLowerCase();
-                return this.pool.filter(p => {
-                    const exists = this.persons.find(x => String(x.id || x.person_id) === String(p.id) || x.name === p.name);
-                    return p.name.toLowerCase().includes(s) && !exists;
-                });
-            }
-        },
-        async mounted() {
-            try {
-                const authRes = await fetch('/api/auth/me', { credentials: 'include' });
-                if (!authRes.ok) { window.location.href = '/'; return; }
-                const authData = await authRes.json();
-                
-                this.isAdmin = (authData.role === 'admin');
-                this.isReadOnly = (authData.role === 'mannschaft'); 
-            } catch (e) {
-                window.location.href = '/';
-                return;
-            }
-
-            const p = new URLSearchParams(window.location.search);
-            this.groupId = p.get('group_id');
-            this.sessionId = p.get('session_id');
-            
-            try {
-                const vRes = await fetch('/api/vehicles', { credentials: 'include' }); 
-                this.globalVehicles = await vRes.json();
-            } catch(e) {}
-            
-            try {
-                const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
-                const pData = await pRes.json();
-                this.pool = pData.map(m => ({...m, selected: false}));
-            } catch(e) {}
-
-            await this.load();
-            this.isLoading = false; 
-            
-            try {
-                const topics = await fetch(`/groups/${this.groupId}/topics`, { credentials: 'include' }); this.topicOptions = await topics.json();
-                const instrs = await fetch(`/groups/${this.groupId}/instructors`, { credentials: 'include' }); this.instrOptions = await instrs.json();
-            } catch(e) {}
-
-            sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-            sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'rgb(255, 255, 255)' });
-        },
-        methods: {
-            async load() {
-                if(!this.groupId) return;
-                const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
-                try {
-                    const res = await fetch(url, { credentials: 'include' });
-                    const d = await res.json();
-                    
-                    if(d.persons) { this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id })); }
-                    if(d.session_id || d.id) {
-                        this.sessionId = d.session_id || d.id; 
-                        this.category = d.category || 'Übung';
-                        this.duration = d.duration || 2.0; 
-                        this.description = d.description || '';
-                        this.instructors = d.instructors || ''; 
-                        this.currentDate = d.date || this.currentDate;
-                        this.leaderSignature = d.leader_signature || d.signature || null;
-                    }
-                    this.cacheBuster = Date.now();
-                } catch(e) { console.error("Load Error", e); }
-            },
-            autoSave() {
-                if(this.isReadOnly || this.isLoading) return; 
-                this.saveState = 'saving';
-                clearTimeout(saveTimer);
-                saveTimer = setTimeout(this.performSave, 1000);
-            },
-            async performSave() {
-                if(!this.groupId || this.isLoading || this.isReadOnly) return;
-                const data = {
-                    session_id: this.sessionId ? parseInt(this.sessionId) : null,
-                    date: this.currentDate, group_id: parseInt(this.groupId),
-                    category: this.category, duration: parseFloat(this.duration),
-                    description: this.description, instructors: this.instructors,
-                    leader_signature: this.leaderSignature,
-                    entries: this.persons.map(p => ({
-                        person_id: p.id || p.person_id, is_present: !!p.is_present,
-                        vehicle: p.vehicle || "", signature: p.signature || null, note: p.note || ""
-                    }))
-                };
-                try {
-                    const res = await fetch('/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body:JSON.stringify(data) });
-                    const rd = await res.json();
-                    if(rd.session_id && !this.sessionId) {
-                        this.sessionId = rd.session_id;
-                        window.history.replaceState({}, '', `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`);
-                    }
-                    this.saveState = 'saved';
-                    setTimeout(() => this.saveState = 'idle', 2000);
-                } catch(e) { this.saveState = 'idle'; }
-            },
-            removePerson(p) {
-                if(this.isReadOnly) return;
-                if(confirm(p.name + " wirklich entfernen?")) {
-                    this.persons = this.persons.filter(x => String(x.id || x.person_id) !== String(p.id || p.person_id));
-                    this.autoSave();
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    ready: false,
+                    sessionId: 0,
+                    report: { session_id: 0, date: '', category: 'Übung', duration: 2.0, instructors: '', description: '', persons: [] },
+                    presets: { topics: [], leaders: [] }
                 }
             },
-            selectAllPool() { if(this.isReadOnly) return; const allSelected = this.filteredPool.every(p => p.selected); this.filteredPool.forEach(p => p.selected = !allSelected); },
-            async addSelectedFromPool() {
-                if(this.isReadOnly) return;
-                const selected = this.pool.filter(p => p.selected);
-                selected.forEach(sp => {
-                    const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
-                    if(!exists) {
-                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null, personnel_id: sp.id, has_picture: sp.has_picture, g26_expired: sp.g26_expired });
+            methods: {
+                goBack() { window.location.href = '/dashboard'; },
+                async loadAttendanceData() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    this.sessionId = parseInt(urlParams.get('session_id')) || 0;
+                    
+                    const res = await fetch(`/groups/1/attendance?session_id=${this.sessionId}&t=${new Date().getTime()}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.report.session_id = data.session_id || 0;
+                        this.report.date = data.date;
+                        this.report.category = data.category;
+                        this.report.duration = data.duration;
+                        this.report.instructors = data.instructors || '';
+                        this.report.description = data.description || '';
+                        this.report.persons = data.persons || [];
+                        this.presets = data.presets || { topics: [], leaders: [] };
+                        this.ready = true;
                     }
-                });
-                this.pool.forEach(p => p.selected = false);
-                bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
-                this.autoSave();
-            },
-            togglePresence(p) { if(this.isReadOnly) return; p.is_present = !p.is_present; this.autoSave(); },
-            setVehicle(p,v) { if(this.isReadOnly) return; p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
-            setCat(c) { if(this.isReadOnly) return; this.category = c; this.autoSave(); },
-            openSig(t) { 
-                if(this.isReadOnly) return;
-                this.activeSigner = t; sigModal.show(); 
-                setTimeout(() => {
-                    const c = document.getElementById('sigCanvas');
-                    c.width = c.offsetWidth; c.height = c.offsetHeight; sigPad.clear();
-                    if(t !== 'LEADER' && t.signature) { sigPad.fromDataURL(t.signature); } 
-                    else if (t === 'LEADER' && this.leaderSignature) { sigPad.fromDataURL(this.leaderSignature); }
-                }, 200); 
-            },
-            saveSig() {
-                if(this.isReadOnly) return;
-                if(!sigPad.isEmpty()) {
-                    const data = sigPad.toDataURL();
-                    if(this.activeSigner === 'LEADER') { this.leaderSignature = data; } 
-                    else { this.activeSigner.signature = data; this.activeSigner.is_present = true; }
-                    this.autoSave();
+                },
+                async saveReport() {
+                    const payload = {
+                        group_id: 1,
+                        session_id: this.report.session_id,
+                        date: this.report.date,
+                        category: this.report.category,
+                        duration: this.report.duration,
+                        description: this.report.description,
+                        instructors: this.report.instructors,
+                        entries: this.report.persons.map(p => ({
+                            person_id: p.personnel_id,
+                            is_present: p.is_present,
+                            vehicle: p.vehicle
+                        }))
+                    };
+                    
+                    const res = await fetch('/attendance', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res.ok) {
+                        window.location.href = '/dashboard';
+                    } else {
+                        alert("Fehler beim Speichern des Berichts!");
+                    }
                 }
-                sigModal.hide(); 
             },
-            clearModal() { sigPad.clear(); },
-            clearLeaderSig() { if(this.isReadOnly) return; this.leaderSignature = null; this.autoSave(); },
-            clearP(p) { if(this.isReadOnly) return; p.signature = null; this.autoSave(); },
-            goBack() { window.location.href = '/dashboard'; },
-            saveAndExit() { 
-                if(this.isReadOnly) { this.goBack(); } 
-                else { this.performSave().then(() => this.goBack()); }
+            async mounted() {
+                await this.loadAttendanceData();
             }
-        }
-    }).mount('#app');
-</script>
+        }).mount('#app');
+    </script>
 </body>
 </html>
