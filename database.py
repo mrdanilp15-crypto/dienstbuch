@@ -1,5 +1,8 @@
 import os
 import mysql.connector
+import time
+import hashlib
+import secrets
 
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 
@@ -12,14 +15,35 @@ def get_db_connection():
         database="attendance_system"
     )
 
+def hash_password(p: str) -> str:
+    """Erzeugt einen sicheren PBKDF2-Hash für das Initialpasswort."""
+    s = secrets.token_hex(16)
+    return f"{s}:{hashlib.pbkdf2_hmac('sha256', p.encode(), s.encode(), 100000).hex()}"
+
 def init_db():
-    """Erstellt alle Tabellen und führt Migrationen durch."""
+    """Wartet reaktiv, bis MariaDB hochgefahren ist, und erstellt dann alle Tabellen."""
+    print("-> [Datenbank] Starte strukturelle Initialisierung...")
+    c = None
+    
+    # Warteschleife: Versucht alle 3 Sekunden die DB zu erreichen (max. 36 Sekunden)
+    for i in range(12):
+        try:
+            c = get_db_connection()
+            print("-> [Datenbank] Verbindung zu Port 3306 erfolgreich hergestellt.")
+            break
+        except Exception:
+            print(f"-> [Datenbank] MariaDB konfiguriert sich noch... Warte auf Handshake (Versuch {i+1}/12)...")
+            time.sleep(3)
+    
+    if not c:
+        print("-> [Datenbank] KRITISCHER FEHLER: MariaDB konnte nicht erreicht werden!")
+        return
+
     try:
-        c = get_db_connection()
         cur = c.cursor()
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
-        # Basistabellen anlegen
+        # Sämtliche Tabellen-Schemata anlegen
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
@@ -36,17 +60,23 @@ def init_db():
 
         # Standard-Einstellungen setzen, falls leer
         settings_defaults = [
-            ('station_name', 'Freiwillige Feuerwehr'),
-            ('station_lat', '47.9942'),
-            ('station_lon', '10.1344')
+            ('station_name', 'Freiwillige Feuerwehr Buxheim'),
+            ('station_lat', '47.9994'),
+            ('station_lon', '10.1325')
         ]
         for k, v in settings_defaults:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
+
+        # Initialen Admin-Account anlegen, falls die Tabelle brandneu und leer ist
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
+            print("-> [Datenbank] System-Admin (admin / admin123) wurde erfolgreich erzeugt.")
 
         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
         c.commit()
         cur.close()
         c.close()
-        print("-> [Datenbank] Erfolgreich synchronisiert und einsatzbereit.")
+        print("-> [Datenbank] Tabellen-Struktur erfolgreich eingerichtet und startklar.")
     except Exception as e:
-        print(f"-> [Datenbank] KRITISCHER FEHLER: {e}")
+        print(f"-> [Datenbank] KRITISCHER FEHLER beim Tabellenaufbau: {e}")
