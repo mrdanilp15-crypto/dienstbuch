@@ -39,7 +39,7 @@ def init_db():
         cur = c.cursor()
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
-        # Basistabellen erzeugen
+        # Erzeugung aller Basistabellen im System
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
@@ -54,7 +54,7 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
 
-        # PSA Zuordnungstabelle
+        # EIGENE, ENTKOPPELTE PSA-TABELLE (Löst das Problem mit gleichen Größen für mehrere Personen)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS psa (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -62,27 +62,27 @@ def init_db():
                 item_name VARCHAR(255) NOT NULL,
                 size VARCHAR(50) DEFAULT '',
                 qr_code_id VARCHAR(100) DEFAULT '',
+                status VARCHAR(50) DEFAULT 'Ausgegeben',
+                next_check DATE NULL,
                 issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
 
-        # Absolut sichere Einzel-Migrationen ohne Tuples
-        columns_to_add = [
-            ("tickets", "created_by", "INT NULL"),
-            ("vehicles", "operating_hours", "FLOAT DEFAULT 0.0"),
-            ("vehicles", "uvv_date", "DATE NULL"),
-            ("vehicles", "fuel_type", "VARCHAR(50) DEFAULT 'Diesel'"),
-            ("personnel", "qualifications", "TEXT NULL"),
-            ("personnel", "size_helm", "VARCHAR(50) DEFAULT ''"),
-            ("personnel", "size_jacke", "VARCHAR(50) DEFAULT ''"),
-            ("personnel", "size_stiefel", "VARCHAR(50) DEFAULT ''")
-        ]
-        
-        for table, col, dtype in columns_to_add:
-            try:
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {dtype};")
-            except:
-                pass # Falls Spalte existiert
+        # Struktur-Upgrades (Sichere Einzel-Ausführungen)
+        try: cur.execute("ALTER TABLE tickets ADD COLUMN created_by INT NULL;")
+        except: pass
+        try: cur.execute("ALTER TABLE vehicles ADD COLUMN operating_hours FLOAT DEFAULT 0.0;")
+        except: pass
+        try: cur.execute("ALTER TABLE vehicles ADD COLUMN fuel_type VARCHAR(50) DEFAULT 'Diesel';")
+        except: pass
+        try: cur.execute("ALTER TABLE personnel ADD COLUMN qualifications TEXT NULL;")
+        except: pass
+        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_helm VARCHAR(50) DEFAULT '';")
+        except: pass
+        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_jacke VARCHAR(50) DEFAULT '';")
+        except: pass
+        try: cur.execute("ALTER TABLE personnel ADD COLUMN size_stiefel VARCHAR(50) DEFAULT '';")
+        except: pass
 
         settings_defaults = [
             ('station_name', 'Freiwillige Feuerwehr Buxheim'),
@@ -102,6 +102,6 @@ def init_db():
         c.commit()
         cur.close()
         c.close()
-        print("-> [Datenbank] Alle Tabellen und Spalten erfolgreich migriert und einsatzbereit.")
+        print("-> [Datenbank] Alle Strukturen und PSA-Tabellen erfolgreich geladen.")
     except Exception as e:
         print(f"-> [Datenbank] KRITISCHER FEHLER beim Tabellenaufbau: {e}")
