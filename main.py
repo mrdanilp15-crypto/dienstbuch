@@ -15,6 +15,7 @@ from routers.events import router as events_router
 from routers.archive import router as archive_router
 from routers.system import router as system_router
 from routers.psa import router as psa_router
+from routers.users import router as users_router
 
 app = FastAPI(title="Digitales Dienstbuch")
 
@@ -37,6 +38,7 @@ app.include_router(events_router)
 app.include_router(archive_router)
 app.include_router(system_router)
 app.include_router(psa_router)
+app.include_router(users_router)
 
 # Routen für die Benutzeroberflächen
 @app.get("/")

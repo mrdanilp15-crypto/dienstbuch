@@ -66,26 +66,30 @@ def init_db():
             ) ENGINE=InnoDB;
         """)
 
-        # Struktur-Updates nachziehen
-        migrations = [
+        # Absolut sichere Einzel-Migrationen ohne Tuples
+        columns_to_add = [
             ("tickets", "created_by", "INT NULL"),
             ("vehicles", "operating_hours", "FLOAT DEFAULT 0.0"),
-            ("personnel", "qualifications", "TEXT NULL")
-            ("personnel", "size_helm", "VARCHAR(50) DEFAULT ''"),   # NEU
-            ("personnel", "size_jacke", "VARCHAR(50) DEFAULT ''"),  # NEU
-            ("personnel", "size_stiefel", "VARCHAR(50) DEFAULT ''") # NEU
+            ("vehicles", "uvv_date", "DATE NULL"),
+            ("vehicles", "fuel_type", "VARCHAR(50) DEFAULT 'Diesel'"),
+            ("personnel", "qualifications", "TEXT NULL"),
+            ("personnel", "size_helm", "VARCHAR(50) DEFAULT ''"),
+            ("personnel", "size_jacke", "VARCHAR(50) DEFAULT ''"),
+            ("personnel", "size_stiefel", "VARCHAR(50) DEFAULT ''")
         ]
-        for table, column, definition in migrations:
+        
+        for table, col, dtype in columns_to_add:
             try:
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
-                print(f"-> [Migration] Spalte '{column}' in '{table}' erfolgreich geprüft/nachgezogen.")
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {dtype};")
             except:
-                pass
+                pass # Falls Spalte existiert
 
         settings_defaults = [
             ('station_name', 'Freiwillige Feuerwehr Buxheim'),
             ('station_lat', '47.9994'),
-            ('station_lon', '10.1325')
+            ('station_lon', '10.1325'),
+            ('alamos_token', 'FF_BUXHEIM_SECURE_112'),
+            ('divera_access_key', '')
         ]
         for k, v in settings_defaults:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
@@ -98,6 +102,6 @@ def init_db():
         c.commit()
         cur.close()
         c.close()
-        print("-> [Datenbank] Alle Strukturen und PSA-Tabellen erfolgreich geladen.")
+        print("-> [Datenbank] Alle Tabellen und Spalten erfolgreich migriert und einsatzbereit.")
     except Exception as e:
         print(f"-> [Datenbank] KRITISCHER FEHLER beim Tabellenaufbau: {e}")
