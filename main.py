@@ -13,8 +13,9 @@ from routers.tickets import router as tickets_router
 from routers.alarm import router as alarm_router
 from routers.events import router as events_router
 from routers.archive import router as archive_router
+from routers.system import router as system_router
 
-app = FastAPI(title="Digitales Dienstbuch — Vollständig Modularisiert")
+app = FastAPI(title="Digitales Dienstbuch")
 
 # Statische Verzeichnisse absichern
 if not os.path.exists("static"):
@@ -33,6 +34,7 @@ app.include_router(tickets_router)
 app.include_router(alarm_router)
 app.include_router(events_router)
 app.include_router(archive_router)
+app.include_router(system_router)
 
 # Routen für die Benutzeroberflächen
 @app.get("/")
