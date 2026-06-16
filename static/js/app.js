@@ -33,7 +33,7 @@ createApp({
             
             // Taktische Sortier- und Filterwerkzeuge
             mapFilters: { unterflur: true, ueberflur: true, zisterne: true },
-            lagerFilter: { gewerk: 'Alle', zustand: 'Alle', suche: '' },
+            lagerFilter: { gewerk: 'Alle', suche: '' },
             
             newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
             newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'H100'},
@@ -41,8 +41,7 @@ createApp({
             newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 },
             newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', qr_code_id: '', category: 'Brandschutz', manufacturer: '', serial_number: '' },
             newPsa: { id: null, person_id: 0, item_name: '', size: '', qr_code_id: '', status: 'Ausgegeben', next_check: null },
-            newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, tuv_date: null, fuel_type: 'Diesel', vehicle_type: '' },
-            activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: 'Dienstfahrt', km_start: 0, km_end: 0, fuel_liters: 0.0 }
+            newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, tuv_date: null, fuel_type: 'Diesel', vehicle_type: '' }
         }
     },
     watch: {
@@ -54,7 +53,7 @@ createApp({
             if (!this.identity.personnel_id) return [];
             return this.psaList.filter(p => p.person_id === this.identity.personnel_id);
         },
-        // Filter-Engine für die Kleiderkammer / das Lager
+        // Filter-Engine für den Lagerbestand
         filteredInventory() {
             return this.inventory.filter(i => {
                 const matchGewerk = this.lagerFilter.gewerk === 'Alle' || i.category === this.lagerFilter.gewerk;
@@ -76,12 +75,6 @@ createApp({
                     if (diff <= 60) alerts.push({ msg: `${v.name}: HU / TÜV fällig am ${v.tuv_date}!` });
                 }
             });
-            this.psaList.forEach(p => {
-                if (p.next_check) {
-                    let diff = (new Date(p.next_check) - today) / (1000 * 60 * 60 * 24);
-                    if (diff <= 30) alerts.push({ msg: `Prüffrist fällig bei PSA: ${p.item_name} (${p.person_name}) am ${p.next_check}!` });
-                }
-            });
             return alerts;
         },
         statistics() {
@@ -91,22 +84,7 @@ createApp({
                 if (s.category === 'Übung') uebungen++;
                 if (s.category === 'Einsatz') einsatze++;
             });
-            
-            // Berechnung der persönlichen Dienstbeteiligung
-            let myAttended = 0;
-            if (this.identity.personnel_id) {
-                // Hier würde die Verknüpfung zur Anwesenheitstabelle greifen
-                myAttended = uebungen > 0 ? Math.ceil(uebungen * 0.75) : 0; // Dynamischer Platzhalter-Schutz
-            }
-
-            return { 
-                totalHours: totalHours.toFixed(1), 
-                totalEvents: this.sessions.length, 
-                uebungen, 
-                einsatze, 
-                members: this.personnel.length,
-                myRate: uebungen > 0 ? Math.ceil((myAttended / uebungen) * 100) : 100
-            };
+            return { totalHours: totalHours.toFixed(1), totalEvents: this.sessions.length, uebungen, einsatze, members: this.personnel.length };
         }
     },
     methods: {
@@ -136,6 +114,16 @@ createApp({
                 try { const data = await this.fetchJson(endpoints[key]); if (data) this[key] = data; } catch (e) {}
             }
         },
+        
+        // REPARATUR: Löschen von Dienstberichten sauber ans Backend übertragen
+        async deleteSessionReport(id) {
+            if(confirm("Möchtest du diesen Dienstbericht samt Anwesenheiten permanent löschen?")) {
+                const res = await fetch(`/groups/1/sessions/${id}`, { method: 'DELETE' });
+                if(res.ok) { this.showToast("Dienstbericht gelöscht."); this.refreshAllData(); }
+                else { this.showToast("Fehler beim Löschen.", true); }
+            }
+        },
+
         initMap() {
             this.$nextTick(() => {
                 const mapEl = document.getElementById('map'); if (!mapEl) return;
@@ -157,14 +145,13 @@ createApp({
                             if(h.hydrant_type === 'Überflurhydrant' && !this.mapFilters.ueberflur) return;
                             if(h.hydrant_type === 'Löschwasserzisterne' && !this.mapFilters.zisterne) return;
 
-                            // ERWEITERUNG: Taktischer Schlauchleitungs-Rechner im Popup integriert
-                            const dHoses = Math.ceil(140 / 20); // Beispielrechnung ab Wache
+                            const dHoses = Math.ceil(140 / 20);
                             L.marker([h.lat, h.lon]).addTo(map).bindPopup(`
                                 <div class="p-1">
                                     <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
-                                    <b>Dimension:</b> ${h.diameter}<br>
+                                    <b>Nennweite:</b> ${h.diameter}<br>
                                     <hr class="my-1">
-                                    <small class="text-muted fw-bold"><i class="fa fa-calculator"></i> Schlauchförderung bis Wache:</small><br>
+                                    <small class="text-muted fw-bold"><i class="fa fa-calculator"></i> Schlauchleitung bis Wache:</small><br>
                                     <span class="badge bg-dark mt-1">ca. ${dHoses} B-Längen benötigt</span>
                                     <button class="btn btn-sm btn-outline-danger mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})"><i class="fa fa-trash"></i> Entfernen</button>
                                 </div>
@@ -186,7 +173,7 @@ createApp({
                 "1203": { un_number: "1203", substance: "BENZIN / OTTOKRAFTSTOFF", danger_text: "Extrem entzündbar. Bildet schwere, unsichtbare explosive Dampf-Luft-Gemische am Boden.", safety_measures: "Umfassender Dreifachschutz (Wasser, Schaum, Pulver). Ex-Geschützte Geräte nutzen. Absperrgrenze 50m.", first_aid: "Bei Einatmen Frischluftzufuhr. Augen bei Kontakt sofort spülen." },
                 "1971": { un_number: "1971", substance: "ERDGAS (VERDICHTET, HOCHENTZÜNDLICH)", danger_text: "Hochexplosives Gas. Erstickungsgefahr in geschlossenen Räumen. Leichter als Luft, steigt nach oben.", safety_measures: "Gasspürgerät einsetzen. Zündquellen eliminieren. Räume lüften / Niederschlagen mit Sprühstrahl.", first_aid: "Betroffene an die frische Luft bringen. Bei Atemstillstand Beatmung einleiten." }
             };
-            this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrstoff", danger_text: "Gefahrstoff nicht im lokalen Basisregister. Atemschutz u. Chemieschutzanzug (Formform-CSA) vor Ort prüfen.", safety_measures: "Absperrung weiträumig (min. 100m) aufbauen. Windaufwärts aufstellen.", first_aid: "Notarzt verständigen. Dekontamination einleiten." };
+            this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrstoff", danger_text: "Gefahrstoff nicht im lokalen Register. Standard-Atemschutz u. Chemieschutzstufe vor Ort prüfen.", safety_measures: "Absperrung weiträumig (min. 100m) aufbauen. Windaufwärts aufstellen.", first_aid: "Notarzt verständigen. Dekontamination einleiten." };
         },
         async changeMyPassword() {
             if(!this.profilePassword) return;
@@ -218,7 +205,6 @@ createApp({
         openInvModal(i) { this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' }; this.openModal('invModal'); },
         async saveInv() { await this.apiCall('/api/inventory', 'POST', this.newInv); this.closeModal(); this.refreshAllData(); },
         openPsaModal(p) {
-            // REPARATUR: Automatisches Vorfiltern der Jacken/Helmgrößen aus der Akte des Kameraden
             const kamerad = this.personnel.find(x => x.id === p?.person_id);
             this.newPsa = p ? { ...p } : { id: null, person_id: 0, item_name: '', size: kamerad ? kamerad.size_jacke : '', qr_code_id: '', status: 'Ausgegeben', next_check: null };
             this.openModal('psaModal');
@@ -235,7 +221,7 @@ createApp({
             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`).then(r=>r.json());
             if(res && res.length > 0) { this.registry.station_lat = res[0].lat; this.registry.station_lon = res[0].lon; await this.saveSettings(); this.initMap(); }
         },
-        async saveSettings() { await this.apiCall('/api/settings', 'POST', this.registry); this.showToast("Systemkonfiguration erfolgreich hinterlegt!"); this.refreshAllData(); },
+        async saveSettings() { await this.apiCall('/api/settings', 'POST', this.registry); this.showToast("Systemkonfiguration hinterlegt!"); this.refreshAllData(); },
         async testWebhooks() { await fetch('/api/webhook/alarm?token=' + (this.registry.alamos_token || 'FF_BUXHEIM_SECURE_112'), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: "B3 - PERSON IN GEFAHR", address: "Kirchplatz 4, Buxheim", text: "Simulierter Alamos Inbound-Ruf läuft."}) }); this.refreshAllData(); },
         getPersonnelName(id) { return this.personnel.find(x => x.id === id)?.name || 'Pool-Bestand'; },
         goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
@@ -243,9 +229,9 @@ createApp({
         async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; }
     },
     async mounted() {
-        window.vueApp = this;
+        window.vueApp = this; this.webhookUrl = window.location.origin + '/api/webhook/alarm';
         
-        // REPARATUR: Deep-Linking fängt das QR-Scanziel VOR dem Login ab
+        // Deep-Linking Hebel
         const urlParams = new URLSearchParams(window.location.search);
         const targetTab = urlParams.get('tab'); const qrId = urlParams.get('qr');
         if (targetTab && qrId) {
@@ -256,7 +242,7 @@ createApp({
         const res = await this.fetchJson('/api/auth/me'); if(!res) { window.location.href = '/login'; return; }
         this.identity = res; await this.refreshAllData(); this.ready = true;
         
-        // REPARATUR: Zielsichere Weiterleitung zum gescannten QR-Etikett nach dem Login
+        // Post-Login Redirector
         const savedTab = sessionStorage.getItem('deep_link_tab'); const savedQr = sessionStorage.getItem('deep_link_qr');
         if (savedTab && savedQr) {
             sessionStorage.removeItem('deep_link_tab'); sessionStorage.removeItem('deep_link_qr');

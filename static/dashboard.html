@@ -28,14 +28,12 @@
         .report-strip { border-left: 4px solid #ef4444 !important; transition: transform 0.15s; }
         .report-strip:hover { transform: translateX(4px); }
     </style>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         
         <div class="d-flex">
+            <!-- SIDEBAR MENÜ -->
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>Dienstbuch</h4></div>
@@ -60,11 +58,13 @@
                 </div>
             </div>
 
+            <!-- INHALTSBEREICH MASTER DOCK -->
             <div class="main-content flex-grow-1">
                 
+                <!-- COCKPIT TAB -->
                 <div v-show="currentTab === 'leitstand'">
                     <div v-if="deadlineAlerts.length > 0 || lowStockItems.length > 0" class="card border-danger bg-white mb-4 shadow-sm">
-                        <div class="card-header bg-danger bg-opacity-10 py-2"><h6 class="fw-bold text-danger m-0"><i class="fa fa-triangle-exclamation me-2"></i> Strategisches Überwachungszentrum</h6></div>
+                        <div class="card-header bg-danger bg-opacity-10 py-2"><h6 class="fw-bold text-danger m-0"><i class="fa fa-triangle-exclamation me-2"></i> Wachen-Überwachungszentrum</h6></div>
                         <div class="card-body py-1 text-dark">
                             <div v-for="a in deadlineAlerts" class="small fw-bold py-1 border-bottom text-danger"><i class="fa fa-clock me-1"></i> {{ a.msg }}</div>
                             <div v-if="lowStockItems.length > 0" class="small text-dark fw-bold py-1"><i class="fa fa-boxes-stacked text-warning me-1"></i> {{ lowStockItems.length }} Artikel im Mindestbestand unterschritten!</div>
@@ -94,7 +94,7 @@
                         </div>
                         <div class="col-md-4" v-if="weather">
                             <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
-                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter</h6>
+                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter (Open-Meteo)</h6>
                                 <h1 class="fw-bold text-dark font-monospace my-2">{{ weather.temperature }}</h1>
                                 <span class="badge bg-success py-2 font-monospace">{{ weather.warning_text }}</span>
                             </div>
@@ -102,14 +102,22 @@
                     </div>
 
                     <h5 class="fw-bold text-dark mb-3"><i class="fa fa-file-invoice text-danger me-2"></i> Zuletzt erfasste Dienstberichte / Aktivitäten</h5>
-                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border report-strip shadow-sm" @click="goToEditor(s.id)" style="cursor:pointer">
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border report-strip shadow-sm">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold text-dark fw-bold">{{ s.description }}</h6><small class="text-muted">Ausbilder / Leitung: {{ s.instructors }}</small></div>
-                            <div class="text-end text-muted small">{{ s.date }}<br><b class="text-dark">{{ s.duration }} Std.</b></div>
+                            <div @click="goToEditor(s.id)" style="cursor:pointer" class="flex-grow-1">
+                                <span class="badge bg-secondary mb-1">{{ s.category }}</span>
+                                <h6 class="m-0 font-weight-bold text-dark fw-bold">{{ s.description }}</h6>
+                                <small class="text-muted">Ausbilder / Leitung: {{ s.instructors }}</small>
+                            </div>
+                            <div class="text-end d-flex align-items-center gap-3">
+                                <div class="text-muted small">{{ s.date }}<br><b class="text-dark">{{ s.duration }} Std.</b></div>
+                                <button v-if="identity.role === 'admin'" type="button" class="btn btn-sm btn-outline-danger rounded-circle border-0" @click="deleteSessionReport(s.id)"><i class="fa fa-trash-alt"></i></button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- MEIN PROFIL TAB -->
                 <div v-show="currentTab === 'meinbereich'">
                     <h2 class="mb-4">Persönliche Dienstakte</h2>
                     <div class="row g-3">
@@ -131,24 +139,24 @@
                         </div>
                         <div class="col-md-8">
                             <div class="stat-card mb-3 shadow-sm">
-                                <h5 class="fw-bold text-dark border-bottom pb-2"><i class="fa fa-shirt text-danger me-2"></i> Meine hinterlegten Bekleidungsgrößen</h5>
+                                <h5 class="fw-bold text-dark border-bottom pb-2"><i class="fa fa-shirt text-danger me-2"></i> Meine hinterlegten Bekleidungsgrößen (Soll)</h5>
                                 <div class="row g-2 text-center mt-2">
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Helmgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_helm || 'N/A' }}</b></div></div>
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Kleidergröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_jacke || 'N/A' }}</b></div></div>
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Stiefelgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_stiefel || 'N/A' }}</b></div></div>
                                 </div>
                             </div>
-                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (PSA)</h5>
+                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (Ist-Ausgabe)</h5>
                             <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                                 <table class="table mb-0 align-middle">
-                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Größe</th><th>Eindeutiges Etiketten QR-ID</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Größe</th><th>QR-ID Kennung</th></tr></thead>
                                     <tbody>
                                         <tr v-for="p in myPSA" :key="p.id">
                                             <td><b class="text-dark">{{ p.item_name }}</b></td>
                                             <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size }}</span></td>
                                             <td><span class="badge bg-light text-danger border font-monospace shadow-sm"><i class="fa fa-qrcode me-1"></i> {{ p.qr_code_id }}</span></td>
                                         </tr>
-                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA zugewiesen.</td></tr>
+                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA im Verzeichnis zugewiesen.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -156,6 +164,7 @@
                     </div>
                 </div>
 
+                <!-- LAGEKARTE TAB -->
                 <div v-show="currentTab === 'lagekarte'">
                     <div class="d-flex justify-content-between align-items-center mb-2"><h2>Taktische Lagekarte & Hydrantennetz</h2></div>
                     <div class="card p-2 bg-white rounded-4 shadow-sm position-relative">
@@ -169,6 +178,7 @@
                     </div>
                 </div>
 
+                <!-- GEFAHRGUT REITER -->
                 <div v-show="currentTab === 'gefahrgut'">
                     <h2 class="mb-4">Gefahrgutdatenbank & ERI-Cards</h2>
                     <div class="card p-4 bg-white border shadow-sm mb-4">
@@ -188,6 +198,7 @@
                     </div>
                 </div>
 
+                <!-- GERÄTEWART TAB -->
                 <div v-show="currentTab === 'tickets'">
                     <div class="d-flex justify-content-between mb-4"><h2>Mängelberichte & Ticketboard</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row g-3">
@@ -216,6 +227,7 @@
                     </div>
                 </div>
 
+                <!-- STATISTIK TAB -->
                 <div v-show="currentTab === 'statistik'">
                     <h2 class="mb-4">Statistiken & Jahresauswertung</h2>
                     <div class="row g-3 mb-4">
@@ -224,7 +236,7 @@
                         <div class="col-md-4"><div class="stat-card border-start border-success border-4 shadow-sm"><h6>Kameradenstärke</h6><h2 class="fw-bold text-dark m-0 font-monospace">{{ statistics.members }} Mann</h2></div></div>
                     </div>
                     <div class="card p-4 bg-white border shadow-sm">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-chart-line text-danger me-2"></i> Qualifikationsspiegel & Einsatzverteilung</h5>
+                        <h5 class="fw-bold text-dark mb-3"><i class="fa fa-chart-line text-danger me-2"></i> Übungsbeteiligung & Einsatzverteilung</h5>
                         <div class="mb-3">
                             <div class="d-flex justify-content-between small fw-bold mb-1"><span>Ausbildungsabende / Übungen</span><span class="font-monospace">{{ statistics.uebungen }}</span></div>
                             <div class="progress"><div class="progress-bar bg-success" :style="{width: (statistics.uebungen / (statistics.totalEvents || 1) * 100) + '%'}"></div></div>
@@ -236,6 +248,7 @@
                     </div>
                 </div>
 
+                <!-- KLEIDERKAMMER / LAGER TAB -->
                 <div v-show="currentTab === 'lager'">
                     <h2>Kleiderkammer & Lagerzentrale</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
@@ -246,13 +259,13 @@
                     <div v-if="subTabLager === 'bestand'">
                         <div class="card p-3 mb-3 bg-white border shadow-sm">
                             <div class="row g-2">
-                                <div class="col-md-6"><input type="text" v-model="lagerFilter.suche" class="form-control form-control-sm fw-bold" placeholder="🔍 Ausrüstung suchen (Name oder QR-ID)..."></div>
+                                <div class="col-md-6"><input type="text" v-model="lagerFilter.suche" class="form-control form-control-sm fw-bold" placeholder="🔍 Ausrüstung filtern (Name oder QR-ID)..."></div>
                                 <div class="col-md-6">
                                     <select v-model="lagerFilter.gewerk" class="form-select form-select-sm fw-bold">
                                         <option value="Alle">Alle Gewerke / Kategorien</option>
                                         <option value="Brandschutz">Brandschutzbekleidung</option>
                                         <option value="Atemschutz">Atemschutzgeräte</option>
-                                        <option value="THL">THL-Werkzeuge</option>
+                                        <option value="THL">THL-Ausrüstung</option>
                                     </select>
                                 </div>
                             </div>
@@ -293,13 +306,14 @@
                                             <button type="button" class="btn btn-sm btn-outline-danger rounded-pill fw-bold" @click="revokePsa(p.id)"><i class="fa fa-arrow-rotate-left"></i> Zurücknehmen</button>
                                         </td>
                                     </tr>
-                                    <tr v-if="psaList.length === 0"><td colspan="6" class="text-center p-4 text-muted">Aktuell ist keine personengebundene Schutzausrüstung ausgegeben.</td></tr>
+                                    <tr v-if="psaList.length === 0"><td colspan="6" class="text-center p-4 text-muted">Aktuell ist keine personengebundene PSA ausgegeben.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
+                <!-- PERSONAL TAB -->
                 <div v-show="currentTab === 'personal'">
                     <h2>Personalstamm & Logins</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
@@ -343,6 +357,7 @@
                     </div>
                 </div>
 
+                <!-- FUHRPARK REITER -->
                 <div v-show="currentTab === 'fuhrpark'">
                     <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark, Aggregate & Pumpenüberwachung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openVehModal(null)">Gerät anlegen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
@@ -350,9 +365,8 @@
                             <thead class="table-light"><tr><th>Bezeichnung</th><th>Funkrufname</th><th>Kilometerstand</th><th>Kraftstoff</th><th>Betriebsstunden</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="v in vehicles" :key="v.id">
-                                    <td><b>{{ v.name }}</b><br><small class="text-muted">{{ v.vehicle_type || 'Fahrzeug' }}</small></td>
-                                    <td><span class="badge bg-light text-dark border font-monospace fw-bold">{{ v.radio_name }}</span></td>
-                                    <td><b>{{ v.milage }} km</b></td>
+                                    <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace fw-bold">{{ v.radio_name }}</span></td>
+                                    <td>{{ v.milage }} km</td>
                                     <td><span class="badge bg-light text-dark border"><i class="fa fa-gas-pump text-danger me-1"></i> {{ v.fuel_type || 'Diesel' }}</span></td>
                                     <td><span class="badge bg-dark font-monospace fs-6">{{ v.operating_hours || 0.0 }} Bh</span></td>
                                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark" @click="openVehModal(v)"><i class="fa fa-edit"></i> Bearbeiten</button></td>
@@ -362,8 +376,9 @@
                     </div>
                 </div>
 
+                <!-- EINSTELLUNGEN -->
                 <div v-show="currentTab === 'einstellungen'">
-                    <h2 class="mb-4">Systemeinstellungen & Alamos / Divera Integration</h2>
+                    <h2 class="mb-4">Systemeinstellungen & Alamos Integration</h2>
                     <div class="card p-4 bg-white border shadow-sm">
                         <div class="p-3 bg-light rounded border border-warning mb-4">
                             <h6 class="fw-bold text-dark"><i class="fa fa-network-wired text-danger me-2"></i> Alamos / aPager Webhook-Schnittstelle</h6>
@@ -371,10 +386,10 @@
                         </div>
                         <div class="row g-2 mb-3">
                             <div class="col-md-6"><label class="small fw-bold mb-1">Alamos Security Token</label><input type="text" v-model="registry.alamos_token" class="form-control fw-bold"></div>
-                            <div class="col-md-6"><label class="small fw-bold mb-1">Divera Access Key</label><input type="text" v-model="registry.divera_access_key" class="form-control fw-bold" placeholder="Divera API Key"></div>
+                            <div class="col-md-6"><label class="small fw-bold mb-1">Divera Access Key</label><input type="text" v-model="registry.divera_access_key" class="form-control fw-bold" placeholder="Divera Key"></div>
                         </div>
-                        <div class="mb-3"><label class="small fw-bold mb-1">Ortung & Wachenzentrierung (Geocoding-Ortung)</label>
-                            <div class="input-group"><input type="text" id="geoSearchInput" class="form-control fw-bold" placeholder="z. B. Buxheim Memmingen"><button class="btn btn-dark fw-bold" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Ortung auflösen</button></div>
+                        <div class="mb-3"><label class="small fw-bold mb-1">Wachenzentrierung (Ortung via Geocoding)</label>
+                            <div class="input-group"><input type="text" id="geoSearchInput" class="form-control fw-bold" placeholder="z. B. Buxheim Memmingen"><button class="btn btn-dark fw-bold" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Ort auflösen</button></div>
                         </div>
                         <div class="mb-3"><label class="small fw-bold mb-1">Name der Feuerwehrdienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
                         <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
@@ -385,8 +400,10 @@
             </div>
         </div>
 
+        <!-- ================= MODALS MATRIX ================= -->
         <div class="fw-vue-modal-backdrop" v-if="modalActive"></div>
 
+        <!-- PSA OUTASSIGN MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'psaModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 shadow-lg">
                 <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold text-dark">PSA Personenzuweisung</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -394,19 +411,20 @@
                     <label class="small fw-bold">Empfänger (Kamerad)</label>
                     <select v-model.number="newPsa.person_id" class="form-select fw-bold"><option :value="0">Auswählen...</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select>
                 </div>
-                <div class="mb-2"><label class="small fw-bold">Ausrüstungsgegenstand</label><input type="text" v-model="newPsa.item_name" class="form-control fw-bold" placeholder="z. B. Überjacke Texport"></div>
+                <div class="mb-2"><label class="small fw-bold">Ausrüstungsgegenstand</label><input type="text" v-model="newPsa.item_name" class="form-control fw-bold" placeholder="z. B. Helm Schuberth F220"></div>
                 <div class="row g-2 mb-2">
                     <div class="col-6"><label class="small fw-bold">Ausgegebene Größe</label><input type="text" v-model="newPsa.size" class="form-control fw-bold" placeholder="z. B. 54"></div>
                     <div class="col-6"><label class="small fw-bold">Zustand / Status</label><select v-model="newPsa.status" class="form-select fw-bold"><option>Ausgegeben</option><option>In Reinigung</option><option>Defekt / In Wartung</option></select></div>
                 </div>
                 <div class="row g-2 mb-3">
-                    <div class="col-6"><label class="small fw-bold">QR / Strichcode Kennung</label><input type="text" v-model="newPsa.qr_code_id" class="form-control font-monospace fw-bold" placeholder="Auto-Generierung"></div>
+                    <div class="col-6"><label class="small fw-bold">QR / Kennung</label><input type="text" v-model="newPsa.qr_code_id" class="form-control font-monospace fw-bold" placeholder="Auto-Generierung"></div>
                     <div class="col-6"><label class="small fw-bold">Nächste Prüffrist</label><input type="date" v-model="newPsa.next_check" class="form-control fw-bold"></div>
                 </div>
                 <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold shadow-sm" @click="savePsaAssignment()">Ausrüstung zuweisen</button>
             </div></div>
         </div>
 
+        <!-- POOLBESTAND INVENTORY MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'invModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
                 <div class="d-flex justify-content-between mb-2"><h5>Poolbestand pflegen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -424,6 +442,7 @@
             </div></div>
         </div>
 
+        <!-- KAMERADEN MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'memberModal'">
             <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4">
                 <div class="d-flex justify-content-between mb-2"><h5>Kameradenakte & Qualifikationen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -452,6 +471,7 @@
             </div></div>
         </div>
 
+        <!-- LOGIN MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'userModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
                 <div class="d-flex justify-content-between mb-2"><h5>Systemlogin konfigurieren</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -463,6 +483,7 @@
             </div></div>
         </div>
 
+        <!-- VEHICLE MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'vehModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
                 <div class="d-flex justify-content-between mb-2"><h5>Fahrzeug / Gerät</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -483,6 +504,7 @@
             </div></div>
         </div>
 
+        <!-- MANGEL MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'ticketModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
                 <div class="d-flex justify-content-between mb-2"><h5>Mangel melden</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
@@ -493,6 +515,7 @@
             </div></div>
         </div>
 
+        <!-- QR MODAL -->
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'qrModal'">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 text-center">
                 <h5>Einsatzbereit codiert</h5><div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
