@@ -7,7 +7,6 @@ import secrets
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 
 def get_db_connection():
-    """Baut die native Verbindung zum MySQL/MariaDB-Container auf."""
     return mysql.connector.connect(
         host="db", 
         user="app_user", 
@@ -16,16 +15,13 @@ def get_db_connection():
     )
 
 def hash_password(p: str) -> str:
-    """Erzeugt einen sicheren PBKDF2-Hash für das Initialpasswort."""
     s = secrets.token_hex(16)
     return f"{s}:{hashlib.pbkdf2_hmac('sha256', p.encode(), s.encode(), 100000).hex()}"
 
 def init_db():
-    """Wartet reaktiv, bis MariaDB hochgefahren ist, und erstellt dann alle Tabellen."""
     print("-> [Datenbank] Starte strukturelle Initialisierung...")
     c = None
     
-    # Warteschleife: Versucht alle 3 Sekunden die DB zu erreichen (max. 36 Sekunden)
     for i in range(12):
         try:
             c = get_db_connection()
@@ -43,7 +39,7 @@ def init_db():
         cur = c.cursor()
         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
-        # Sämtliche Tabellen-Schemata anlegen
+        # Basis-Tabellen Schemata
         cur.execute("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(255)) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50), personnel_id INT NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS personnel (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, rank VARCHAR(100), membership_status VARCHAR(50), is_agt BOOLEAN DEFAULT 0, is_maschinist BOOLEAN DEFAULT 0, is_gf BOOLEAN DEFAULT 0, g26_3_date DATE NULL, birth_date DATE NULL, entry_date DATE NULL, phone VARCHAR(100) DEFAULT '', email VARCHAR(255) DEFAULT '', address TEXT NULL, ice_contact VARCHAR(255) DEFAULT '', drive_b BOOLEAN DEFAULT 0, drive_be BOOLEAN DEFAULT 0, drive_c BOOLEAN DEFAULT 0, drive_ce BOOLEAN DEFAULT 0, profile_picture LONGTEXT NULL) ENGINE=InnoDB;")
@@ -58,14 +54,21 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
 
-        # --- MIGRATION FÜR GERÄTEWART-RECHTE ( created_by Spalte nachziehen ) ---
-        try:
-            cur.execute("ALTER TABLE tickets ADD COLUMN created_by INT NULL;")
-            print("-> [Datenbank-Migration] Spalte 'created_by' erfolgreich in Tabelle 'tickets' integriert.")
-        except:
-            pass
+        # --- LIVE DATABASE UPGRADE / MIGRATIONS-MATRIX ---
+        migrations = [
+            ("tickets", "created_by", "INT NULL"),
+            ("inventory", "size", "VARCHAR(50) DEFAULT ''"),
+            ("inventory", "assigned_to", "INT NULL"), # Verknüpfung zu personnel.id (PSA-Hebel)
+            ("vehicles", "operating_hours", "FLOAT DEFAULT 0.0"), # Für Pumpen/Aggregate
+            ("personnel", "qualifications", "TEXT NULL") # Für erweiterte Lehrgänge
+        ]
+        for table, column, definition in migrations:
+            try:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
+                print(f"-> [Migration] Spalte '{column}' erfolgreich in Tabelle '{table}' nachgezogen.")
+            except:
+                pass
 
-        # Standard-Einstellungen setzen, falls leer
         settings_defaults = [
             ('station_name', 'Freiwillige Feuerwehr Buxheim'),
             ('station_lat', '47.9994'),
@@ -74,16 +77,15 @@ def init_db():
         for k, v in settings_defaults:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (k, v))
 
-        # Initialen Admin-Account anlegen, falls die Tabelle brandneu und leer ist
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ("admin", hash_password("admin123"), "admin"))
-            print("-> [Datenbank] System-Admin (admin / admin123) wurde erfolgreich erzeugt.")
+            print("-> [Datenbank] System-Admin (admin / admin123) erzeugt.")
 
         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
         c.commit()
         cur.close()
         c.close()
-        print("-> [Datenbank] Tabellen-Struktur erfolgreich eingerichtet und startklar.")
+        print("-> [Datenbank] Alle Strukturen und Migrationen erfolgreich geladen.")
     except Exception as e:
         print(f"-> [Datenbank] KRITISCHER FEHLER beim Tabellenaufbau: {e}")
