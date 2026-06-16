@@ -2,65 +2,140 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstbuch — Anmeldung</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Digitales Dienstbuch — Leitstand Login</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
     <style>
-        body { background: #0f172a; height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .login-card { width: 100%; max-width: 400px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 30px; color: white; }
+        body {
+            background: #0f172a;
+            color: #cbd5e1;
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        .fire-icon {
+            font-size: 3.5rem;
+            color: #ef4444;
+            text-shadow: 0 0 15px rgba(239,68,68,0.4);
+        }
+        .form-control {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            font-weight: 500;
+        }
+        .form-control:focus {
+            background: #0f172a;
+            border-color: #ef4444;
+            color: white;
+            box-shadow: 0 0 0 0.25rem rgba(239,68,68,0.25);
+        }
+        .btn-danger {
+            background: #ef4444;
+            border: none;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 0 15px rgba(239,68,68,0.4);
+        }
     </style>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body>
-    <div id="app" class="login-card shadow-lg">
-        <div class="text-center mb-4">
-            <h2 class="fw-bold text-danger">Digitales Dienstbuch</h2>
-            <p class="text-muted small">Bitte melde dich mit deinen Zugangsdaten an</p>
+
+    <div class="login-card text-center">
+        <div class="mb-3">
+            <i class="fa fa-fire-extinguisher fire-icon"></i>
         </div>
+        <h3 class="fw-bold text-white mb-1">Operationszentrale</h3>
+        <p class="text-muted small mb-4">Freiwillige Feuerwehr Dienstbuch-Sitzung</p>
 
-        <div class="alert alert-danger py-2 small" v-if="error">{{ error }}</div>
+        <div id="error-box" class="alert alert-danger d-none small fw-bold py-2 mb-3"></div>
 
-        <form @submit.prevent="handleLogin">
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Benutzername</label>
-                <input type="text" v-model="username" class="form-control bg-dark text-white border-secondary" required placeholder="z. B. admin">
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="mb-3 text-start">
+                <label class="form-label small fw-bold text-muted text-uppercase">Benutzername</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="fa fa-user"></i></span>
+                    <input type="text" id="username" class="form-control" placeholder="admin" required autocomplete="username">
+                </div>
             </div>
-            <div class="mb-4">
-                <label class="form-label small fw-bold">Kennwort</label>
-                <input type="password" v-model="password" class="form-control bg-dark text-white border-secondary" required placeholder="••••••••">
+
+            <div class="mb-4 text-start">
+                <label class="form-label small fw-bold text-muted text-uppercase">Kennwort</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="fa fa-lock"></i></span>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                </div>
             </div>
-            <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2" :disabled="loading">
-                <span v-if="loading">Prüfe Account...</span>
-                <span v-else>Anmelden</span>
+
+            <button type="submit" id="submitBtn" class="btn btn-danger w-100 py-2.5 rounded-pill shadow">
+                <i class="fa fa-sign-in-alt me-2"></i>Am System anmelden
             </button>
         </form>
     </div>
 
     <script>
-        Vue.createApp({
-            data() {
-                return { username: '', password: '', error: null, loading: false }
-            },
-            methods: {
-                async handleLogin() {
-                    this.loading = true; this.error = null;
-                    try {
-                        const res = await fetch('/api/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username: this.username, password: this.password })
-                        });
-                        if (res.ok) {
-                            const data = await res.json();
-                            window.location.href = data.redirect;
-                        } else {
-                            this.error = "Benutzername oder Passwort falsch!";
-                        }
-                    } catch (e) { this.error = "Server temporär nicht erreichbar."; }
-                    this.loading = false;
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const errorBox = document.getElementById("error-box");
+            const btn = document.getElementById("submitBtn");
+            
+            errorBox.classList.add("d-none");
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Prüfe Autorisierung...';
+
+            const payload = {
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value
+            };
+
+            try {
+                const res = await fetch("/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.status === "success") {
+                    // Reines Deep-Linking-Sicherheitsnetz: Direkt auf die Dashboard-Route springen
+                    window.location.href = "/dashboard";
+                } else {
+                    errorBox.textContent = data.detail || "Zugriff verweigert: Login-Daten fehlerhaft.";
+                    errorBox.classList.remove("d-none");
+                    resetButton();
                 }
+            } catch (err) {
+                errorBox.textContent = "Netzwerkfehler: Verbindung zum Wachen-Server unterbrochen.";
+                errorBox.classList.remove("d-none");
+                resetButton();
             }
-        }).mount('#app');
+        }
+
+        function resetButton() {
+            const btn = document.getElementById("submitBtn");
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-sign-in-alt me-2"></i>Am System anmelden';
+        }
     </script>
 </body>
 </html>
