@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch — Operationszentrale</title>
+    <title>Digitales Dienstbuch — Hauptquartier</title>
+    
+    <!-- Hochverfügbare, krisensichere CDN Links -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
         [v-cloak] { display: none !important; }
         body { background: #f8fafc; color: #1e293b; font-family: system-ui, -apple-system, sans-serif; }
@@ -15,7 +18,7 @@
         .menu-link { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; transition: all 0.15s; text-decoration: none; }
         .menu-link:hover, .menu-link.active { background: #1e293b; color: #ef4444; }
         .main-content { margin-left: 260px; padding: 40px; min-height: 100vh; }
-        .avatar-container { width: 90px; height: 90px; border-radius: 50%; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; border: 3px solid #ef4444; color: white; }
+        .avatar-container { width: 95px; height: 90px; border-radius: 50%; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; border: 3px solid #ef4444; color: white; }
         .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
         .status-btn { width: 44px; height: 44px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; }
         .status-btn.s-2.active { background: #22c55e; color: white; border-color: #16a34a; box-shadow: 0 0 10px rgba(34,197,94,0.3); }
@@ -28,12 +31,17 @@
         .report-strip { border-left: 4px solid #ef4444 !important; transition: transform 0.15s; }
         .report-strip:hover { transform: translateX(4px); }
     </style>
+    
+    <!-- Skripte zwingend im Header geladen, um Ladereihenfolge-Fehler zu vermeiden -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         
+        <!-- MAIN NAVIGATION DOCK -->
         <div class="d-flex">
-            <!-- SIDEBAR MENÜ -->
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>Dienstbuch</h4></div>
@@ -58,7 +66,7 @@
                 </div>
             </div>
 
-            <!-- INHALTSBEREICH MASTER DOCK -->
+            <!-- Hauptinhalt -->
             <div class="main-content flex-grow-1">
                 
                 <!-- COCKPIT TAB -->
@@ -71,7 +79,7 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center mb-4"><h2>Zentrale Leitstand</h2><button v-if="identity.role === 'admin'" type="button" class="btn btn-danger rounded-pill fw-bold font-weight-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button></div>
+                    <div class="d-flex justify-content-between align-items-center mb-4"><h2>Zentrale Leitstand</h2><button v-if="identity.role === 'admin'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button></div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
                             <div class="card p-3 bg-white border shadow-sm">
@@ -94,7 +102,7 @@
                         </div>
                         <div class="col-md-4" v-if="weather">
                             <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
-                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter (Open-Meteo)</h6>
+                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter</h6>
                                 <h1 class="fw-bold text-dark font-monospace my-2">{{ weather.temperature }}</h1>
                                 <span class="badge bg-success py-2 font-monospace">{{ weather.warning_text }}</span>
                             </div>
@@ -125,7 +133,7 @@
                             <div class="stat-card text-center shadow-sm">
                                 <div class="d-flex justify-content-center mb-3">
                                     <div class="avatar-container">
-                                        <img :src="identity.profile_picture" v-if="identity.profile_picture" alt="Profil">
+                                        <img :src="identity.profile_picture" v-if="identity.profile_picture" alt="Profilbild">
                                         <i v-else class="fa fa-user-shield fs-2"></i>
                                     </div>
                                 </div>
@@ -149,7 +157,7 @@
                             <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (Ist-Ausgabe)</h5>
                             <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                                 <table class="table mb-0 align-middle">
-                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Größe</th><th>QR-ID Kennung</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Größe</th><th>Eindeutiges Etiketten QR-ID</th></tr></thead>
                                     <tbody>
                                         <tr v-for="p in myPSA" :key="p.id">
                                             <td><b class="text-dark">{{ p.item_name }}</b></td>
@@ -178,7 +186,7 @@
                     </div>
                 </div>
 
-                <!-- GEFAHRGUT REITER -->
+                <!-- GEFAHRGUT TAB -->
                 <div v-show="currentTab === 'gefahrgut'">
                     <h2 class="mb-4">Gefahrgutdatenbank & ERI-Cards</h2>
                     <div class="card p-4 bg-white border shadow-sm mb-4">
@@ -215,7 +223,7 @@
                             <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
+                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Erledigt</button>
                             </div>
                         </div>
                         <div class="col-md-4">

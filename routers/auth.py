@@ -6,7 +6,7 @@ import base64
 from fastapi import APIRouter, Request, HTTPException, Response
 from database import get_db_connection
 
-# Holt den geheimen Schlüssel aus der .env-Datei für die Keks-Signierung
+# Holt den geheimen Schlüssel aus der Konfiguration für fälschungssichere Kekse
 SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112").encode()
 
 router = APIRouter(tags=["Authentifizierung"])
@@ -31,7 +31,7 @@ def verify_signature(token: str) -> dict:
     return None
 
 def get_current_user(r: Request):
-    """Hilfsfunktion für andere Router, um den angemeldeten User zu ermitteln."""
+    """Ermittelt den aktuell angemeldeten Benutzer aus dem Cookie."""
     token = r.cookies.get("session_token")
     if not token:
         return None
@@ -55,7 +55,7 @@ async def api_login(r: Request, response: Response):
         if not user_row:
             raise HTTPException(status_code=401, detail="Falscher Benutzername oder Passwort")
         
-        # Abgleich des PBKDF2-Passworthashes (salt:hash)
+        # PBKDF2-Abgleich (salt:hash)
         db_hash = user_row["password_hash"]
         try:
             salt, key_hex = db_hash.split(":")
@@ -67,7 +67,6 @@ async def api_login(r: Request, response: Response):
         if not match:
             raise HTTPException(status_code=401, detail="Falscher Benutzername oder Passwort")
             
-        # Cookie setzen u. verschlüsseln
         token_data = {"u": user_row["username"], "r": user_row["role"]}
         token = sign_data(token_data)
         response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
@@ -95,16 +94,16 @@ def api_auth_me(r: Request):
             SELECT u.username, u.role, u.personnel_id, 
                    p.name as personnel_name, p.profile_picture,
                    p.size_helm, p.size_jacke, p.size_stiefel
-            FROM users u
-            LEFT JOIN personnel p ON u.personnel_id = p.id
-            WHERE u.username = %s
-        """
+        FROM users u
+        LEFT JOIN personnel p ON u.personnel_id = p.id
+        WHERE u.username = %s
+    """
         cur.execute(query, (user.get("u"),))
         res = cur.fetchone()
         cur.close()
         c.close()
         
-        # Repariert die Bildanzeige im Frontend durch Erzwingen des korrekten Headers
+        # Absoluter Fix für die Bildanzeige: Erzwingt den Daten-Header für den Browser
         if res and res.get('profile_picture') and not res['profile_picture'].startswith('data:'):
             res['profile_picture'] = f"data:image/jpeg;base64,{res['profile_picture']}"
         return res
