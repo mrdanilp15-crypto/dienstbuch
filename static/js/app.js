@@ -35,7 +35,8 @@ createApp({
             newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', barcode: '', size: '', qr_code_id: '', last_check: null, next_check: null, category: '', manufacturer: '', serial_number: '' },
             newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, tuv_date: null, sp_date: null, next_oil_change_km: 10000, license_plate: '', vehicle_type: '' },
             activeLog: { id: null, vehicle_id: 1, date: new Date().toISOString().split('T')[0], driver_name: '', purpose: 'Dienstfahrt', km_start: 0, km_end: 0, fuel_liters: 0.0 },
-            newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' }
+            newEvent: { id: null, date: new Date().toISOString().split('T')[0], title: '', responsible: 'Leitung' },
+            newArchiveDoc: { title: '', keywords: '', file_blob: '' }
         }
     },
     watch: {
