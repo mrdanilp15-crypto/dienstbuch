@@ -7,7 +7,7 @@ import secrets
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 
 def get_db_connection():
-    """Baut die Verbindung zum MySQL/MariaDB-Container auf."""
+    """Baut die native Verbindung zum MySQL/MariaDB-Container auf."""
     return mysql.connector.connect(
         host="db", 
         user="app_user", 
@@ -57,6 +57,13 @@ def init_db():
         cur.execute("CREATE TABLE IF NOT EXISTS hydranten (id INT AUTO_INCREMENT PRIMARY KEY, lat DOUBLE, lon DOUBLE, hydrant_type VARCHAR(100), diameter VARCHAR(50), last_check DATE NULL) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS archive_docs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255), keywords TEXT, file_blob LONGTEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;")
         cur.execute("CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, date DATE, title VARCHAR(255), responsible VARCHAR(255)) ENGINE=InnoDB;")
+
+        # --- MIGRATION FÜR GERÄTEWART-RECHTE ( created_by Spalte nachziehen ) ---
+        try:
+            cur.execute("ALTER TABLE tickets ADD COLUMN created_by INT NULL;")
+            print("-> [Datenbank-Migration] Spalte 'created_by' erfolgreich in Tabelle 'tickets' integriert.")
+        except:
+            pass
 
         # Standard-Einstellungen setzen, falls leer
         settings_defaults = [

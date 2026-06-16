@@ -23,7 +23,7 @@
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
         .service-report-card { border-left: 4px solid #94a3b8 !important; }
         
-        /* Modals rein reaktiv über Vue gesteuert */
+        /* Modals reaktiv über Vue gesteuert */
         .fw-vue-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.55); z-index: 2000; }
         .fw-vue-modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; z-index: 2010; display: block; padding-top: 60px; }
     </style>
@@ -150,7 +150,7 @@
                             <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
                                 <div class="small mb-2 text-primary font-monospace" v-if="t.vehicle_name"><i class="fa fa-truck text-dark me-1"></i> Bezug: {{ t.vehicle_name }}</div>
-                                <div class="d-flex gap-1">
+                                <div class="d-flex gap-1" v-if="identity.role === 'admin' || identity.role === 'geratewart'">
                                     <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
                                     <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" @click="delTicket(t.id)"><i class="fa fa-trash"></i></button>
                                 </div>
@@ -160,14 +160,14 @@
                             <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-                                <button type="button" class="btn btn-sm btn-success w-100 rounded-pill" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
+                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
                                 <h6 class="fw-bold text-muted text-decoration-line-through m-0">{{ t.title }}</h6><p class="small text-muted mt-1 m-0">{{ t.content }}</p>
-                                <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Löschen</button>
+                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-outline-danger w-100 rounded-pill mt-2" @click="delTicket(t.id)"><i class="fa fa-trash"></i> Löschen</button>
                             </div>
                         </div>
                     </div>
@@ -402,7 +402,15 @@
                 <div class="d-flex justify-content-between mb-2"><h5>Systemlogin freischalten</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
                 <div class="mb-2"><label class="small fw-bold">Username *</label><input type="text" v-model="newUser.username" class="form-control" :disabled="!!newUser.id"></div>
                 <div class="mb-2"><label class="small fw-bold">Kennwort</label><input type="password" v-model="newUser.password" class="form-control"></div>
-                <div class="mb-3"><label class="small fw-bold">Rolle</label><select v-model="newUser.role" class="form-select"><option value="mannschaft">Mannschaft</option><option value="user">User</option><option value="admin">Admin</option></select></div>
+                <div class="mb-3">
+                    <label class="small fw-bold">Rolle</label>
+                    <select v-model="newUser.role" class="form-select">
+                        <option value="mannschaft">Mannschaft</option>
+                        <option value="user">User</option>
+                        <option value="geratewart">Gerätewart</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
                 <div class="mb-3"><label class="small fw-bold">Verknüpfte Akte</label><select v-model.number="newUser.personnel_id" class="form-select"><option :value="0">Keine</option><option v-for="p in personnel" :value="p.id">{{p.name}}</option></select></div>
                 <button type="button" class="btn btn-dark w-100 rounded-pill" @click="saveUser()">Speichern</button>
             </div></div>
