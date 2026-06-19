@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Digitales Dienstbuch — Operationszentrale</title>
-    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         [v-cloak] { display: none !important; }
         body { background: #f8fafc; color: #1e293b; font-family: system-ui, -apple-system, sans-serif; }
@@ -29,11 +27,8 @@
         .fw-vue-modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; z-index: 2010; display: block; padding-top: 60px; }
         .report-strip { border-left: 4px solid #ef4444 !important; transition: transform 0.15s; }
         .report-strip:hover { transform: translateX(4px); }
-        
-        /* Hallen-Monitor Vollbild-Overlay */
         .hall-monitor-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background: #020617; z-index: 9999; padding: 30px; color: white; }
     </style>
-    
     <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -43,17 +38,16 @@
         
         <div class="hall-monitor-overlay d-flex flex-column justify-content-between" v-if="hallMonitorMode">
             <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-3">
-                <h1 class="text-danger fw-bold m-0"><i class="fa fa-satellite-dish animate-pulse"></i> EINSATZDISPLAY — FF BUXHEIM</h1>
+                <h1 class="text-danger fw-bold m-0"><i class="fa fa-satellite-dish"></i> EINSATZDISPLAY — FF BUXHEIM</h1>
                 <div class="text-end">
                     <h2 class="m-0 font-monospace" v-if="weather">{{ weather.temperature }}</h2>
-                    <button class="btn btn-sm btn-outline-light mt-1" @click="hallMonitorMode = false">Monitor schließen</button>
+                    <button class="btn btn-sm btn-outline-light mt-1" @click="hallMonitorMode = false">Schließen</button>
                 </div>
             </div>
-            
             <div class="row my-4 flex-grow-1">
                 <div class="col-md-8">
                     <div class="bg-dark p-4 rounded-4 border border-secondary h-100">
-                        <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-radio text-danger"></i> Fahrzeugbereitschaft (FMS Status)</h3>
+                        <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-radio text-danger"></i> Bereitschaft (FMS Status)</h3>
                         <div class="row g-3">
                             <div v-for="v in vehicles" class="col-6">
                                 <div class="p-3 rounded border text-white d-flex justify-content-between align-items-center" :class="v.status == 2 ? 'bg-success bg-opacity-20 border-success':'bg-primary bg-opacity-20 border-primary'">
@@ -68,41 +62,36 @@
                     <div class="bg-dark p-4 rounded-4 border border-secondary h-100 d-flex flex-column justify-content-between">
                         <div>
                             <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-calendar-days text-warning"></i> Nächste Termine</h3>
-                            <div class="p-2 border-bottom border-secondary small">Monatsübung Brandschutz — Freitag, 19:30 Uhr</div>
-                            <div class="p-2 border-bottom border-secondary small">Hydrantenprüfung Gruppe 2 — Samstag, 09:00 Uhr</div>
+                            <div class="p-2 border-bottom border-secondary small">Monatsübung Technische Hilfeleistung — Freitag, 19:30 Uhr</div>
                         </div>
                         <div class="p-3 bg-danger bg-opacity-10 border border-danger rounded text-center" v-if="activeAlarm && activeAlarm.keyword">
                             <h2 class="text-danger fw-bold font-monospace m-0">{{ activeAlarm.keyword }}</h2>
                             <p class="m-0 small text-white mt-1">{{ activeAlarm.address }}</p>
                         </div>
-                        <div class="text-muted text-center small" v-else><i class="fa fa-circle-check text-success"></i> Aktuell kein Alarm an der Leitstelle</div>
+                        <div class="text-muted text-center small" v-else><i class="fa fa-circle-check text-success"></i> Keine Alarmierung aktiv</div>
                     </div>
                 </div>
             </div>
-            <div class="text-center text-muted text-uppercase small font-monospace">Sicherheitsnetz-Dienstbuch Standby-Betrieb</div>
         </div>
 
         <div class="d-flex" v-if="!hallMonitorMode">
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>Dienstbuch</h4></div>
-                    <div class="flex-grow-1 overflow-y-auto">
-                        <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
-                        <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
-                        <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
-                        <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
-                        <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
-                        <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'"><i class="fa fa-chart-pie"></i> Auswertung & Statistik</div>
-                        
-                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Wachen-Archiv</div>
-                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer / Lager</div>
-                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
-                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark & Geräte</div>
-                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
-                    </div>
+                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
+                    <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
+                    <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
+                    <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
+                    <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
+                    <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'"><i class="fa fa-chart-pie"></i> Auswertung</div>
+                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Wachen-Archiv</div>
+                    <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer</div>
+                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
+                    <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark</div>
+                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
                 </div>
                 <div class="p-3 bg-dark text-center border-top border-secondary">
-                    <button class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-2 fw-bold" @click="hallMonitorMode = true"><i class="fa fa-expand"></i> Hallen-Monitor</button>
+                    <button class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-2 fw-bold" @click="hallMonitorMode = true"><i class="fa fa-expand"></i> Display-Modus</button>
                     <div class="small fw-bold text-muted mb-1">{{ identity.username }}</div>
                     <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill fw-bold" @click="triggerLogout()">Abmelden</button>
                 </div>
@@ -111,15 +100,15 @@
             <div class="main-content flex-grow-1">
                 
                 <div v-show="currentTab === 'leitstand'">
-                    <div v-if="deadlineAlerts.length > 0 || lowStockItems.length > 0" class="card border-danger bg-white mb-4 shadow-sm">
-                        <div class="card-header bg-danger bg-opacity-10 py-2"><h6 class="fw-bold text-danger m-0"><i class="fa fa-triangle-exclamation me-2"></i> Taktisches Fristenüberwachungszentrum</h6></div>
+                    <div v-if="(identity.role === 'admin' || identity.role === 'geratewart') && (deadlineAlerts.length > 0 || lowStockItems.length > 0)" class="card border-danger bg-white mb-4 shadow-sm">
+                        <div class="card-header bg-danger bg-opacity-10 py-2"><h6 class="fw-bold text-danger m-0"><i class="fa fa-triangle-exclamation me-2"></i> Wachen-Überwachungszentrum (Chefsache)</h6></div>
                         <div class="card-body py-1 text-dark">
                             <div v-for="a in deadlineAlerts" class="small fw-bold py-1 border-bottom text-danger"><i class="fa fa-clock me-1"></i> {{ a.msg }}</div>
-                            <div v-if="lowStockItems.length > 0" class="small text-dark fw-bold py-1"><i class="fa fa-boxes-stacked text-warning me-1"></i> {{ lowStockItems.length }} Artikel im Lager unterschreiten die Mindestmenge!</div>
+                            <div v-for="i in lowStockItems" class="small text-danger fw-bold py-1 border-bottom"><i class="fa fa-boxes-stacked me-1"></i> Mindestbestand unterschritten: {{ i.item_name }} (Nur noch {{ i.amount }} im Regal!)</div>
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center mb-4"><h2>Zentrale Leitstand</h2><button v-if="identity.role === 'admin'" type="button" class="btn btn-danger rounded-pill fw-bold font-weight-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button></div>
+                    <div class="d-flex justify-content-between align-items-center mb-4"><h2>Zentrale Leitstand</h2><button v-if="identity.role === 'admin'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button></div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
                             <div class="card p-3 bg-white border shadow-sm">
@@ -139,14 +128,14 @@
                         </div>
                         <div class="col-md-4" v-if="weather">
                             <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
-                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter Wache</h6>
+                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Wetter Buxheim</h6>
                                 <h1 class="fw-bold text-dark font-monospace my-2">{{ weather.temperature }}</h1>
                                 <span class="badge bg-success py-2 font-monospace">{{ weather.warning_text }}</span>
                             </div>
                         </div>
                     </div>
 
-                    <h5 class="fw-bold text-dark mb-3"><i class="fa fa-file-invoice text-danger me-2"></i> Letzte Dienstberichte (Inkl. Kostenabrechnungs-Export)</h5>
+                    <h5 class="fw-bold text-dark mb-3"><i class="fa fa-file-invoice text-danger me-2"></i> Zuletzt erfasste Aktivitäten / Dienstberichte</h5>
                     <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border report-strip shadow-sm">
                         <div class="d-flex justify-content-between align-items-center">
                             <div @click="goToEditor(s.id)" style="cursor:pointer" class="flex-grow-1">
@@ -155,7 +144,6 @@
                                 <small class="text-muted">Ausbilder / Leitung: {{ s.instructors }}</small>
                             </div>
                             <div class="text-end d-flex align-items-center gap-3">
-                                <button type="button" class="btn btn-sm btn-outline-dark rounded-pill fw-bold text-uppercase small px-2.5" @click="exportCostRecovery(s)"><i class="fa fa-euro-sign me-1"></i> Abrechnung</button>
                                 <div class="text-muted small">{{ s.date }}<br><b class="text-dark">{{ s.duration }} Std.</b></div>
                                 <button v-if="identity.role === 'admin'" type="button" class="btn btn-sm btn-outline-danger rounded-circle border-0" @click="deleteSessionReport(s.id)"><i class="fa fa-trash-alt"></i></button>
                             </div>
@@ -184,24 +172,24 @@
                         </div>
                         <div class="col-md-8">
                             <div class="stat-card mb-3 shadow-sm">
-                                <h5 class="fw-bold text-dark border-bottom pb-2"><i class="fa fa-shirt text-danger me-2"></i> Meine hinterlegten Bekleidungsgrößen (Soll)</h5>
+                                <h5 class="fw-bold text-dark border-bottom pb-2"><i class="fa fa-shirt text-danger me-2"></i> Meine Bekleidungsgrößen (Soll-Vorgabe)</h5>
                                 <div class="row g-2 text-center mt-2">
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Helmgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_helm || 'N/A' }}</b></div></div>
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Kleidergröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_jacke || 'N/A' }}</b></div></div>
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Stiefelgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_stiefel || 'N/A' }}</b></div></div>
                                 </div>
                             </div>
-                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (Ist-Ausgabe)</h5>
+                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine ausgegebene Schutzausrüstung (Ist-Bestand)</h5>
                             <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                                 <table class="table mb-0 align-middle">
-                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Größe</th><th>QR-ID Kennung</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Ausgegebene Größe</th><th>QR-Kennung</th></tr></thead>
                                     <tbody>
                                         <tr v-for="p in myPSA" :key="p.id">
                                             <td><b class="text-dark">{{ p.item_name }}</b></td>
                                             <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size }}</span></td>
                                             <td><span class="badge bg-light text-danger border font-monospace shadow-sm"><i class="fa fa-qrcode me-1"></i> {{ p.qr_code_id }}</span></td>
                                         </tr>
-                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA im Verzeichnis zugewiesen.</td></tr>
+                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA fest zugewiesen.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -209,37 +197,56 @@
                     </div>
                 </div>
 
-                <div v-show="currentTab === 'archiv'">
-                    <h2 class="mb-4">Digitales Dokumentenarchiv</h2>
+                <div v-show="currentTab === 'gefahrgut'">
+                    <h2 class="mb-4">Gefahrgutdatenbank & Taktische ERI-Cards</h2>
                     <div class="card p-4 bg-white border shadow-sm mb-4">
-                        <h5 class="fw-bold mb-3"><i class="fa fa-upload text-danger me-2"></i> Dokument archivieren</h5>
+                        <div class="input-group" style="max-width: 450px;">
+                            <span class="input-group-text bg-danger text-white fw-bold">UN NUMMER</span>
+                            <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace fs-5 text-center" placeholder="z. B. 1203">
+                            <button class="btn btn-dark fw-bold px-4" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
+                        </div>
+                    </div>
+                    <div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
+                        <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt UN {{ activeEriCard.un_number }} — {{ activeEriCard.substance }}</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6"><div class="p-3 bg-light rounded border-start border-3 border-danger h-100 shadow-sm"><h6>Taktische Gefahrenlage</h6><p class="small text-dark font-monospace fw-bold m-0">{{ activeEriCard.danger_text }}</p></div></div>
+                            <div class="col-md-6"><div class="p-3 bg-light rounded border-start border-3 border-warning h-100 shadow-sm"><h6>Sicherheitsmaßnahmen & Einsatztaktik</h6><p class="small text-dark font-monospace fw-bold m-0">{{ activeEriCard.safety_measures }}</p></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-primary h-100 shadow-sm"><h6>Gefahrenradius (Absperrgrenze)</h6><b class="fs-5 text-danger font-monospace d-block mt-1">{{ activeEriCard.radius }}</b></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-dark h-100 shadow-sm"><h6>Erforderliche Schutzkleidung</h6><b class="small text-dark font-monospace d-block mt-1">{{ activeEriCard.gear }}</b></div></div>
+                            <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-info h-100 shadow-sm"><h6>Wassergefährdungklasse (WGK)</h6><b class="small text-info font-monospace d-block mt-1">{{ activeEriCard.water_risk }}</b></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="currentTab === 'archiv'">
+                    <h2 class="mb-4">Digitales Wachenarchiv & Dokumentenablage</h2>
+                    <div class="card p-4 bg-white border shadow-sm mb-4">
+                        <h5 class="fw-bold mb-3"><i class="fa fa-upload text-danger me-2"></i> Dokument einpflegen</h5>
                         <div class="row g-2 mb-2">
-                            <div class="col-md-6"><input type="text" v-model="newArchiveDoc.title" class="form-control fw-bold" placeholder="z.B. Bedienungsanleitung HLF 20"></div>
+                            <div class="col-md-6"><input type="text" v-model="newArchiveDoc.title" class="form-control fw-bold" placeholder="z.B. Prüfbericht MTW 2026"></div>
                             <div class="col-md-6">
                                 <select v-model="newArchiveDoc.keywords" class="form-select fw-bold">
-                                    <option value="Dienstvorschrift">Dienstvorschrift / FwDV</option>
+                                    <option value="Dienstvorschrift">Dienstvorschrift / Lehrunterlage</option>
                                     <option value="Fahrzeugpapier">Fahrzeugpapiere & TÜV-Berichte</option>
-                                    <option value="Lehrgang">Lehrgangsurkunden & Ausbildung</option>
+                                    <option value="Lehrgang">Lehrgangsurkunden & Auszeichnungen</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="mb-3"><input type="file" id="archiveFileInput" class="form-control" @change="processArchiveFile"></div>
-                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()">Dokument ablegen</button>
+                        <div class="mb-3"><input type="file" class="form-control" @change="processArchiveFile"></div>
+                        <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()">Im Wachenarchiv sichern</button>
                     </div>
-                    
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Titel</th><th>Kategorie</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Dokumententitel</th><th>Archiv-Kategorie</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="doc in archiveDocs" :key="doc.id">
                                     <td><b class="text-dark">{{ doc.title }}</b></td>
                                     <td><span class="badge bg-secondary">{{ doc.keywords }}</span></td>
                                     <td class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-dark me-1" @click="viewArchiveDoc(doc)"><i class="fa fa-eye"></i> Öffnen</button>
+                                        <button type="button" class="btn btn-sm btn-outline-dark me-1" @click="viewArchiveDoc(doc)"><i class="fa fa-eye"></i> Einsehen</button>
                                         <button type="button" class="btn btn-sm btn-outline-danger" @click="delArchiveDoc(doc.id)"><i class="fa fa-trash"></i></button>
                                     </td>
                                 </tr>
-                                <tr v-if="archiveDocs.length === 0"><td colspan="3" class="text-center p-4 text-muted">Keine Dokumente im Archiv hinterlegt.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -255,25 +262,6 @@
                             <div class="form-check"><input class="form-check-input" type="checkbox" v-model="mapFilters.zisterne" @change="initMap()"><label class="form-check-label small fw-bold text-success">Zisternen</label></div>
                         </div>
                         <div id="map" style="width: 100%; height: 600px; border-radius: 10px; z-index: 10;"></div>
-                    </div>
-                </div>
-
-                <div v-show="currentTab === 'gefahrgut'">
-                    <h2 class="mb-4">Gefahrgutdatenbank & ERI-Cards</h2>
-                    <div class="card p-4 bg-white border shadow-sm mb-4">
-                        <div class="input-group" style="max-width: 450px;">
-                            <span class="input-group-text bg-danger text-white fw-bold">UN</span>
-                            <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace fs-5 text-center" placeholder="1202">
-                            <button class="btn btn-dark fw-bold px-4" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
-                        </div>
-                    </div>
-                    <div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
-                        <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt UN {{ activeEriCard.un_number }} — {{ activeEriCard.substance }}</h4>
-                        <div class="row g-3">
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100 border-start border-3 border-danger shadow-sm"><h6 class="fw-bold text-dark mb-2">Taktische Gefahr</h6><p class="small text-dark font-monospace m-0 fw-bold">{{ activeEriCard.danger_text }}</p></div></div>
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100 border-start border-3 border-warning shadow-sm"><h6 class="fw-bold text-dark mb-2">Schutzmaßnahmen (PSA)</h6><p class="small text-dark font-monospace m-0 fw-bold">{{ activeEriCard.safety_measures }}</p></div></div>
-                            <div class="col-md-4"><div class="p-3 bg-light rounded h-100 border-start border-3 border-success shadow-sm"><h6 class="fw-bold text-dark mb-2">Erste Hilfe</h6><p class="small text-dark font-monospace m-0 fw-bold">{{ activeEriCard.first_aid }}</p></div></div>
-                        </div>
                     </div>
                 </div>
 
@@ -293,7 +281,7 @@
                             <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
                             <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
                                 <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Als Erledigt markieren</button>
+                                <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Erledigt</button>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -302,15 +290,6 @@
                                 <h6 class="fw-bold text-muted m-0 text-decoration-line-through">{{ t.title }}</h6>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div v-show="currentTab === 'statistik'">
-                    <h2 class="mb-4">Statistiken & Jahresauswertung</h2>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4"><div class="stat-card border-start border-danger border-4 shadow-sm"><h6>Gesamtstunden Dienstbetrieb</h6><h2 class="fw-bold text-dark m-0 font-monospace">{{ statistics.totalHours }} Std.</h2></div></div>
-                        <div class="col-md-4"><div class="stat-card border-start border-primary border-4 shadow-sm"><h6>Aktivitäten / Berichte</h6><h2 class="fw-bold text-dark m-0 font-monospace">{{ statistics.totalEvents }}</h2></div></div>
-                        <div class="col-md-4"><div class="stat-card border-start border-success border-4 shadow-sm"><h6>Kameradenstärke</h6><h2 class="fw-bold text-dark m-0 font-monospace">{{ statistics.members }} Mann</h2></div></div>
                     </div>
                 </div>
 
@@ -335,7 +314,6 @@
                                 </div>
                             </div>
                         </div>
-
                         <div class="text-end mb-3"><button type="button" class="btn btn-dark rounded-pill fw-bold btn-sm shadow-sm" @click="openInvModal(null)"><i class="fa fa-plus"></i> Artikel einbuchen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
@@ -358,7 +336,7 @@
                         <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm shadow-sm" @click="openPsaModal(null)"><i class="fa fa-user-plus"></i> Neue PSA ausgeben</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Kamerad</th><th>Ausrüstungsteil</th><th>Größe</th><th>QR-ID Kennung</th><th>Nächste Prüfung</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Kamerad</th><th>Ausrüstungsteil</th><th>Größe</th><th>Etiketten QR-ID</th><th>Nächste Prüfung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in psaList" :key="p.id">
                                         <td><b>{{ p.person_name }}</b></td>
@@ -378,11 +356,12 @@
                 </div>
 
                 <div v-show="currentTab === 'personal'">
-                    <h2>Personalstamm & Logins</h2>
+                    <h2>Personalstamm & Systemlogins</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm</button></li>
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button></li>
                     </ul>
+                    
                     <div v-if="subTabPers === 'akte'">
                         <div class="text-end mb-3"><button type="button" class="btn btn-danger btn-sm px-3 rounded-pill fw-bold" @click="openMemberModal(null)">Kamerad anlegen</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
@@ -392,7 +371,7 @@
                                     <tr v-for="p in personnel" :key="p.id">
                                         <td><div class="avatar-container" style="width:45px; height:45px;"><img :src="p.profile_picture" v-if="p.profile_picture"><i class="fa fa-user text-muted" v-else></i></div></td>
                                         <td><b>{{ p.name }}</b></td><td><span class="badge bg-light text-dark border fw-bold">{{ p.rank }}</span></td>
-                                        <td><span class="badge bg-info text-dark fw-bold">{{ p.mta_status || 'Basis' }}</span></td>
+                                        <td><span class="badge bg-info text-dark fw-bold font-monospace">{{ p.mta_status || 'Basis' }}</span></td>
                                         <td>
                                             <span class="badge bg-danger me-1" v-if="p.is_agt">AGT</span><span class="badge bg-primary me-1" v-if="p.is_maschinist">Maschinist</span><span class="badge bg-dark me-1" v-if="p.is_gf">GF</span>
                                             <small class="text-muted d-block mt-1 font-monospace fw-bold">{{ p.qualifications || 'Keine Zusatzlehrgänge' }}</small>
@@ -403,13 +382,30 @@
                             </table>
                         </div>
                     </div>
+                    
+                    <div v-if="subTabPers === 'login'">
+                        <div class="text-end mb-3"><button type="button" class="btn btn-dark btn-sm px-3 rounded-pill fw-bold" @click="openUserModal(null)">Systemlogin erstellen</button></div>
+                        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
+                            <table class="table mb-0 align-middle">
+                                <thead class="table-light"><tr><th>Benutzername</th><th>Berechtigungs-Rolle</th><th>Verknüpfter Kamerad</th><th class="text-end">Aktion</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="u in users" :key="u.id">
+                                        <td><b>{{ u.username }}</b></td>
+                                        <td><span class="badge bg-primary text-uppercase font-monospace">{{ u.role }}</span></td>
+                                        <td><i class="fa fa-user me-1 text-muted"></i> {{ getPersonnelName(u.personnel_id) }}</td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark" @click="openUserModal(u)"><i class="fa fa-edit"></i> Konfigurieren</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <div v-show="currentTab === 'fuhrpark'">
-                    <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark & UVV-Überwachung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openVehModal(null)">Gerät anlegen</button></div>
+                    <div class="d-flex justify-content-between mb-4"><h2>Fuhrpark & UVV-Geräteüberwachung</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openVehModal(null)">Gerät / Fahrzeug anlegen</button></div>
                     <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                         <table class="table mb-0 align-middle">
-                            <thead class="table-light"><tr><th>Bezeichnung</th><th>Funkrufname</th><th>Kilometerstand</th><th>Kraftstoff</th><th>Betriebsstunden</th><th class="text-end">Aktion</th></tr></thead>
+                            <thead class="table-light"><tr><th>Bezeichnung / Typ</th><th>Funkrufname</th><th>Kilometerstand</th><th>Kraftstoff</th><th>Betriebsstunden</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="v in vehicles" :key="v.id">
                                     <td><b>{{ v.name }}</b></td><td><span class="badge bg-light text-dark border font-monospace fw-bold">{{ v.radio_name }}</span></td>
@@ -434,12 +430,11 @@
                             <div class="col-md-6"><label class="small fw-bold mb-1">Alamos Security Token</label><input type="text" v-model="registry.alamos_token" class="form-control fw-bold"></div>
                             <div class="col-md-6"><label class="small fw-bold mb-1">Divera Access Key</label><input type="text" v-model="registry.divera_access_key" class="form-control fw-bold" placeholder="Divera Key"></div>
                         </div>
-                        <div class="mb-3"><label class="small fw-bold mb-1">Wachenzentrierung (Geocoding-Ortung)</label>
+                        <div class="mb-3"><label class="small fw-bold mb-1">Wachenzentrierung (Ortung via Geocoding)</label>
                             <div class="input-group"><input type="text" id="geoSearchInput" class="form-control fw-bold" placeholder="z. B. Buxheim Memmingen"><button class="btn btn-dark fw-bold" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Ort auflösen</button></div>
                         </div>
                         <div class="mb-3"><label class="small fw-bold mb-1">Name der Feuerwehrdienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
                         <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>
-                        <button type="button" class="btn btn-warning rounded-pill fw-bold px-4 ms-2" @click="testWebhooks()">Test-Alarm simulieren</button>
                     </div>
                 </div>
 
@@ -498,7 +493,7 @@
 
         <div class="fw-vue-modal-container modal" v-if="modalActive === 'memberModal'">
             <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4">
-                <div class="d-flex justify-content-between mb-2"><h5>Kameradenakte & Qualifikationen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+                <div class="d-flex justify-content-between mb-2"><h5>Kameradenakte & Lehrgänge</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
                 <div class="row g-2 mb-2">
                     <div class="col-md-6"><label class="small fw-bold">Name *</label><input type="text" v-model="newMem.name" class="form-control fw-bold"></div>
                     <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label><select v-model="newMem.rank" class="form-select fw-bold"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option></select></div>
@@ -509,14 +504,14 @@
                     <div class="col-4"><label class="small fw-bold">Stiefelgröße (Soll)</label><input type="text" v-model="newMem.size_stiefel" class="form-control form-control-sm text-center fw-bold"></div>
                 </div>
                 <div class="row g-3 mb-2">
-                    <div class="col-4"><label class="small fw-bold">G26.3 Frist</label><input type="date" v-model="newMem.g26_3_date" class="form-control form-control-sm fw-bold"></div>
-                    <div class="col-4"><label class="small fw-bold">Letzte Führerschein-Prüfung</label><input type="date" v-model="newMem.last_license_check" class="form-control form-control-sm fw-bold"></div>
-                    <div class="col-4"><label class="small fw-bold">MTA Status</label><select v-model="newMem.mta_status" class="form-select form-select-sm fw-bold"><option value="Basis">MTA-Basismodul</option><option value="Ergänzung">MTA-Ergänzungsmodul</option><option value="Truppführer">MTA-Truppführer abgeschlossen</option></select></div>
+                    <div class="col-4"><label class="small fw-bold">G26.3 Frist (Atemschutz)</label><input type="date" v-model="newMem.g26_3_date" class="form-control form-control-sm fw-bold"></div>
+                    <div class="col-4"><label class="small fw-bold">Führerschein-Sichtprüfung</label><input type="date" v-model="newMem.last_license_check" class="form-control form-control-sm fw-bold"></div>
+                    <div class="col-4"><label class="small fw-bold">MTA Ausbildungsstand</label><select v-model="newMem.mta_status" class="form-select form-select-sm fw-bold"><option value="Basis">MTA-Basismodul</option><option value="Ergänzung">MTA-Ergänzungsmodul</option><option value="Truppführer">MTA-Truppführer absolviert</option></select></div>
                 </div>
                 <div class="mb-3"><label class="small fw-bold">Lehrgänge (Kommagetrennt)</label><input type="text" v-model="newMem.qualifications" class="form-control" placeholder="Sprechfunker, Atemschutz, Gruppenführer"></div>
                 <div class="p-3 bg-light rounded mb-3">
                     <div class="d-flex gap-4">
-                        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt"><label class="form-check-label small fw-bold">Atemschutz</label></div>
+                        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt"><label class="form-check-label small fw-bold">Atemschutzträger</label></div>
                         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist"><label class="form-check-label small fw-bold">Maschinist</label></div>
                         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf"><label class="form-check-label small fw-bold">Gruppenführer</label></div>
                     </div>

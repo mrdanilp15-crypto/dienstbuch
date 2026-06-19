@@ -6,20 +6,17 @@ import base64
 from fastapi import APIRouter, Request, HTTPException, Response
 from database import get_db_connection
 
-# Holt den geheimen Schlüssel aus der Konfiguration für fälschungssichere Kekse
 SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112").encode()
 
 router = APIRouter(tags=["Authentifizierung"])
 
 def sign_data(data: dict) -> str:
-    """Signiert Sitzungsdaten fälschungssicher."""
     json_str = json.dumps(data)
     encoded = base64.b64encode(json_str.encode()).decode()
     signature = hmac.new(SECRET_KEY, encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
 
 def verify_signature(token: str) -> dict:
-    """Prüft, ob das Sitzungstoken manipuliert wurde."""
     try:
         encoded, signature = token.split(".")
         expected_sig = hmac.new(SECRET_KEY, encoded.encode(), hashlib.sha256).hexdigest()
@@ -31,13 +28,11 @@ def verify_signature(token: str) -> dict:
     return None
 
 def get_current_user(r: Request):
-    """Ermittelt den aktuell angemeldeten Benutzer aus dem Cookie."""
     token = r.cookies.get("session_token")
     if not token:
         return None
     return verify_signature(token)
 
-# --- LOGIN-SCHNITTSTELLE ---
 @router.post("/api/login")
 async def api_login(r: Request, response: Response):
     try:
@@ -55,7 +50,6 @@ async def api_login(r: Request, response: Response):
         if not user_row:
             raise HTTPException(status_code=401, detail="Falscher Benutzername oder Passwort")
         
-        # PBKDF2-Abgleich (salt:hash)
         db_hash = user_row["password_hash"]
         try:
             salt, key_hex = db_hash.split(":")
@@ -75,13 +69,11 @@ async def api_login(r: Request, response: Response):
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ABMELDE-SCHNITTSTELLE ---
 @router.post("/api/logout")
 def api_logout(response: Response):
     response.delete_cookie("session_token")
     return {"status": "success"}
 
-# --- PROFIL-ABFRAGE (Inkl. Bekleidungsgrößen & Bild-Präfix) ---
 @router.get("/api/auth/me")
 def api_auth_me(r: Request):
     user = get_current_user(r)
@@ -94,23 +86,21 @@ def api_auth_me(r: Request):
             SELECT u.username, u.role, u.personnel_id, 
                    p.name as personnel_name, p.profile_picture,
                    p.size_helm, p.size_jacke, p.size_stiefel
-        FROM users u
-        LEFT JOIN personnel p ON u.personnel_id = p.id
-        WHERE u.username = %s
-    """
+            FROM users u
+            LEFT JOIN personnel p ON u.personnel_id = p.id
+            WHERE u.username = %s
+        """
         cur.execute(query, (user.get("u"),))
         res = cur.fetchone()
         cur.close()
         c.close()
         
-        # Absoluter Fix für die Bildanzeige: Erzwingt den Daten-Header für den Browser
         if res and res.get('profile_picture') and not res['profile_picture'].startswith('data:'):
             res['profile_picture'] = f"data:image/jpeg;base64,{res['profile_picture']}"
         return res
     except:
         return {"username": user.get("u"), "role": user.get("r"), "personnel_id": 0}
 
-# --- PASSWORT-SELBSTBEDIENUNG ---
 @router.put("/api/users/password/self")
 async def change_password_self(r: Request):
     user = get_current_user(r)
