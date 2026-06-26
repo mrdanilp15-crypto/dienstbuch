@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch — Operationszentrale</title>
+    <title>Digitales Dienstbuch — Hauptquartier</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
@@ -21,6 +21,7 @@
         .status-btn.s-2.active { background: #22c55e; color: white; border-color: #16a34a; box-shadow: 0 0 10px rgba(34,197,94,0.3); }
         .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #2563eb; box-shadow: 0 0 10px rgba(59,130,246,0.3); }
         .stat-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .info-bubble { background: #f1f5f9; border-radius: 8px; padding: 12px; font-size: 0.85rem; border-left: 3px solid #3b82f6; color: #475569; }
         .progress { height: 10px; border-radius: 6px; background-color: #e2e8f0; }
         .map-filter-box { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 1px solid #cbd5e1; }
         .fw-vue-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(15,23,42,0.6); z-index: 2000; backdrop-filter: blur(4px); }
@@ -29,16 +30,13 @@
         .report-strip:hover { transform: translateX(4px); }
         .hall-monitor-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background: #020617; z-index: 9999; padding: 30px; color: white; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
         
         <div class="hall-monitor-overlay d-flex flex-column justify-content-between" v-if="hallMonitorMode">
             <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-3">
-                <h1 class="text-danger fw-bold m-0"><i class="fa fa-satellite-dish"></i> EINSATZDISPLAY — FF BUXHEIM</h1>
+                <h1 class="text-danger fw-bold m-0"><i class="fa fa-satellite-dish animate-pulse"></i> INFORMATIVER LEITSTAND MONITOR</h1>
                 <div class="text-end">
                     <h2 class="m-0 font-monospace" v-if="weather">{{ weather.temperature }}</h2>
                     <button class="btn btn-sm btn-outline-light mt-1" @click="hallMonitorMode = false">Schließen</button>
@@ -47,7 +45,7 @@
             <div class="row my-4 flex-grow-1">
                 <div class="col-md-8">
                     <div class="bg-dark p-4 rounded-4 border border-secondary h-100">
-                        <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-radio text-danger"></i> Bereitschaft (FMS Status)</h3>
+                        <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-radio text-danger"></i> Fahrzeug tableaux (FMS Status)</h3>
                         <div class="row g-3">
                             <div v-for="v in vehicles" class="col-6">
                                 <div class="p-3 rounded border text-white d-flex justify-content-between align-items-center" :class="v.status == 2 ? 'bg-success bg-opacity-20 border-success':'bg-primary bg-opacity-20 border-primary'">
@@ -60,15 +58,11 @@
                 </div>
                 <div class="col-md-4">
                     <div class="bg-dark p-4 rounded-4 border border-secondary h-100 d-flex flex-column justify-content-between">
-                        <div>
-                            <h3 class="text-white border-bottom pb-2 mb-3"><i class="fa fa-calendar-days text-warning"></i> Nächste Termine</h3>
-                            <div class="p-2 border-bottom border-secondary small">Monatsübung Technische Hilfeleistung — Freitag, 19:30 Uhr</div>
-                        </div>
                         <div class="p-3 bg-danger bg-opacity-10 border border-danger rounded text-center" v-if="activeAlarm && activeAlarm.keyword">
                             <h2 class="text-danger fw-bold font-monospace m-0">{{ activeAlarm.keyword }}</h2>
                             <p class="m-0 small text-white mt-1">{{ activeAlarm.address }}</p>
                         </div>
-                        <div class="text-muted text-center small" v-else><i class="fa fa-circle-check text-success"></i> Keine Alarmierung aktiv</div>
+                        <div class="text-muted text-center small" v-else><i class="fa fa-circle-check text-success"></i> Aktuell kein Alarm über Alamos</div>
                     </div>
                 </div>
             </div>
@@ -78,17 +72,19 @@
             <div class="sidebar d-flex flex-column justify-content-between">
                 <div>
                     <div class="sidebar-header"><h4 class="m-0 fw-bold text-danger"><i class="fa fa-fire-extinguisher me-2"></i>Dienstbuch</h4></div>
-                    <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
-                    <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
-                    <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
-                    <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
-                    <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
-                    <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'"><i class="fa fa-chart-pie"></i> Auswertung</div>
-                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Wachen-Archiv</div>
-                    <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer</div>
-                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
-                    <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark</div>
-                    <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
+                    <div class="flex-grow-1 overflow-y-auto">
+                        <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'"><i class="fa fa-desktop"></i> Zentrale</div>
+                        <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'"><i class="fa fa-user-shield"></i> Mein Profil</div>
+                        <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();"><i class="fa fa-map-location-dot"></i> Lagekarte</div>
+                        <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'"><i class="fa fa-biohazard"></i> Gefahrgut (ERI)</div>
+                        <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'"><i class="fa fa-clipboard-list"></i> Gerätewart & Mängel</div>
+                        <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'"><i class="fa fa-chart-pie"></i> Auswertung</div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'"><i class="fa fa-archive"></i> Wachen-Archiv</div>
+                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'"><i class="fa fa-boxes-stacked"></i> Kleiderkammer</div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'"><i class="fa fa-users-gear"></i> Personal & Logins</div>
+                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'"><i class="fa fa-truck-moving"></i> Fuhrpark</div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'"><i class="fa fa-sliders"></i> Einstellungen</div>
+                    </div>
                 </div>
                 <div class="p-3 bg-dark text-center border-top border-secondary">
                     <button class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-2 fw-bold" @click="hallMonitorMode = true"><i class="fa fa-expand"></i> Display-Modus</button>
@@ -128,7 +124,7 @@
                         </div>
                         <div class="col-md-4" v-if="weather">
                             <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
-                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Wetter Buxheim</h6>
+                                <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter Wache</h6>
                                 <h1 class="fw-bold text-dark font-monospace my-2">{{ weather.temperature }}</h1>
                                 <span class="badge bg-success py-2 font-monospace">{{ weather.warning_text }}</span>
                             </div>
@@ -179,7 +175,7 @@
                                     <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Stiefelgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_stiefel || 'N/A' }}</b></div></div>
                                 </div>
                             </div>
-                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine ausgegebene Schutzausrüstung (Ist-Bestand)</h5>
+                            <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (Ist-Ausgabe)</h5>
                             <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                                 <table class="table mb-0 align-middle">
                                     <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Ausgegebene Größe</th><th>QR-Kennung</th></tr></thead>
@@ -189,7 +185,7 @@
                                             <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size }}</span></td>
                                             <td><span class="badge bg-light text-danger border font-monospace shadow-sm"><i class="fa fa-qrcode me-1"></i> {{ p.qr_code_id }}</span></td>
                                         </tr>
-                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA fest zugewiesen.</td></tr>
+                                        <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA im Verzeichnis zugewiesen.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -214,6 +210,54 @@
                             <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-primary h-100 shadow-sm"><h6>Gefahrenradius (Absperrgrenze)</h6><b class="fs-5 text-danger font-monospace d-block mt-1">{{ activeEriCard.radius }}</b></div></div>
                             <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-dark h-100 shadow-sm"><h6>Erforderliche Schutzkleidung</h6><b class="small text-dark font-monospace d-block mt-1">{{ activeEriCard.gear }}</b></div></div>
                             <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-info h-100 shadow-sm"><h6>Wassergefährdungklasse (WGK)</h6><b class="small text-info font-monospace d-block mt-1">{{ activeEriCard.water_risk }}</b></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="currentTab === 'statistik'">
+                    <h2 class="mb-4">Strategische Wachen-Auswertung</h2>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3"><div class="stat-card border-start border-danger border-4 shadow-sm"><h6>Gesamtdienstzeit</h6><h3 class="fw-bold text-dark m-0 font-monospace">{{ statistics.totalHours }} Std.</h3><small class="text-muted">Aktivitäten gesamt: {{ statistics.totalEvents }}</small></div></div>
+                        <div class="col-md-3"><div class="stat-card border-start border-success border-4 shadow-sm"><h6>Einsatzübungen</h6><h3 class="fw-bold text-success m-0 font-monospace">{{ statistics.uebungen }}</h3><small class="text-muted">Ausbildungsabende</small></div></div>
+                        <div class="col-md-3"><div class="stat-card border-start border-primary border-4 shadow-sm"><h6>Reale Einsätze</h6><h3 class="fw-bold text-primary m-0 font-monospace">{{ statistics.einsatze }}</h3><small class="text-muted">Scharfe Alarmierungen</small></div></div>
+                        <div class="col-md-3"><div class="stat-card border-start border-dark border-4 shadow-sm"><h6>Kameradenstärke</h6><h3 class="fw-bold text-dark m-0 font-monospace">{{ statistics.members }} Mann</h3><small class="text-muted">Aktive Mannschaft</small></div></div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card p-4 bg-white border shadow-sm h-100">
+                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-shield-halved text-danger me-2"></i> Taktischer Einsatzspiegel & Qualifikationen</h5>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Atemschutzgeräteträger (AGT)</span><span class="font-monospace text-danger">{{ statistics.agtCount }} Mann</span></div>
+                                    <div class="progress"><div class="progress-bar bg-danger" :style="{width: (statistics.agtCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Fahrzeug-Maschinisten</span><span class="font-monospace text-primary">{{ statistics.maschinistCount }} Mann</span></div>
+                                    <div class="progress"><div class="progress-bar bg-primary" :style="{width: (statistics.maschinistCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                                <div class="mb-0">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Führungskräfte (Gruppenführer+)</span><span class="font-monospace text-dark">{{ statistics.gfCount }} Mann</span></div>
+                                    <div class="progress"><div class="progress-bar bg-dark" :style="{width: (statistics.gfCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card p-4 bg-white border shadow-sm h-100">
+                                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-graduation-cap text-warning me-2"></i> Ausbildungsstand Modulare Truppausbildung (MTA)</h5>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>MTA-Basismodul in Ausbildung</span><span class="font-monospace">{{ statistics.mtaBasis }} Anwärter</span></div>
+                                    <div class="progress"><div class="progress-bar bg-info" :style="{width: (statistics.mtaBasis / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>MTA-Ergänzungsmodul</span><span class="font-monospace">{{ statistics.mtaErgaenzung }} Kameraden</span></div>
+                                    <div class="progress"><div class="progress-bar bg-warning" :style="{width: (statistics.mtaErgaenzung / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                                <div class="mb-0">
+                                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Truppführer-Qualifikation abgeschlossen</span><span class="font-monospace text-success">{{ statistics.mtaFertig }} Einsatzkräfte</span></div>
+                                    <div class="progress"><div class="progress-bar bg-success" :style="{width: (statistics.mtaFertig / (statistics.members || 1) * 100) + '%'}"></div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -252,19 +296,6 @@
                     </div>
                 </div>
 
-                <div v-show="currentTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between align-items-center mb-2"><h2>Taktische Lagekarte & Hydrantennetz</h2></div>
-                    <div class="card p-2 bg-white rounded-4 shadow-sm position-relative">
-                        <div class="map-filter-box">
-                            <h6 class="fw-bold small text-muted text-uppercase mb-2"><i class="fa fa-filter me-1"></i> Filter</h6>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" v-model="mapFilters.unterflur" @change="initMap()"><label class="form-check-label small fw-bold text-primary">Unterflurhydranten</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" v-model="mapFilters.ueberflur" @change="initMap()"><label class="form-check-label small fw-bold text-danger">Überflurhydranten</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" v-model="mapFilters.zisterne" @change="initMap()"><label class="form-check-label small fw-bold text-success">Zisternen</label></div>
-                        </div>
-                        <div id="map" style="width: 100%; height: 600px; border-radius: 10px; z-index: 10;"></div>
-                    </div>
-                </div>
-
                 <div v-show="currentTab === 'tickets'">
                     <div class="d-flex justify-content-between mb-4"><h2>Mängelberichte & Ticketboard</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
                     <div class="row g-3">
@@ -293,7 +324,7 @@
                     </div>
                 </div>
 
-                <div v-show="currentTab === 'lager'">
+                <div class="currentTab === 'lager'" v-show="currentTab === 'lager'">
                     <h2>Kleiderkammer & Lagerzentrale</h2>
                     <ul class="nav nav-pills mb-4 bg-light p-1 rounded">
                         <li class="nav-item flex-fill"><button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabLager === 'bestand'}" @click="subTabLager = 'bestand'">Lager-Poolbestand</button></li>
@@ -336,7 +367,7 @@
                         <div class="text-end mb-3"><button type="button" class="btn btn-danger rounded-pill fw-bold btn-sm shadow-sm" @click="openPsaModal(null)"><i class="fa fa-user-plus"></i> Neue PSA ausgeben</button></div>
                         <div class="card p-0 overflow-hidden bg-white border shadow-sm">
                             <table class="table mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Kamerad</th><th>Ausrüstungsteil</th><th>Größe</th><th>Etiketten QR-ID</th><th>Nächste Prüfung</th><th class="text-end">Aktion</th></tr></thead>
+                                <thead class="table-light"><tr><th>Kamerad</th><th>Ausrüstungsteil</th><th>Größe</th><th>QR-ID Kennung</th><th>Nächste Prüfung</th><th class="text-end">Aktion</th></tr></thead>
                                 <tbody>
                                     <tr v-for="p in psaList" :key="p.id">
                                         <td><b>{{ p.person_name }}</b></td>
@@ -425,13 +456,6 @@
                         <div class="p-3 bg-light rounded border border-warning mb-4">
                             <h6 class="fw-bold text-dark"><i class="fa fa-network-wired text-danger me-2"></i> Alamos / aPager Webhook-Schnittstelle</h6>
                             <input type="text" class="form-control font-monospace bg-white text-danger fw-bold shadow-sm" readonly :value="webhookUrl + '?token=' + (registry.alamos_token || '')">
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6"><label class="small fw-bold mb-1">Alamos Security Token</label><input type="text" v-model="registry.alamos_token" class="form-control fw-bold"></div>
-                            <div class="col-md-6"><label class="small fw-bold mb-1">Divera Access Key</label><input type="text" v-model="registry.divera_access_key" class="form-control fw-bold" placeholder="Divera Key"></div>
-                        </div>
-                        <div class="mb-3"><label class="small fw-bold mb-1">Wachenzentrierung (Ortung via Geocoding)</label>
-                            <div class="input-group"><input type="text" id="geoSearchInput" class="form-control fw-bold" placeholder="z. B. Buxheim Memmingen"><button class="btn btn-dark fw-bold" type="button" @click="triggerGeocodingLookup()"><i class="fa fa-map-pin"></i> Ort auflösen</button></div>
                         </div>
                         <div class="mb-3"><label class="small fw-bold mb-1">Name der Feuerwehrdienststelle</label><input type="text" v-model="registry.station_name" class="form-control fw-bold"></div>
                         <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveSettings()">Konfiguration sichern</button>

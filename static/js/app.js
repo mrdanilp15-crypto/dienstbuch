@@ -51,12 +51,15 @@ createApp({
     },
     computed: {
         lowStockItems() { 
-            // ROLLENFILTER: Nur Admins und Gerätewarte sehen den kritischen Lagerbestand
             if (this.identity.role !== 'admin' && this.identity.role !== 'geratewart') return [];
-            return this.inventory.filter(i => i.amount <= i.min_amount); 
+            return Array.isArray(this.inventory) ? this.inventory.filter(i => i.amount <= i.min_amount) : []; 
         },
-        myPSA() { return this.identity.personnel_id ? this.psaList.filter(p => p.person_id === this.identity.personnel_id) : []; },
+        myPSA() { 
+            if (!this.identity.personnel_id || !Array.isArray(this.psaList)) return [];
+            return this.psaList.filter(p => p.person_id === this.identity.personnel_id); 
+        },
         filteredInventory() {
+            if (!Array.isArray(this.inventory)) return [];
             return this.inventory.filter(i => {
                 const matchGewerk = this.lagerFilter.gewerk === 'Alle' || i.category === this.lagerFilter.gewerk;
                 const matchSuche = !this.lagerFilter.suche || i.item_name.toLowerCase().includes(this.lagerFilter.suche.toLowerCase()) || (i.qr_code_id && i.qr_code_id.toLowerCase().includes(this.lagerFilter.suche.toLowerCase()));
@@ -64,35 +67,68 @@ createApp({
             });
         },
         deadlineAlerts() {
-            // ROLLENFILTER: Nur Admins und Gerätewarte sehen Fristen-Warnungen
-            if (this.identity.role !== 'admin' && this.identity.role !== 'geratewart') return [];
+            if (this.identity.role !== 'admin' && this.identity.role !== 'geratewart' || !Array.isArray(this.personnel)) return [];
             let alerts = []; let today = new Date();
             this.personnel.forEach(p => {
                 if (p.g26_3_date) {
                     let diff = (new Date(p.g26_3_date) - today) / (1000 * 60 * 60 * 24);
-                    if (diff <= 90) alerts.push({ msg: `G26.3 Atemschutz-Frist fällig bei: ${p.name} (${p.g26_3_date})!` });
+                    if (diff <= 90) alerts.push({ msg: `G26.3 Untersuchung fällig bei AGT-Träger: ${p.name} (${p.g26_3_date})!` });
                 }
                 if (p.last_license_check) {
                     let diff = (today - new Date(p.last_license_check)) / (1000 * 60 * 60 * 24);
                     if (diff >= 365) alerts.push({ msg: `Jährliche Führerschein-Kontrolle fällig bei Maschinist: ${p.name}!` });
                 }
             });
-            this.vehicles.forEach(v => {
-                if (v.tuv_date) {
-                    let diff = (new Date(v.tuv_date) - today) / (1000 * 60 * 60 * 24);
-                    if (diff <= 60) alerts.push({ msg: `HU / TÜV fällig bei Fahrzeug: ${v.name} (${v.tuv_date})!` });
-                }
-            });
+            if (Array.isArray(this.vehicles)) {
+                this.vehicles.forEach(v => {
+                    if (v.tuv_date) {
+                        let diff = (new Date(v.tuv_date) - today) / (1000 * 60 * 60 * 24);
+                        if (diff <= 60) alerts.push({ msg: `HU / TÜV fällig bei Fahrzeug: ${v.name} (${v.tuv_date})!` });
+                    }
+                });
+            }
             return alerts;
         },
+        
+        // REPARATUR & MASSIVER AUSBAU: Absolut absturzsichere Taktik-Statistik
         statistics() {
-            let totalHours = 0; let uebungen = 0; let einsatze = 0;
-            this.sessions.forEach(s => {
-                totalHours += (s.duration || 0);
+            let totalHours = 0; let uebungen = 0; let einsatze = 0; let sonstiges = 0;
+            let agtCount = 0; let maschinistCount = 0; let gfCount = 0;
+            let mtaBasis = 0; let mtaErgaenzung = 0; let mtaFertig = 0;
+
+            const safeSessions = Array.isArray(this.sessions) ? this.sessions : [];
+            safeSessions.forEach(s => {
+                totalHours += (parseFloat(s.duration) || 0);
                 if (s.category === 'Übung') uebungen++;
-                if (s.category === 'Einsatz') einsatze++;
+                else if (s.category === 'Einsatz') einsatze++;
+                else sonstiges++;
             });
-            return { totalHours: totalHours.toFixed(1), totalEvents: this.sessions.length, uebungen, einsatze, members: this.personnel.length };
+
+            const safePersonnel = Array.isArray(this.personnel) ? this.personnel : [];
+            safePersonnel.forEach(p => {
+                if (p.is_agt) agtCount++;
+                if (p.is_maschinist) maschinistCount++;
+                if (p.is_gf) gfCount++;
+                
+                if (p.mta_status === 'Basis') mtaBasis++;
+                else if (p.mta_status === 'Ergänzung') mtaErgaenzung++;
+                else if (p.mta_status === 'Truppführer') mtaFertig++;
+            });
+
+            return { 
+                totalHours: totalHours.toFixed(1), 
+                totalEvents: safeSessions.length, 
+                uebungen, 
+                einsatze, 
+                sonstiges,
+                members: safePersonnel.length,
+                agtCount,
+                maschinistCount,
+                gfCount,
+                mtaBasis,
+                mtaErgaenzung,
+                mtaFertig
+            };
         }
     },
     methods: {
@@ -185,18 +221,28 @@ createApp({
         searchHazmat() { 
             if(!this.hazmatSearchQuery) return;
             const un = this.hazmatSearchQuery.trim();
-            // ERWEITERUNG: Lückenlose taktische Gefahrgutmatrix (ERI-Cards bayerischer Standard)
             const unDatabase = {
                 "1202": { un_number: "1202", substance: "DIESELKRAFTSTOFF / HEIZÖL", danger_text: "Entzündbar. Behälter können bei Erwärmung bersten. Gewässerschaden droht.", safety_measures: "Standard-Brandschutzkleidung. Schaumbereitschaft herstellen. Buxheimer Bach schützen.", first_aid: "Kontaminierte Kleidung ausziehen, Haut gründlich abwaschen.", radius: "50 Meter", gear: "Standard-PSA + Atemschutz (Umluftunabhängig)", water_risk: "Stark Wassergefährdend — Kanalisation abdichten!" },
-                "1203": { un_number: "1203", substance: "BENZIN / OTTOKRAFTSTOFF", danger_text: "Extrem entzündbar. Bildet schwere, unsichtbare explosive Dampfwolken am Boden.", safety_measures: "Dreifachschutz (Wasser/Schaum/Pulver). Ex-geschützte Geräte. Funkenflug verhindern.", first_aid: "Bei Einatmen sofort Frischluftzufuhr. Augen spülen.", radius: "100 Meter", gear: "Brandschutzkleidung + Atemschutzgerät", water_risk: "Wassergefährdend — Ölsperren vorbereiten." },
-                "1971": { un_number: "1971", substance: "ERDGAS (VERDICHTET, HOCHENTZÜNDLICH)", danger_text: "Hochexplosiv. Erstickungsgefahr in engen Räumen. Leichter als Luft (steigt nach oben).", safety_measures: "Gasspürgerät permanent einsetzen. Zündquellen eliminieren. Niederschlagen mit Sprühstrahl.", first_aid: "Betroffene an die frische Luft bringen, falls nötig Beatmung.", radius: "100 Meter", gear: "Explosionsschutz-Ausrüstung + Formform-Atemschutz", water_risk: "Verflüchtigt sich — Keine direkte Gewässergefahr." },
-                "1075": { un_number: "1075", substance: "FLÜSSIGGAS (PROPAN / BUTAN)", danger_text: "Extrem entzündbar. Schwerer als Luft, sammelt sich am Boden und in Kellerräumen.", safety_measures: "Kellerräume und Gruben spülen/lüften. Gaszufuhr wenn möglich absperren. Kühlung der Flaschen.", first_aid: "Erfrierungen bei Flüssigkontakt mit lauwarmem Wasser behandeln.", radius: "100 Meter", gear: "Hitzeschutzkleidung + Atemschutz", water_risk: "Sammelt sich in Tiefen — Explosionsgefahr in Kanalisation!" },
-                "1005": { un_number: "1005", substance: "AMMONIAK (ANHYDRISCH, TOXISCH)", danger_text: "Giftig beim Einatmen. Ätzend für Haut und Augen. Verursacht schwere Verätzungen.", safety_measures: "Dämpfe mit feinem Sprühstrahl niederschlagen. Austritt stoppen. Dekontaminationsplatz aufbauen.", first_aid: "Sofortige Spülung mit viel Wasser, Notarzt rufen.", radius: "150 Meter bei Stoffaustritt", gear: "Schwerer Chemieschutzanzug (CSA Formform)", water_risk: "Extrem fischgiftig — Volle Einleitungssperre aktivieren!" },
+                "1203": { un_number: "1203", substance: "BENZIN / OTTOKRAFTSTOFF", danger_text: "Extrem entzündbar. Bildet schwere, unsichtbare explosive Dampfwolken am Boden.", safety_measures: "Dreifachschutz (Wasser/Schaum/Pulver). Ex-geschützte Geräte. Funkenflug verhindern.", first_aid: "Bei Einatmen sofort Frischluftzufuhr. Augen sofort spülen.", radius: "100 Meter", gear: "Brandschutzkleidung + Atemschutzgerät", water_risk: "Wassergefährdend — Ölsperren vorbereiten." },
+                "1971": { un_number: "1971", substance: "ERDGAS (VERDICHTET, HOCHENTZÜNDLICH)", danger_text: "Hochexplosiv. Erstickungsgefahr in engen Räumen. Leichter als Luft (steigt nach oben).", safety_measures: "Gasspürgerät permanent einsetzen. Zündquellen eliminieren. Niederschlagen mit Sprühstrahl.", first_aid: "Betroffene an die frische Luft bringen, falls nötig Beatmung.", radius: "100 Meter", gear: "Explosionsschutz-Ausrüstung + Atemschutz", water_risk: "Verflüchtigt sich — Keine direkte Gewässergefahr." },
+                "1075": { un_number: "1075", substance: "FLÜSSIGGAS (PROPAN / BUTAN)", danger_text: "Extrem entzündbar. Schwerer als Luft, sammelt sich am Boden und in Kellerräumen.", safety_measures: "Kellerräume und Gruben lüften. Gaszufuhr wenn möglich absperren. Kühlung der Flaschen.", first_aid: "Erfrierungen bei Flüssigkontakt mit lauwarmem Wasser behandeln.", radius: "100 Meter", gear: "Hitzeschutzkleidung + Atemschutz", water_risk: "Sammelt sich in Tiefen — Explosionsgefahr in Kanalisation!" },
+                "1005": { un_number: "1005", substance: "AMMONIAK (ANHYDRISCH, TOXISCH)", danger_text: "Giftig beim Einatmen. Ätzend für Haut und Augen. Verursacht schwere Verätzungen.", safety_measures: "Dämpfe mit feinem Sprühstrahl niederschlagen. Austritt stoppen. Dekontaminationsplatz aufbauen.", first_aid: "Sofortige Spülung mit viel Wasser, Notarzt rufen.", radius: "150 Meter bei Stoffaustritt", gear: "Schwerer Chemieschutzanzug (CSA)", water_risk: "Extrem fischgiftig — Volle Einleitungssperre aktivieren!" },
                 "1789": { un_number: "1789", substance: "SALZSÄURE", danger_text: "Ätzende Flüssigkeit. Greift Metalle unter Wasserstoffbildung (Explosionsgefahr) an. Beißender Rauch.", safety_measures: "Säureneutralisationsmittel (Kalk/Soda) bereithalten. Nebelbildung mit Wasser binden.", first_aid: "Mindestens 15 Minuten unter fließendem Wasser spülen.", radius: "50 Meter", gear: "Säureschutz-PSA / CSA Stufe 2", water_risk: "Säure führt zu saurem pH-Wert im Gewässer — Neutralisieren." }
             };
             this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrstoff", danger_text: "Stoff nicht im lokalen Schnellregister. Schutzkleidungsstufe vor Ort kritisch prüfen.", safety_measures: "Absperrung weiträumig (min. 100m) aufbauen. Windaufwärts aufstellen.", first_aid: "Notarzt verständigen. Dekontamination einleiten.", radius: "100 Meter", gear: "CSA Stufe 3 (Sicherheitsreserve)", water_risk: "Gefahr im Zweifel immer annehmen." };
         },
-        async saveArchiveDoc() { if(!this.newArchiveDoc.title) return; await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc); this.newArchiveDoc = {title:'', keywords:'Dienstvorschrift', file_blob:''}; this.showToast("Dokument im Archiv gesichert!"); this.refreshAllData(); },
+        async generateQRWindow(i) {
+            let id = i.qr_code_id || 'QR-' + Math.random().toString(36).substr(2, 6).toUpperCase(); i.qr_code_id = id;
+            await this.apiCall('/api/inventory', 'POST', i); await this.refreshAllData();
+            this.openModal('qrModal');
+            this.$nextTick(() => { const box = document.getElementById('qrcode'); if(!box) return; box.innerHTML = ""; new QRCode(box, { text: `${window.location.origin}/dashboard?tab=lager&qr=${id}`, width: 160, height: 160 }); });
+        },
+        async generatePsaQR(p) {
+            this.openModal('qrModal');
+            this.$nextTick(() => { const box = document.getElementById('qrcode'); if(!box) return; box.innerHTML = ""; new QRCode(box, { text: `${window.location.origin}/dashboard?tab=lager&qr=${p.qr_code_id}`, width: 160, height: 160 }); });
+        },
+        processArchiveFile(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev) => { this.newArchiveDoc.file_blob = ev.target.result; }; reader.readAsDataURL(file); },
+        async saveArchiveDoc() { if(!this.newArchiveDoc.title) return; await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc); this.newArchiveDoc = {title:'', keywords:'', file_blob:''}; this.refreshAllData(); },
         async delArchiveDoc(id) { if(confirm("Dokument permanent löschen?")) { await fetch(`/api/archive/${id}`, {method:'DELETE'}); this.refreshAllData(); } },
         viewArchiveDoc(doc) {
             if (!doc.file_blob) return; const win = window.open();
@@ -226,14 +272,12 @@ createApp({
         async revokePsa(id) { if(confirm("Ausrüstung zurücknehmen?")) { await fetch(`/api/psa/${id}`, { method: 'DELETE' }); this.refreshAllData(); } },
         openVehModal(v) { this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null }; this.openModal('vehModal'); },
         async saveVeh() { await this.apiCall('/api/vehicles', 'POST', this.newVeh); this.closeModal(); this.refreshAllData(); },
-        
-        // REPARATUR-FIX: System-Accounts ohne ID werfen ab jetzt keinen White-Screen mehr
         getPersonnelName(id) { 
-            if (!id || id === 0) return 'Reiner Systemzugang (Nicht verknüpft)';
+            if (!id || id === 0) return 'Systemzugang (Reiner App-User)';
+            if (!Array.isArray(this.personnel)) return 'ID: ' + id;
             const found = this.personnel.find(x => x.id === id); 
             return found ? found.name : 'ID: ' + id + ' (Akte gelöscht)';
         },
-        
         goToEditor(sId) { window.location.href = `/editor?group_id=1${sId ? '&session_id='+sId : ''}`; },
         async setVehicleStatus(v, s) { v.status = s; await fetch(`/api/vehicles/${v.id}/status`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:s})}); },
         async triggerLogout() { await fetch('/api/logout', {method:'POST'}); window.location.href = '/login'; }
