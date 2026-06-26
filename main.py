@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templates import Jinja2Templates
+from fastapi.templating import Jinja2Templates
 
 # Importiert alle Router-Module exakt wie in image_c9c29b.png abgebildet
 from routers import (
