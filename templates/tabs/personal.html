@@ -1,0 +1,50 @@
+<h2>Personalstamm & Systemlogins — Operationszentrale</h2>
+<ul class="nav nav-pills mb-4 bg-light p-1 rounded">
+    <li class="nav-item flex-fill">
+        <button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">Kameradenstamm</button>
+    </li>
+    <li class="nav-item flex-fill">
+        <button type="button" class="nav-link w-100 fw-bold" :class="{active: subTabPers === 'login'}" @click="subTabPers = 'login'">Systemlogins</button>
+    </li>
+</ul>
+
+<div v-if="subTabPers === 'akte'">
+    <div class="text-end mb-3"><button type="button" class="btn btn-danger btn-sm px-3 rounded-pill fw-bold" @click="openMemberModal(null)">Kamerad anlegen</button></div>
+    <div class="card p-0 overflow-hidden bg-white border shadow-sm">
+        <table class="table mb-0 align-middle">
+            <thead class="table-light"><tr><th>Foto</th><th>Name</th><th>Rang</th><th>MTA-Stand</th><th>Qualifikationsmatrix</th><th class="text-end">Aktion</th></tr></thead>
+            <tbody>
+                <tr v-for="p in personnel" :key="p.id">
+                    <td><div class="avatar-container" style="width:45px; height:45px;"><img :src="p.profile_picture" v-if="p.profile_picture"><i class="fa fa-user text-muted" v-else></i></div></td>
+                    <td><b>{{ p.name }}</b></td>
+                    <td><span class="badge bg-light text-dark border fw-bold">{{ p.rank }}</span></td>
+                    <td><span class="badge bg-info text-dark fw-bold font-monospace">{{ p.mta_status || 'Basis' }}</span></td>
+                    <td>
+                        <span class="badge bg-danger me-1" v-if="p.is_agt">AGT</span>
+                        <span class="badge bg-primary me-1" v-if="p.is_maschinist">Maschinist</span>
+                        <span class="badge bg-dark me-1" v-if="p.is_gf">GF</span>
+                        <small class="text-muted d-block mt-1 font-monospace fw-bold">{{ p.qualifications || 'Keine Zusatzlehrgänge' }}</small>
+                    </td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark" @click="openMemberModal(p)"><i class="fa fa-edit"></i></button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div v-if="subTabPers === 'login'">
+    <div class="text-end mb-3"><button type="button" class="btn btn-dark btn-sm px-3 rounded-pill fw-bold" @click="openUserModal(null)">Systemlogin erstellen</button></div>
+    <div class="card p-0 overflow-hidden bg-white border shadow-sm">
+        <table class="table mb-0 align-middle">
+            <thead class="table-light"><tr><th>Benutzername</th><th>Berechtigungs-Rolle</th><th>Verknüpfter Kamerad</th><th class="text-end">Aktion</th></tr></thead>
+            <tbody>
+                <tr v-for="u in users" :key="u.id">
+                    <td><b>{{ u.username }}</b></td>
+                    <td><span class="badge bg-primary text-uppercase font-monospace">{{ u.role }}</span></td>
+                    <td><i class="fa fa-user me-1 text-muted"></i> {{ getPersonnelName(u.personnel_id) }}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-dark" @click="openUserModal(u)"><i class="fa fa-edit"></i> Konfigurieren</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

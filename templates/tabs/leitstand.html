@@ -1,0 +1,53 @@
+<div v-if="(identity.role === 'admin' || identity.role === 'geratewart') && (deadlineAlerts.length > 0 || lowStockItems.length > 0)" class="card border-danger bg-white mb-4 shadow-sm">
+    <div class="card-header bg-danger bg-opacity-10 py-2"><h6 class="fw-bold text-danger m-0"><i class="fa fa-triangle-exclamation me-2"></i> Wachen-Überwachungszentrum (Chefsache)</h6></div>
+    <div class="card-body py-1 text-dark">
+        <div v-for="a in deadlineAlerts" class="small fw-bold py-1 border-bottom text-danger"><i class="fa fa-clock me-1"></i> {{ a.msg }}</div>
+        <div v-for="i in lowStockItems" class="small text-danger fw-bold py-1 border-bottom"><i class="fa fa-boxes-stacked me-1"></i> Mindestbestand unterschritten: {{ i.item_name }} (Nur noch {{ i.amount }} Stück!)</div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Zentrale Leitstand — {{ registry.station_name }}</h2>
+    <button v-if="identity.role === 'admin'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="goToEditor(0)">Neuer Dienstbucheintrag</button>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-8">
+        <div class="card p-3 bg-white border shadow-sm">
+            <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa fa-radio text-danger me-2"></i>Fahrzeugtableau (FMS Status)</h6>
+            <div class="row g-2">
+                <div v-for="v in vehicles" :key="v.id" class="col-6">
+                    <div class="p-3 border rounded d-flex justify-content-between align-items-center bg-light shadow-sm">
+                        <div><h6 class="fw-bold m-0 text-dark">{{ v.name }}</h6><small class="font-monospace text-muted">{{ v.radio_name }}</small></div>
+                        <div class="d-flex gap-1">
+                            <button type="button" class="status-btn s-2" :class="{active: v.status == 2}" @click="setVehicleStatus(v, 2)">2</button>
+                            <button type="button" class="status-btn s-4" :class="{active: v.status == 4}" @click="setVehicleStatus(v, 4)">4</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4" v-if="weather">
+        <div class="card p-3 bg-white border shadow-sm h-100 d-flex flex-column justify-content-between">
+            <h6 class="fw-bold text-muted text-uppercase m-0"><i class="fa fa-cloud-sun text-info me-2"></i>Live-Wetter</h6>
+            <h1 class="fw-bold text-dark font-monospace my-2">{{ weather.temperature }}</h1>
+            <span class="badge bg-success py-2 font-monospace">{{ weather.warning_text }}</span>
+        </div>
+    </div>
+</div>
+
+<h5 class="fw-bold text-dark mb-3"><i class="fa fa-file-invoice text-danger me-2"></i> Zuletzt erfasste Aktivitäten / Dienstberichte</h5>
+<div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border report-strip shadow-sm">
+    <div class="d-flex justify-content-between align-items-center">
+        <div @click="goToEditor(s.id)" style="cursor:pointer" class="flex-grow-1">
+            <span class="badge bg-secondary mb-1">{{ s.category }}</span>
+            <h6 class="m-0 font-weight-bold text-dark fw-bold">{{ s.description }}</h6>
+            <small class="text-muted">Ausbilder / Leitung: {{ s.instructors }}</small>
+        </div>
+        <div class="text-end d-flex align-items-center gap-3">
+            <div class="text-muted small">{{ s.date }}<br><b class="text-dark">{{ s.duration }} Std.</b></div>
+            <button v-if="identity.role === 'admin'" type="button" class="btn btn-sm btn-outline-danger rounded-circle border-0" @click="deleteSessionReport(s.id)"><i class="fa fa-trash-alt"></i></button>
+        </div>
+    </div>
+</div>

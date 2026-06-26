@@ -1,0 +1,18 @@
+<h2>Gefahrgutdatenbank & Taktische ERI-Cards</h2>
+<div class="card p-4 bg-white border shadow-sm mb-4">
+    <div class="input-group" style="max-width: 450px;">
+        <span class="input-group-text bg-danger text-white fw-bold">UN NUMMER</span>
+        <input type="text" v-model="hazmatSearchQuery" class="form-control fw-bold font-monospace fs-5 text-center" placeholder="z. B. 1203">
+        <button class="btn btn-dark fw-bold px-4" type="button" @click="searchHazmat()"><i class="fa fa-search me-1"></i> Abfragen</button>
+    </div>
+</div>
+<div class="card p-4 border-start border-4 border-danger shadow bg-white" v-if="activeEriCard">
+    <h4 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="fa fa-biohazard me-2"></i> Gefahrendatenblatt UN {{ activeEriCard.un_number }} — {{ activeEriCard.substance }}</h4>
+    <div class="row g-3">
+        <div class="col-md-6"><div class="p-3 bg-light rounded border-start border-3 border-danger h-100 shadow-sm"><h6>Taktische Gefahrenlage</h6><p class="small text-dark font-monospace fw-bold m-0">{{ activeEriCard.danger_text }}</p></div></div>
+        <div class="col-md-6"><div class="p-3 bg-light rounded border-start border-3 border-warning h-100 shadow-sm"><h6>Sicherheitsmaßnahmen & Einsatztaktik</h6><p class="small text-dark font-monospace fw-bold m-0">{{ activeEriCard.safety_measures }}</p></div></div>
+        <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-primary h-100 shadow-sm"><h6>Gefahrenradius (Absperrgrenze)</h6><b class="fs-5 text-danger font-monospace d-block mt-1">{{ activeEriCard.radius }}</b></div></div>
+        <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-dark h-100 shadow-sm"><h6>Erforderliche Schutzkleidung</h6><b class="small text-dark font-monospace d-block mt-1">{{ activeEriCard.gear }}</b></div></div>
+        <div class="col-md-4"><div class="p-3 bg-light rounded border-start border-3 border-info h-100 shadow-sm"><h6>Wassergefährdungklasse (WGK)</h6><b class="small text-info font-monospace d-block mt-1">{{ activeEriCard.water_risk }}</b></div></div>
+    </div>
+</div>

@@ -1,0 +1,25 @@
+<div class="d-flex justify-content-between mb-4"><h2>Mängelberichte & Ticketboard</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
+<div class="row g-3">
+    <div class="col-md-4">
+        <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
+        <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
+            <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
+            <div class="d-flex gap-1" v-if="identity.role === 'admin' || identity.role === 'geratewart'">
+                <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
+        <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
+            <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
+            <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Erledigt</button>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
+        <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
+            <h6 class="fw-bold text-muted m-0 text-decoration-line-through">{{ t.title }}</h6>
+        </div>
+    </div>
+</div>

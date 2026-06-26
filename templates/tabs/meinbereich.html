@@ -1,0 +1,43 @@
+<h2 class="mb-4">Persönliche Dienstakte</h2>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="stat-card text-center shadow-sm">
+            <div class="d-flex justify-content-center mb-3">
+                <div class="avatar-container">
+                    <img :src="identity.profile_picture" v-if="identity.profile_picture" alt="Profil">
+                    <i v-else class="fa fa-user-shield fs-2"></i>
+                </div>
+            </div>
+            <h4 class="fw-bold text-dark m-0">{{ identity.personnel_name || identity.username }}</h4>
+            <span class="badge bg-danger mt-1 text-uppercase font-monospace">{{ identity.role }}</span>
+            <hr class="my-3">
+            <h6 class="fw-bold text-start text-muted text-uppercase small mb-2"><i class="fa fa-key me-1"></i> Passwort ändern</h6>
+            <input type="password" v-model="profilePassword" class="form-control form-control-sm mb-2 text-center fw-bold" placeholder="Neues Passwort">
+            <button type="button" class="btn btn-sm btn-dark w-100 rounded-pill fw-bold shadow-sm" @click="changeMyPassword()">Sichern</button>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="stat-card mb-3 shadow-sm">
+            <h5 class="fw-bold text-dark border-bottom pb-2"><i class="fa fa-shirt text-danger me-2"></i> Meine Bekleidungsgrößen (Soll-Vorgabe)</h5>
+            <div class="row g-2 text-center mt-2">
+                <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Helmgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_helm || 'N/A' }}</b></div></div>
+                <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Kleidergröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_jacke || 'N/A' }}</b></div></div>
+                <div class="col-4"><div class="p-3 bg-light rounded border shadow-sm"><h6>Stiefelgröße</h6><b class="fs-5 text-danger font-monospace">{{ identity.size_stiefel || 'N/A' }}</b></div></div>
+            </div>
+        </div>
+        <h5 class="fw-bold text-dark my-3"><i class="fa fa-shield-halved text-danger me-2"></i> Meine persönliche Schutzausrüstung (Ist-Ausgabe)</h5>
+        <div class="card p-0 overflow-hidden bg-white border shadow-sm">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light"><tr><th>Ausrüstungsteil</th><th>Ausgegebene Größe</th><th>QR-Kennung</th></tr></thead>
+                <tbody>
+                    <tr v-for="p in myPSA" :key="p.id">
+                        <td><b class="text-dark">{{ p.item_name }}</b></td>
+                        <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size }}</span></td>
+                        <td><span class="badge bg-light text-danger border font-monospace shadow-sm"><i class="fa fa-qrcode me-1"></i> {{ p.qr_code_id }}</span></td>
+                    </tr>
+                    <tr v-if="myPSA.length === 0"><td colspan="3" class="text-center p-4 text-muted">Dir ist aktuell keine PSA im Verzeichnis zugewiesen.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,134 @@
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'hydrantCheckModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 shadow-lg">
+        <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold text-dark"><i class="fa fa-clipboard-check text-danger"></i> Hydranten-Prüfbericht</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="p-2 bg-light border small text-muted font-monospace mb-3 rounded">Prüfung für Hydrant-Kennung: #${{ hydrantInspection.hydrant_id }}</div>
+        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" v-model="hydrantInspection.kappe_gefettet"><label class="form-check-label small fw-bold">Straßenkappe gereinigt & gefettet?</label></div>
+        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" v-model="hydrantInspection.schild_lesbar"><label class="form-check-label small fw-bold">Hinweisschild unbeschädigt & lesbar?</label></div>
+        <div class="mb-3"><label class="small fw-bold">Mängelbericht / Festgestellte Schäden</label><textarea v-model="hydrantInspection.maengel_text" class="form-control" placeholder="z. B. Deckel überteert"></textarea></div>
+        <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold shadow-sm" @click="saveHydrantCheck()">Prüfbericht finalisieren</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'psaModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 shadow-lg">
+        <div class="d-flex justify-content-between mb-2"><h5 class="fw-bold text-dark">PSA Personenzuweisung</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2">
+            <label class="small fw-bold">Empfänger (Kamerad)</label>
+            <select v-model.number="newPsa.person_id" class="form-select fw-bold"><option :value="0">Auswählen...</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select>
+        </div>
+        <div class="mb-2"><label class="small fw-bold">Ausrüstungsgegenstand</label><input type="text" v-model="newPsa.item_name" class="form-control fw-bold" placeholder="z. B. Überjacke Texport"></div>
+        <div class="row g-2 mb-2">
+            <div class="col-6"><label class="small fw-bold">Ausgegebene Größe</label><input type="text" v-model="newPsa.size" class="form-control fw-bold"></div>
+            <div class="col-6"><label class="small fw-bold">Zustand / Status</label><select v-model="newPsa.status" class="form-select fw-bold"><option>Ausgegeben</option><option>In Reinigung</option><option>Defekt</option></select></div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small fw-bold">QR / Kennung</label><input type="text" v-model="newPsa.qr_code_id" class="form-control font-monospace fw-bold" placeholder="Auto-Generierung"></div>
+            <div class="col-6"><label class="small fw-bold">Nächste Prüffrist</label><input type="date" v-model="newPsa.next_check" class="form-control fw-bold"></div>
+        </div>
+        <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold shadow-sm" @click="savePsaAssignment()">Ausrüstung zuweisen</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'invModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Poolbestand pflegen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2"><label class="small fw-bold">Gegenstandbezeichnung *</label><input type="text" v-model="newInv.item_name" class="form-control fw-bold"></div>
+        <div class="mb-2"><label class="small fw-bold">Gewerk / Kategorie</label><select v-model="newInv.category" class="form-select fw-bold"><option value="Brandschutz">Brandschutzbekleidung</option><option value="Atemschutz">Atemschutzgeräte</option><option value="THL">THL-Ausrüstung</option></select></div>
+        <div class="row g-2 mb-2">
+            <div class="col-6"><label class="small fw-bold">Größe</label><input type="text" v-model="newInv.size" class="form-control fw-bold"></div>
+            <div class="col-6"><label class="small fw-bold">Lagerort</label><input type="text" v-model="newInv.location" class="form-control fw-bold"></div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small fw-bold">Menge</label><input type="number" v-model.number="newInv.amount" class="form-control fw-bold"></div>
+            <div class="col-6"><label class="small fw-bold">Mindestmenge</label><input type="number" v-model.number="newInv.min_amount" class="form-control fw-bold"></div>
+        </div>
+        <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveInv()">Sichern</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'memberModal'">
+    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Kameradenakte & Lehrgänge</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="row g-2 mb-2">
+            <div class="col-md-6"><label class="small fw-bold">Name *</label><input type="text" v-model="newMem.name" class="form-control fw-bold"></div>
+            <div class="col-md-6"><label class="small fw-bold">Dienstgrad</label><select v-model="newMem.rank" class="form-select fw-bold"><option value="Feuerwehranwärter">Feuerwehranwärter</option><option value="Feuerwehrmann">Feuerwehrmann</option><option value="Oberfeuerwehrmann">Oberfeuerwehrmann</option><option value="Löschmeister">Löschmeister</option></select></div>
+        </div>
+        <div class="row g-3 mb-2">
+            <div class="col-4"><label class="small fw-bold">Helmgröße</label><input type="text" v-model="newMem.size_helm" class="form-control form-control-sm text-center fw-bold"></div>
+            <div class="col-4"><label class="small fw-bold">Kleidergröße</label><input type="text" v-model="newMem.size_jacke" class="form-control form-control-sm text-center fw-bold"></div>
+            <div class="col-4"><label class="small fw-bold">Stiefelgröße</label><input type="text" v-model="newMem.size_stiefel" class="form-control form-control-sm text-center fw-bold"></div>
+        </div>
+        <div class="row g-3 mb-2">
+            <div class="col-4"><label class="small fw-bold">G26.3 Frist</label><input type="date" v-model="newMem.g26_3_date" class="form-control form-control-sm fw-bold"></div>
+            <div class="col-4"><label class="small fw-bold">Führerschein-Prüfung</label><input type="date" v-model="newMem.last_license_check" class="form-control form-control-sm fw-bold"></div>
+            <div class="col-4"><label class="small fw-bold">MTA Ausbildungsstand</label><select v-model="newMem.mta_status" class="form-select form-select-sm fw-bold"><option value="Basis">MTA-Basismodul</option><option value="Ergänzung">MTA-Ergänzungsmodul</option><option value="Truppführer">MTA-Truppführer absolviert</option></select></div>
+        </div>
+        <div class="mb-3"><label class="small fw-bold">Lehrgänge</label><input type="text" v-model="newMem.qualifications" class="form-control" placeholder="Sprechfunker, Atemschutz"></div>
+        <div class="p-3 bg-light rounded mb-3">
+            <div class="d-flex gap-4">
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_agt"><label class="form-check-label small fw-bold">Atemschutzträger</label></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_maschinist"><label class="form-check-label small fw-bold">Maschinist</label></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" v-model="newMem.is_gf"><label class="form-check-label small fw-bold">Gruppenführer</label></div>
+            </div>
+        </div>
+        <div class="mb-3"><label class="small fw-bold">Profilbild</label><input type="file" accept="image/*" @change="processProfilePic" class="form-control"></div>
+        <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveMember()">Akte sichern</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'userModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Systemlogin konfigurieren</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2"><label class="small fw-bold">Benutzername *</label><input type="text" v-model="newUser.username" class="form-control fw-bold" :disabled="!!newUser.id"></div>
+        <div class="mb-2"><label class="small fw-bold">Passwort</label><input type="password" v-model="newUser.password" class="form-control" placeholder="Unverändert lassen"></div>
+        <div class="mb-3"><label class="small fw-bold">Rolle</label><select v-model="newUser.role" class="form-select fw-bold"><option value="mannschaft">Mannschaft</option><option value="geratewart">Gerätewart</option><option value="admin">Administrator</option></select></div>
+        <div class="mb-3"><label class="small fw-bold">Verknüpfter Kamerad</label><select v-model.number="newUser.personnel_id" class="form-select fw-bold"><option :value="0">Keine Zuordnung</option><option v-for="p in personnel" :value="p.id">{{ p.name }}</option></select></div>
+        <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveUser()">Sichern</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'vehModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Fahrzeug / Gerät</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2"><label class="small fw-bold">Bezeichnung *</label><input type="text" v-model="newVeh.name" class="form-control fw-bold"></div>
+        <div class="row g-2 mb-2">
+            <div class="col-6"><label class="small fw-bold">Funkrufname</label><input type="text" v-model="newVeh.radio_name" class="form-control"></div>
+            <div class="col-6"><label class="small fw-bold">Kennzeichen</label><input type="text" v-model="newVeh.license_plate" class="form-control"></div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small fw-bold">Kilometerstand</label><input type="number" v-model.number="newVeh.milage" class="form-control"></div>
+            <div class="col-6"><label class="small fw-bold">Betriebsstunden</label><input type="number" step="0.1" v-model.number="newVeh.operating_hours" class="form-control"></div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small fw-bold">Kraftstoffart</label><select v-model="newVeh.fuel_type" class="form-select fw-bold"><option>Diesel</option><option>Benzin</option><option>Akku</option></select></div>
+            <div class="col-6"><label class="small fw-bold">Nächste HU / TÜV</label><input type="date" v-model="newVeh.tuv_date" class="form-control"></div>
+        </div>
+        <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="saveVeh()">Daten sichern</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'ticketModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Mangel melden</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2"><label class="small fw-bold">Mangel-Titel *</label><input type="text" v-model="newTicket.title" class="form-control"></div>
+        <div class="mb-2"><label class="small fw-bold">Schadensbeschreibung</label><textarea v-model="newTicket.content" class="form-control"></textarea></div>
+        <div class="mb-3"><label class="small fw-bold">Fahrzeugbezug</label><select v-model.number="newTicket.vehicle_id" class="form-select"><option :value="0">Kein Bezug</option><option v-for="v in vehicles" :value="v.id">{{v.name}}</option></select></div>
+        <button type="button" class="btn btn-danger w-100 rounded-pill fw-bold" @click="saveTicket()">Bericht einreichen</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'qrModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4 text-center">
+        <h5>Einsatzbereit codiert</h5><div id="qrcode" class="d-flex justify-content-center my-3 bg-white p-2 border"></div>
+        <button type="button" class="btn btn-dark w-100 rounded-pill fw-bold" @click="closeModal()">Schließen</button>
+    </div></div>
+</div>
+
+<div class="fw-vue-modal-container modal" v-if="modalActive === 'hydrantModal'">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content p-4">
+        <div class="d-flex justify-content-between mb-2"><h5>Wasserentnahmestelle einmessen</h5><button type="button" class="btn-close" @click="closeModal()"></button></div>
+        <div class="mb-2"><label class="small fw-bold">Typ</label><select v-model="newHyd.hydrant_type" class="form-select fw-bold"><option>Unterflurhydrant</option><option>Überflurhydrant</option><option>Löschwasserzisterne</option></select></div>
+        <div class="mb-2"><label class="small fw-bold">Dimension</label><input type="text" v-model="newHyd.diameter" class="form-control" placeholder="DN80"></div>
+        <button type="button" class="btn btn-danger w-100 mt-2 rounded-pill fw-bold" @click="saveHydrant()">Speichern</button>
+    </div></div>
+</div>

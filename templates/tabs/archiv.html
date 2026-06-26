@@ -1,0 +1,31 @@
+<h2>Digitales Wachenarchiv & Dokumentenablage</h2>
+<div class="card p-4 bg-white border shadow-sm mb-4">
+    <h5 class="fw-bold mb-3"><i class="fa fa-upload text-danger me-2"></i> Dokument einpflegen</h5>
+    <div class="row g-2 mb-2">
+        <div class="col-md-6"><input type="text" v-model="newArchiveDoc.title" class="form-control fw-bold" placeholder="z. B. TÜV Bericht LF16"></div>
+        <div class="col-md-6">
+            <select v-model="newArchiveDoc.keywords" class="form-select fw-bold">
+                <option value="Dienstvorschrift">Dienstvorschrift / Lehrunterlage</option>
+                <option value="Fahrzeugpapier">Fahrzeugpapiere & TÜV-Berichte</option>
+                <option value="Lehrgang">Lehrgangsurkunden & Auszeichnungen</option>
+            </select>
+        </div>
+    </div>
+    <div class="mb-3"><input type="file" class="form-control" @change="processArchiveFile"></div>
+    <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveArchiveDoc()">Im Wachenarchiv sichern</button>
+</div>
+<div class="card p-0 overflow-hidden bg-white border shadow-sm">
+    <table class="table mb-0 align-middle">
+        <thead class="table-light"><tr><th>Dokumententitel</th><th>Archiv-Kategorie</th><th class="text-end">Aktion</th></tr></thead>
+        <tbody>
+            <tr v-for="doc in archiveDocs" :key="doc.id">
+                <td><b class="text-dark">{{ doc.title }}</b></td>
+                <td><span class="badge bg-secondary">{{ doc.keywords }}</span></td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-dark me-1" @click="viewArchiveDoc(doc)"><i class="fa fa-eye"></i> Einsehen</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="delArchiveDoc(doc.id)"><i class="fa fa-trash"></i></button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

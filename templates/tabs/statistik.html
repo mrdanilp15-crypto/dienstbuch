@@ -1,0 +1,43 @@
+<h2>Strategische Wachen-Auswertung</h2>
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="stat-card border-start border-danger border-4 shadow-sm"><h6>Gesamtdienstzeit <i class="fa-solid fa-circle-info tooltip-icon" title="Summe aller geleisteten Stunden der erfassten Aktivitäten"></i></h6><h3 class="fw-bold text-dark m-0 font-monospace">{{ statistics.totalHours }} Std.</h3><small class="text-muted">Aktivitäten gesamt: {{ statistics.totalEvents }}</small></div></div>
+    <div class="col-md-3"><div class="stat-card border-start border-success border-4 shadow-sm"><h6>Einsatzübungen</h6><h3 class="fw-bold text-success m-0 font-monospace">{{ statistics.uebungen }}</h3><small class="text-muted">Ausbildungsabende</small></div></div>
+    <div class="col-md-3"><div class="stat-card border-start border-primary border-4 shadow-sm"><h6>Reale Einsätze</h6><h3 class="fw-bold text-primary m-0 font-monospace">{{ statistics.einsatze }}</h3><small class="text-muted">Alarmierungen</small></div></div>
+    <div class="col-md-3"><div class="stat-card border-start border-dark border-4 shadow-sm"><h6>Kameradenstärke</h6><h3 class="fw-bold text-dark m-0 font-monospace">{{ statistics.members }} Mann</h3><small class="text-muted">Aktive Wehr</small></div></div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card p-4 bg-white border shadow-sm h-100">
+            <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-shield-halved text-danger me-2"></i> Taktischer Einsatzspiegel & Qualifikationen</h5>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>Atemschutzgeräteträger (AGT) <i class="fa-solid fa-circle-info tooltip-icon" title="Tauglich nach bayerischen Richtlinien der FwDV 7"></i></span><span class="font-monospace text-danger">{{ statistics.agtCount }} Mann</span></div>
+                <div class="progress"><div class="progress-bar bg-danger" :style="{width: (statistics.agtCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>Fahrzeug-Maschinisten <i class="fa-solid fa-circle-info tooltip-icon" title="Berechtigte Fahrer mit eingetragener UVV-Unterweisung"></i></span><span class="font-monospace text-primary">{{ statistics.maschinistCount }} Mann</span></div>
+                <div class="progress"><div class="progress-bar bg-primary" :style="{width: (statistics.maschinistCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+            <div class="mb-0">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>Führungskräfte (Gruppenführer+)</span><span class="font-monospace text-dark">{{ statistics.gfCount }} Mann</span></div>
+                <div class="progress"><div class="progress-bar bg-dark" :style="{width: (statistics.gfCount / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-4 bg-white border shadow-sm h-100">
+            <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-graduation-cap text-warning me-2"></i> bayerische Verband-Truppausbildung (MTA Matrix)</h5>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>MTA-Basismodul in Ausbildung</span><span class="font-monospace">{{ statistics.mtaBasis }} Anwärter</span></div>
+                <div class="progress"><div class="progress-bar bg-info" :style="{width: (statistics.mtaBasis / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>MTA-Ergänzungsmodul</span><span class="font-monospace">{{ statistics.mtaErgaenzung }} Kameraden</span></div>
+                <div class="progress"><div class="progress-bar bg-warning" :style="{width: (statistics.mtaErgaenzung / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+            <div class="mb-0">
+                <div class="d-flex justify-content-between small fw-bold mb-1"><span>Truppführer-Qualifikation abgeschlossen</span><span class="font-monospace text-success">{{ statistics.mtaFertig }} Einsatzkräfte</span></div>
+                <div class="progress"><div class="progress-bar bg-success" :style="{width: (statistics.mtaFertig / (statistics.members || 1) * 100) + '%'}"></div></div>
+            </div>
+        </div>
+    </div>
+</div>

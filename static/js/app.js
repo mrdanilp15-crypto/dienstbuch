@@ -1,4 +1,4 @@
-// KRITISCHER INTERNET-HEBEL: Verhindert Race-Conditions, falls CDNs asynchron laden
+// KRITISCHER NETZWERK-HEBEL: Verhindert Race-Conditions bei weltweiten CDNs
 document.addEventListener("DOMContentLoaded", () => {
     if (typeof Vue === "undefined") {
         console.error("KRITISCHER FEHLER: Vue.js konnte über das Netzwerk nicht geladen werden!");
@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initVueApp() {
     const { createApp } = Vue;
-    let map = null;
 
     createApp({
         data() {
@@ -82,7 +81,7 @@ function initVueApp() {
                 this.personnel.forEach(p => {
                     if (p.g26_3_date) {
                         let diff = (new Date(p.g26_3_date) - today) / (1000 * 60 * 60 * 24);
-                        if (diff <= 90) alerts.push({ msg: `G26.3 Untersuchung fällig bei AGT-Träger: ${p.name} (${p.g26_3_date})!` });
+                        if (diff <= 90) alerts.push({ msg: `G26.3 Atemschutz-Frist fällig bei: ${p.name} (${p.g26_3_date})!` });
                     }
                     if (p.last_license_check) {
                         let diff = (today - new Date(p.last_license_check)) / (1000 * 60 * 60 * 24);
@@ -166,19 +165,41 @@ function initVueApp() {
                     if(res.ok) { this.showToast("Bericht gelöscht."); this.refreshAllData(); }
                 }
             },
+            
+            // REPARATUR-DOCK: Absolut krisensichere, internetfähige Lagekarte
             initMap() {
                 this.$nextTick(() => {
-                    const mapEl = document.getElementById('map'); if (!mapEl) return;
-                    if (map) { map.remove(); map = null; }
-                    const lat = parseFloat(this.registry.station_lat) || 47.9994; const lon = parseFloat(this.registry.station_lon) || 10.1325;
-                    map = L.map('map').setView([lat, lon], 16);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    const mapEl = document.getElementById('map'); 
+                    if (!mapEl) return;
                     
-                    map.on('click', (e) => { 
-                        if(this.identity.role === 'mannschaft') return;
-                        this.newHyd = { lat: e.latlng.lat, lon: e.latlng.lng, hydrant_type: 'Unterflurhydrant', diameter: 'DN80' }; 
-                        this.openModal('hydrantModal'); 
-                    });
+                    // Verhindert das doppelte Laden: Wenn die Karte existiert, passen wir nur die Größe an
+                    if (!window.feuerwehrMapInstance) {
+                        const lat = parseFloat(this.registry.station_lat) || 47.9994; 
+                        const lon = parseFloat(this.registry.station_lon) || 10.1325;
+                        
+                        window.feuerwehrMapInstance = L.map('map').setView([lat, lon], 16);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap contributors'
+                        }).addTo(window.feuerwehrMapInstance);
+                        
+                        window.feuerwehrMapInstance.on('click', (e) => { 
+                            if(this.identity.role === 'mannschaft') return;
+                            this.newHyd = { lat: e.latlng.lat, lon: e.latlng.lng, hydrant_type: 'Unterflurhydrant', diameter: 'DN80' }; 
+                            this.openModal('hydrantModal'); 
+                        });
+                    } else {
+                        // Der absolute Hebel gegen das Einfrieren / Graue Felder: Größe im DOM neu berechnen!
+                        setTimeout(() => {
+                            window.feuerwehrMapInstance.invalidateSize();
+                        }, 50);
+                    }
+                    
+                    // Verwaltet die Marker über eine saubere Gruppe, um Verdopplungen beim Tab-Wechsel zu tilgen
+                    if (!window.hydrantLayerGroup) {
+                        window.hydrantLayerGroup = L.layerGroup().addTo(window.feuerwehrMapInstance);
+                    } else {
+                        window.hydrantLayerGroup.clearLayers();
+                    }
                     
                     fetch('/api/hydranten').then(res => res.json()).then(data => {
                         if(data && Array.isArray(data)){
@@ -188,7 +209,7 @@ function initVueApp() {
                                 if(h.hydrant_type === 'Löschwasserzisterne' && !this.mapFilters.zisterne) return;
 
                                 const dHoses = Math.ceil(180 / 20);
-                                L.marker([h.lat, h.lon]).addTo(map).bindPopup(`
+                                L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
                                     <div class="p-1">
                                         <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
                                         <b>Dimension:</b> ${h.diameter}<br>
