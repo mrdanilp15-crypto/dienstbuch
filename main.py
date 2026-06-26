@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# Importiert alle Router-Module exakt wie in image_c9c29b.png abgebildet
+# Importiert alle Router-Module exakt wie in deiner Ordnerstruktur
 from routers import (
     alarm, archive, auth, events, inventory, 
     personnel, psa, sessions, system, tickets, users, vehicles
@@ -36,7 +36,6 @@ app.include_router(vehicles.router)
 
 @app.get("/", response_class=HTMLResponse)
 def root_redirect(request: Request):
-    # Wechselt krisensicher über benannte Argumente auf die Login-Seite
     return templates.TemplateResponse(request=request, name="login.html")
 
 @app.get("/login", response_class=HTMLResponse)
