@@ -32,21 +32,21 @@ app.include_router(tickets.router)
 app.include_router(users.router)
 app.include_router(vehicles.router)
 
-# --- SEITEN-ROUTING ÜBER JINJA2-TEMPLATES ---
+# --- SEITEN-ROUTING ÜBER JINJA2-TEMPLATES (VERSIONSSICHER) ---
 
 @app.get("/", response_class=HTMLResponse)
 def root_redirect(request: Request):
-    # Schickt unangemeldete Browser direkt auf die Login-Kachel
-    return templates.TemplateResponse("login.html", {"request": request})
+    # Wechselt krisensicher über benannte Argumente auf die Login-Seite
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.get("/login", response_class=HTMLResponse)
 def get_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def get_dashboard_page(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="dashboard.html")
 
 @app.get("/editor", response_class=HTMLResponse)
 def get_editor_page(request: Request):
-    return templates.TemplateResponse("editor.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="editor.html")
