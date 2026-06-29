@@ -1,145 +1,161 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstbericht-Protokollführung</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        [v-cloak] { display: none !important; }
-        body { background: #f1f5f9; color: #1e293b; font-family: system-ui, -apple-system, sans-serif; padding: 40px 20px; }
-        .editor-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 32px; }
-        .attendance-row { border-bottom: 1px solid #f1f5f9; padding: 10px 0; transition: background 0.15s; }
-        .attendance-row:hover { background: #f8fafc; }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
-</head>
-<body>
-    <div id="editorApp" v-cloak class="container" style="max-width: 900px;">
-        <div class="editor-card">
-            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
-                <h3 class="fw-bold m-0 text-dark"><i class="fa fa-file-pen text-danger me-2"></i> Dienstbucheintrag erfassen</h3>
-                <button type="button" class="btn btn-outline-secondary rounded-pill fw-bold btn-sm" @click="abort()"><i class="fa fa-arrow-left"></i> Zurück</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Kleiderkammer & Material-Pool</h2>
+    <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="d-flex gap-2">
+        <!-- Dynamischer Button: Wechselt je nach aktivem Sub-Tab die Funktion -->
+        <button v-if="subTabLager === 'bestand'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="openInvModal(null)">
+            <i class="fa fa-plus-circle me-1"></i> Neuer Lagerartikel
+        </button>
+        <button v-if="subTabLager === 'ausgabe'" type="button" class="btn btn-dark rounded-pill fw-bold" @click="openPsaModal(null)">
+            <i class="fa fa-hand-holding-hand me-1"></i> PSA ausgeben
+        </button>
+    </div>
+</div>
+
+<!-- SUB-NAVIGATION: Zwischen Lagerbestand und PSA-Vergabe umschalten -->
+<ul class="nav nav-tabs mb-4 border-bottom">
+    <li class="nav-item">
+        <button type="button" class="nav-link fw-bold text-dark border-0 py-2.5 px-4" :class="{active: subTabLager === 'bestand'}" @click="subTabLager = 'bestand'">
+            <i class="fa fa-boxes-stacked me-2 text-muted"></i>Poolbestand / Wachenlager
+        </button>
+    </li>
+    <li class="nav-item">
+        <button type="button" class="nav-link fw-bold text-dark border-0 py-2.5 px-4" :class="{active: subTabLager === 'ausgabe'}" @click="subTabLager = 'ausgabe'">
+            <i class="fa fa-shirt me-2 text-muted"></i>Personenbezogene PSA
+        </button>
+    </li>
+</ul>
+
+<!-- ========================================== -->
+<!-- BEREICH 1: POOLBESTAND / WACHENLAGER       -->
+<!-- ========================================== -->
+<div v-if="subTabLager === 'bestand'">
+    <!-- Taktische Filterleiste -->
+    <div class="card p-3 bg-white border shadow-sm mb-4">
+        <div class="row g-2">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted border-end-0"><i class="fa fa-magnifying-glass"></i></span>
+                    <input type="text" v-model="lagerFilter.suche" class="form-control fw-semibold border-start-0 ps-1" placeholder="Artikelbezeichnung oder QR-Code scannen/eingeben...">
+                </div>
             </div>
-
-            <form @submit.prevent="saveReport()">
-                <div class="row g-3 mb-3">
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Aktivitäts-Datum *</label>
-                        <input type="date" v-model="session.date" class="form-control fw-bold" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Kategorie *</label>
-                        <select v-model="session.category" class="form-select fw-bold" required>
-                            <option value="Übung">Ausbildung / Übung</option>
-                            <option value="Einsatz">Einsatzbericht</option>
-                            <option value="Arbeitsdienst">Gerätewartung / Arbeitsdienst</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Dauer (in Stunden) *</label>
-                        <input type="number" step="0.5" v-model.number="session.duration" class="form-control fw-bold" required>
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted">Einsatzstichwort / Kurzbeschreibung *</label>
-                    <input type="text" v-model="session.description" class="form-control fw-bold" placeholder="z. B. Brandmeldeanlage Gewerbegebiet oder Monatsübung Schaum" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted">Ausbildungsleiter / Einsatzleitung *</label>
-                    <input type="text" v-model="session.instructors" class="form-control fw-bold" placeholder="Name des Gruppenführers / Leiters" required>
-                </div>
-
-                <!-- PROTOKOLLTEXT -->
-                <div class="mb-4">
-                    <label class="form-label small fw-bold text-muted">Ausführlicher Bericht / Vorkommnisse</label>
-                    <textarea v-model="session.content" class="form-control" rows="5" placeholder="Genaue Tätigkeiten, eingesetzte Geräte oder Übungsverlauf dokumentieren..."></textarea>
-                </div>
-
-                <!-- MANNSCHAFTS-CHECKLISTE -->
-                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-users text-muted me-2"></i> Anwesenheitsliste & Fahrzeugbelegung</h5>
-                <div class="card p-3 bg-light mb-4 shadow-sm">
-                    <div v-for="p in attendanceList" :key="p.person_id" class="row align-items-center attendance-row">
-                        <div class="col-6">
-                            <div class="form-check m-0">
-                                <input class="form-check-input" type="checkbox" v-model="p.is_present" :id="'p-'+p.person_id}">
-                                <label class="form-check-label fw-bold text-dark" :for="'p-'+p.id">{{ p.name }}</label>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <select v-model="p.vehicle" class="form-select form-select-sm fw-bold" :disabled="!p.is_present">
-                                <option value="">Im Gerätehaus verblieben</option>
-                                <option v-for="v in vehicles" :value="v.name">{{ v.name }}</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2.5 shadow"><i class="fa fa-floppy-disk me-1"></i> Dienstbericht rechtsgültig verbuchen</button>
-            </form>
+            <div class="col-md-4">
+                <select v-model="lagerFilter.gewerk" class="form-select fw-bold text-muted">
+                    <option value="Alle">Kategorie: Alle Gewerke</option>
+                    <option value="Brandschutz">Brandschutzbekleidung</option>
+                    <option value="Atemschutz">Atemschutzgeräte & Masken</option>
+                    <option value="THL">THL-Ausrüstung / Rüstwagen</option>
+                </select>
+            </div>
         </div>
     </div>
 
-    <script>
-        createApp({
-            data() {
-                return {
-                    sessionId: 0,
-                    groupId: 1,
-                    vehicles: [],
-                    personnel: [],
-                    attendance: [],
-                    sessionDocs: [],
-                    newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
-                    newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'DN80'},
-                    newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, last_license_check: null, mta_status: 'Basis', qualifications: '', size_helm:'', size_jacke:'', size_stiefel:'', profile_picture: null },
-                    newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' },
-                    newPsa: { id: null, person_id: 0, item_name: '', size: '', qr_code_id: '', status: 'Ausgegeben', next_check: null },
-                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null },
-                    hydrantInspection: { hydrant_id: 0, tester_name: '', kappe_gefettet: true, schild_lesbar: true, maengel_text: '' },
-                    newArchiveDoc: { title: '', keywords: '', file_blob: '' },
-                    session: { date: new Date().toISOString().split('T')[0], category: 'Übung', duration: 2.0, description: '', content: '', instructors: '' },
-                    attendanceList: []
-                }
-            },
-            methods: {
-                abort() { window.location.href = '/dashboard'; },
-                async saveReport() {
-                    const payload = {
-                        session: this.session,
-                        attendance: this.attendanceList.map(a => ({ person_id: a.person_id, is_present: a.is_present, vehicle: a.vehicle }))
-                    };
-                    const url = this.sessionId ? `/groups/${this.groupId}/sessions/${this.sessionId}` : `/groups/${this.groupId}/sessions`;
-                    const method = this.sessionId ? 'PUT' : 'POST';
+    <!-- Artikelliste (Poolbestand) -->
+    <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light border-bottom">
+                    <tr class="text-secondary small fw-bold">
+                        <th class="ps-4">Artikelbezeichnung</th>
+                        <th>Kategorie</th>
+                        <th>Größe</th>
+                        <th>Lagerort / Fach</th>
+                        <th class="text-center">Bestand</th>
+                        <th>QR-Code</th>
+                        <th v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">Verwaltung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="i in filteredInventory" :key="i.id" :class="{'table-danger bg-opacity-25': i.amount <= i.min_amount}">
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark">{{ i.item_name }}</div>
+                            <small class="text-muted font-monospace">{{ i.manufacturer || 'Keine Herstellerangabe' }}</small>
+                        </td>
+                        <td><span class="badge bg-secondary px-2.5 py-1.5">{{ i.category }}</span></td>
+                        <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ i.size || 'N/A' }}</span></td>
+                        <td class="fw-semibold text-muted"><i class="fa fa-map-pin text-danger small me-1"></i> {{ i.location }}</td>
+                        <td class="text-center">
+                            <span class="fs-5 fw-bold font-monospace" :class="i.amount <= i.min_amount ? 'text-danger' : 'text-success'">{{ i.amount }}</span>
+                            <small class="text-muted d-block font-monospace" style="font-size: 0.7rem;">Soll: >{{ i.min_amount }}</small>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-xs btn-outline-dark font-monospace shadow-sm px-2 py-1" @click="generateQRWindow(i)">
+                                <i class="fa fa-qrcode me-1 text-danger"></i> {{ i.qr_code_id || 'Generieren' }}
+                            </button>
+                        </td>
+                        <td v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">
+                            <div class="d-flex gap-1 justify-content-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openInvModal(i)" title="Bearbeiten">
+                                    <i class="fa fa-pen-to-square"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="filteredInventory.length === 0">
+                        <td colspan="7" class="text-center p-5 text-muted fw-semibold">
+                            <i class="fa fa-boxes-stacked d-block fs-1 text-opacity-25 text-secondary mb-3"></i>
+                            Keine Artikel im Poolbestand gefunden, die auf den Filter passen.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-                    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (res.ok) { window.location.href = '/dashboard'; } else { alert("Fehler beim Sichern des Protokolls!"); }
-                }
-            },
-            async mounted() {
-                const params = new URLSearchParams(window.location.search);
-                this.sessionId = parseInt(params.get('session_id')) || 0;
-                
-                const [vRes, pRes] = await Promise.all([fetch('/api/vehicles'), fetch('/api/personnel/list')]);
-                this.vehicles = await vRes.json(); this.personnel = await pRes.json();
-
-                if (this.sessionId) {
-                    const sRes = await fetch(`/groups/${this.groupId}/sessions/${this.sessionId}`);
-                    const sData = await sRes.json();
-                    this.session = sData.session;
-                    this.attendance = sData.attendance || [];
-                }
-
-                this.attendanceList = this.personnel.map(p => {
-                    const match = this.attendance.find(a => a.person_id === p.id);
-                    return { person_id: p.id, name: p.name, is_present: match ? !!match.is_present : false, vehicle: match ? match.vehicle : "" };
-                });
-            }
-        }).mount('#editorApp');
-    </script>
-</body>
-</html>
+<!-- ========================================== -->
+<!-- BEREICH 2: PERSONENBEZOGENE PSA AUSGABE   -->
+<!-- ========================================== -->
+<div v-if="subTabLager === 'ausgabe'">
+    <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light border-bottom">
+                    <tr class="text-secondary small fw-bold">
+                        <th class="ps-4">Ausrüstungsempfänger</th>
+                        <th>Gegenstand</th>
+                        <th>Größe</th>
+                        <th>Zustand / Status</th>
+                        <th>QR-Code</th>
+                        <th>Nächste Prüffrist</th>
+                        <th v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="p in psaList" :key="p.id">
+                        <td class="ps-4 fw-bold text-dark">
+                            <i class="fa fa-user-shield text-danger me-2 small"></i>{{ getPersonnelName(p.person_id) }}
+                        </td>
+                        <td class="fw-semibold text-secondary">{{ p.item_name }}</td>
+                        <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size || 'N/A' }}</span></td>
+                        <td>
+                            <span class="badge px-2.5 py-1.5" :class="{
+                                'bg-success bg-opacity-10 text-success border border-success': p.status === 'Ausgegeben',
+                                'bg-warning bg-opacity-10 text-warning border border-warning': p.status === 'In Reinigung',
+                                'bg-danger bg-opacity-10 text-danger border border-danger': p.status === 'Defekt'
+                            }">{{ p.status }}</span>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-xs btn-outline-dark font-monospace shadow-sm px-2 py-1" @click="generatePsaQR(p)">
+                                <i class="fa fa-qrcode me-1 text-danger"></i> {{ p.qr_code_id }}
+                            </button>
+                        </td>
+                        <td class="font-monospace fw-bold text-muted">
+                            <i class="fa fa-calendar-check me-1 small"></i> {{ p.next_check || 'Keine Frist' }}
+                        </td>
+                        <td v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">
+                            <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" @click="revokePsa(p.id)">
+                                <i class="fa fa-right-from-bracket me-1"></i> Rücknahme
+                            </button>
+                        </td>
+                    </tr>
+                    <tr v-if="psaList.length === 0">
+                        <td colspan="7" class="text-center p-5 text-muted fw-semibold">
+                            <i class="fa fa-shirt d-block fs-1 text-opacity-25 text-secondary mb-3"></i>
+                            Aktuell ist im Verzeichnis keine persönliche Schutzausrüstung (PSA) ausgegeben.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

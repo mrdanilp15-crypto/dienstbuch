@@ -29,6 +29,7 @@
             overflow-x: hidden;
         }
 
+        /* Sidebar-Stile */
         .sidebar { 
             width: var(--sidebar-width); 
             background: var(--slate-bg); 
@@ -81,6 +82,7 @@
             background: linear-gradient(90deg, rgba(220, 38, 38, 0.08) 0%, rgba(30, 41, 59, 1) 100%);
         }
 
+        /* Hauptinhalt */
         .main-content { 
             margin-left: var(--sidebar-width); 
             padding: 35px 45px; 
@@ -104,9 +106,9 @@
         }
 
         .avatar-container { 
-            width: 55px; 
-            height: 55px; 
-            border-radius: 12px; 
+            width: 38px; 
+            height: 34px; 
+            border-radius: 8px; 
             overflow: hidden; 
             background: #1e293b; 
             display: flex; 
@@ -149,9 +151,10 @@
             100% { opacity: 1; }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
@@ -160,7 +163,7 @@
 
         <div class="d-flex" v-if="!hallMonitorMode">
             
-            <div class="sidebar d-flex flex-column justify-content-between">
+            <div class="sidebar">
                 <div class="d-flex flex-column h-100">
                     <div class="sidebar-header">
                         <h4 class="m-0 fw-bold text-white d-flex align-items-center gap-2">
@@ -172,7 +175,7 @@
                     <div class="menu-scroll-container">
                         <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'">
                             <i class="fa fa-desktop"></i> <span>Zentrale</span>
-                            {% raw %}<span v-if="activeAlarm && activeAlarm.keyword" class="badge bg-danger ms-auto animate-pulse-red">ALARM</span>{% endraw %}
+                            <span v-if="activeAlarm && activeAlarm.keyword" class="badge bg-danger ms-auto animate-pulse-red">ALARM</span>
                         </div>
                         <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'">
                             <i class="fa fa-user-shield"></i> <span>Mein Profil</span>
@@ -183,14 +186,11 @@
                         <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'">
                             <i class="fa fa-biohazard"></i> <span>Gefahrgut (ERI)</span>
                         </div>
-                        
                         <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'">
                             <i class="fa fa-clipboard-list"></i> <span>Mängelboard</span>
-                            {% raw %}
                             <span v-if="tickets.filter(t => t.status === 'neu').length" class="badge bg-warning text-dark ms-auto font-monospace fw-bold">
                                 {{ tickets.filter(t => t.status === 'neu').length }}
                             </span>
-                            {% endraw %}
                         </div>
                         <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'">
                             <i class="fa fa-chart-pie"></i> <span>Auswertung</span>
@@ -200,19 +200,15 @@
                         </div>
                         <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'">
                             <i class="fa fa-boxes-stacked"></i> <span>Kleiderkammer</span>
-                            {% raw %}
                             <span v-if="lowStockItems.length" class="badge bg-danger ms-auto font-monospace fw-bold">
                                 {{ lowStockItems.length }}
                             </span>
-                            {% endraw %}
                         </div>
                         <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'">
                             <i class="fa fa-users-gear"></i> <span>Personal & Logins</span>
-                            {% raw %}
                             <span v-if="deadlineAlerts.length" class="badge bg-danger ms-auto font-monospace fw-bold">
                                 {{ deadlineAlerts.length }}
                             </span>
-                            {% endraw %}
                         </div>
                         <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'">
                             <i class="fa fa-truck-moving"></i> <span>Fuhrpark</span>
@@ -227,9 +223,8 @@
                     <button type="button" class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-3 fw-bold shadow-sm" @click="hallMonitorMode = true">
                         <i class="fa fa-expand me-1"></i> Monitor-Modus
                     </button>
-                    {% raw %}
                     <div class="d-flex align-items-center gap-2 justify-content-center text-start px-1">
-                        <div class="avatar-container" style="width: 38px; height: 34px; border-radius: 8px;">
+                        <div class="avatar-container">
                             <img :src="identity.profile_picture" v-if="identity.profile_picture">
                             <i class="fa fa-user-shield text-white small" v-else></i>
                         </div>
@@ -238,34 +233,29 @@
                             <div class="text-uppercase text-muted font-monospace" style="font-size: 0.65rem; letter-spacing: 0.5px;">Rolle: {{ identity.role }}</div>
                         </div>
                     </div>
-                    {% endraw %}
                 </div>
             </div>
 
             <div class="main-content flex-grow-1">
                 
-                {% raw %}
-                <div v-if="activeAlarm && activeAlarm.keyword" class="alert alert-danger bg-danger border-0 text-white rounded-4 p-3 mb-4 shadow d-flex justify-content-between align-items-center animate-pulse">
+                <div v-if="activeAlarm && activeAlarm.keyword" class="alert alert-danger bg-danger border-0 text-white rounded-4 p-3 mb-4 shadow d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-3">
-                        <h3 class="m-0 font-monospace fw-bold"><i class="fa fa-bell-flash animate-bounce me-1"></i> {{ activeAlarm.keyword }}</h3>
+                        <h3 class="m-0 font-monospace fw-bold"><i class="fa fa-bell animate-bounce me-1"></i> {{ activeAlarm.keyword }}</h3>
                         <div class="border-start border-white border-opacity-25 ps-3 fw-semibold">{{ activeAlarm.address }}</div>
                     </div>
-                    <span class="badge bg-black bg-opacity-30 px-3 py-2 font-monospace uppercase">Einsatz läuft</span>
+                    <span class="badge bg-black bg-opacity-30 px-3 py-2 font-monospace">EINSATZ LÄUFT</span>
                 </div>
-                {% endraw %}
 
                 <div class="top-status-bar d-flex justify-content-between align-items-center mb-4 bg-white shadow-sm">
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-danger p-2 rounded-3"><i class="fa fa-building-shield fs-6"></i></span>
-                        {% raw %}<h5 class="fw-bold m-0 text-dark">{{ registry.station_name || 'Feuerwehr Dienstbuch' }}</h5>{% endraw %}
+                        <h5 class="fw-bold m-0 text-dark">{{ registry.station_name }}</h5>
                     </div>
                     <div class="d-flex align-items-center gap-4 text-muted small fw-semibold">
-                        {% raw %}
                         <div v-if="weather" class="d-flex align-items-center gap-2 border-end pe-3">
                             <i class="fa fa-cloud-sun text-info"></i>
                             <span class="text-dark font-monospace">{{ weather.temperature }}</span>
                         </div>
-                        {% endraw %}
                         <button type="button" class="btn btn-sm btn-outline-danger px-3 rounded-pill fw-bold border-2" @click="triggerLogout()">
                             <i class="fa fa-power-off me-1"></i> Beenden
                         </button>
@@ -291,8 +281,7 @@
         <div class="fw-vue-modal-backdrop" v-if="modalActive"></div>
         {% include 'tabs/modals.html' %}
 
-        {% raw %}
-        <div class="fw-toast-container" v-if="toastVisible" :class="toastClass">
+        <div class="fw-toast-container" v-if="toastVisible">
             <div class="card border-0 text-white shadow-lg p-3 rounded-3 d-flex flex-row align-items-center gap-3 bg-dark">
                 <span class="p-2 bg-white bg-opacity-10 rounded-2">
                     <i class="fa" :class="toastClass.includes('danger') ? 'fa-circle-xmark text-danger':'fa-circle-check text-success'"></i>
@@ -301,8 +290,9 @@
                 <button type="button" class="btn-close btn-close-white ms-auto small" @click="closeToast()"></button>
             </div>
         </div>
-        {% endraw %}
 
     </div>
+
+    <script src="/static/js/app.js" defer></script>
 </body>
 </html>

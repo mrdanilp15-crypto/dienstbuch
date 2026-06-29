@@ -84,7 +84,7 @@
     </div>
 
     <script>
-        // FIX: Expliziter Aufruf über das globale Vue-Objekt verhindert den ReferenceError
+        // FIX: Der explizite Aufruf über "Vue.createApp" verhindert den Absturz im Browser
         Vue.createApp({
             data() {
                 return {
