@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 # Alle eure Router-Module importieren
 from routers import (
     alarm, archive, auth, events, inventory, 
-    personnel, psa, sessions, system, tickets, users, vehicles
+    personnel, psa, sessions, system, tickets, users, vehicles, hydranten
 )
 
 app = FastAPI(title="Digitales Dienstbuch-System")
@@ -36,6 +36,9 @@ app.include_router(system.router)
 app.include_router(tickets.router)
 app.include_router(users.router)
 app.include_router(vehicles.router)
+app.include_router(hydranten.router)
+
+
 
 # --- SEITEN-ROUTING ---
 @app.get("/", response_class=HTMLResponse)

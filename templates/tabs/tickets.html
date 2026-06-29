@@ -1,25 +1,70 @@
-<div class="d-flex justify-content-between mb-4"><h2>Mängelberichte & Ticketboard</h2><button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openTicketModal()"><i class="fa fa-circle-plus me-1"></i> Mangel erfassen</button></div>
-<div class="row g-3">
-    <div class="col-md-4">
-        <h5 class="text-danger fw-bold border-bottom pb-2 mb-3">Neu erfasst</h5>
-        <div v-for="t in tickets.filter(x => x.status === 'neu')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
-            <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-            <div class="d-flex gap-1" v-if="identity.role === 'admin' || identity.role === 'geratewart'">
-                <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'reparatur')">In Werkstatt</button>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <h5 class="text-warning fw-bold border-bottom pb-2 mb-3">In Reparatur</h5>
-        <div v-for="t in tickets.filter(x => x.status === 'reparatur')" :key="t.id" class="card p-3 mb-2 bg-white border shadow-sm">
-            <h6 class="fw-bold text-dark m-0">{{ t.title }}</h6><p class="small text-muted mt-1 mb-2">{{ t.content }}</p>
-            <button type="button" v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="btn btn-sm btn-success w-100 rounded-pill fw-bold" @click="setTicketStatus(t.id, 'erledigt')">Erledigt</button>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <h5 class="text-success fw-bold border-bottom pb-2 mb-3">Erledigt</h5>
-        <div v-for="t in tickets.filter(x => x.status === 'erledigt')" :key="t.id" class="card p-3 mb-2 bg-light border opacity-75">
-            <h6 class="fw-bold text-muted m-0 text-decoration-line-through">{{ t.title }}</h6>
-        </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Mängelboard & Schadensmeldungen</h2>
+    <button type="button" class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openTicketModal(null)">
+        <i class="fa fa-circle-exclamation me-1"></i> Mangel melden
+    </button>
+</div>
+
+<div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
+    <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+            <thead class="table-light border-bottom">
+                <tr class="text-secondary small fw-bold">
+                    <th class="ps-4">Schadensmeldung / Titel</th>
+                    <th>Priorität</th>
+                    <th>Status</th>
+                    <th>Gemeldet von</th>
+                    <th class="text-end pe-4">Status ändern / Löschen</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="t in tickets" :key="t.id">
+                    <td class="ps-4">
+                        <div class="fw-bold text-dark">{{ t.title }}</div>
+                        <small class="text-muted d-block" style="max-width: 400px;">{{ t.content }}</small>
+                    </td>
+                    <td>
+                        <span class="badge px-2 py-1 text-uppercase font-monospace" :class="{
+                            'bg-danger bg-opacity-10 text-danger border border-danger': t.priority === 'hoch',
+                            'bg-warning text-dark': t.priority === 'normal',
+                            'bg-secondary bg-opacity-10 text-secondary': t.priority === 'niedrig'
+                        }">{{ t.priority }}</span>
+                    </td>
+                    <td>
+                        <span class="badge px-2.5 py-1.5 rounded-pill fw-bold" :class="{
+                            'bg-danger text-white': t.status === 'neu',
+                            'bg-warning text-dark': t.status === 'in_bearbeitung',
+                            'bg-success text-white': t.status === 'erledigt'
+                        }">{{ t.status }}</span>
+                    </td>
+                    <td class="text-muted small fw-semibold">{{ getPersonnelName(t.creator_id || t.user_id) }}</td>
+                    <td class="text-end pe-4">
+                        <div class="d-flex gap-1 justify-content-end align-items-center">
+                            <!-- Status-Umschalter -->
+                            <button v-if="t.status === 'neu'" type="button" class="btn btn-xs btn-outline-warning fw-bold rounded-pill px-2.5" @click="setTicketStatus(t.id, 'in_bearbeitung')">
+                                <i class="fa fa-gear me-1"></i> Sichten
+                            </button>
+                            <button v-if="t.status === 'in_bearbeitung'" type="button" class="btn btn-xs btn-outline-success fw-bold rounded-pill px-2.5" @click="setTicketStatus(t.id, 'erledigt')">
+                                <i class="fa fa-check me-1"></i> Erledigt
+                            </button>
+                            
+                            <!-- Bearbeiten & Löschen -->
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle ms-2" @click="openTicketModal(t)" title="Mangel editieren">
+                                <i class="fa fa-pen"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="delTicket(t.id)" title="Mangel permanent löschen">
+                                <i class="fa fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr v-if="!tickets || tickets.length === 0">
+                    <td colspan="5" class="text-center p-5 text-muted fw-semibold">
+                        <i class="fa fa-circle-check d-block fs-1 text-success text-opacity-25 mb-3"></i>
+                        Aktuell liegen keine ungelösten Mängel oder Schadensmeldungen vor.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>

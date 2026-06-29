@@ -1,34 +1,52 @@
-<div class="d-flex justify-content-between mb-4">
-    <h2>Fuhrpark & UVV-Geräteüberwachung</h2>
-    <button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openVehModal(null)">Gerät / Fahrzeug anlegen</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Fuhrpark & Einsatzfahrzeuge</h2>
+    <button type="button" class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openVehModal(null)">
+        <i class="fa fa-plus-circle me-1"></i> Fahrzeug hinzufügen
+    </button>
 </div>
 
-<div class="card p-0 overflow-hidden bg-white border shadow-sm">
-    <table class="table mb-0 align-middle">
-        <thead class="table-light">
-            <tr>
-                <th>Bezeichnung / Typ <i class="fa-solid fa-circle-info tooltip-icon" title="Eingetragener Fuhrpark und Tragkraftspritzen der Wehr"></i></th>
-                <th>Funkrufname</th>
-                <th>Kilometerstand</th>
-                <th>Kraftstoff</th>
-                <th>Betriebsstunden</th>
-                <th class="text-end">Aktion</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="v in vehicles" :key="v.id">
-                <td><b>{{ v.name }}</b><br><small class="text-muted font-monospace" v-if="v.license_plate">{{ v.license_plate }}</small></td>
-                <td><span class="badge bg-light text-dark border font-monospace fw-bold">{{ v.radio_name }}</span></td>
-                <td>{{ v.milage }} km</td>
-                <td><span class="badge bg-light text-dark border"><i class="fa fa-gas-pump text-danger me-1"></i> {{ v.fuel_type || 'Diesel' }}</span></td>
-                <td><span class="badge bg-dark font-monospace fs-6">{{ v.operating_hours || 0.0 }} Bh</span></td>
-                <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-dark" @click="openVehModal(v)"><i class="fa fa-edit"></i> Bearbeiten</button>
-                </td>
-            </tr>
-            <tr v-if="vehicles.length === 0">
-                <td colspan="6" class="text-center p-4 text-muted">Es wurden noch keine Fahrzeuge oder Aggregate im System hinterlegt.</td>
-            </tr>
-        </tbody>
-    </table>
+<div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
+    <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+            <thead class="table-light border-bottom">
+                <tr class="text-secondary small fw-bold">
+                    <th class="ps-4">Fahrzeugname</th>
+                    <th>Funkrufname</th>
+                    <th>Typ</th>
+                    <th class="text-center">FMS Status</th>
+                    <th>Nächster TÜV</th>
+                    <th>Kilometerstand</th>
+                    <th class="text-end pe-4">Verwaltung</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="v in vehicles" :key="v.id">
+                    <td class="ps-4 fw-bold text-dark">
+                        <i class="fa fa-truck-sparkles text-danger me-2"></i>{{ v.name }}
+                    </td>
+                    <td class="font-monospace text-secondary fw-semibold">{{ v.radio_name }}</td>
+                    <td><span class="badge bg-light text-dark border fw-bold">{{ v.vehicle_type }}</span></td>
+                    <td class="text-center">
+                        <span class="badge px-3 py-2 fs-6 rounded-3" :class="v.status == 2 ? 'bg-success':'bg-primary'">
+                            Status {{ v.status }}
+                        </span>
+                    </td>
+                    <td class="font-monospace fw-bold text-muted">
+                        <i class="fa fa-calendar-check me-1 small"></i>{{ v.tuv_date || 'Keine Angabe' }}
+                    </td>
+                    <td class="font-monospace fw-semibold text-dark">{{ v.milage }} km</td>
+                    <td class="text-end pe-4">
+                        <div class="d-flex gap-1 justify-content-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openVehModal(v)" title="Stammdaten bearbeiten">
+                                <i class="fa fa-marker"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteVeh(v.id)" title="Aus Fuhrpark löschen">
+                                <i class="fa fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </div>
