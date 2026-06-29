@@ -2,7 +2,6 @@ import os
 import hmac
 import hashlib
 import json
-import base64
 from fastapi import APIRouter, Request, HTTPException, Response
 from database import get_db_connection
 
@@ -10,18 +9,21 @@ SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-
 
 router = APIRouter(tags=["Authentifizierung"])
 
+# BUNDESWEHR- & FEUERWEHR-STANDARD: Reine Hex-Strings verhindern das Abschneiden in Proxies
 def sign_data(data: dict) -> str:
     json_str = json.dumps(data)
-    encoded = base64.b64encode(json_str.encode()).decode()
+    encoded = json_str.encode().hex()
     signature = hmac.new(SECRET_KEY, encoded.encode(), hashlib.sha256).hexdigest()
-    return f"{encoded}.{signature}"
+    return f"{encoded}-{signature}"
 
 def verify_signature(token: str) -> dict:
     try:
-        encoded, signature = token.split(".")
+        if not token or "-" not in token:
+            return None
+        encoded, signature = token.split("-")
         expected_sig = hmac.new(SECRET_KEY, encoded.encode(), hashlib.sha256).hexdigest()
         if hmac.compare_digest(signature, expected_sig):
-            json_str = base64.b64decode(encoded.encode()).decode()
+            json_str = bytes.fromhex(encoded).decode()
             return json.loads(json_str)
     except:
         pass
@@ -63,7 +65,9 @@ async def api_login(r: Request, response: Response):
             
         token_data = {"u": user_row["username"], "r": user_row["role"]}
         token = sign_data(token_data)
-        response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
+        
+        # Setzt das Cookie absolut manipulationssicher im Wurzelpfad
+        response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax", path="/")
         return {"status": "success", "role": user_row["role"]}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
@@ -71,7 +75,7 @@ async def api_login(r: Request, response: Response):
 
 @router.post("/api/logout")
 def api_logout(response: Response):
-    response.delete_cookie("session_token")
+    response.delete_cookie("session_token", path="/")
     return {"status": "success"}
 
 @router.get("/api/auth/me")
@@ -106,7 +110,7 @@ async def change_password_self(r: Request):
     user = get_current_user(r)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht autorisiert")
-    
+        
     d = await r.json()
     new_pw = d.get("password")
     if not new_pw or len(new_pw.strip()) < 4:
