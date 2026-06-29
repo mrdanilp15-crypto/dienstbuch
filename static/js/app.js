@@ -6,6 +6,14 @@ document.addEventListener("DOMContentLoaded", function() {
     initVueApp();
 });
 
+function ensureArray(data) {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+        for (var key in data) { if (Array.isArray(data[key])) return data[key]; }
+    }
+    return [];
+}
+
 function initVueApp() {
     window.vueApp = Vue.createApp({
         data() {
@@ -57,7 +65,6 @@ function initVueApp() {
             }
         },
         computed: {
-            // IMMUN GEGEN CODESCHÄDEN: Alle computed-Funktionen sichern sich ab, bevor sie Arrays filtern
             openTicketsCount() {
                 if (!Array.isArray(this.tickets)) return 0;
                 return this.tickets.filter(function(t) { return t && t.status === 'neu'; }).length;
@@ -148,21 +155,34 @@ function initVueApp() {
                 setTimeout(() => { this.toastVisible = false; }, 4000);
             },
             closeToast() { this.toastVisible = false; },
-            openModal(id) { this.modalActive = id; },
-            closeModal() { this.modalActive = null; },
+            
+            // PANZERSICHERER MODAL-TRIGGER: Erzwingt das Öffnen der Masken nativ im Browser
+            openModal(id) {
+                this.modalActive = id;
+                this.$nextTick(function() {
+                    var el = document.getElementById(id);
+                    if (el && window.bootstrap) {
+                        var modalInstance = bootstrap.Modal.getOrCreateInstance(el);
+                        modalInstance.show();
+                    }
+                });
+            },
+            closeModal() {
+                var id = this.modalActive;
+                this.modalActive = null;
+                if (id) {
+                    var el = document.getElementById(id);
+                    if (el && window.bootstrap) {
+                        var modalInstance = bootstrap.Modal.getOrCreateInstance(el);
+                        modalInstance.hide();
+                    }
+                }
+            },
             openTicketModal(t) {
                 this.newTicket = t ? Object.assign({}, t) : { title: '', content: '', priority: 'normal', status: 'neu', vehicle_id: 0, inventory_id: 0 };
                 this.openModal('ticketModal');
             },
             
-            async apiCall(url, method, body) {
-                var options = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
-                if (body) options.body = JSON.stringify(body);
-                try {
-                    var res = await fetch(url, options);
-                    return res.ok ? await res.json() : null;
-                } catch (e) { this.showToast("Schnittstellenfehler zum Zentralrechner.", true); return null; }
-            },
             async fetchJson(url) {
                 try {
                     var r = await fetch(url + '?t=' + new Date().getTime(), { headers: { 'Cache-Control': 'no-cache' } });
@@ -188,9 +208,8 @@ function initVueApp() {
                                     this.activeAlarm = null;
                                 }
                             } else {
-                                // SICHERHEITS-NETZ: Verwandelt fehlerhafte DB-Rückgaben automatisch in leere Listen
-                                if (['vehicles', 'inventory', 'personnel', 'users', 'tickets', 'archiveDocs', 'sessions', 'psaList'].includes(key) && !Array.isArray(data)) {
-                                    this[key] = [];
+                                if (['vehicles', 'inventory', 'personnel', 'users', 'tickets', 'archiveDocs', 'sessions', 'psaList'].includes(key)) {
+                                    this[key] = ensureArray(data);
                                 } else {
                                     this[key] = data;
                                 }
@@ -204,11 +223,13 @@ function initVueApp() {
                 if (this.activeAlarm) { localStorage.setItem('fw_quitted_alarm_id', String(this.activeAlarm.id || 'static_id')); }
                 this.activeAlarm = null; this.showToast("Einsatzmeldung ausgeblendet.");
             },
+            
+            // DIAGNOSE-LÖSCHEN: Meldet ab jetzt lautstark jeden Netzwerkfehler im Browser
             async deleteSessionReport(id) {
-                if (confirm("Möchtest du diesen Dienstbericht permanent aus dem Logbuch löschen?")) {
-                    var res = await fetch('/groups/1/sessions/' + id, { method: 'DELETE' });
-                    if (res.ok) { this.showToast("Bericht erfolgreich gelöscht."); this.refreshAllData(); }
-                }
+                if (!confirm("Möchtest du diesen Dienstbericht permanent aus dem Logbuch löschen?")) return;
+                var res = await fetch('/groups/1/sessions/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Bericht erfolgreich gelöscht."); this.refreshAllData(); }
+                else { alert("FEHLER beim Löschen des Berichts! Server meldet Status: " + res.status); }
             },
             goToEditor(sId) { window.location.href = '/editor?group_id=1' + (sId ? '&session_id=' + sId : ''); },
             async setVehicleStatus(v, s) {
@@ -239,21 +260,20 @@ function initVueApp() {
                     fetch('/api/hydranten')
                         .then(function(res) { return res.ok ? res.json() : []; }).catch(function() { return []; })
                         .then(function(data) {
-                            if (data && Array.isArray(data)) {
-                                data.forEach(function(h) {
-                                    if (!h || (h.hydrant_type === 'Unterflurhydrant' && !self.mapFilters.unterflur)) return;
-                                    if (h.hydrant_type === 'Überflurhydrant' && !self.mapFilters.ueberflur) return;
-                                    if (h.hydrant_type === 'Löschwasserzisterne' && !self.mapFilters.zisterne) return;
-                                    L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
-                                        <div class="p-1">
-                                            <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
-                                            <b>Dimension:</b> ${h.diameter}<br><hr class="my-1">
-                                            <button class="btn btn-xs btn-dark mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.startHydrantCheck(${h.id})">Prüfung</button>
-                                            <button class="btn btn-xs btn-outline-danger mt-1 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
-                                        </div>
-                                    `);
-                                });
-                            }
+                            var safeHydranten = ensureArray(data);
+                            safeHydranten.forEach(function(h) {
+                                if (!h || (h.hydrant_type === 'Unterflurhydrant' && !self.mapFilters.unterflur)) return;
+                                if (h.hydrant_type === 'Überflurhydrant' && !self.mapFilters.ueberflur) return;
+                                if (h.hydrant_type === 'Löschwasserzisterne' && !self.mapFilters.zisterne) return;
+                                L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
+                                    <div class="p-1">
+                                        <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
+                                        <b>Dimension:</b> ${h.diameter}<br><hr class="my-1">
+                                        <button class="btn btn-xs btn-dark mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.startHydrantCheck(${h.id})">Prüfung</button>
+                                        <button class="btn btn-xs btn-outline-danger mt-1 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
+                                    </div>
+                                `);
+                            });
                         });
                 });
             },
@@ -264,17 +284,21 @@ function initVueApp() {
             async saveHydrantCheck() {
                 if (!this.hydrantInspection.kappe_gefettet || !this.hydrantInspection.schild_lesbar || this.hydrantInspection.maengel_text) {
                     var text = "Prüfmangel bei Hydrant #" + this.hydrantInspection.hydrant_id + ": " + (this.hydrantInspection.maengel_text || "Mangel bei Routineprüfung.");
-                    await this.apiCall('/api/tickets', 'POST', { title: 'Hydrantenmangel', content: text, priority: 'normal', status: 'neu', vehicle_id: 0 });
+                    var res = await fetch('/api/tickets', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title: 'Hydrantenmangel', content: text, priority: 'normal', status: 'neu', vehicle_id: 0 }) });
+                    if (!res.ok) { alert("Mangel-Ticket konnte serverseitig nicht erstellt werden. Status: " + res.status); }
                 }
                 this.showToast("Hydrantenprüfbericht hinterlegt!"); this.closeModal(); this.refreshAllData();
             },
             async deleteHydrant(id) {
                 if (this.identity.role === 'mannschaft') return;
-                if (confirm("Soll diese Wasserentnahmestelle permanent gelöscht werden?")) {
-                    await fetch('/api/hydranten/' + id, { method: 'DELETE' }); this.initMap();
-                }
+                if (!confirm("Soll diese Wasserentnahmestelle permanent gelöscht werden?")) return;
+                var res = await fetch('/api/hydranten/' + id, { method: 'DELETE' });
+                if (res.ok) { this.initMap(); } else { alert("Fehler beim Löschen des Hydranten! Status: " + res.status); }
             },
-            async saveHydrant() { await this.apiCall('/api/hydranten', 'POST', this.newHyd); this.closeModal(); this.initMap(); },
+            async saveHydrant() { 
+                var res = await fetch('/api/hydranten', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newHyd) });
+                if (res.ok) { this.closeModal(); this.initMap(); } else { alert("Fehler beim Erstellen des Hydranten! Status: " + res.status); }
+            },
 
             searchHazmat() {
                 if (!this.hazmatSearchQuery) return;
@@ -287,11 +311,14 @@ function initVueApp() {
             },
             async generateQRWindow(i) {
                 var id = i.qr_code_id || 'QR-' + Math.random().toString(36).substr(2, 6).toUpperCase(); i.qr_code_id = id;
-                await this.apiCall('/api/inventory', 'POST', i); this.refreshAllData(); this.openModal('qrModal');
-                this.$nextTick(function() {
-                    var box = document.getElementById('qrcode'); if (!box) return; box.innerHTML = "";
-                    new QRCode(box, { text: window.location.origin + "/dashboard?tab=lager&qr=" + id, width: 160, height: 160 });
-                });
+                var res = await fetch('/api/inventory', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(i) });
+                if (res.ok) {
+                    this.refreshAllData(); this.openModal('qrModal');
+                    this.$nextTick(function() {
+                        var box = document.getElementById('qrcode'); if (!box) return; box.innerHTML = "";
+                        new QRCode(box, { text: window.location.origin + "/dashboard?tab=lager&qr=" + id, width: 160, height: 160 });
+                    });
+                } else { alert("QR-Code Erstellung fehlgeschlagen. Status: " + res.status); }
             },
             async generatePsaQR(p) {
                 this.openModal('qrModal');
@@ -306,38 +333,51 @@ function initVueApp() {
             },
             async saveArchiveDoc() {
                 if (!this.newArchiveDoc.title) return;
-                await this.apiCall('/api/archive/upload', 'POST', this.newArchiveDoc);
-                this.newArchiveDoc = { title: '', keywords: 'Dienstvorschrift', file_blob: '' };
-                this.showToast("Dokument im Wachenarchiv gesichert."); this.refreshAllData();
+                var res = await fetch('/api/archive/upload', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newArchiveDoc) });
+                if (res.ok) { this.newArchiveDoc = { title: '', keywords: 'Dienstvorschrift', file_blob: '' }; this.showToast("Dokument im Wachenarchiv gesichert."); this.refreshAllData(); }
+                else { alert("Dokumenten-Upload gescheitert. Status: " + res.status); }
             },
             async delArchiveDoc(id) {
-                if (confirm("Dokument permanent löschen?")) { await fetch('/api/archive/' + id, { method: 'DELETE' }); this.refreshAllData(); }
+                if (!confirm("Dokument permanent löschen?")) return;
+                var res = await fetch('/api/archive/' + id, { method: 'DELETE' });
+                if (res.ok) { this.refreshAllData(); } else { alert("Löschen fehlgeschlagen. Status: " + res.status); }
             },
             viewArchiveDoc(doc) {
                 if (!doc.file_blob) return; var win = window.open();
                 if (win) win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
             },
+            
+            // INTERAKTIVES TICKETING
             async saveTicket() { 
                 var url = this.newTicket.id ? '/api/tickets/' + this.newTicket.id : '/api/tickets';
                 var method = this.newTicket.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newTicket); 
-                this.closeModal(); this.showToast("Mängelbericht synchronisiert."); this.refreshAllData(); 
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newTicket) });
+                if (res.ok) { this.closeModal(); this.showToast("Mängelbericht synchronisiert."); this.refreshAllData(); }
+                else { alert("Fehler beim Sichern des Mängels! Status: " + res.status); }
             },
-            async setTicketStatus(id, status) { await this.apiCall('/api/tickets/' + id + '/status', 'PUT', { status: status }); this.refreshAllData(); },
-            async delTicket(id) { if (confirm("Mangel permanent löschen?")) { await fetch('/api/tickets/' + id, { method: 'DELETE' }); this.refreshAllData(); } },
+            async setTicketStatus(id, status) { 
+                var res = await fetch('/api/tickets/' + id + '/status', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: status }) });
+                if (res.ok) { this.refreshAllData(); } else { alert("Statusänderung verweigert. Status: " + res.status); }
+            },
+            async delTicket(id) { 
+                if (!confirm("Mangel permanent löschen?")) return;
+                var res = await fetch('/api/tickets/' + id, { method: 'DELETE' });
+                if (res.ok) { this.refreshAllData(); } else { alert("Löschen des Mängels fehlgeschlagen. Status: " + res.status); }
+            },
+            
             async changeMyPassword() {
                 if (!this.profilePassword || this.profilePassword.trim().length < 4) { this.showToast("Das Passwort muss mindestens 4 Zeichen lang sein!", true); return; }
-                var res = await this.apiCall('/api/users/password/self', 'PUT', { password: this.profilePassword.trim() });
-                if (res && res.status === 'success') { this.showToast("Passwort aktualisiert!"); this.profilePassword = ''; }
+                var res = await fetch('/api/users/password/self', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ password: this.profilePassword.trim() }) });
+                if (res && res.ok) { this.showToast("Passwort aktualisiert!"); this.profilePassword = ''; }
+                else { alert("Passwortänderung fehlgeschlagen. Status: " + res.status); }
             },
             async saveSettings() {
-                var res = await this.apiCall('/api/settings', 'POST', this.registry);
-                if (res) { this.showToast("Wachenkonfiguration gesichert!"); this.refreshAllData(); }
+                var res = await fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.registry) });
+                if (res && res.ok) { this.showToast("Wachenkonfiguration gesichert!"); this.refreshAllData(); }
+                else { alert("Speichern der Konfiguration fehlgeschlagen. Status: " + res.status); }
             },
-            processProfilePic(e) {
-                var self = this; var file = e.target.files[0]; if (!file) return;
-                var reader = new FileReader(); reader.onload = function(ev) { self.newMem.profile_picture = ev.target.result; }; reader.readAsDataURL(file);
-            },
+
+            // MASTER DATA REST-ACTIONS (Zwingen den Server zur Fehlermeldung via alert)
             openMemberModal(p) {
                 this.newMem = p ? Object.assign({}, p) : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, qualifications: '', size_helm: '', size_jacke: '', size_stiefel: '', last_license_check: null, mta_status: 'Basis', profile_picture: null };
                 this.openModal('memberModal');
@@ -345,15 +385,17 @@ function initVueApp() {
             async saveMember() { 
                 var url = this.newMem.id ? '/api/personnel/' + this.newMem.id : '/api/personnel';
                 var method = this.newMem.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newMem); 
-                this.closeModal(); this.showToast("Kameradenakte synchronisiert."); this.refreshAllData(); 
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newMem) });
+                if (res.ok) { this.closeModal(); this.showToast("Kameradenakte synchronisiert."); this.refreshAllData(); }
+                else { alert("SPEICHERN FEHLGESCHLAGEN! Server meldet HTTP-Status: " + res.status + ". Prüfe, ob PUT/POST auf diese URL im Backend existiert."); }
             },
             async deleteMember(id) {
-                if (confirm("Möchtest du diese Kameradenakte permanent aus dem System löschen?")) {
-                    await fetch('/api/personnel/' + id, { method: 'DELETE' });
-                    this.showToast("Kamerad erfolgreich gelöscht."); this.refreshAllData();
-                }
+                if (!confirm("Möchtest du diese Kameradenakte permanent aus dem System löschen?")) return;
+                var res = await fetch('/api/personnel/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Kamerad erfolgreich gelöscht."); this.refreshAllData(); }
+                else { alert("LÖSCHEN FEHLGESCHLAGEN! Server meldet HTTP-Status: " + res.status + ". Prüfe, ob DELETE /api/personnel/{id} im Backend eingebaut ist."); }
             },
+            
             openUserModal(u) {
                 this.newUser = u ? Object.assign({}, u) : { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 };
                 this.openModal('userModal');
@@ -361,15 +403,17 @@ function initVueApp() {
             async saveUser() { 
                 var url = this.newUser.id ? '/api/users/' + this.newUser.id : '/api/users';
                 var method = this.newUser.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newUser); 
-                this.closeModal(); this.showToast("Systemlogin konfiguriert."); this.refreshAllData(); 
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newUser) });
+                if (res.ok) { this.closeModal(); this.showToast("Systemlogin konfiguriert."); this.refreshAllData(); }
+                else { alert("SPEICHERN FEHLGESCHLAGEN! Login-Pfad fehlerhaft. Status: " + res.status); }
             },
             async deleteUser(id) {
-                if (confirm("Soll dieser Systemzugang permanent gelöscht werden?")) {
-                    await fetch('/api/users/' + id, { method: 'DELETE' });
-                    this.showToast("Login erfolgreich entfernt."); this.refreshAllData();
-                }
+                if (!confirm("Soll dieser Systemzugang permanent gelöscht werden?")) return;
+                var res = await fetch('/api/users/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Login erfolgreich entfernt."); this.refreshAllData(); }
+                else { alert("LÖSCHEN FEHLGESCHLAGEN! Login-Löschpfad blockiert. Status: " + res.status); }
             },
+
             openInvModal(i) {
                 this.newInv = i ? Object.assign({}, i) : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' };
                 this.openModal('invModal');
@@ -377,15 +421,17 @@ function initVueApp() {
             async saveInv() { 
                 var url = this.newInv.id ? '/api/inventory/' + this.newInv.id : '/api/inventory';
                 var method = this.newInv.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newInv); 
-                this.closeModal(); this.showToast("Lagerpool aktualisiert."); this.refreshAllData(); 
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newInv) });
+                if (res.ok) { this.closeModal(); this.showToast("Lagerpool aktualisiert."); this.refreshAllData(); }
+                else { alert("SPEICHERN FEHLGESCHLAGEN! Kleiderkammer-Pfad blockiert. Status: " + res.status); }
             },
             async deleteInv(id) {
-                if (confirm("Soll dieser Lagerartikel dauerhaft ausgebucht werden?")) {
-                    await fetch('/api/inventory/' + id, { method: 'DELETE' });
-                    this.showToast("Artikel aus Pool entfernt."); this.refreshAllData();
-                }
+                if (!confirm("Soll dieser Lagerartikel dauerhaft ausgebucht werden?")) return;
+                var res = await fetch('/api/inventory/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Artikel aus Pool entfernt."); this.refreshAllData(); }
+                else { alert("LÖSCHEN FEHLGESCHLAGEN! Lager-Löschpfad blockiert. Status: " + res.status); }
             },
+
             openPsaModal(p) {
                 var self = this; var kamerad = this.personnel.find(function(x) { return x && x.id === (p ? p.person_id : null); });
                 this.newPsa = p ? Object.assign({}, p) : { id: null, person_id: 0, item_name: '', size: kamerad ? kamerad.size_jacke : '', qr_code_id: '', status: 'Ausgegeben', next_check: null };
@@ -395,14 +441,17 @@ function initVueApp() {
                 if (!this.newPsa.qr_code_id) { this.newPsa.qr_code_id = 'PSA-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
                 var url = this.newPsa.id ? '/api/psa/' + this.newPsa.id : '/api/psa';
                 var method = this.newPsa.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newPsa); 
-                this.closeModal(); this.showToast("Ausrüstung zugewiesen."); this.refreshAllData();
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newPsa) });
+                if (res.ok) { this.closeModal(); this.showToast("Ausrüstung zugewiesen."); this.refreshAllData(); }
+                else { alert("SPEICHERN FEHLGESCHLAGEN! PSA-Pfad blockiert. Status: " + res.status); }
             },
             async revokePsa(id) {
-                if (confirm("Soll diese Ausrüstung vom Kameraden zurückgenommen werden?")) {
-                    await fetch('/api/psa/' + id, { method: 'DELETE' }); this.showToast("Ausrüstung zurückgenommen."); this.refreshAllData();
-                }
+                if (!confirm("Soll diese Ausrüstung vom Kameraden zurückgenommen werden?")) return;
+                var res = await fetch('/api/psa/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Ausrüstung zurückgenommen."); this.refreshAllData(); }
+                else { alert("LÖSCHEN FEHLGESCHLAGEN! PSA-Rücknahmepfad blockiert. Status: " + res.status); }
             },
+
             openVehModal(v) {
                 this.newVeh = v ? Object.assign({}, v) : { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null };
                 this.openModal('vehModal');
@@ -410,15 +459,17 @@ function initVueApp() {
             async saveVeh() { 
                 var url = this.newVeh.id ? '/api/vehicles/' + this.newVeh.id : '/api/vehicles';
                 var method = this.newVeh.id ? 'PUT' : 'POST';
-                await this.apiCall(url, method, this.newVeh); 
-                this.closeModal(); this.showToast("Fahrzeugstamm aktualisiert."); this.refreshAllData(); 
+                var res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.newVeh) });
+                if (res.ok) { this.closeModal(); this.showToast("Fahrzeugstamm aktualisiert."); this.refreshAllData(); }
+                else { alert("SPEICHERN FEHLGESCHLAGEN! Fuhrpark-Pfad blockiert. Status: " + res.status); }
             },
             async deleteVeh(id) {
-                if (confirm("Soll dieses Einsatzfahrzeug permanent aus dem Fuhrpark gelöscht werden?")) {
-                    await fetch('/api/vehicles/' + id, { method: 'DELETE' });
-                    this.showToast("Fahrzeug gelöscht."); this.refreshAllData();
-                }
+                if (!confirm("Soll dieses Einsatzfahrzeug permanent aus dem Fuhrpark gelöscht werden?")) return;
+                var res = await fetch('/api/vehicles/' + id, { method: 'DELETE' });
+                if (res.ok) { this.showToast("Fahrzeug gelöscht."); this.refreshAllData(); }
+                else { alert("LÖSCHEN FEHLGESCHLAGEN! Fahrzeug-Löschpfad blockiert. Status: " + res.status); }
             },
+
             getPersonnelName(id) {
                 if (!id || id === 0) return 'Systemzugang (Reiner App-User)'; if (!Array.isArray(this.personnel)) return 'ID: ' + id;
                 var found = this.personnel.find(function(x) { return x && x.id === id; }); return found ? found.name : 'ID: ' + id;

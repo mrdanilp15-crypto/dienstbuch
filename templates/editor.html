@@ -88,6 +88,14 @@
     </div>
 
     <script>
+        function ensureArray(data) {
+            if (Array.isArray(data)) return data;
+            if (data && typeof data === 'object') {
+                for (var key in data) { if (Array.isArray(data[key])) return data[key]; }
+            }
+            return [];
+        }
+
         Vue.createApp({
             data() {
                 return {
@@ -113,7 +121,12 @@
                     const method = this.sessionId ? 'PUT' : 'POST';
 
                     const res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (res.ok) { window.location.href = '/dashboard'; } else { alert("Fehler beim Sichern des Berichts!"); }
+                    if (res.ok) { 
+                        window.location.href = '/dashboard'; 
+                    } else { 
+                        // DIAGNOSE-ALARM: Zeigt den genauen HTTP-Statuscode des Python-Backends an!
+                        alert("PUT/POST-FEHLER BEIM SPEICHERN! Der Server meldet HTTP-Status: " + res.status + " (" + res.statusText + "). Prüfe, ob die Route in routers/sessions.py existiert."); 
+                    }
                 }
             },
             async mounted() {
@@ -121,28 +134,24 @@
                     const params = new URLSearchParams(window.location.search);
                     this.sessionId = parseInt(params.get('session_id')) || 0;
                     
-                    // Fängt Netzwerkfehler ab, damit die Seite nicht weiß bleibt
                     const vRes = await fetch('/api/vehicles').catch(() => null);
                     const pRes = await fetch('/api/personnel/list').catch(() => null);
                     
-                    this.vehicles = vRes && vRes.ok ? await vRes.json() : [];
-                    this.personnel = pRes && pRes.ok ? await pRes.json() : [];
+                    this.vehicles = ensureArray(vRes && vRes.ok ? await vRes.json() : []);
+                    this.personnel = ensureArray(pRes && pRes.ok ? await pRes.json() : []);
                     
-                    if (!Array.isArray(this.vehicles)) this.vehicles = [];
-                    if (!Array.isArray(this.personnel)) this.personnel = [];
-
                     if (this.sessionId) {
                         const sRes = await fetch('/groups/' + this.groupId + '/sessions/' + this.sessionId).catch(() => null);
                         if (sRes && sRes.ok) {
                             const sData = await sRes.json();
                             this.session = sData.session || this.session;
-                            this.attendance = sData.attendance || [];
+                            this.attendance = ensureArray(sData.attendance || []);
                         }
                     }
 
                     var self = this;
                     this.attendanceList = this.personnel.map(function(p) {
-                        var match = Array.isArray(self.attendance) ? self.attendance.find(function(a) { return a.person_id === p.id; }) : null;
+                        var match = self.attendance.find(function(a) { return a && a.person_id === p.id; });
                         return { person_id: p.id, name: p.name, is_present: match ? !!match.is_present : false, vehicle: match ? match.vehicle : "" };
                     });
                 } catch (err) {
