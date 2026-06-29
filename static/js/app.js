@@ -57,25 +57,26 @@ function initVueApp() {
             }
         },
         computed: {
-            // FIX: Berechnet die offenen Mängel browserkompatibel ohne Pfeilfunktionen im HTML
+            // IMMUN GEGEN CODESCHÄDEN: Alle computed-Funktionen sichern sich ab, bevor sie Arrays filtern
             openTicketsCount() {
                 if (!Array.isArray(this.tickets)) return 0;
-                return this.tickets.filter(function(t) { return t.status === 'neu'; }).length;
+                return this.tickets.filter(function(t) { return t && t.status === 'neu'; }).length;
             },
             lowStockItems() {
                 if (this.identity.role !== 'admin' && this.identity.role !== 'geratewart') return [];
                 if (!Array.isArray(this.inventory)) return [];
-                return this.inventory.filter(function(i) { return i.amount <= i.min_amount; });
+                return this.inventory.filter(function(i) { return i && i.amount <= i.min_amount; });
             },
             myPSA() {
                 var self = this;
                 if (!this.identity.personnel_id || !Array.isArray(this.psaList)) return [];
-                return this.psaList.filter(function(p) { return p.person_id === self.identity.personnel_id; });
+                return this.psaList.filter(function(p) { return p && p.person_id === self.identity.personnel_id; });
             },
             filteredInventory() {
                 var self = this;
                 if (!Array.isArray(this.inventory)) return [];
                 return this.inventory.filter(function(i) {
+                    if (!i) return false;
                     var matchGewerk = self.lagerFilter.gewerk === 'Alle' || i.category === self.lagerFilter.gewerk;
                     var matchSuche = !self.lagerFilter.suche || 
                         i.item_name.toLowerCase().includes(self.lagerFilter.suche.toLowerCase()) || 
@@ -89,6 +90,7 @@ function initVueApp() {
                 
                 var alerts = []; var today = new Date();
                 this.personnel.forEach(function(p) {
+                    if (!p) return;
                     if (p.g26_3_date) {
                         var diff = (new Date(p.g26_3_date) - today) / (1000 * 60 * 60 * 24);
                         if (diff <= 90) alerts.push({ msg: "G26.3 Untersuchung läuft ab bei: " + p.name + " (" + p.g26_3_date + ")!" });
@@ -100,7 +102,7 @@ function initVueApp() {
                 });
                 if (Array.isArray(this.vehicles)) {
                     this.vehicles.forEach(function(v) {
-                        if (v.tuv_date) {
+                        if (v && v.tuv_date) {
                             var diff = (new Date(v.tuv_date) - today) / (1000 * 60 * 60 * 24);
                             if (diff <= 60) alerts.push({ msg: "HU/TÜV fällig bei Fahrzeug: " + v.name + " (" + v.tuv_date + ")!" });
                         }
@@ -115,6 +117,7 @@ function initVueApp() {
 
                 var safeSessions = Array.isArray(this.sessions) ? this.sessions : (this.sessions && Array.isArray(this.sessions.sessions) ? this.sessions.sessions : []);
                 safeSessions.forEach(function(s) {
+                    if (!s) return;
                     totalHours += (parseFloat(s.duration) || 0);
                     if (s.category === 'Übung') uebungen++;
                     else if (s.category === 'Einsatz') einsatze++;
@@ -123,7 +126,7 @@ function initVueApp() {
 
                 var safePersonnel = Array.isArray(this.personnel) ? this.personnel : [];
                 safePersonnel.forEach(function(p) {
-                    // FIX: Tolerantes Matching fängt MySQL TINYINT (1/0) sauber als Boolean ab
+                    if (!p) return;
                     if (p.is_agt == 1 || p.is_agt === true || p.is_agt === 'true') agtCount++;
                     if (p.is_maschinist == 1 || p.is_maschinist === true || p.is_maschinist === 'true') maschinistCount++;
                     if (p.is_gf == 1 || p.is_gf === true || p.is_gf === 'true') gfCount++;
@@ -147,6 +150,10 @@ function initVueApp() {
             closeToast() { this.toastVisible = false; },
             openModal(id) { this.modalActive = id; },
             closeModal() { this.modalActive = null; },
+            openTicketModal(t) {
+                this.newTicket = t ? Object.assign({}, t) : { title: '', content: '', priority: 'normal', status: 'neu', vehicle_id: 0, inventory_id: 0 };
+                this.openModal('ticketModal');
+            },
             
             async apiCall(url, method, body) {
                 var options = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
@@ -172,25 +179,31 @@ function initVueApp() {
                 for (var key in endpoints) {
                     try {
                         var data = await this.fetchJson(endpoints[key]);
-                        if (key === 'activeAlarm') {
-                            // GLOBALER ALARM-ABGLEICH: Wenn der Server "no_alarm" meldet, schließt sich das Banner überall
-                            if (data && data.status !== 'no_alarm') { this.activeAlarm = data; } 
-                            else { this.activeAlarm = null; }
-                        } else if (data) {
-                            this[key] = data;
+                        if (data) {
+                            if (key === 'activeAlarm') {
+                                var closedId = localStorage.getItem('fw_quitted_alarm_id');
+                                if (data && data.status !== 'no_alarm' && (!closedId || closedId !== String(data.id))) {
+                                    this.activeAlarm = data;
+                                } else {
+                                    this.activeAlarm = null;
+                                }
+                            } else {
+                                // SICHERHEITS-NETZ: Verwandelt fehlerhafte DB-Rückgaben automatisch in leere Listen
+                                if (['vehicles', 'inventory', 'personnel', 'users', 'tickets', 'archiveDocs', 'sessions', 'psaList'].includes(key) && !Array.isArray(data)) {
+                                    this[key] = [];
+                                } else {
+                                    this[key] = data;
+                                }
+                            }
                         }
                     } catch (e) {}
                 }
             },
             
-            // SERVERBASIERTE ALARM-QUITTIERUNG (Gilt live für alle Monitore)
-            async clearActiveAlarm() {
-                await fetch('/api/alarm/clear', { method: 'POST' });
-                this.activeAlarm = null;
-                this.showToast("Einsatzmeldung global auf allen Stationen beendet.");
-                this.refreshAllData();
+            clearActiveAlarm() {
+                if (this.activeAlarm) { localStorage.setItem('fw_quitted_alarm_id', String(this.activeAlarm.id || 'static_id')); }
+                this.activeAlarm = null; this.showToast("Einsatzmeldung ausgeblendet.");
             },
-
             async deleteSessionReport(id) {
                 if (confirm("Möchtest du diesen Dienstbericht permanent aus dem Logbuch löschen?")) {
                     var res = await fetch('/groups/1/sessions/' + id, { method: 'DELETE' });
@@ -223,23 +236,25 @@ function initVueApp() {
                     if (!window.hydrantLayerGroup) { window.hydrantLayerGroup = L.layerGroup().addTo(window.feuerwehrMapInstance); } 
                     else { window.hydrantLayerGroup.clearLayers(); }
                     
-                    fetch('/api/hydranten').then(function(res) { return res.json(); }).then(function(data) {
-                        if (data && Array.isArray(data)) {
-                            data.forEach(function(h) {
-                                if (h.hydrant_type === 'Unterflurhydrant' && !self.mapFilters.unterflur) return;
-                                if (h.hydrant_type === 'Überflurhydrant' && !self.mapFilters.ueberflur) return;
-                                if (h.hydrant_type === 'Löschwasserzisterne' && !self.mapFilters.zisterne) return;
-                                L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
-                                    <div class="p-1">
-                                        <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
-                                        <b>Dimension:</b> ${h.diameter}<br><hr class="my-1">
-                                        <button class="btn btn-xs btn-dark mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.startHydrantCheck(${h.id})">Prüfung</button>
-                                        <button class="btn btn-xs btn-outline-danger mt-1 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
-                                    </div>
-                                `);
-                            });
-                        }
-                    });
+                    fetch('/api/hydranten')
+                        .then(function(res) { return res.ok ? res.json() : []; }).catch(function() { return []; })
+                        .then(function(data) {
+                            if (data && Array.isArray(data)) {
+                                data.forEach(function(h) {
+                                    if (!h || (h.hydrant_type === 'Unterflurhydrant' && !self.mapFilters.unterflur)) return;
+                                    if (h.hydrant_type === 'Überflurhydrant' && !self.mapFilters.ueberflur) return;
+                                    if (h.hydrant_type === 'Löschwasserzisterne' && !self.mapFilters.zisterne) return;
+                                    L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
+                                        <div class="p-1">
+                                            <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
+                                            <b>Dimension:</b> ${h.diameter}<br><hr class="my-1">
+                                            <button class="btn btn-xs btn-dark mt-2 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.startHydrantCheck(${h.id})">Prüfung</button>
+                                            <button class="btn btn-xs btn-outline-danger mt-1 w-100 rounded-pill font-weight-bold" onclick="window.vueApp.deleteHydrant(${h.id})">Löschen</button>
+                                        </div>
+                                    `);
+                                });
+                            }
+                        });
                 });
             },
             startHydrantCheck(id) {
@@ -270,7 +285,6 @@ function initVueApp() {
                 };
                 this.activeEriCard = unDatabase[un] || { un_number: un, substance: "Sonder-Gefahrstoff", danger_text: "Stoff nicht im Schnellregister.", safety_measures: "Sicherheitsabsperrung weiträumig aufbauen. Fachberater anfordern.", radius: "100 Meter", gear: "CSA empfohlen", water_risk: "Gefahr annehmen." };
             },
-
             async generateQRWindow(i) {
                 var id = i.qr_code_id || 'QR-' + Math.random().toString(36).substr(2, 6).toUpperCase(); i.qr_code_id = id;
                 await this.apiCall('/api/inventory', 'POST', i); this.refreshAllData(); this.openModal('qrModal');
@@ -286,7 +300,6 @@ function initVueApp() {
                     new QRCode(box, { text: window.location.origin + "/dashboard?tab=lager&qr=" + p.qr_code_id, width: 160, height: 160 });
                 });
             },
-
             processArchiveFile(e) {
                 var self = this; var file = e.target.files[0]; if (!file) return;
                 var reader = new FileReader(); reader.onload = function(ev) { self.newArchiveDoc.file_blob = ev.target.result; }; reader.readAsDataURL(file);
@@ -304,8 +317,6 @@ function initVueApp() {
                 if (!doc.file_blob) return; var win = window.open();
                 if (win) win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
             },
-
-            // AUTOMATISCHE UNTERSCHEIDUNG FÜR EDITIEREN (PUT) VS ERSTELLEN (POST)
             async saveTicket() { 
                 var url = this.newTicket.id ? '/api/tickets/' + this.newTicket.id : '/api/tickets';
                 var method = this.newTicket.id ? 'PUT' : 'POST';
@@ -314,18 +325,15 @@ function initVueApp() {
             },
             async setTicketStatus(id, status) { await this.apiCall('/api/tickets/' + id + '/status', 'PUT', { status: status }); this.refreshAllData(); },
             async delTicket(id) { if (confirm("Mangel permanent löschen?")) { await fetch('/api/tickets/' + id, { method: 'DELETE' }); this.refreshAllData(); } },
-
             async changeMyPassword() {
                 if (!this.profilePassword || this.profilePassword.trim().length < 4) { this.showToast("Das Passwort muss mindestens 4 Zeichen lang sein!", true); return; }
                 var res = await this.apiCall('/api/users/password/self', 'PUT', { password: this.profilePassword.trim() });
                 if (res && res.status === 'success') { this.showToast("Passwort aktualisiert!"); this.profilePassword = ''; }
             },
-
             async saveSettings() {
                 var res = await this.apiCall('/api/settings', 'POST', this.registry);
                 if (res) { this.showToast("Wachenkonfiguration gesichert!"); this.refreshAllData(); }
             },
-
             processProfilePic(e) {
                 var self = this; var file = e.target.files[0]; if (!file) return;
                 var reader = new FileReader(); reader.onload = function(ev) { self.newMem.profile_picture = ev.target.result; }; reader.readAsDataURL(file);
@@ -340,6 +348,12 @@ function initVueApp() {
                 await this.apiCall(url, method, this.newMem); 
                 this.closeModal(); this.showToast("Kameradenakte synchronisiert."); this.refreshAllData(); 
             },
+            async deleteMember(id) {
+                if (confirm("Möchtest du diese Kameradenakte permanent aus dem System löschen?")) {
+                    await fetch('/api/personnel/' + id, { method: 'DELETE' });
+                    this.showToast("Kamerad erfolgreich gelöscht."); this.refreshAllData();
+                }
+            },
             openUserModal(u) {
                 this.newUser = u ? Object.assign({}, u) : { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 };
                 this.openModal('userModal');
@@ -349,6 +363,12 @@ function initVueApp() {
                 var method = this.newUser.id ? 'PUT' : 'POST';
                 await this.apiCall(url, method, this.newUser); 
                 this.closeModal(); this.showToast("Systemlogin konfiguriert."); this.refreshAllData(); 
+            },
+            async deleteUser(id) {
+                if (confirm("Soll dieser Systemzugang permanent gelöscht werden?")) {
+                    await fetch('/api/users/' + id, { method: 'DELETE' });
+                    this.showToast("Login erfolgreich entfernt."); this.refreshAllData();
+                }
             },
             openInvModal(i) {
                 this.newInv = i ? Object.assign({}, i) : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' };
@@ -360,9 +380,14 @@ function initVueApp() {
                 await this.apiCall(url, method, this.newInv); 
                 this.closeModal(); this.showToast("Lagerpool aktualisiert."); this.refreshAllData(); 
             },
+            async deleteInv(id) {
+                if (confirm("Soll dieser Lagerartikel dauerhaft ausgebucht werden?")) {
+                    await fetch('/api/inventory/' + id, { method: 'DELETE' });
+                    this.showToast("Artikel aus Pool entfernt."); this.refreshAllData();
+                }
+            },
             openPsaModal(p) {
-                var self = this;
-                var kamerad = this.personnel.find(function(x) { return x.id === (p ? p.person_id : null); });
+                var self = this; var kamerad = this.personnel.find(function(x) { return x && x.id === (p ? p.person_id : null); });
                 this.newPsa = p ? Object.assign({}, p) : { id: null, person_id: 0, item_name: '', size: kamerad ? kamerad.size_jacke : '', qr_code_id: '', status: 'Ausgegeben', next_check: null };
                 this.openModal('psaModal');
             },
@@ -388,31 +413,34 @@ function initVueApp() {
                 await this.apiCall(url, method, this.newVeh); 
                 this.closeModal(); this.showToast("Fahrzeugstamm aktualisiert."); this.refreshAllData(); 
             },
+            async deleteVeh(id) {
+                if (confirm("Soll dieses Einsatzfahrzeug permanent aus dem Fuhrpark gelöscht werden?")) {
+                    await fetch('/api/vehicles/' + id, { method: 'DELETE' });
+                    this.showToast("Fahrzeug gelöscht."); this.refreshAllData();
+                }
+            },
             getPersonnelName(id) {
                 if (!id || id === 0) return 'Systemzugang (Reiner App-User)'; if (!Array.isArray(this.personnel)) return 'ID: ' + id;
-                var found = this.personnel.find(function(x) { return x.id === id; }); return found ? found.name : 'ID: ' + id;
+                var found = this.personnel.find(function(x) { return x && x.id === id; }); return found ? found.name : 'ID: ' + id;
             },
             async triggerLogout() { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login'; }
         },
         async mounted() {
-            var self = this;
-            this.webhookUrl = window.location.origin + '/api/webhook/alarm';
+            var self = this; this.webhookUrl = window.location.origin + '/api/webhook/alarm';
             var urlParams = new URLSearchParams(window.location.search);
             var targetTab = urlParams.get('tab'); var qrId = urlParams.get('qr');
             if (targetTab && qrId) { sessionStorage.setItem('deep_link_tab', targetTab); sessionStorage.setItem('deep_link_qr', qrId); }
             
             var res = await this.fetchJson('/api/auth/me');
-            if (!res) { window.location.href = '/login'; return; }
-            this.identity = res;
+            if (!res) { window.location.href = '/login'; return; } this.identity = res;
             
-            await this.refreshAllData();
-            this.ready = true;
+            await this.refreshAllData(); this.ready = true;
             
             var savedTab = sessionStorage.getItem('deep_link_tab'); var savedQr = sessionStorage.getItem('deep_link_qr');
             if (savedTab && savedQr) {
                 sessionStorage.removeItem('deep_link_tab'); sessionStorage.removeItem('deep_link_qr'); this.currentTab = savedTab;
                 this.$nextTick(function() {
-                    var found = self.psaList.find(function(p) { return p.qr_code_id === savedQr; }) || self.inventory.find(function(i) { return i.qr_code_id === savedQr; });
+                    var found = self.psaList.find(function(p) { return p && p.qr_code_id === savedQr; }) || self.inventory.find(function(i) { return i && i.qr_code_id === savedQr; });
                     if (found) {
                         if (found.person_id !== undefined) { self.newPsa = Object.assign({}, found); self.openModal('psaModal'); self.subTabLager = 'ausgabe'; } 
                         else { self.openInvModal(found); self.subTabLager = 'bestand'; }

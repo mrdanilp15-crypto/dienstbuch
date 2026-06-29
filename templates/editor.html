@@ -3,88 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstbericht-Protokollführung</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Dienstbuch — Protokoll-Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
     <style>
         [v-cloak] { display: none !important; }
-        body { background: #f1f5f9; color: #1e293b; font-family: system-ui, -apple-system, sans-serif; padding: 40px 20px; }
-        .editor-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 32px; }
-        .attendance-row { border-bottom: 1px solid #f1f5f9; padding: 10px 0; transition: background 0.15s; }
-        .attendance-row:hover { background: #f8fafc; }
+        body { background: #f1f5f9; color: #1e293b; padding: 40px 20px; }
+        .editor-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15,23,42,0.04); }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
 </head>
 <body>
-    <div id="editorApp" v-cloak class="container" style="max-width: 900px;">
-        <div class="editor-card">
+    <div id="editorApp" v-cloak class="container style-container" style="max-width: 900px;">
+        <div class="card editor-card p-4 md-5">
             <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
-                <h3 class="fw-bold m-0 text-dark"><i class="fa fa-file-pen text-danger me-2"></i> Dienstbucheintrag erfassen</h3>
-                <button type="button" class="btn btn-outline-secondary rounded-pill fw-bold btn-sm" @click="abort()"><i class="fa fa-arrow-left"></i> Zurück</button>
+                <h2 class="fw-bold m-0 text-dark"><i class="fa fa-pen-nib text-danger me-2"></i>Dienstbericht verfassen</h2>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill fw-bold" @click="abort()">Abbrechen</button>
+                    <button type="button" class="btn btn-danger rounded-pill fw-bold px-4" @click="saveReport()">Bericht sichern</button>
+                </div>
             </div>
 
-            <form @submit.prevent="saveReport()">
-                <div class="row g-3 mb-3">
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Aktivitäts-Datum *</label>
-                        <input type="date" v-model="session.date" class="form-control fw-bold" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Kategorie *</label>
-                        <select v-model="session.category" class="form-select fw-bold" required>
-                            <option value="Übung">Ausbildung / Übung</option>
-                            <option value="Einsatz">Einsatzbericht</option>
-                            <option value="Arbeitsdienst">Gerätewartung / Arbeitsdienst</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-muted">Dauer (in Stunden) *</label>
-                        <input type="number" step="0.5" v-model.number="session.duration" class="form-control fw-bold" required>
-                    </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-uppercase text-muted">Datum des Dienstes</label>
+                    <input type="date" v-model="session.date" class="form-control">
                 </div>
-
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted">Einsatzstichwort / Kurzbeschreibung *</label>
-                    <input type="text" v-model="session.description" class="form-control fw-bold" placeholder="z. B. Brandmeldeanlage Gewerbegebiet oder Monatsübung Schaum" required>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-uppercase text-muted">Dienstkategorie</label>
+                    <select v-model="session.category" class="form-select fw-semibold">
+                        <option value="Übung">Übungsdienst / Ausbildung</option>
+                        <option value="Einsatz">Einsatzbericht</option>
+                        <option value="Sonstiges">Sonstige Veranstaltung / Wache</option>
+                    </select>
                 </div>
-
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted">Ausbildungsleiter / Einsatzleitung *</label>
-                    <input type="text" v-model="session.instructors" class="form-control fw-bold" placeholder="Name des Gruppenführers / Leiters" required>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-uppercase text-muted">Dauer (in Stunden)</label>
+                    <input type="number" step="0.5" v-model="session.duration" class="form-control font-monospace">
                 </div>
+            </div>
 
-                <!-- PROTOKOLLTEXT -->
-                <div class="mb-4">
-                    <label class="form-label small fw-bold text-muted">Ausführlicher Bericht / Vorkommnisse</label>
-                    <textarea v-model="session.content" class="form-control" rows="5" placeholder="Genaue Tätigkeiten, eingesetzte Geräte oder Übungsverlauf dokumentieren..."></textarea>
-                </div>
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-uppercase text-muted">Thema / Einsatzstichwort</label>
+                <input type="text" v-model="session.description" class="form-control fw-bold fs-5 text-dark" placeholder="z.B. Technische Hilfeleistung — VU Person eingeklemmt">
+            </div>
 
-                <!-- MANNSCHAFTS-CHECKLISTE -->
-                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="fa fa-users text-muted me-2"></i> Anwesenheitsliste & Fahrzeugbelegung</h5>
-                <div class="card p-3 bg-light mb-4 shadow-sm">
-                    <div v-for="p in attendanceList" :key="p.person_id" class="row align-items-center attendance-row">
-                        <div class="col-6">
-                            <div class="form-check m-0">
-                                <input class="form-check-input" type="checkbox" v-model="p.is_present" :id="'p-'+p.person_id}">
-                                <label class="form-check-label fw-bold text-dark" :for="'p-'+p.id">{{ p.name }}</label>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <select v-model="p.vehicle" class="form-select form-select-sm fw-bold" :disabled="!p.is_present">
-                                <option value="">Im Gerätehaus verblieben</option>
-                                <option v-for="v in vehicles" :value="v.name">{{ v.name }}</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-uppercase text-muted">Ausbilder / Einsatzleiter</label>
+                <input type="text" v-model="session.instructors" class="form-control" placeholder="Name eintragen...">
+            </div>
 
-                <button type="submit" class="btn btn-danger w-100 rounded-pill fw-bold py-2.5 shadow"><i class="fa fa-floppy-disk me-1"></i> Dienstbericht rechtsgültig verbuchen</button>
-            </form>
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-uppercase text-muted">Detaillierter Berichtsinhalt / Logbucheintrag</label>
+                <textarea rows="6" v-model="session.content" class="form-control" placeholder="Ausbildungsinhalt oder Einsatzverlauf dokumentieren..."></textarea>
+            </div>
+
+            <h4 class="text-dark border-bottom pb-2 mb-3"><i class="fa fa-users text-muted me-2"></i>Mannschaft & Fahrzeugbesetzung</h4>
+            <div class="table-responsive rounded-3 border overflow-hidden">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small fw-bold text-secondary">
+                            <th class="ps-3">Kamerad</th>
+                            <th class="text-center" style="width: 150px;">Anwesend</th>
+                            <th>Fahrzeug-Zuweisung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="p in attendanceList" :key="p.person_id">
+                            <td class="ps-3 fw-bold text-dark">{{ p.name }}</td>
+                            <td class="text-center">
+                                <input type="checkbox" v-model="p.is_present" class="form-check-input" style="width: 20px; height: 20px;">
+                            </td>
+                            <td>
+                                <select v-model="p.vehicle" class="form-select form-select-sm" :disabled="!p.is_present">
+                                    <option value="">-- Kein Fahrzeug (Wache/Bereitschaft) --</option>
+                                    <option v-for="v in vehicles" :key="v.id" :value="v.name">{{ v.name }}</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        // FIX: Der explizite Aufruf über "Vue.createApp" verhindert den Absturz im Browser
         Vue.createApp({
             data() {
                 return {
@@ -93,16 +96,6 @@
                     vehicles: [],
                     personnel: [],
                     attendance: [],
-                    sessionDocs: [],
-                    newTicket: {title:'', content:'', priority:'normal', status:'neu', vehicle_id: 0, inventory_id: 0},
-                    newHyd: {lat:47.9942, lon:10.1344, hydrant_type:'Unterflurhydrant', diameter:'DN80'},
-                    newMem: { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, g26_3_date: null, last_license_check: null, mta_status: 'Basis', qualifications: '', size_helm:'', size_jacke:'', size_stiefel:'', profile_picture: null },
-                    newUser: { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 },
-                    newInv: { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' },
-                    newPsa: { id: null, person_id: 0, item_name: '', size: '', qr_code_id: '', status: 'Ausgegeben', next_check: null },
-                    newVeh: { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null },
-                    hydrantInspection: { hydrant_id: 0, tester_name: '', kappe_gefettet: true, schild_lesbar: true, maengel_text: '' },
-                    newArchiveDoc: { title: '', keywords: '', file_blob: '' },
                     session: { date: new Date().toISOString().split('T')[0], category: 'Übung', duration: 2.0, description: '', content: '', instructors: '' },
                     attendanceList: []
                 }
@@ -112,33 +105,49 @@
                 async saveReport() {
                     const payload = {
                         session: this.session,
-                        attendance: this.attendanceList.map(a => ({ person_id: a.person_id, is_present: a.is_present, vehicle: a.vehicle }))
+                        attendance: this.attendanceList.map(function(a) {
+                            return { person_id: a.person_id, is_present: a.is_present ? 1 : 0, vehicle: a.vehicle };
+                        })
                     };
-                    const url = this.sessionId ? `/groups/${this.groupId}/sessions/${this.sessionId}` : `/groups/${this.groupId}/sessions`;
+                    const url = this.sessionId ? '/groups/' + this.groupId + '/sessions/' + this.sessionId : '/groups/' + this.groupId + '/sessions';
                     const method = this.sessionId ? 'PUT' : 'POST';
 
-                    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (res.ok) { window.location.href = '/dashboard'; } else { alert("Fehler beim Sichern des Protokolls!"); }
+                    const res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (res.ok) { window.location.href = '/dashboard'; } else { alert("Fehler beim Sichern des Berichts!"); }
                 }
             },
             async mounted() {
-                const params = new URLSearchParams(window.location.search);
-                this.sessionId = parseInt(params.get('session_id')) || 0;
-                
-                const [vRes, pRes] = await Promise.all([fetch('/api/vehicles'), fetch('/api/personnel/list')]);
-                this.vehicles = await vRes.json(); this.personnel = await pRes.json();
+                try {
+                    const params = new URLSearchParams(window.location.search);
+                    this.sessionId = parseInt(params.get('session_id')) || 0;
+                    
+                    // Fängt Netzwerkfehler ab, damit die Seite nicht weiß bleibt
+                    const vRes = await fetch('/api/vehicles').catch(() => null);
+                    const pRes = await fetch('/api/personnel/list').catch(() => null);
+                    
+                    this.vehicles = vRes && vRes.ok ? await vRes.json() : [];
+                    this.personnel = pRes && pRes.ok ? await pRes.json() : [];
+                    
+                    if (!Array.isArray(this.vehicles)) this.vehicles = [];
+                    if (!Array.isArray(this.personnel)) this.personnel = [];
 
-                if (this.sessionId) {
-                    const sRes = await fetch(`/groups/${this.groupId}/sessions/${this.sessionId}`);
-                    const sData = await sRes.json();
-                    this.session = sData.session;
-                    this.attendance = sData.attendance || [];
+                    if (this.sessionId) {
+                        const sRes = await fetch('/groups/' + this.groupId + '/sessions/' + this.sessionId).catch(() => null);
+                        if (sRes && sRes.ok) {
+                            const sData = await sRes.json();
+                            this.session = sData.session || this.session;
+                            this.attendance = sData.attendance || [];
+                        }
+                    }
+
+                    var self = this;
+                    this.attendanceList = this.personnel.map(function(p) {
+                        var match = Array.isArray(self.attendance) ? self.attendance.find(function(a) { return a.person_id === p.id; }) : null;
+                        return { person_id: p.id, name: p.name, is_present: match ? !!match.is_present : false, vehicle: match ? match.vehicle : "" };
+                    });
+                } catch (err) {
+                    console.error("Kritisches Einfrieren im Editor verhindert:", err);
                 }
-
-                this.attendanceList = this.personnel.map(p => {
-                    const match = this.attendance.find(a => a.person_id === p.id);
-                    return { person_id: p.id, name: p.name, is_present: match ? !!match.is_present : false, vehicle: match ? match.vehicle : "" };
-                });
             }
         }).mount('#editorApp');
     </script>
