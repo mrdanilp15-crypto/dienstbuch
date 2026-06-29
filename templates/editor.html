@@ -84,7 +84,8 @@
     </div>
 
     <script>
-        createApp({
+        // FIX: Expliziter Aufruf über das globale Vue-Objekt verhindert den ReferenceError
+        Vue.createApp({
             data() {
                 return {
                     sessionId: 0,
