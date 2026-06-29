@@ -1,34 +1,67 @@
-<div class="d-flex justify-content-between mb-4">
-    <h2>Fuhrpark & UVV-Geräteüberwachung</h2>
-    <button type="button" class="btn btn-dark rounded-pill fw-bold" @click="openVehModal(null)">Gerät / Fahrzeug anlegen</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Wachen-Einstellungen & Schnittstellen</h2>
+    <button type="button" class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm" @click="saveSettings()">
+        <i class="fa fa-floppy-disk me-1"></i> Konfiguration speichern
+    </button>
 </div>
 
-<div class="card p-0 overflow-hidden bg-white border shadow-sm">
-    <table class="table mb-0 align-middle">
-        <thead class="table-light">
-            <tr>
-                <th>Bezeichnung / Typ <i class="fa-solid fa-circle-info tooltip-icon" title="Eingetragener Fuhrpark und Tragkraftspritzen der Wehr"></i></th>
-                <th>Funkrufname</th>
-                <th>Kilometerstand</th>
-                <th>Kraftstoff</th>
-                <th>Betriebsstunden</th>
-                <th class="text-end">Aktion</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="v in vehicles" :key="v.id">
-                <td><b>{{ v.name }}</b><br><small class="text-muted font-monospace" v-if="v.license_plate">{{ v.license_plate }}</small></td>
-                <td><span class="badge bg-light text-dark border font-monospace fw-bold">{{ v.radio_name }}</span></td>
-                <td>{{ v.milage }} km</td>
-                <td><span class="badge bg-light text-dark border"><i class="fa fa-gas-pump text-danger me-1"></i> {{ v.fuel_type || 'Diesel' }}</span></td>
-                <td><span class="badge bg-dark font-monospace fs-6">{{ v.operating_hours || 0.0 }} Bh</span></td>
-                <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-dark" @click="openVehModal(v)"><i class="fa fa-edit"></i> Bearbeiten</button>
-                </td>
-            </tr>
-            <tr v-if="vehicles.length === 0">
-                <td colspan="6" class="text-center p-4 text-muted">Es wurden noch keine Fahrzeuge oder Aggregate im System hinterlegt.</td>
-            </tr>
-        </tbody>
-    </table>
+<div class="row g-4">
+    <!-- Linke Spalte: Stammdaten & Koordinaten -->
+    <div class="col-md-6">
+        <div class="card p-4 bg-white border shadow-sm rounded-4 h-100">
+            <h4 class="text-dark border-bottom pb-2 mb-3">
+                <i class="fa fa-building-shield text-danger me-2"></i>Dienststellen-Stammdaten
+            </h4>
+            
+            <div class="mb-3">
+                <label class="form-label fw-bold text-secondary small text-uppercase">Name der Feuerwehr / Wache</label>
+                <input type="text" v-model="registry.station_name" class="form-control fw-semibold" placeholder="z.B. Freiwillige Feuerwehr Buxheim">
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <label class="form-label fw-bold text-secondary small text-uppercase">Breitengrad (Lat)</label>
+                    <input type="text" v-model="registry.station_lat" class="form-control font-monospace" placeholder="47.9994">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold text-secondary small text-uppercase">Längengrad (Lon)</label>
+                    <input type="text" v-model="registry.station_lon" class="form-control font-monospace" placeholder="10.1325">
+                </div>
+            </div>
+            <small class="text-muted d-block bg-light p-2.5 rounded-3">
+                <i class="fa fa-info-circle text-info me-1"></i> Die Koordinaten bestimmen den Standard-Mittelpunkt eurer taktischen Lagekarte im Dashboard.
+            </small>
+        </div>
+    </div>
+
+    <!-- Rechte Spalte: Alamos- & Webhook-Schnittstellen -->
+    <div class="col-md-6">
+        <div class="card p-4 bg-white border shadow-sm rounded-4 h-100">
+            <h4 class="text-dark border-bottom pb-2 mb-3">
+                <i class="fa fa-network-wired text-danger me-2"></i>Alamos FE2 & Alarm-Schnittstelle
+            </h4>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold text-secondary small text-uppercase">Alamos API-Sicherheits-Token</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted"><i class="fa fa-key"></i></span>
+                    <input type="password" v-model="registry.alamos_token" class="form-control font-monospace" placeholder="FE2-Verbindungsschlüssel eintragen...">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold text-secondary small text-uppercase">Lokale Webhook-URL für Alamos</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted"><i class="fa fa-link"></i></span>
+                    <input type="text" :value="webhookUrl" class="form-control font-monospace bg-light" readonly>
+                    <button type="button" class="btn btn-outline-secondary" @click="navigator.clipboard.writeText(webhookUrl); showToast('In Zwischenablage kopiert!');">
+                        <i class="fa fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <small class="text-muted d-block bg-light p-2.5 rounded-3">
+                <i class="fa fa-triangle-exclamation text-warning me-1"></i> Tragt diese Webhook-URL in eurer FE2-Alarmierungs-Pipeline als HTTP-Request-Aktion ein, um Echtzeit-Einsätze auf dem Monitor zu spiegeln.
+            </small>
+        </div>
+    </div>
 </div>

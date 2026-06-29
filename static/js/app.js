@@ -27,6 +27,7 @@ function initVueApp() {
                 tickets: [],
                 archiveDocs: [],
                 activeAlarm: null,
+                alarmQuitted: false, // Lokal-Schalter blockiert Phantom-Alarme nach dem Quittieren
                 activeEriCard: null,
                 psaList: [],
                 hazmatSearchQuery: '',
@@ -115,7 +116,6 @@ function initVueApp() {
 
                 const safePersonnel = Array.isArray(this.personnel) ? this.personnel : [];
                 safePersonnel.forEach(p => {
-                    // FIX: Tolerantes Abgleichen verhindert fehlerhafte 0-Anzeigen bei MySQL TINYINT-Werten (1/0)
                     if (p.is_agt == 1 || p.is_agt === true || p.is_agt === 'true') agtCount++;
                     if (p.is_maschinist == 1 || p.is_maschinist === true || p.is_maschinist === 'true') maschinistCount++;
                     if (p.is_gf == 1 || p.is_gf === true || p.is_gf === 'true') gfCount++;
@@ -164,19 +164,22 @@ function initVueApp() {
                 for (let key in endpoints) {
                     try {
                         const data = await this.fetchJson(endpoints[key]);
-                        // FIX: Abgleich fängt ungültige oder leere Alarme sauber ab
-                        if (data && data.status !== 'no_alarm') { this[key] = data; } 
-                        else if (key === 'activeAlarm') { this.activeAlarm = null; }
+                        if (key === 'activeAlarm') {
+                            // Wenn der Alarm lokal bereits quittiert wurde, ignorieren wir die Servermeldung
+                            if (this.alarmQuitted) { this.activeAlarm = null; } 
+                            else if (data && data.status !== 'no_alarm') { this.activeAlarm = data; } 
+                            else { this.activeAlarm = null; }
+                        } else if (data) {
+                            this[key] = data;
+                        }
                     } catch (e) {}
                 }
             },
             
-            // DIE NEUE GEISTER-ALARM QUITTIERUNG
-            async clearActiveAlarm() {
-                await fetch('/api/alarm/clear', { method: 'POST' });
+            clearActiveAlarm() {
+                this.alarmQuitted = true;
                 this.activeAlarm = null;
-                this.showToast("Einsatzmeldung erfolgreich quittiert.");
-                this.refreshAllData();
+                this.showToast("Einsatzmeldung auf diesem Leitstand ausgeblendet.");
             },
 
             async deleteSessionReport(id) {
@@ -216,7 +219,6 @@ function initVueApp() {
                                 if (h.hydrant_type === 'Unterflurhydrant' && !this.mapFilters.unterflur) return;
                                 if (h.hydrant_type === 'Überflurhydrant' && !this.mapFilters.ueberflur) return;
                                 if (h.hydrant_type === 'Löschwasserzisterne' && !this.mapFilters.zisterne) return;
-                                const dHoses = Math.ceil(180 / 20);
                                 L.marker([h.lat, h.lon]).addTo(window.hydrantLayerGroup).bindPopup(`
                                     <div class="p-1">
                                         <b class="text-danger fs-6"><i class="fa fa-faucet"></i> ${h.hydrant_type}</b><br>
@@ -293,7 +295,12 @@ function initVueApp() {
                 if (win) win.document.write(`<iframe src="${doc.file_blob}" frameborder="0" style="border:0; top:0px; left:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
             },
 
-            async saveTicket() { await this.apiCall('/api/tickets', 'POST', this.newTicket); this.closeModal(); this.showToast("Mängelbericht eingereicht."); this.refreshAllData(); },
+            async saveTicket() { 
+                const url = this.newTicket.id ? `/api/tickets/${this.newTicket.id}` : '/api/tickets';
+                const method = this.newTicket.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newTicket); 
+                this.closeModal(); this.showToast("Mängelbericht synchronisiert."); this.refreshAllData(); 
+            },
             async setTicketStatus(id, status) { await this.apiCall(`/api/tickets/${id}/status`, 'PUT', { status }); this.refreshAllData(); },
             async delTicket(id) { if (confirm("Mangel permanent löschen?")) { await fetch(`/api/tickets/${id}`, { method: 'DELETE' }); this.refreshAllData(); } },
 
@@ -316,17 +323,34 @@ function initVueApp() {
                 this.newMem = p ? { ...p } : { id: null, name: '', rank: 'Feuerwehranwärter', membership_status: 'Aktiv', is_agt: false, is_maschinist: false, is_gf: false, qualifications: '', size_helm: '', size_jacke: '', size_stiefel: '', last_license_check: null, mta_status: 'Basis', profile_picture: null };
                 this.openModal('memberModal');
             },
-            async saveMember() { await this.apiCall('/api/personnel', 'POST', this.newMem); this.closeModal(); this.showToast("Kameradenakte synchronisiert."); this.refreshAllData(); },
+            
+            // DYNAMISCHE REST-ANPASSUNG: Unterscheidet jetzt sauber zwischen Neuanlage (POST) und Bearbeiten (PUT)
+            async saveMember() { 
+                const url = this.newMem.id ? `/api/personnel/${this.newMem.id}` : '/api/personnel';
+                const method = this.newMem.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newMem); 
+                this.closeModal(); this.showToast("Kameradenakte synchronisiert."); this.refreshAllData(); 
+            },
             openUserModal(u) {
                 this.newUser = u ? { ...u } : { id: null, username: '', password: '', role: 'mannschaft', personnel_id: 0 };
                 this.openModal('userModal');
             },
-            async saveUser() { await this.apiCall('/api/users', 'POST', this.newUser); this.closeModal(); this.showToast("Systemlogin konfiguriert."); this.refreshAllData(); },
+            async saveUser() { 
+                const url = this.newUser.id ? `/api/users/${this.newUser.id}` : '/api/users';
+                const method = this.newUser.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newUser); 
+                this.closeModal(); this.showToast("Systemlogin konfiguriert."); this.refreshAllData(); 
+            },
             openInvModal(i) {
                 this.newInv = i ? { ...i } : { id: null, item_name: '', amount: 1, min_amount: 5, unit: 'Stück', location: 'Lager', size: '', category: 'Brandschutz', manufacturer: '', serial_number: '' };
                 this.openModal('invModal');
             },
-            async saveInv() { await this.apiCall('/api/inventory', 'POST', this.newInv); this.closeModal(); this.showToast("Lagerpool aktualisiert."); this.refreshAllData(); },
+            async saveInv() { 
+                const url = this.newInv.id ? `/api/inventory/${this.newInv.id}` : '/api/inventory';
+                const method = this.newInv.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newInv); 
+                this.closeModal(); this.showToast("Lagerpool aktualisiert."); this.refreshAllData(); 
+            },
             openPsaModal(p) {
                 const kamerad = this.personnel.find(x => x.id === p?.person_id);
                 this.newPsa = p ? { ...p } : { id: null, person_id: 0, item_name: '', size: kamerad ? kamerad.size_jacke : '', qr_code_id: '', status: 'Ausgegeben', next_check: null };
@@ -334,7 +358,10 @@ function initVueApp() {
             },
             async savePsaAssignment() {
                 if (!this.newPsa.qr_code_id) { this.newPsa.qr_code_id = 'PSA-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
-                await this.apiCall('/api/psa', 'POST', this.newPsa); this.closeModal(); this.showToast("Ausrüstung zugewiesen."); this.refreshAllData();
+                const url = this.newPsa.id ? `/api/psa/${this.newPsa.id}` : '/api/psa';
+                const method = this.newPsa.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newPsa); 
+                this.closeModal(); this.showToast("Ausrüstung zugewiesen."); this.refreshAllData();
             },
             async revokePsa(id) {
                 if (confirm("Soll diese Ausrüstung vom Kameraden zurückgenommen werden?")) {
@@ -345,7 +372,12 @@ function initVueApp() {
                 this.newVeh = v ? { ...v } : { id: null, name: '', radio_name: '', status: 2, milage: 0, operating_hours: 0.0, license_plate: '', vehicle_type: 'LF 16/12', fuel_type: 'Diesel', tuv_date: null };
                 this.openModal('vehModal');
             },
-            async saveVeh() { await this.apiCall('/api/vehicles', 'POST', this.newVeh); this.closeModal(); this.showToast("Fahrzeugstamm aktualisiert."); this.refreshAllData(); },
+            async saveVeh() { 
+                const url = this.newVeh.id ? `/api/vehicles/${this.newVeh.id}` : '/api/vehicles';
+                const method = this.newVeh.id ? 'PUT' : 'POST';
+                await this.apiCall(url, method, this.newVeh); 
+                this.closeModal(); this.showToast("Fahrzeugstamm aktualisiert."); this.refreshAllData(); 
+            },
             getPersonnelName(id) {
                 if (!id || id === 0) return 'Systemzugang (Reiner App-User)'; if (!Array.isArray(this.personnel)) return 'ID: ' + id;
                 const found = this.personnel.find(x => x.id === id); return found ? found.name : 'ID: ' + id;
