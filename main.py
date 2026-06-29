@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# Importiert alle Router-Module exakt wie in deiner Ordnerstruktur
+# Alle eure Router-Module importieren
 from routers import (
     alarm, archive, auth, events, inventory, 
     personnel, psa, sessions, system, tickets, users, vehicles
@@ -12,13 +12,18 @@ from routers import (
 
 app = FastAPI(title="Digitales Dienstbuch-System")
 
-# 1. Statischen Ordner für Scripte (static/js/app.js) einbinden
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 2. Jinja2-Engine für den templates-Ordner aktivieren
+# 1. Triebwerk normal starten
 templates = Jinja2Templates(directory="templates")
 
-# 3. Alle Backend-Schnittstellen vollautomatisch laden
+# 2. DER ABSOLUTE GAMECHANGER:
+# Wir biegen die Python-Variablen um. Ab jetzt ignoriert der Server alle {{ }} 
+# und lässt sie unberührt für Vue.js im Browser stehen!
+templates.env.variable_start_string = "{$"
+templates.env.variable_end_string = "$}"
+
+# Alle Router laden
 app.include_router(auth.router)
 app.include_router(alarm.router)
 app.include_router(archive.router)
@@ -32,8 +37,7 @@ app.include_router(tickets.router)
 app.include_router(users.router)
 app.include_router(vehicles.router)
 
-# --- SEITEN-ROUTING ÜBER JINJA2-TEMPLATES (VERSIONSSICHER) ---
-
+# --- SEITEN-ROUTING ---
 @app.get("/", response_class=HTMLResponse)
 def root_redirect(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
