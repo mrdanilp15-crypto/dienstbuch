@@ -1,6 +1,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Fuhrpark & Einsatzfahrzeuge</h2>
-    <button type="button" class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openVehModal(null)">
+    <button type="button" class="btn btn-danger rounded-pill fw-bold shadow-sm" @click="openVehModal(null)" data-bs-toggle="modal" data-bs-target="#vehModal">
         <i class="fa fa-plus-circle me-1"></i> Fahrzeug hinzufügen
     </button>
 </div>
@@ -21,9 +21,7 @@
             </thead>
             <tbody>
                 <tr v-for="v in vehicles" :key="v.id">
-                    <td class="ps-4 fw-bold text-dark">
-                        <i class="fa fa-truck-sparkles text-danger me-2"></i>{{ v.name }}
-                    </td>
+                    <td class="ps-4 fw-bold text-dark"><i class="fa fa-truck-sparkles text-danger me-2"></i>{{ v.name }}</td>
                     <td class="font-monospace text-secondary fw-semibold">{{ v.radio_name }}</td>
                     <td><span class="badge bg-light text-dark border fw-bold">{{ v.vehicle_type }}</span></td>
                     <td class="text-center">
@@ -31,16 +29,14 @@
                             Status {{ v.status }}
                         </span>
                     </td>
-                    <td class="font-monospace fw-bold text-muted">
-                        <i class="fa fa-calendar-check me-1 small"></i>{{ v.tuv_date || 'Keine Angabe' }}
-                    </td>
+                    <td class="font-monospace fw-bold text-muted"><i class="fa fa-calendar-check me-1 small"></i>{{ v.tuv_date || 'Keine Angabe' }}</td>
                     <td class="font-monospace fw-semibold text-dark">{{ v.milage }} km</td>
                     <td class="text-end pe-4">
                         <div class="d-flex gap-1 justify-content-end">
-                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openVehModal(v)" title="Stammdaten bearbeiten">
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openVehModal(v)" data-bs-toggle="modal" data-bs-target="#vehModal">
                                 <i class="fa fa-marker"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteVeh(v.id)" title="Aus Fuhrpark löschen">
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteVeh(v.id)">
                                 <i class="fa fa-trash-can"></i>
                             </button>
                         </div>

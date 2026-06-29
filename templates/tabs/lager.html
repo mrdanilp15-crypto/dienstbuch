@@ -1,17 +1,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Kleiderkammer & Material-Pool</h2>
     <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="d-flex gap-2">
-        <!-- Dynamischer Button: Wechselt je nach aktivem Sub-Tab die Funktion -->
-        <button v-if="subTabLager === 'bestand'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="openInvModal(null)">
+        <button v-if="subTabLager === 'bestand'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="openInvModal(null)" data-bs-toggle="modal" data-bs-target="#invModal">
             <i class="fa fa-plus-circle me-1"></i> Neuer Lagerartikel
         </button>
-        <button v-if="subTabLager === 'ausgabe'" type="button" class="btn btn-dark rounded-pill fw-bold" @click="openPsaModal(null)">
+        <button v-if="subTabLager === 'ausgabe'" type="button" class="btn btn-dark rounded-pill fw-bold" @click="openPsaModal(null)" data-bs-toggle="modal" data-bs-target="#psaModal">
             <i class="fa fa-hand-holding-hand me-1"></i> PSA ausgeben
         </button>
     </div>
 </div>
 
-<!-- SUB-NAVIGATION: Zwischen Lagerbestand und PSA-Vergabe umschalten -->
 <ul class="nav nav-tabs mb-4 border-bottom">
     <li class="nav-item">
         <button type="button" class="nav-link fw-bold text-dark border-0 py-2.5 px-4" :class="{active: subTabLager === 'bestand'}" @click="subTabLager = 'bestand'">
@@ -25,11 +23,7 @@
     </li>
 </ul>
 
-<!-- ========================================== -->
-<!-- BEREICH 1: POOLBESTAND / WACHENLAGER       -->
-<!-- ========================================== -->
 <div v-if="subTabLager === 'bestand'">
-    <!-- Taktische Filterleiste -->
     <div class="card p-3 bg-white border shadow-sm mb-4">
         <div class="row g-2">
             <div class="col-md-8">
@@ -49,7 +43,6 @@
         </div>
     </div>
 
-    <!-- Artikelliste (Poolbestand) -->
     <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
@@ -75,7 +68,6 @@
                         <td class="fw-semibold text-muted"><i class="fa fa-map-pin text-danger small me-1"></i> {{ i.location }}</td>
                         <td class="text-center">
                             <span class="fs-5 fw-bold font-monospace" :class="i.amount <= i.min_amount ? 'text-danger' : 'text-success'">{{ i.amount }}</span>
-                            <small class="text-muted d-block font-monospace" style="font-size: 0.7rem;">Soll: >{{ i.min_amount }}</small>
                         </td>
                         <td>
                             <button type="button" class="btn btn-xs btn-outline-dark font-monospace shadow-sm px-2 py-1" @click="generateQRWindow(i)">
@@ -84,16 +76,13 @@
                         </td>
                         <td v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">
                             <div class="d-flex gap-1 justify-content-end">
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openInvModal(i)" title="Bearbeiten">
-                                    <i class="fa fa-pen-to-square"></i>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openInvModal(i)" data-bs-toggle="modal" data-bs-target="#invModal">
+                                    <i class="fa fa-pen"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteInv(i.id)">
+                                    <i class="fa fa-trash-can"></i>
                                 </button>
                             </div>
-                        </td>
-                    </tr>
-                    <tr v-if="filteredInventory.length === 0">
-                        <td colspan="7" class="text-center p-5 text-muted fw-semibold">
-                            <i class="fa fa-boxes-stacked d-block fs-1 text-opacity-25 text-secondary mb-3"></i>
-                            Keine Artikel im Poolbestand gefunden, die auf den Filter passen.
                         </td>
                     </tr>
                 </tbody>
@@ -102,9 +91,6 @@
     </div>
 </div>
 
-<!-- ========================================== -->
-<!-- BEREICH 2: PERSONENBEZOGENE PSA AUSGABE   -->
-<!-- ========================================== -->
 <div v-if="subTabLager === 'ausgabe'">
     <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
         <div class="table-responsive">
@@ -122,36 +108,20 @@
                 </thead>
                 <tbody>
                     <tr v-for="p in psaList" :key="p.id">
-                        <td class="ps-4 fw-bold text-dark">
-                            <i class="fa fa-user-shield text-danger me-2 small"></i>{{ getPersonnelName(p.person_id) }}
-                        </td>
+                        <td class="ps-4 fw-bold text-dark"><i class="fa fa-user-shield text-danger me-2 small"></i>{{ getPersonnelName(p.person_id) }}</td>
                         <td class="fw-semibold text-secondary">{{ p.item_name }}</td>
                         <td><span class="badge bg-light text-dark border fw-bold font-monospace">{{ p.size || 'N/A' }}</span></td>
-                        <td>
-                            <span class="badge px-2.5 py-1.5" :class="{
-                                'bg-success bg-opacity-10 text-success border border-success': p.status === 'Ausgegeben',
-                                'bg-warning bg-opacity-10 text-warning border border-warning': p.status === 'In Reinigung',
-                                'bg-danger bg-opacity-10 text-danger border border-danger': p.status === 'Defekt'
-                            }">{{ p.status }}</span>
-                        </td>
+                        <td><span class="badge bg-success bg-opacity-10 text-success border border-success">{{ p.status }}</span></td>
                         <td>
                             <button type="button" class="btn btn-xs btn-outline-dark font-monospace shadow-sm px-2 py-1" @click="generatePsaQR(p)">
                                 <i class="fa fa-qrcode me-1 text-danger"></i> {{ p.qr_code_id }}
                             </button>
                         </td>
-                        <td class="font-monospace fw-bold text-muted">
-                            <i class="fa fa-calendar-check me-1 small"></i> {{ p.next_check || 'Keine Frist' }}
-                        </td>
+                        <td class="font-monospace fw-bold text-muted"><i class="fa fa-calendar-check me-1 small"></i> {{ p.next_check || 'Keine Frist' }}</td>
                         <td v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="text-end pe-4">
                             <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" @click="revokePsa(p.id)">
                                 <i class="fa fa-right-from-bracket me-1"></i> Rücknahme
                             </button>
-                        </td>
-                    </tr>
-                    <tr v-if="psaList.length === 0">
-                        <td colspan="7" class="text-center p-5 text-muted fw-semibold">
-                            <i class="fa fa-shirt d-block fs-1 text-opacity-25 text-secondary mb-3"></i>
-                            Aktuell ist im Verzeichnis keine persönliche Schutzausrüstung (PSA) ausgegeben.
                         </td>
                     </tr>
                 </tbody>

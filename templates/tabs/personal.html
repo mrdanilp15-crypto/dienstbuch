@@ -1,16 +1,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Personalverwaltung & Systemlogins</h2>
     <div class="d-flex gap-2">
-        <button v-if="subTabPers === 'akte'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="openMemberModal(null)">
+        <button v-if="subTabPers === 'akte'" type="button" class="btn btn-danger rounded-pill fw-bold" @click="openMemberModal(null)" data-bs-toggle="modal" data-bs-target="#memberModal">
             <i class="fa fa-user-plus me-1"></i> Kamerad anlegen
         </button>
-        <button v-if="subTabPers === 'logins'" type="button" class="btn btn-dark rounded-pill fw-bold" @click="openUserModal(null)">
+        <button v-if="subTabPers === 'logins'" type="button" class="btn btn-dark rounded-pill fw-bold" @click="openUserModal(null)" data-bs-toggle="modal" data-bs-target="#userModal">
             <i class="fa fa-key me-1"></i> Login erstellen
         </button>
     </div>
 </div>
 
-<!-- Sub-Tabs für Personal -->
 <ul class="nav nav-tabs mb-4 border-bottom">
     <li class="nav-item">
         <button type="button" class="nav-link fw-bold text-dark border-0 py-2.5 px-4" :class="{active: subTabPers === 'akte'}" @click="subTabPers = 'akte'">
@@ -24,7 +23,6 @@
     </li>
 </ul>
 
-<!-- SUB-TAB 1: KAMERADENAKTEN -->
 <div v-if="subTabPers === 'akte'">
     <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
         <div class="table-responsive">
@@ -67,10 +65,10 @@
                         </td>
                         <td class="text-end pe-4">
                             <div class="d-flex gap-1 justify-content-end">
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openMemberModal(p)" title="Akte bearbeiten">
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openMemberModal(p)" data-bs-toggle="modal" data-bs-target="#memberModal">
                                     <i class="fa fa-pen"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteMember(p.id)" title="Akte löschen">
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteMember(p.id)">
                                     <i class="fa fa-trash-can"></i>
                                 </button>
                             </div>
@@ -82,7 +80,6 @@
     </div>
 </div>
 
-<!-- SUB-TAB 2: SYSTEM-LOGINS -->
 <div v-if="subTabPers === 'logins'">
     <div class="card p-0 overflow-hidden bg-white border shadow-sm rounded-4">
         <div class="table-responsive">
@@ -97,17 +94,15 @@
                 </thead>
                 <tbody>
                     <tr v-for="u in users" :key="u.id">
-                        <td class="ps-4 fw-bold text-dark">
-                            <i class="fa fa-user-lock text-muted me-2"></i>{{ u.username }}
-                        </td>
+                        <td class="ps-4 fw-bold text-dark"><i class="fa fa-user-lock text-muted me-2"></i>{{ u.username }}</td>
                         <td><span class="badge bg-dark font-monospace text-uppercase">{{ u.role }}</span></td>
                         <td class="text-muted fw-semibold">{{ getPersonnelName(u.personnel_id) }}</td>
                         <td class="text-end pe-4">
                             <div class="d-flex gap-1 justify-content-end">
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openUserModal(u)" title="Passwort/Rolle ändern">
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" @click="openUserModal(u)" data-bs-toggle="modal" data-bs-target="#userModal">
                                     <i class="fa fa-key"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteUser(u.id)" title="Login löschen">
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-circle" @click="deleteUser(u.id)">
                                     <i class="fa fa-trash-can"></i>
                                 </button>
                             </div>
