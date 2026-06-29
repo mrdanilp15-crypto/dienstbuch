@@ -3,155 +3,303 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Digitales Dienstbuch — Leitstand Login</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Digitales Dienstbuch — Operationszentrale</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    
     <style>
+        [v-cloak] { display: none !important; }
+        
+        /* Taktisches High-End Farbschema */
         :root {
+            --slate-bg: #0f172a;
+            --slate-card: #ffffff;
             --fw-red: #dc2626;
-            --fw-red-glow: rgba(220, 38, 38, 0.25);
-            --dark-bg: #090d16;
-            --card-bg: rgba(21, 32, 54, 0.65);
-            --border-color: rgba(255, 255, 255, 0.08);
+            --fw-amber: #f59e0b;
+            --text-main: #1e293b;
+            --sidebar-width: 280px;
         }
-        body {
-            background: radial-gradient(circle at center, #1e1b4b 0%, var(--dark-bg) 100%);
-            color: #f1f5f9;
-            font-family: system-ui, -apple-system, sans-serif;
+
+        body { 
+            background: #f1f5f9; 
+            color: var(--text-main); 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Premium Sidebar */
+        .sidebar { 
+            width: var(--sidebar-width); 
+            background: var(--slate-bg); 
+            color: #f8fafc; 
+            min-height: 100vh; 
+            position: fixed; 
+            z-index: 1000; 
+            border-right: 1px solid #1e293b;
+            box-shadow: 4px 0 25px rgba(15, 23, 42, 0.15);
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            overflow: hidden;
-            position: relative;
+            flex-direction: column;
         }
-        body::before {
-            content: "";
-            position: absolute;
-            width: 200%;
-            height: 200%;
-            background-image: radial-gradient(rgba(220, 38, 38, 0.03) 1px, transparent 0);
-            background-size: 24px 24px;
-            top: -50%;
-            left: -50%;
-            z-index: 1;
-            transform: rotate(15deg);
+
+        .sidebar-header { 
+            padding: 24px 20px; 
+            border-bottom: 1px solid #1e293b;
+            background: rgba(255, 255, 255, 0.02);
         }
-        .login-container {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            max-width: 440px;
+
+        .menu-scroll-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px 0;
         }
-        .login-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border-color);
-            border-radius: 24px;
-            padding: 48px 40px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+
+        .menu-link { 
+            padding: 12px 20px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            color: #94a3b8; 
+            font-weight: 600; 
+            font-size: 0.95rem;
+            transition: all 0.2s ease-in-out; 
+            text-decoration: none;
+            border-left: 4px solid transparent;
         }
-        .brand-badge {
-            width: 80px;
-            height: 80px;
-            background: rgba(220, 38, 38, 0.1);
-            border: 2px solid var(--fw-red);
-            border-radius: 20px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 24px;
-            box-shadow: 0 0 20px var(--fw-red-glow);
-            animation: pulse-glow 2.5s infinite alternate;
+
+        .menu-link:hover { 
+            background: #1e293b; 
+            color: #ffffff; 
+            border-left-color: #ef4444;
         }
-        .fire-icon { font-size: 2.5rem; color: #ef4444; }
-        .system-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.5px; color: #ffffff; margin-bottom: 4px; }
-        .system-subtitle { font-size: 0.85rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 36px; }
-        .form-label { font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-        .input-group { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; overflow: hidden; transition: all 0.2s ease; }
-        .input-group:focus-within { border-color: var(--fw-red); box-shadow: 0 0 0 3px var(--fw-red-glow); }
-        .input-group-text { background: transparent; border: none; color: #64748b; padding-left: 16px; padding-right: 8px; }
-        .form-control { background: transparent; border: none; color: #ffffff; padding: 12px 16px 12px 8px; font-weight: 500; font-size: 0.95rem; }
-        .form-control:focus { background: transparent; color: #ffffff; box-shadow: none; border: none; }
-        .btn-danger { background: var(--fw-red); border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 1rem; letter-spacing: 0.5px; margin-top: 12px; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2); transition: all 0.2s ease-in-out; }
-        .btn-danger:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4); }
-        .station-footer { font-size: 0.75rem; color: #475569; font-weight: 600; letter-spacing: 0.5px; margin-top: 20px; }
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.2); border-color: #b91c1c; }
-            100% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.5); border-color: #ef4444; }
+
+        .menu-link.active { 
+            background: #1e293b; 
+            color: #ef4444; 
+            border-left-color: var(--fw-red);
+            background: linear-gradient(90deg, rgba(220, 38, 38, 0.08) 0%, rgba(30, 41, 59, 1) 100%);
+        }
+
+        /* Main Workspace Section */
+        .main-content { 
+            margin-left: var(--sidebar-width); 
+            padding: 35px 45px; 
+            min-height: 100vh; 
+            transition: all 0.3s ease;
+        }
+
+        /* Top Status Bar Navigation */
+        .top-status-bar {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 14px 28px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        /* Taktische Panels (Cards) */
+        .stat-card { 
+            background: var(--slate-card); 
+            border: 1px solid #e2e8f0; 
+            border-radius: 16px; 
+            padding: 24px; 
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .avatar-container { 
+            width: 50px; 
+            height: 50px; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            background: #1e293b; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            border: 2px solid var(--fw-red); 
+            color: white; 
+        }
+        .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
+
+        .status-btn { 
+            width: 46px; 
+            height: 46px; 
+            border-radius: 10px; 
+            font-weight: 700; 
+            border: 2px solid transparent; 
+            background: #cbd5e1; 
+            color: #334155; 
+            transition: all 0.15s ease-in-out;
+        }
+        .status-btn.s-2.active { background: #22c55e; color: white; box-shadow: 0 4px 12px rgba(34,197,94,0.3); }
+        .status-btn.s-4.active { background: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+
+        .progress { height: 12px; border-radius: 8px; background-color: #e2e8f0; overflow: hidden; }
+        .report-strip { border-left: 5px solid var(--fw-red) !important; border-radius: 12px; transition: all 0.15s ease; }
+        .report-strip:hover { transform: translateX(5px); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+
+        /* Floating Toast Notification Area */
+        .fw-toast-container {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9999;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        .animate-pulse-red {
+            animation: pulse-red-alert 2s infinite;
+        }
+
+        @keyframes pulse-red-alert {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-card text-center">
-            <div class="brand-badge"><i class="fa fa-shield-halved fire-icon"></i></div>
-            <div class="system-title">OPERATIONSZENTRALE</div>
-            <div class="system-subtitle">Digitales Dienstbuch</div>
+    <div id="app" v-cloak v-show="ready">
+        
+        {% include 'tabs/hallen_monitor.html' %}
 
-            <div id="error-box" class="alert alert-danger d-none fw-bold py-2.5 mb-4 text-start">
-                <i class="fa fa-circle-exclamation me-2"></i><span id="error-msg"></span>
+        <div class="d-flex" v-if="!hallMonitorMode">
+            
+            <div class="sidebar d-flex flex-column justify-content-between">
+                <div class="d-flex flex-column h-100">
+                    <div class="sidebar-header">
+                        <h4 class="m-0 fw-bold text-white d-flex align-items-center gap-2">
+                            <i class="fa fa-fire-extinguisher text-danger"></i>
+                            <span>Dienstbuch</span>
+                        </h4>
+                    </div>
+                    
+                    <div class="menu-scroll-container">
+                        <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'">
+                            <i class="fa fa-desktop"></i> <span>Zentrale</span>
+                            <span v-if="activeAlarm && activeAlarm.keyword" class="badge bg-danger ms-auto animate-pulse-red">ALARM</span>
+                        </div>
+                        <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'">
+                            <i class="fa fa-user-shield"></i> <span>Mein Profil</span>
+                        </div>
+                        <div class="menu-link" :class="{active: currentTab === 'lagekarte'}" @click="currentTab = 'lagekarte'; initMap();">
+                            <i class="fa fa-map-location-dot"></i> <span>Lagekarte</span>
+                        </div>
+                        <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'">
+                            <i class="fa fa-biohazard"></i> <span>Gefahrgut (ERI)</span>
+                        </div>
+                        <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'">
+                            <i class="fa fa-clipboard-list"></i> <span>Mängelboard</span>
+                            <span v-if="tickets.filter(t => t.status === 'neu').length" class="badge bg-warning text-dark ms-auto font-monospace fw-bold">
+                                {{ tickets.filter(t => t.status === 'neu').length }}
+                            </span>
+                        </div>
+                        <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'">
+                            <i class="fa fa-chart-pie"></i> <span>Auswertung</span>
+                        </div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'archiv'}" @click="currentTab = 'archiv'">
+                            <i class="fa fa-archive"></i> <span>Wachen-Archiv</span>
+                        </div>
+                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'">
+                            <i class="fa fa-boxes-stacked"></i> <span>Kleiderkammer</span>
+                            <span v-if="lowStockItems.length" class="badge bg-danger ms-auto font-monospace fw-bold">
+                                {{ lowStockItems.length }}
+                            </span>
+                        </div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'">
+                            <i class="fa fa-users-gear"></i> <span>Personal & Logins</span>
+                            <span v-if="deadlineAlerts.length" class="badge bg-danger ms-auto font-monospace fw-bold">
+                                {{ deadlineAlerts.length }}
+                            </span>
+                        </div>
+                        <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'">
+                            <i class="fa fa-truck-moving"></i> <span>Fuhrpark</span>
+                        </div>
+                        <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'einstellungen'}" @click="currentTab = 'einstellungen'">
+                            <i class="fa fa-sliders"></i> <span>Einstellungen</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-3 bg-dark text-center border-top border-secondary">
+                    <button type="button" class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-3 fw-bold shadow-sm" @click="hallMonitorMode = true">
+                        <i class="fa fa-expand me-1"></i> Monitor-Modus
+                    </button>
+                    <div class="d-flex align-items-center gap-2 justify-content-center text-start px-1">
+                        <div class="avatar-container" style="width: 34px; height: 34px; border-radius: 8px;">
+                            <img :src="identity.profile_picture" v-if="identity.profile_picture">
+                            <i class="fa fa-user-shield text-white small" v-else></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="small fw-bold text-white text-truncate" style="max-width: 170px;">{{ identity.personnel_name || identity.username }}</div>
+                            <div class="text-uppercase text-muted font-monospace" style="font-size: 0.65rem; letter-spacing: 0.5px;">Rolle: {{ identity.role }}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <form id="loginForm" onsubmit="handleLogin(event)">
-                <div class="mb-3 text-start">
-                    <label class="form-label">Benutzerkennung</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fa fa-user-shield"></i></span>
-                        <input type="text" id="username" class="form-control" placeholder="Benutzername" required autocomplete="username">
+            <div class="main-content flex-grow-1">
+                
+                <div v-if="activeAlarm && activeAlarm.keyword" class="alert alert-danger bg-danger border-0 text-white rounded-4 p-3 mb-4 shadow d-flex justify-content-between align-items-center animate-pulse">
+                    <div class="d-flex align-items-center gap-3">
+                        <h3 class="m-0 font-monospace fw-bold"><i class="fa fa-bell-flash animate-bounce me-1"></i> {{ activeAlarm.keyword }}</h3>
+                        <div class="border-start border-white border-opacity-25 ps-3 fw-semibold">{{ activeAlarm.address }}</div>
+                    </div>
+                    <span class="badge bg-black bg-opacity-30 px-3 py-2 font-monospace uppercase">Einsatz läuft</span>
+                </div>
+
+                <div class="top-status-bar d-flex justify-content-between align-items-center mb-4 bg-white shadow-sm">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-danger p-2 rounded-3"><i class="fa fa-building-shield fs-6"></i></span>
+                        <h5 class="fw-bold m-0 text-dark">{{ registry.station_name || 'Feuerwehr Dienstbuch' }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-4 text-muted small fw-semibold">
+                        <div v-if="weather" class="d-flex align-items-center gap-2 border-end pe-3">
+                            <i class="fa fa-cloud-sun text-info"></i>
+                            <span class="text-dark font-monospace">{{ weather.temperature }}</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger px-3 rounded-pill fw-bold border-2" @click="triggerLogout()">
+                            <i class="fa fa-power-off me-1"></i> Beenden
+                        </button>
                     </div>
                 </div>
-                <div class="mb-4 text-start">
-                    <label class="form-label">Kennwort</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fa fa-lock-open"></i></span>
-                        <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
-                    </div>
+
+                <div class="tab-content-wrapper mt-2">
+                    <div v-show="currentTab === 'leitstand'">{% include 'tabs/leitstand.html' %}</div>
+                    <div v-show="currentTab === 'meinbereich'">{% include 'tabs/meinbereich.html' %}</div>
+                    <div v-show="currentTab === 'lagekarte'">{% include 'tabs/lagekarte.html' %}</div>
+                    <div v-show="currentTab === 'gefahrgut'">{% include 'tabs/gefahrgut.html' %}</div>
+                    <div v-show="currentTab === 'tickets'">{% include 'tabs/tickets.html' %}</div>
+                    <div v-show="currentTab === 'statistik'">{% include 'tabs/statistik.html' %}</div>
+                    <div v-show="currentTab === 'archiv'">{% include 'tabs/archiv.html' %}</div>
+                    <div v-show="currentTab === 'lager'">{% include 'tabs/lager.html' %}</div>
+                    <div v-show="currentTab === 'personal'">{% include 'tabs/personal.html' %}</div>
+                    <div v-show="currentTab === 'fuhrpark'">{% include 'tabs/fuhrpark.html' %}</div>
+                    <div v-show="currentTab === 'einstellungen'">{% include 'tabs/einstellungen.html' %}</div>
                 </div>
-                <button type="submit" id="submitBtn" class="btn btn-danger w-100 shadow">
-                    <i class="fa fa-right-to-bracket me-2"></i>Dienstbuch öffnen
-                </button>
-            </form>
-            <div class="station-footer text-uppercase"><i class="fa fa-satellite-dish me-1"></i> Verschlüsselte Verbindung</div>
+            </div>
         </div>
+
+        <div class="fw-vue-modal-backdrop" v-if="modalActive"></div>
+        {% include 'tabs/modals.html' %}
+
+        <div class="fw-toast-container" v-if="toastVisible" :class="toastClass">
+            <div class="card border-0 text-white shadow-lg p-3 rounded-3 d-flex flex-row align-items-center gap-3 bg-dark">
+                <span class="p-2 bg-white bg-opacity-10 rounded-2">
+                    <i class="fa" :class="toastClass.includes('danger') ? 'fa-circle-xmark text-danger':'fa-circle-check text-success'"></i>
+                </span>
+                <div class="fw-bold pe-2 small">{{ toastMessage }}</div>
+                <button type="button" class="btn-close btn-close-white ms-auto small" @click="closeToast()"></button>
+            </div>
+        </div>
+
     </div>
-
-    <script>
-        async function handleLogin(e) {
-            e.preventDefault();
-            const errorBox = document.getElementById("error-box");
-            const errorMsg = document.getElementById("error-msg");
-            const btn = document.getElementById("submitBtn");
-            
-            errorBox.classList.add("d-none");
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Autorisiere...';
-
-            try {
-                const res = await fetch("/api/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        username: document.getElementById("username").value,
-                        password: document.getElementById("password").value
-                    })
-                });
-                const data = await res.json();
-                if (res.ok && data.status === "success") {
-                    window.location.href = "/dashboard";
-                } else {
-                    errorMsg.textContent = data.detail || "Zugriff verweigert.";
-                    errorBox.classList.remove("d-none");
-                    btn.disabled = false; btn.innerHTML = '<i class="fa fa-right-to-bracket me-2"></i>Dienstbuch öffnen';
-                }
-            } catch (err) {
-                errorMsg.textContent = "Verbindungsfehler zum Zentral-Server.";
-                errorBox.classList.remove("d-none");
-                btn.disabled = false; btn.innerHTML = '<i class="fa fa-right-to-bracket me-2"></i>Dienstbuch öffnen';
-            }
-        }
-    </script>
 </body>
 </html>
