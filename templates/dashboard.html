@@ -12,7 +12,6 @@
     <style>
         [v-cloak] { display: none !important; }
         
-        /* Taktisches High-End Farbschema */
         :root {
             --slate-bg: #0f172a;
             --slate-card: #ffffff;
@@ -30,7 +29,6 @@
             overflow-x: hidden;
         }
 
-        /* Premium Sidebar */
         .sidebar { 
             width: var(--sidebar-width); 
             background: var(--slate-bg); 
@@ -83,15 +81,12 @@
             background: linear-gradient(90deg, rgba(220, 38, 38, 0.08) 0%, rgba(30, 41, 59, 1) 100%);
         }
 
-        /* Main Workspace Section */
         .main-content { 
             margin-left: var(--sidebar-width); 
             padding: 35px 45px; 
             min-height: 100vh; 
-            transition: all 0.3s ease;
         }
 
-        /* Top Status Bar Navigation */
         .top-status-bar {
             background: white;
             border: 1px solid #e2e8f0;
@@ -100,23 +95,17 @@
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
 
-        /* Taktische Panels (Cards) */
         .stat-card { 
             background: var(--slate-card); 
             border: 1px solid #e2e8f0; 
             border-radius: 16px; 
             padding: 24px; 
             box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
         }
 
         .avatar-container { 
-            width: 50px; 
-            height: 50px; 
+            width: 55px; 
+            height: 55px; 
             border-radius: 12px; 
             overflow: hidden; 
             background: #1e293b; 
@@ -136,22 +125,18 @@
             border: 2px solid transparent; 
             background: #cbd5e1; 
             color: #334155; 
-            transition: all 0.15s ease-in-out;
         }
         .status-btn.s-2.active { background: #22c55e; color: white; box-shadow: 0 4px 12px rgba(34,197,94,0.3); }
         .status-btn.s-4.active { background: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
 
-        .progress { height: 12px; border-radius: 8px; background-color: #e2e8f0; overflow: hidden; }
-        .report-strip { border-left: 5px solid var(--fw-red) !important; border-radius: 12px; transition: all 0.15s ease; }
-        .report-strip:hover { transform: translateX(5px); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .progress { height: 12px; border-radius: 8px; background-color: #e2e8f0; }
+        .report-strip { border-left: 5px solid var(--fw-red) !important; border-radius: 12px; }
 
-        /* Floating Toast Notification Area */
         .fw-toast-container {
             position: fixed;
             bottom: 25px;
             right: 25px;
             z-index: 9999;
-            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
         }
 
         .animate-pulse-red {
@@ -164,6 +149,9 @@
             100% { opacity: 1; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
@@ -184,7 +172,7 @@
                     <div class="menu-scroll-container">
                         <div class="menu-link" :class="{active: currentTab === 'leitstand'}" @click="currentTab = 'leitstand'">
                             <i class="fa fa-desktop"></i> <span>Zentrale</span>
-                            <span v-if="activeAlarm && activeAlarm.keyword" class="badge bg-danger ms-auto animate-pulse-red">ALARM</span>
+                            {% raw %}<span v-if="activeAlarm && activeAlarm.keyword" class="badge bg-danger ms-auto animate-pulse-red">ALARM</span>{% endraw %}
                         </div>
                         <div class="menu-link" :class="{active: currentTab === 'meinbereich'}" @click="currentTab = 'meinbereich'">
                             <i class="fa fa-user-shield"></i> <span>Mein Profil</span>
@@ -195,11 +183,14 @@
                         <div class="menu-link" :class="{active: currentTab === 'gefahrgut'}" @click="currentTab = 'gefahrgut'">
                             <i class="fa fa-biohazard"></i> <span>Gefahrgut (ERI)</span>
                         </div>
+                        
                         <div class="menu-link" :class="{active: currentTab === 'tickets'}" @click="currentTab = 'tickets'">
                             <i class="fa fa-clipboard-list"></i> <span>Mängelboard</span>
+                            {% raw %}
                             <span v-if="tickets.filter(t => t.status === 'neu').length" class="badge bg-warning text-dark ms-auto font-monospace fw-bold">
                                 {{ tickets.filter(t => t.status === 'neu').length }}
                             </span>
+                            {% endraw %}
                         </div>
                         <div class="menu-link" :class="{active: currentTab === 'statistik'}" @click="currentTab = 'statistik'">
                             <i class="fa fa-chart-pie"></i> <span>Auswertung</span>
@@ -209,15 +200,19 @@
                         </div>
                         <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'lager'}" @click="currentTab = 'lager'">
                             <i class="fa fa-boxes-stacked"></i> <span>Kleiderkammer</span>
+                            {% raw %}
                             <span v-if="lowStockItems.length" class="badge bg-danger ms-auto font-monospace fw-bold">
                                 {{ lowStockItems.length }}
                             </span>
+                            {% endraw %}
                         </div>
                         <div v-if="identity.role === 'admin'" class="menu-link" :class="{active: currentTab === 'personal'}" @click="currentTab = 'personal'">
                             <i class="fa fa-users-gear"></i> <span>Personal & Logins</span>
+                            {% raw %}
                             <span v-if="deadlineAlerts.length" class="badge bg-danger ms-auto font-monospace fw-bold">
                                 {{ deadlineAlerts.length }}
                             </span>
+                            {% endraw %}
                         </div>
                         <div v-if="identity.role === 'admin' || identity.role === 'geratewart'" class="menu-link" :class="{active: currentTab === 'fuhrpark'}" @click="currentTab = 'fuhrpark'">
                             <i class="fa fa-truck-moving"></i> <span>Fuhrpark</span>
@@ -232,8 +227,9 @@
                     <button type="button" class="btn btn-xs btn-outline-warning w-100 rounded-pill mb-3 fw-bold shadow-sm" @click="hallMonitorMode = true">
                         <i class="fa fa-expand me-1"></i> Monitor-Modus
                     </button>
+                    {% raw %}
                     <div class="d-flex align-items-center gap-2 justify-content-center text-start px-1">
-                        <div class="avatar-container" style="width: 34px; height: 34px; border-radius: 8px;">
+                        <div class="avatar-container" style="width: 38px; height: 34px; border-radius: 8px;">
                             <img :src="identity.profile_picture" v-if="identity.profile_picture">
                             <i class="fa fa-user-shield text-white small" v-else></i>
                         </div>
@@ -242,11 +238,13 @@
                             <div class="text-uppercase text-muted font-monospace" style="font-size: 0.65rem; letter-spacing: 0.5px;">Rolle: {{ identity.role }}</div>
                         </div>
                     </div>
+                    {% endraw %}
                 </div>
             </div>
 
             <div class="main-content flex-grow-1">
                 
+                {% raw %}
                 <div v-if="activeAlarm && activeAlarm.keyword" class="alert alert-danger bg-danger border-0 text-white rounded-4 p-3 mb-4 shadow d-flex justify-content-between align-items-center animate-pulse">
                     <div class="d-flex align-items-center gap-3">
                         <h3 class="m-0 font-monospace fw-bold"><i class="fa fa-bell-flash animate-bounce me-1"></i> {{ activeAlarm.keyword }}</h3>
@@ -254,17 +252,20 @@
                     </div>
                     <span class="badge bg-black bg-opacity-30 px-3 py-2 font-monospace uppercase">Einsatz läuft</span>
                 </div>
+                {% endraw %}
 
                 <div class="top-status-bar d-flex justify-content-between align-items-center mb-4 bg-white shadow-sm">
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-danger p-2 rounded-3"><i class="fa fa-building-shield fs-6"></i></span>
-                        <h5 class="fw-bold m-0 text-dark">{{ registry.station_name || 'Feuerwehr Dienstbuch' }}</h5>
+                        {% raw %}<h5 class="fw-bold m-0 text-dark">{{ registry.station_name || 'Feuerwehr Dienstbuch' }}</h5>{% endraw %}
                     </div>
                     <div class="d-flex align-items-center gap-4 text-muted small fw-semibold">
+                        {% raw %}
                         <div v-if="weather" class="d-flex align-items-center gap-2 border-end pe-3">
                             <i class="fa fa-cloud-sun text-info"></i>
                             <span class="text-dark font-monospace">{{ weather.temperature }}</span>
                         </div>
+                        {% endraw %}
                         <button type="button" class="btn btn-sm btn-outline-danger px-3 rounded-pill fw-bold border-2" @click="triggerLogout()">
                             <i class="fa fa-power-off me-1"></i> Beenden
                         </button>
@@ -290,6 +291,7 @@
         <div class="fw-vue-modal-backdrop" v-if="modalActive"></div>
         {% include 'tabs/modals.html' %}
 
+        {% raw %}
         <div class="fw-toast-container" v-if="toastVisible" :class="toastClass">
             <div class="card border-0 text-white shadow-lg p-3 rounded-3 d-flex flex-row align-items-center gap-3 bg-dark">
                 <span class="p-2 bg-white bg-opacity-10 rounded-2">
@@ -299,6 +301,7 @@
                 <button type="button" class="btn-close btn-close-white ms-auto small" @click="closeToast()"></button>
             </div>
         </div>
+        {% endraw %}
 
     </div>
 </body>
