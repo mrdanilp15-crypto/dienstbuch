@@ -33,7 +33,7 @@ def list_vehicles(r: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fehler beim Laden des Fuhrparks: {str(e)}")
 
-# --- ROUTE 2: FAHRZEUG SPEICHERN ODER BEARBEITEN ---
+# --- ROUTE 2: FAHRZEUG SPEICHERN (POST für Neuanlagen) ---
 @router.post("")
 async def save_vehicle(r: Request):
     try:
@@ -79,6 +79,42 @@ async def save_vehicle(r: Request):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fehler beim Sichern des Fahrzeugs: {str(e)}")
+
+# --- NEUE ROUTE 2b: FAHRZEUG DYNAMISCH BEARBEITEN VIA PUT (Löst die Dashboard-Blockade) ---
+@router.put("/{v_id}")
+async def update_vehicle_put(v_id: int, r: Request):
+    try:
+        d = await r.json()
+        c = get_db_connection()
+        cur = c.cursor()
+        
+        params = (
+            d.get('name'), 
+            d.get('radio_name'), 
+            d.get('status', 2), 
+            d.get('milage', 0), 
+            parse_val(d.get('tuv_date')), 
+            parse_val(d.get('sp_date')), 
+            d.get('next_oil_change_km', 10000),
+            d.get('license_plate', ''), 
+            d.get('vehicle_type', ''),
+            v_id
+        )
+        
+        query = """
+            UPDATE vehicles SET 
+                name=%s, radio_name=%s, status=%s, milage=%s, 
+                tuv_date=%s, sp_date=%s, next_oil_change_km=%s, 
+                license_plate=%s, vehicle_type=%s 
+            WHERE id=%s
+        """
+        cur.execute(query, params)
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Aktualisieren des Fahrzeugs via PUT: {str(e)}")
 
 # --- ROUTE 3: FAHRZEUG LÖSCHEN ---
 @router.delete("/{v_id}")

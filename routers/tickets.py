@@ -134,3 +134,36 @@ def del_ticket(t_id: int, r: Request):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- NEUE ROUTE 5: MANGEL VOLLSTÄNDIG BEARBEITEN (Verhindert den 405/404 Fehler) ---
+@router.put("/{t_id}")
+async def update_ticket_fields(t_id: int, r: Request):
+    user = get_current_user(r)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht autorisiert")
+    
+    role = user.get("r", "mannschaft")
+    if role not in ["admin", "geratewart"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung zum Bearbeiten von Tickets.")
+        
+    try:
+        d = await r.json()
+        c = get_db_connection()
+        cur = c.cursor()
+        
+        v_id = parse_val(d.get('vehicle_id'))
+        i_id = parse_val(d.get('inventory_id'))
+        
+        query = """
+            UPDATE tickets 
+            SET title = %s, content = %s, vehicle_id = %s, inventory_id = %s, priority = %s, status = %s
+            WHERE id = %s
+        """
+        params = (d.get('title'), d.get('content'), v_id, i_id, d.get('priority'), d.get('status'), t_id)
+        cur.execute(query, params)
+        c.commit()
+        cur.close()
+        c.close()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Aktualisieren des Mängels: {str(e)}")
