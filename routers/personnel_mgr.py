@@ -7,7 +7,7 @@ import base64
 from datetime import date
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
-DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -246,4 +246,5 @@ def init_personnel_db():
     except Exception as e:
         print(f"Fehler bei init_personnel_db: {e}")
 
-init_personnel_db()
+# Die Initialisierung wird im Hauptmodul beim App-Startup ausgeführt.
+# init_personnel_db()

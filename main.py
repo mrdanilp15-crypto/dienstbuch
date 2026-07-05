@@ -1,28 +1,39 @@
 import os
+import secrets
 import mysql.connector
 import urllib.request
 import urllib.parse
-import time
-import hashlib
-import secrets
-import hmac
-import base64
 import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from typing import Optional
+from routers.notes_manager import router as notes_router, init_notes_db
+from routers.personnel_mgr import router as personnel_router, init_personnel_db
+from auth import hash_password, verify_password, create_token, get_current_user
 
 # --- SYSTEM-KONFIGURATION ---
 DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
-SECRET_KEY = os.getenv("SECRET_KEY", "digitales-dienstbuch-global-sovereign-key-112")
 
 app = FastAPI(title="Digitales Dienstbuch")
 
 if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(notes_router)
+app.include_router(personnel_router)
+
+@app.on_event("startup")
+def startup():
+    try:
+        init_notes_db()
+    except Exception as e:
+        print(f"Notes DB init failed: {e}")
+    try:
+        init_personnel_db()
+    except Exception as e:
+        print(f"Personnel DB init failed: {e}")
 
 # --- PARSER UND HILFSFUNKTIONEN ---
 def parse_val(v):
@@ -39,32 +50,6 @@ def to_int(v):
 
 def get_db_connection():
     return mysql.connector.connect(host="db", user="app_user", password=DB_PASSWORD, database="attendance_system")
-
-def hash_password(p: str) -> str:
-    s = secrets.token_hex(16)
-    return f"{s}:{hashlib.pbkdf2_hmac('sha256', p.encode(), s.encode(), 100000).hex()}"
-
-def verify_password(stored, prov) -> bool:
-    try:
-        s, h = stored.split(":")
-        return hashlib.pbkdf2_hmac('sha256', prov.encode(), s.encode(), 100000).hex() == h
-    except:
-        return False
-
-def create_token(u: str, r: str) -> str:
-    p = base64.b64encode(json.dumps({"u": u, "r": r, "t": time.time()}).encode()).decode()
-    return f"{p}.{hmac.new(SECRET_KEY.encode(), p.encode(), hashlib.sha256).hexdigest()}"
-
-def get_current_user(req: Request):
-    t = req.cookies.get("session_token")
-    if not t:
-        return None
-    try:
-        p, sig = t.split(".")
-        if hmac.compare_digest(sig, hmac.new(SECRET_KEY.encode(), p.encode(), hashlib.sha256).hexdigest()):
-            return json.loads(base64.b64decode(p).decode())
-    except:
-        return None
 
 # --- DATABASE ENGINE & SCHEMAAUFRÜSTUNG ---
 def init_db():

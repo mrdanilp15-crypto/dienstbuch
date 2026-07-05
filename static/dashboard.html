@@ -7,33 +7,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        [v-cloak] { display: none !important; }
-        .sidebar { width: 260px; background: #1e293b; color: white; min-height: 100vh; position: fixed; z-index: 100; }
-        .sidebar-header { padding: 20px; border-bottom: 1px solid #334155; }
-        .menu-link { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #cbd5e1; font-weight: 500; transition: all 0.2s; }
-        .menu-link:hover, .menu-link.active { background: #334155; color: white; text-decoration: none; }
-        .main-content { margin-left: 260px; padding: 40px; background: #f8fafc; min-height: 100vh; }
-        .avatar-container { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #cbd5e1; display: inline-block; vertical-align: middle; }
-        .avatar-container img { width: 100%; height: 100%; object-fit: cover; }
-        .status-btn { width: 40px; height: 40px; border-radius: 8px; font-weight: bold; border: 2px solid transparent; background: #e2e8f0; color: #475569; transition: all 0.15s; }
-        .status-btn.s-2.active { background: #22c55e; color: white; border-color: #15803d; }
-        .status-btn.s-4.active { background: #3b82f6; color: white; border-color: #1d4ed8; }
-        .service-report-card { border-left: 4px solid #94a3b8 !important; }
-        
-        /* FIX: Echte Vue-gesteuerte Modals verhindern Fokus-Traps und Chrome-Sperren komplett */
-        .fw-vue-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.55); z-index: 2000; }
-        .fw-vue-modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; z-index: 2010; display: block; padding-top: 60px; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css?v=10.0">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-    <div id="app" v-cloak v-show="ready">
+    <div id="app" class="dashboard-layout" v-cloak v-show="ready">
         
-        <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 9999;">
-            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" :style="{ display: toastVisible ? 'block' : 'none', opacity: toastVisible ? '1' : '0' }" role="alert">
+        <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3">
+            <div id="sysToast" class="toast align-items-center text-white border-0 shadow-lg" :class="{ 'toast-hidden': !toastVisible }" :style="{ opacity: toastVisible ? '1' : '0' }" role="alert">
               <div class="d-flex">
                 <div class="toast-body fw-bold fs-6" id="toastMessage"></div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" @click="closeToast()"></button>
@@ -107,7 +90,7 @@
                         </div>
                     </div>
                     <h5 class="fw-bold mb-3">Zuletzt erfasste Berichte</h5>
-                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border service-report-card shadow-sm" @click="goToEditor(s.id)" style="cursor:pointer">
+                    <div v-for="s in sessions" :key="s.id" class="card p-3 mb-2 bg-white border service-report-card shadow-sm clickable-card" @click="goToEditor(s.id)">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><span class="badge bg-secondary mb-1">{{ s.category }}</span><h6 class="m-0 font-weight-bold text-dark">{{ s.description }}</h6><small class="text-muted">Ausbilder: {{ s.instructors }}</small></div>
                             <div class="text-end text-muted small">{{ s.date }}<br><b>{{ s.duration }} Std.</b></div>
@@ -117,7 +100,7 @@
 
                 <div v-show="currentTab === 'lagekarte'">
                     <div class="d-flex justify-content-between mb-3"><h2>Taktische Lagekarte & Hydranten</h2><button type="button" class="btn btn-dark rounded-pill btn-sm shadow-sm" @click="openModal('hydrantModal')"><i class="fa fa-plus-circle me-1"></i> Hydrant hinzufügen</button></div>
-                    <div class="card p-2 bg-white rounded-4 shadow-sm"><div id="map" style="width: 100%; height: 580px; border-radius: 10px; z-index: 10;"></div></div>
+                    <div class="card p-2 bg-white rounded-4 shadow-sm map-panel"><div id="map" class="map-container"></div></div>
                 </div>
 
                 <div v-show="currentTab === 'tickets'">
@@ -155,7 +138,7 @@
                     <h2 class="mb-4">Mein Dienstbuch Profil</h2>
                     <div class="card p-4 border bg-white shadow-sm">
                         <div class="d-flex align-items-center gap-4 mb-3">
-                            <div class="avatar-container border" style="width:80px; height:80px;">
+                            <div class="avatar-container avatar-large border">
                                 <img :src="identity.profile_picture" v-if="identity.profile_picture" alt="Profil">
                                 <div v-else class="w-100 h-100 bg-secondary text-white d-flex align-items-center justify-content-center fw-bold">PSA</div>
                             </div>
@@ -180,7 +163,7 @@
                             <thead class="table-light"><tr><th>Gegenstand / QR-ID</th><th>Menge</th><th>Details</th><th>Lagerort</th><th class="text-end">Aktion</th></tr></thead>
                             <tbody>
                                 <tr v-for="i in inventory" :key="i.id">
-                                    <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm" @click="generateQRWindow(i)" style="cursor:pointer;"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code generieren' }}</span></td>
+                                    <td><b>{{ i.item_name }}</b> <br><span class="badge bg-light text-danger border font-monospace mt-1 shadow-sm clickable" @click="generateQRWindow(i)"><i class="fa fa-qrcode me-1"></i> {{ i.qr_code_id || 'QR Code generieren' }}</span></td>
                                     <td><span class="badge bg-light text-dark border px-2.5 py-1.5">{{ i.amount }} {{ i.unit }}</span></td>
                                     <td><small class="text-muted">{{ i.category || '-' }} <br> Hersteller: {{ i.manufacturer || '-' }}</small></td>
                                     <td><span class="badge bg-secondary">{{ i.location }}</span></td>

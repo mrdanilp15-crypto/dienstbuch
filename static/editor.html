@@ -15,7 +15,7 @@
             <h5 class="m-0 fw-bold text-dark"><i class="fa fa-pen-nib text-danger me-2"></i>Eintrag schreiben / bearbeiten</h5>
             <button class="btn btn-sm btn-outline-dark rounded-pill px-3" @click="goBack()">Abbrechen</button>
         </div>
-        <div class="container py-4" style="max-width: 850px; padding-bottom: 120px;">
+        <div class="container py-4 page-shell">
             <div class="card p-4 border-0 mb-4">
                 <div class="row g-3">
                     <div class="col-md-4"><label class="small fw-bold mb-1">Dienstdatum</label><input type="date" v-model="form.date" class="form-control"></div>
@@ -37,14 +37,14 @@
                     <tbody>
                         <tr v-for="p in persons" :key="p.personnel_id">
                             <td><b>{{ p.name }}</b> <br/><small class="text-muted font-monospace">{{ p.rank || 'Feuerwehrmann' }}</small></td>
-                            <td class="text-center"><input type="checkbox" v-model="p.is_present" class="form-check-input" style="transform:scale(1.2)"></td>
-                            <td><select v-model="p.vehicle" class="form-select form-select-sm" style="font-weight:600;"><option value="">Keine Zuweisung</option><option v-for="v in globalVehicles" :value="v.name">{{ v.name }}</option></select></td>
+                            <td class="text-center"><input type="checkbox" v-model="p.is_present" class="form-check-input checkbox-lg"></td>
+                            <td><select v-model="p.vehicle" class="form-select form-select-sm form-select-strong"><option value="">Keine Zuweisung</option><option v-for="v in globalVehicles" :value="v.name">{{ v.name }}</option></select></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
-        <div class="fixed-bottom bg-white p-3 border-top shadow-lg"><button class="btn btn-dark w-100 py-3 fw-bold rounded-pill shadow" @click="save()">DIENSTBUCHEINTRAG SPEICHERN</button></div>
+        <div class="fixed-bottom bg-white p-3 border-top shadow-lg page-action-bar"><button class="btn btn-dark w-100 py-3 fw-bold rounded-pill shadow" @click="save()">DIENSTBUCHEINTRAG SPEICHERN</button></div>
     </div>
     <script>
         const { createApp } = Vue;

@@ -6,7 +6,7 @@ import os
 
 router = APIRouter(prefix="/api/notes", tags=["Notes"])
 
-DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "feuerwehr")
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -30,15 +30,18 @@ def init_notes_db():
     cur.close()
     conn.close()
 
-init_notes_db()
+# Hinweis: DB-Initialisierung wird im Hauptmodul ausgeführt.
+# init_notes_db()
 
 class NoteCreate(BaseModel):
     title: str
     content: str
     visibility: str # 'private', 'public', 'admin', 'geratewart'
 
+from auth import get_current_user
+
+
 def get_user_from_request(request: Request):
-    from main import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
