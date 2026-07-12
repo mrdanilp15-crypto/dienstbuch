@@ -3,23 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Einsatz-Alarmdisplay - Fahrzeughalle</title>
+    <title>Einsatz-Alarmdisplay - Command Center</title>
     
     <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
+    <!-- Leaflet Map CSS/JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <style>
         :root {
             --fire-red: #ef4444;
-            --dark-gray: #0d0d0e;
-            --card-gray: #1a1a1c;
-            --border-gray: #2d2d30;
+            --dark-gray: #09090b;
+            --card-gray: #141416;
+            --border-gray: #27272a;
             --text-light: #ffffff;
-            --text-muted: #a3a3a6;
+            --text-muted: #a1a1aa;
         }
 
         body {
@@ -36,7 +40,7 @@
         /* Top Alarm Header Banner */
         .alarm-header {
             background: linear-gradient(135deg, #b71c1c 0%, #dc2626 100%);
-            padding: 20px 40px;
+            padding: 15px 30px;
             box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
             display: flex;
             justify-content: space-between;
@@ -45,13 +49,20 @@
             animation: pulse-border 1.5s infinite alternate;
         }
 
+        .alarm-header.no-alarm {
+            background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+            border-bottom: 3px solid #3f3f46;
+            animation: none;
+            box-shadow: none;
+        }
+
         @keyframes pulse-border {
             0% { box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3); }
             100% { box-shadow: 0 15px 40px rgba(239, 68, 68, 0.6); }
         }
 
         .alarm-title {
-            font-size: 2.8rem;
+            font-size: 2.2rem;
             font-weight: 900;
             letter-spacing: -1px;
             margin: 0;
@@ -59,7 +70,7 @@
         }
 
         .clock-container {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 800;
             font-family: monospace;
             background: rgba(0,0,0,0.4);
@@ -72,73 +83,139 @@
             flex-grow: 1;
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 25px;
-            padding: 30px;
+            gap: 20px;
+            padding: 20px;
             overflow: hidden;
         }
 
-        .details-panel {
+        .left-column {
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
         }
 
         .alarm-card {
             background-color: var(--card-gray);
-            border: 2px solid var(--border-gray);
-            border-radius: 24px;
-            padding: 35px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-gray);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
         }
 
         .card-label {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             font-weight: 700;
             letter-spacing: 1px;
             color: var(--fire-red);
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             display: block;
         }
 
         .stichwort-val {
-            font-size: 4rem;
+            font-size: 3.5rem;
             font-weight: 900;
             color: var(--text-light);
-            line-height: 1;
-            letter-spacing: -2px;
+            line-height: 1.1;
+            letter-spacing: -1px;
+        }
+
+        .stichwort-val.alert-active {
+            color: var(--fire-red);
+            text-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
         }
 
         .adresse-val {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
             color: #ffd700;
         }
 
         .meldung-val {
-            font-size: 1.8rem;
-            color: var(--text-secondary);
+            font-size: 1.4rem;
+            color: #e4e4e7;
             white-space: pre-wrap;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
+        /* Vehicle status board styling */
+        .vehicles-card {
+            background-color: var(--card-gray);
+            border: 1px solid var(--border-gray);
+            border-radius: 20px;
+            padding: 20px;
+        }
+
+        .vehicle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .vehicle-status-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .status-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1rem;
+            color: white;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .fms-1 { color: #2563eb; background-color: #2563eb; }
+        .fms-2 { color: #16a34a; background-color: #16a34a; }
+        .fms-3 { color: #eab308; background-color: #eab308; }
+        .fms-4 { color: #dc2626; background-color: #dc2626; }
+        .fms-6 { color: #4b5563; background-color: #4b5563; }
+
+        /* Map styling */
+        #displayMap {
+            height: 250px;
+            border-radius: 20px;
+            border: 1px solid var(--border-gray);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        /* Feedback styling */
         .feedback-panel {
             background-color: var(--card-gray);
-            border: 2px solid var(--border-gray);
-            border-radius: 24px;
-            padding: 30px;
+            border: 1px solid var(--border-gray);
+            border-radius: 20px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
+            flex-grow: 1;
             overflow: hidden;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
         }
 
         .feedback-header {
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             font-weight: 800;
-            border-bottom: 2px solid var(--border-gray);
-            padding-bottom: 15px;
-            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-gray);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -151,41 +228,29 @@
 
         .feedback-item {
             display: flex;
-            justify-content: justify;
+            justify-content: space-between;
             align-items: center;
-            padding: 12px 15px;
-            border-radius: 12px;
-            margin-bottom: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.05);
         }
 
         .feedback-item.status-komme {
-            border-left: 5px solid #10b981;
+            border-left: 4px solid #10b981;
             background: rgba(16, 185, 129, 0.05);
         }
 
         .feedback-item.status-nein {
-            border-left: 5px solid #ef4444;
+            border-left: 4px solid #ef4444;
             background: rgba(239, 68, 68, 0.05);
         }
 
-        .feedback-name {
-            font-weight: 700;
-            font-size: 1.2rem;
-            flex-grow: 1;
-        }
-
-        .feedback-status {
-            font-weight: 800;
-            font-size: 1.1rem;
-            text-transform: uppercase;
-        }
-
-        /* Print styling */
+        /* Print overrides */
         @media print {
             body { background: white; color: black; }
-            .alarm-header, .feedback-panel, .print-btn { display: none !important; }
+            .alarm-header, .feedback-panel, .print-btn, #displayMap, .vehicles-card { display: none !important; }
             .main-grid { grid-template-columns: 1fr; padding: 0; }
             .alarm-card { border: none; box-shadow: none; padding: 0; }
             .stichwort-val { color: black; font-size: 3rem; }
@@ -195,31 +260,31 @@
     </style>
 </head>
 <body>
-    <div id="app" v-cloak>
+    <div id="app" v-cloak style="display:flex; flex-direction:column; height:100vh;">
         <!-- Alarm Header -->
-        <header class="alarm-header">
+        <header class="alarm-header" :class="{'no-alarm': !isAlarmActive}">
             <div class="d-flex align-items-center gap-3">
-                <i class="fa fa-triangle-exclamation fa-spin fa-2x"></i>
-                <h1 class="alarm-title">EINSATZALARM</h1>
+                <i v-if="isAlarmActive" class="fa fa-triangle-exclamation fa-spin fa-2x text-white"></i>
+                <i v-else class="fa fa-desktop fa-2x text-muted"></i>
+                <h1 class="alarm-title">{{ isAlarmActive ? '🚨 EINSATZALARM' : 'STATIONSMONITOR' }}</h1>
             </div>
-            <div class="d-flex align-items-center gap-4">
+            <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-light rounded-pill px-4 fw-bold print-btn" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
 
-        <!-- Main Grid Area -->
+        <!-- Main Display Grid -->
         <div class="main-grid">
-            
-            <!-- Details Area -->
-            <div class="details-panel">
-                <div class="alarm-card flex-grow-1 d-flex flex-column justify-content-center">
-                    <div class="mb-4">
+            <!-- Left Panel (Einsatzdaten & Fuhrpark) -->
+            <div class="left-column">
+                <div class="alarm-card d-flex flex-column justify-content-center">
+                    <div class="mb-3">
                         <span class="card-label">Einsatzstichwort</span>
-                        <div class="stichwort-val">{{ lastAlarm.stichwort || 'KEIN AKTIVER ALARM' }}</div>
+                        <div class="stichwort-val" :class="{'alert-active': isAlarmActive}">{{ lastAlarm.stichwort || 'BEREITSCHAFT' }}</div>
                     </div>
 
-                    <div class="mb-4" v-if="lastAlarm.adresse">
+                    <div class="mb-3" v-if="lastAlarm.adresse">
                         <span class="card-label">Einsatzort / Adresse</span>
                         <div class="adresse-val"><i class="fa fa-location-dot me-2"></i>{{ lastAlarm.adresse }}</div>
                     </div>
@@ -229,79 +294,186 @@
                         <div class="meldung-val">{{ lastAlarm.meldung }}</div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Feedback Sidebar -->
-            <div class="feedback-panel">
-                <div class="feedback-header">
-                    <span>RÜCKMELDUNGEN</span>
-                    <span class="badge bg-success rounded-pill">{{ kommeCount }} Zusage(n)</span>
-                </div>
-                <div class="feedback-list">
-                    <div v-for="f in feedbacks" :key="f.id" class="feedback-item" :class="f.status === 'Komme' ? 'status-komme' : 'status-nein'">
-                        <span class="feedback-name text-white">{{ f.name }}</span>
-                        <span class="feedback-status" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
-                            {{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}
-                        </span>
+                <!-- Vehicles Status Board -->
+                <div class="vehicles-card">
+                    <h6 class="card-label mb-3"><i class="fa fa-truck me-2"></i>Fahrzeugstatus & BOS Funkverkehr</h6>
+                    <div class="vehicle-grid">
+                        <div v-for="v in vehicles" :key="v.id" class="vehicle-status-item">
+                            <div>
+                                <div class="fw-bold text-white small">{{ v.name }}</div>
+                                <div class="text-muted" style="font-size:0.75rem;">{{ v.radio_name }}</div>
+                            </div>
+                            <div class="status-badge" :class="'fms-' + v.status">
+                                {{ v.status }}
+                            </div>
+                        </div>
                     </div>
-                    <div v-if="feedbacks.length === 0" class="text-center py-5 text-muted small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
                 </div>
             </div>
 
+            <!-- Right Panel (Hydrantenkarte & Rückmeldungen) -->
+            <div class="right-column">
+                <!-- Map showing hydrants -->
+                <div id="displayMap"></div>
+
+                <!-- Feedbacks list -->
+                <div class="feedback-panel">
+                    <div class="feedback-header">
+                        <span class="text-white fw-bold"><i class="fa fa-users me-2"></i>EINSATZKRÄFTE</span>
+                        <span class="badge bg-success rounded-pill px-3">{{ kommeCount }} Zusage(n)</span>
+                    </div>
+                    <div class="feedback-list">
+                        <div v-for="f in feedbacks" :key="f.id" class="feedback-item" :class="f.status === 'Komme' ? 'status-komme' : 'status-nein'">
+                            <span class="feedback-name text-white">{{ f.name }}</span>
+                            <span class="feedback-status" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
+                                {{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}
+                            </span>
+                        </div>
+                        <div v-if="feedbacks.length === 0" class="text-center py-5 text-muted small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const { createApp } = Vue;
+        let map = null;
+        let mapMarkers = [];
 
         createApp({
             data() {
                 return {
-                    lastAlarm: { stichwort: '', adresse: '', meldung: '' },
+                    lastAlarm: { id: null, stichwort: '', adresse: '', meldung: '' },
                     feedbacks: [],
+                    vehicles: [],
                     timeStr: '00:00:00',
-                    kommeCount: 0
+                    kommeCount: 0,
+                    isAlarmActive: false
                 }
             },
             mounted() {
                 this.updateClock();
                 setInterval(this.updateClock, 1000);
                 
-                this.pollAlarm();
-                setInterval(this.pollAlarm, 5000); // alle 5 Sek neu laden
+                this.pollData();
+                setInterval(this.pollData, 5000); // 5 sec poll
+                
+                this.initDisplayMap();
             },
             methods: {
                 updateClock() {
                     const now = new Date();
                     this.timeStr = now.toTimeString().split(' ')[0];
                 },
-                async pollAlarm() {
+                initDisplayMap() {
+                    setTimeout(() => {
+                        // Station location (Neustadt)
+                        map = L.map('displayMap').setView([50.1109, 8.6821], 15);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                        
+                        // Add base station marker
+                        L.marker([50.1109, 8.6821], {
+                            icon: L.icon({
+                                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png',
+                                iconSize: [35, 35]
+                            })
+                        }).bindPopup('<b>Feuerwehrgerätehaus</b>').addTo(map);
+                        
+                        this.loadHydrants();
+                    }, 500);
+                },
+                async loadHydrants() {
                     try {
-                        const [aRes, fRes] = await Promise.all([
+                        const res = await fetch('/api/material/hydrants');
+                        if (res.ok) {
+                            const list = await res.json();
+                            list.forEach(h => {
+                                L.circleMarker([h.lat, h.lng], {
+                                    radius: 6,
+                                    color: '#2563eb',
+                                    fillColor: '#3b82f6',
+                                    fillOpacity: 0.8
+                                }).bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}`).addTo(map);
+                            });
+                        }
+                    } catch(e){}
+                },
+                async pollData() {
+                    try {
+                        const [aRes, fRes, vRes] = await Promise.all([
                             fetch('/api/apager/logs'),
-                            fetch('/api/apager/feedbacks')
+                            fetch('/api/apager/feedbacks'),
+                            fetch('/api/vehicles')
                         ]);
+                        
                         if(aRes.ok) {
                             const logs = await aRes.json();
                             if(logs && logs.length > 0) {
-                                // Prüfen, ob der Alarm frisch ist (letzte 30 Min)
                                 const last = logs[0];
                                 const alarmTime = new Date(last.created_at);
                                 const diffMin = (new Date() - alarmTime) / (1000 * 60);
+                                
                                 if(diffMin < 30) {
+                                    this.isAlarmActive = true;
+                                    // Check if this is a new alarm to trigger sound/alert
+                                    if(last.id !== this.lastAlarm.id) {
+                                        this.triggerAlarmSound(last);
+                                    }
                                     this.lastAlarm = last;
                                 } else {
-                                    this.lastAlarm = { stichwort: 'Bereitstellung / Standby', adresse: 'Keine aktiven Alarme in den letzten 30 Minuten.', meldung: '' };
+                                    this.isAlarmActive = false;
+                                    this.lastAlarm = { id: last.id, stichwort: 'Bereitstellung / Standby', adresse: 'Keine aktiven Einsätze.', meldung: '' };
                                 }
                             } else {
-                                this.lastAlarm = { stichwort: 'Bereitstellung / Standby', adresse: 'Keine Einsätze registriert.', meldung: '' };
+                                this.isAlarmActive = false;
+                                this.lastAlarm = { id: null, stichwort: 'Bereitstellung / Standby', adresse: 'Bereit für Einsätze.', meldung: '' };
                             }
                         }
+                        
                         if(fRes.ok) {
                             this.feedbacks = await fRes.json();
                             this.kommeCount = this.feedbacks.filter(x => x.status === 'Komme').length;
                         }
+                        
+                        if(vRes.ok) {
+                            this.vehicles = await vRes.json();
+                        }
                     } catch(e) { console.error("Poll error", e); }
+                },
+                triggerAlarmSound(alarm) {
+                    // Play synthesizer siren tones
+                    try {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!AudioContext) return;
+                        const ctx = new AudioContext();
+                        
+                        // Simple dual frequency dispatcher tone
+                        for (let i = 0; i < 3; i++) {
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.type = 'sawtooth';
+                            osc.frequency.setValueAtTime(600, ctx.currentTime + (i * 0.3));
+                            gain.gain.setValueAtTime(0.25, ctx.currentTime + (i * 0.3));
+                            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (i * 0.3) + 0.25);
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.start(ctx.currentTime + (i * 0.3));
+                            osc.stop(ctx.currentTime + (i * 0.3) + 0.28);
+                        }
+                    } catch(e) {}
+                    
+                    // Synthesize spoken alert
+                    if ('speechSynthesis' in window) {
+                        setTimeout(() => {
+                            const text = `Achtung! Alarm für die Feuerwehr. Einsatzstichwort: ${alarm.stichwort}. Einsatzort: ${alarm.adresse || 'Unbekannt'}.`;
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            utterance.lang = 'de-DE';
+                            utterance.rate = 0.95;
+                            window.speechSynthesis.speak(utterance);
+                        }, 1200);
+                    }
                 }
             }
         }).mount('#app');

@@ -1042,12 +1042,26 @@ def get_my_global_fire_stats(year: int, request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT p.name FROM users u JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    cur.execute("SELECT p.name, u.personnel_id FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
     res = cur.fetchone()
-    if not res:
+    
+    klarnat_name = None
+    if res and res["name"]:
+        klarnat_name = res["name"]
+    else:
+        # Fallback: Suche nach Namen, der dem Benutzernamen ähnelt
+        cur.execute("SELECT id, name FROM personnel WHERE LOWER(name) LIKE %s", (f"%{user['username'].lower()}%",))
+        fallback = cur.fetchone()
+        if fallback:
+            # Auto-bind
+            cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], user["username"]))
+            conn.commit()
+            klarnat_name = fallback["name"]
+            
+    if not klarnat_name:
         cur.close(); conn.close()
-        return {"hours": 0, "count": 0}
-    klarnat_name = res["name"]
+        return {"hours": 0, "count": 0, "unlinked": True}
+        
     query = """
         SELECT COALESCE(SUM(s.duration), 0) as total_hours, COUNT(DISTINCT s.id) as present_count
         FROM attendance a JOIN sessions s ON a.session_id = s.id JOIN persons p ON a.person_id = p.id
@@ -1055,7 +1069,17 @@ def get_my_global_fire_stats(year: int, request: Request):
     """
     cur.execute(query, (klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
-    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0}
+    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0, "unlinked": False, "name": klarnat_name}
+
+@app.put("/api/users/me/bind-personnel")
+def bind_self_personnel(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    pid = data.get("personnel_id")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (pid, user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
 
 # --- ALARMIERUNG (APAGER PRO WEBHOOK & CONFIG) ---
 import uuid

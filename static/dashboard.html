@@ -17,6 +17,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     
     <style>
         :root { 
@@ -277,7 +278,10 @@
             color: #ffffff !important;
         }
         .text-muted {
-            color: #d1c5c5 !important;
+            color: #e0d8d8 !important;
+        }
+        small, .small {
+            color: #e8e2e2 !important;
         }
         .form-control:focus, .form-select:focus {
             background: rgba(255, 255, 255, 0.12) !important;
@@ -314,6 +318,35 @@
         .profile-trigger:hover {
             background: rgba(255,255,255,0.08);
             border-color: var(--primary);
+        }
+
+        .modal-avatar-upload {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px dashed rgba(255,255,255,0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+        .modal-avatar-upload:hover {
+            border-color: var(--primary);
+            background: rgba(0,0,0,0.4);
+        }
+        .modal-avatar-upload img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .form-label {
+            color: #ffffff !important;
+            font-weight: 600;
         }
 
         .sig-wrapper { 
@@ -584,9 +617,10 @@
                 <div v-show="activeTab === 'fahrzeuge'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
                             <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
                         </div>
+                        <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
                     </div>
 
                     <div class="row g-4">
@@ -594,10 +628,10 @@
                             <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-truck text-danger me-2"></i>Fahrzeug-Status</h5>
                                 <div class="list-group list-group-flush">
-                                    <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center">
+                                    <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
                                             <h6 class="fw-bold text-white mb-0">{{v.name}}</h6>
-                                            <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}}</small>
+                                            <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}} &bull; {{v.milage}} km</small>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <span class="status-dot" :class="'status-' + v.status"></span>
@@ -608,6 +642,10 @@
                                                 <option :value="4">S4</option>
                                                 <option :value="6">S6</option>
                                             </select>
+                                            <div v-if="role !== 'mannschaft'" class="d-flex gap-1 ms-1">
+                                                <button class="btn btn-xs btn-outline-light border-0 p-1" @click="openVehicleFormModal(v)"><i class="fa fa-edit text-muted"></i></button>
+                                                <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicle(v.id)"><i class="fa fa-trash text-danger"></i></button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -910,6 +948,55 @@
                                     <button class="btn btn-premium w-100 rounded-pill" @click="submitBma">Objekt anlegen</button>
                                 </div>
                             </div>
+
+                            <!-- System-Logins card (Admin only) -->
+                            <div class="card premium-card p-4 mt-4" v-if="isAdmin">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-key text-danger me-2"></i>System-Logins verwalten <i class="fa fa-question-circle text-muted" style="font-size:0.95rem; cursor:pointer;" title="Erstelle und verwalte die Konten für Kameraden. Nur Admins können dies tun."></i></h5>
+                                
+                                <div class="table-responsive mb-4" style="max-height: 250px;">
+                                    <table class="table table-dark table-hover mb-0 align-middle small">
+                                        <thead><tr class="text-muted"><th>BENUTZERNAME</th><th>ROLLE</th><th>AKTION</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="usr in systemUsers" :key="usr.id">
+                                                <td class="fw-bold text-white">{{ usr.username }}</td>
+                                                <td><span class="badge bg-secondary">{{ usr.role }}</span></td>
+                                                <td>
+                                                    <button class="btn btn-xs btn-outline-warning rounded-pill me-1" @click="resetUserPassword(usr)" style="font-size:0.7rem;">PW Reset</button>
+                                                    <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteUserAccount(usr.id)" style="display:inline-flex; align-items:center;"><i class="fa fa-trash text-danger"></i></button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div>
+                                    <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neuen System-Login erstellen</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Benutzername</label>
+                                        <input type="text" v-model="newLogin.username" class="form-control" placeholder="z. B. f.mueller">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Passwort</label>
+                                        <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 4 Zeichen">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Systemrolle</label>
+                                        <select v-model="newLogin.role" class="form-select">
+                                            <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
+                                            <option value="leitung">Leitung (Schreibrechte)</option>
+                                            <option value="admin">Administrator (Vollzugriff)</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Kamerad verknüpfen</label>
+                                        <select v-model="newLogin.personnel_id" class="form-select">
+                                            <option :value="null">-- Keiner --</option>
+                                            <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill" @click="submitNewLogin">System-Login erstellen</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="col-12 col-lg-6">
@@ -1154,6 +1241,61 @@
             </div>
         </div>
 
+        <!-- MODAL: ADD/EDIT VEHICLE -->
+        <div class="modal fade" id="vehicleFormModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugakte bearbeiten</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeVehicle">
+                        <form @submit.prevent="saveVehicle">
+                            <div class="mb-3">
+                                <label class="form-label">Bezeichnung / Typ <i class="fa fa-question-circle text-muted" title="z.B. HLF 20 oder MZF"></i></label>
+                                <input type="text" v-model="activeVehicle.name" class="form-control" placeholder="z. B. HLF 20" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Funkrufname <i class="fa fa-question-circle text-muted" title="BOS Funkkennung, z.B. Florian Neustadt 40/1"></i></label>
+                                <input type="text" v-model="activeVehicle.radio_name" class="form-control" placeholder="z. B. Florian Neustadt 40/1">
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">TÜV Datum</label>
+                                    <input type="date" v-model="activeVehicle.tuv_date" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Sicherheitsprüfung (SP)</label>
+                                    <input type="date" v-model="activeVehicle.sp_date" class="form-control">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Kilometerstand</label>
+                                    <input type="number" v-model="activeVehicle.milage" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Nächster Service</label>
+                                    <input type="date" v-model="activeVehicle.next_service" class="form-control">
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">BOS Status</label>
+                                <select v-model="activeVehicle.status" class="form-select">
+                                    <option :value="1">Status 1 (Einsatzbereit über Funk)</option>
+                                    <option :value="2">Status 2 (Einsatzbereit auf Wache)</option>
+                                    <option :value="3">Status 3 (Einsatzauftrag übernommen)</option>
+                                    <option :value="4">Status 4 (Am Einsatzort eingetroffen)</option>
+                                    <option :value="6">Status 6 (Nicht einsatzbereit / Werkstatt)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Fahrzeug speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: VEHICLE LOG RIDE -->
         <div class="modal fade" id="logRideModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -1234,6 +1376,11 @@
                                     <label class="form-label">Nächste Prüfung</label>
                                     <input type="date" v-model="activeEquipment.next_inspection" class="form-control">
                                 </div>
+                            </div>
+                            <div class="mb-4 text-center p-3 bg-black bg-opacity-25 rounded border border-secondary border-opacity-10" v-if="activeEquipment && activeEquipment.id">
+                                <label class="form-label d-block text-muted small fw-bold">GERÄTE-QR-CODE (FÜR AUSDRUCK/PRÜFUNG)</label>
+                                <canvas id="eqQrCanvas" class="bg-white p-2 rounded mb-2" style="width: 150px; height: 150px; display: inline-block;"></canvas>
+                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill d-block mx-auto mt-2" @click="printQrCode"><i class="fa fa-print me-1"></i>QR-Code drucken</button>
                             </div>
                             <button type="submit" class="btn btn-premium w-100 rounded-pill">Gerät speichern</button>
                         </form>
@@ -1526,6 +1673,17 @@
                             </div>
                         </div>
                         
+                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="alert alert-warning small rounded-4 mb-4 border border-warning border-opacity-20 p-3">
+                            <h6 class="fw-bold mb-1 text-warning"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
+                            <p class="mb-2 text-white">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
+                            <div class="d-flex gap-2">
+                                <select v-model="selfBindPersonnelId" class="form-select form-select-sm">
+                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                </select>
+                                <button type="button" class="btn btn-premium btn-sm rounded-pill fw-bold text-nowrap" @click="bindSelfAccount">Verknüpfen</button>
+                            </div>
+                        </div>
+                        
                         <form @submit.prevent="submitSelfPassword">
                             <div class="mb-3">
                                 <label class="form-label">Aktuelles Passwort</label>
@@ -1622,6 +1780,10 @@
                     newBma: { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' },
                     newHydrant: { lat: 0.0, lng: 0.0, type: 'Unterflur', label: 'Hydrant' },
                     newLogRide: { date: '', mileage_start: 0, mileage_end: 0, driver_name: '', purpose: '' },
+                    systemUsers: [],
+                    newLogin: { username: '', password: '', role: 'mannschaft', personnel_id: null },
+                    activeVehicle: null,
+                    selfBindPersonnelId: null,
                     
                     cacheBuster: Date.now()
                 }
@@ -1690,6 +1852,9 @@
                 await this.loadApagerConfig();
                 await this.loadSchedules();
                 await this.loadPersonnel();
+                if (this.isAdmin) {
+                    await this.loadSystemUsers();
+                }
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
@@ -1700,6 +1865,20 @@
                 if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
                 missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
                 
+                // QR-Code Barcode scanner query param
+                const params = new URLSearchParams(window.location.search);
+                const eqBarcode = params.get('eq_barcode');
+                if (eqBarcode) {
+                    this.activeTab = 'material';
+                    setTimeout(async () => {
+                        await this.loadEquipment();
+                        const match = this.equipment.find(e => e.barcode === eqBarcode);
+                        if (match) {
+                            this.editEquipment(match);
+                        }
+                    }, 800);
+                }
+
                 this.ready = true;
                 if (this.isFirstLoginBlock) { setTimeout(() => { selfPasswordModal.show(); }, 400); }
             },
@@ -1944,6 +2123,40 @@
                 editEquipment(eq) {
                     this.activeEquipment = {...eq};
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                    setTimeout(() => {
+                        const canvas = document.getElementById('eqQrCanvas');
+                        if (canvas) {
+                            const url = `${window.location.protocol}//${window.location.host}/dashboard?eq_barcode=${eq.barcode}`;
+                            new QRious({
+                                element: canvas,
+                                value: url,
+                                size: 200
+                            });
+                        }
+                    }, 350);
+                },
+                printQrCode() {
+                    const canvas = document.getElementById('eqQrCanvas');
+                    const imgData = canvas.toDataURL('image/png');
+                    const win = window.open('', '_blank');
+                    win.document.write(`
+                        <html>
+                        <head>
+                            <title>QR-Code Drucken - ${this.activeEquipment.name}</title>
+                            <style>
+                                body { font-family: sans-serif; text-align: center; padding: 40px; }
+                                h2 { margin-bottom: 20px; }
+                                img { border: 1px solid #ccc; padding: 10px; }
+                            </style>
+                        </head>
+                        <body onload="window.print(); window.close();">
+                            <h2>${this.activeEquipment.name}</h2>
+                            <h3>Barcode: ${this.activeEquipment.barcode}</h3>
+                            <img src="${imgData}" width="200" height="200" />
+                        </body>
+                        </html>
+                    `);
+                    win.document.close();
                 },
                 async saveEquipment() {
                     const isEdit = this.activeEquipment.id !== null;
@@ -2173,6 +2386,74 @@
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
                     const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
                     if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
+                },
+                async bindSelfAccount() {
+                    if (!this.selfBindPersonnelId) return alert("Wähle einen Kameraden aus!");
+                    const res = await fetch('/api/users/me/bind-personnel', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: this.selfBindPersonnelId }) });
+                    if (res.ok) {
+                        alert("Konto erfolgreich verknüpft!");
+                        await this.fetchPersonalStats();
+                    }
+                },
+                
+                // System user accounts
+                async loadSystemUsers() {
+                    const res = await fetch('/api/users/list', { credentials: 'include' });
+                    if (res.ok) this.systemUsers = await res.json();
+                },
+                async submitNewLogin() {
+                    if (!this.newLogin.username || !this.newLogin.password) return alert("Benutzername und Passwort sind erforderlich!");
+                    const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogin) });
+                    if (res.ok) {
+                        alert("System-Login angelegt!");
+                        this.newLogin = { username: '', password: '', role: 'mannschaft', personnel_id: null };
+                        await this.loadSystemUsers();
+                    } else {
+                        const err = await res.json();
+                        alert("Fehler: " + (err.detail || "Unbekannter Fehler"));
+                    }
+                },
+                async deleteUserAccount(id) {
+                    if (confirm("System-Login permanent löschen?")) {
+                        const res = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) {
+                            alert("Konto gelöscht.");
+                            await this.loadSystemUsers();
+                        }
+                    }
+                },
+                async resetUserPassword(usr) {
+                    const newPw = prompt(`Neues Passwort für Benutzer '${usr.username}':`);
+                    if (newPw) {
+                        const res = await fetch(`/api/users/${usr.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: newPw }) });
+                        if (res.ok) alert("Passwort erfolgreich zurückgesetzt!");
+                    }
+                },
+
+                // Vehicles Form Actions
+                openVehicleFormModal(veh) {
+                    if (veh) {
+                        this.activeVehicle = { ...veh };
+                    } else {
+                        this.activeVehicle = { id: null, name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' };
+                    }
+                    new bootstrap.Modal(document.getElementById('vehicleFormModal')).show();
+                },
+                async saveVehicle() {
+                    const isEdit = this.activeVehicle.id !== null;
+                    const url = isEdit ? `/api/vehicles/${this.activeVehicle.id}` : '/api/vehicles';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.activeVehicle) });
+                    if (res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('vehicleFormModal')).hide();
+                        await this.loadVehicles();
+                    }
+                },
+                async deleteVehicle(id) {
+                    if (confirm("Fahrzeug aus Fuhrpark löschen?")) {
+                        const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) await this.loadVehicles();
+                    }
                 },
                 
                 formatDateDay(d) {
