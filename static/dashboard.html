@@ -25,7 +25,7 @@
             --card-bg: rgba(30, 24, 24, 0.85);
             --card-border: rgba(255, 255, 255, 0.12);
             --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-secondary: #e0d8d8;
             --exercise: #0d6efd; 
             --incident: #dc3545; 
             --misc: #ffc107; 
@@ -272,6 +272,13 @@
             color: #ffffff !important;
             border-radius: 12px;
         }
+        .form-select option {
+            background-color: #1c1414 !important;
+            color: #ffffff !important;
+        }
+        .text-muted {
+            color: #d1c5c5 !important;
+        }
         .form-control:focus, .form-select:focus {
             background: rgba(255, 255, 255, 0.12) !important;
             border-color: var(--primary) !important;
@@ -370,7 +377,7 @@
                 <div class="sidebar-menu flex-grow-1">
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions()"><i class="fa fa-fire"></i> Einsatzberichte</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'"><i class="fa fa-truck-emergency"></i> Fahrzeugpool</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment()"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'"><i class="fa fa-bell"></i> Alarmierung</button>
@@ -545,8 +552,8 @@
                     </div>
 
                     <div class="row g-3">
-                        <div v-for="m in missions" :key="m.id" class="col-12">
-                            <div class="mission-item" @click="editMission(m)">
+                        <div v-for="m in allIncidents" :key="m.isNewMission ? 'new_' + m.id : 'old_' + m.id" class="col-12">
+                            <div class="mission-item" @click="handleIncidentClick(m)">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div class="d-flex gap-3 align-items-center">
                                         <div class="text-center bg-black bg-opacity-30 rounded-4 p-2" style="min-width: 65px; border: 1px solid var(--card-border);">
@@ -563,12 +570,13 @@
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2">
-                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="openMissionSigModal(m)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
-                                        <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="deleteMission(m.id)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
+                                        <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">Keine Einsätze erfasst.</div>
                     </div>
                 </div>
 
@@ -576,7 +584,7 @@
                 <div v-show="activeTab === 'fahrzeuge'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck-emergency text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher</h2>
                             <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
                         </div>
                     </div>
@@ -584,7 +592,7 @@
                     <div class="row g-4">
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-bus-emergency text-danger me-2"></i>Fahrzeug-Status</h5>
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-truck text-danger me-2"></i>Fahrzeug-Status</h5>
                                 <div class="list-group list-group-flush">
                                     <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center">
                                         <div>
@@ -1621,10 +1629,39 @@
             computed: {
                 sessions() {
                     if (!this.sessionsList) return [];
-                    return this.sessionsList.filter(s => s && s.date && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
+                    return this.sessionsList.filter(s => s && s.date && s.category !== 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
                         if (!a || !a.date || !b || !b.date) return 0;
                         return new Date(b.date) - new Date(a.date);
                     });
+                },
+                allIncidents() {
+                    const list = this.missions.map(m => ({
+                        id: m.id,
+                        isNewMission: true,
+                        date: m.date,
+                        time: m.time,
+                        stichwort: m.stichwort,
+                        adresse: m.adresse,
+                        meldung: m.meldung,
+                        duration: m.duration,
+                        status: m.status
+                    }));
+                    if (this.sessionsList) {
+                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => ({
+                            id: s.id,
+                            isNewMission: false,
+                            date: s.date,
+                            time: '00:00',
+                            stichwort: s.description || 'Einsatz',
+                            adresse: s.instructors || 'Siehe Bericht',
+                            meldung: s.description || '',
+                            duration: s.duration,
+                            status: s.leader_signature ? 'Freigegeben' : 'Entwurf',
+                            rawSession: s
+                        }));
+                        list.push(...past);
+                    }
+                    return list.sort((a, b) => new Date(b.date) - new Date(a.date));
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
                 filteredEquipment() {
@@ -1793,6 +1830,13 @@
                     if(res.ok) this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
                 },
 
+                handleIncidentClick(m) {
+                    if (m.isNewMission) {
+                        this.editMission(m);
+                    } else {
+                        this.loadSession(m.rawSession);
+                    }
+                },
                 // Missions
                 async loadMissions() {
                     const res = await fetch('/api/missions', { credentials: 'include' });
