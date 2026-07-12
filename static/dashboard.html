@@ -462,7 +462,7 @@
                                         <thead><tr class="text-muted small"><th>DATUM</th><th>ZEIT</th><th>THEMA</th><th>KATEGORIE</th><th class="text-end">AKTION</th></tr></thead>
                                         <tbody>
                                             <tr v-for="s in schedules" :key="s.id">
-                                                <td class="fw-bold text-white">{{s.date.split('-')[2]}}.{{s.date.split('-')[1]}}</td>
+                                                <td class="fw-bold text-white">{{ formatDateDay(s.date) }}.{{ formatDateMonth(s.date) }}</td>
                                                 <td>{{s.time}}</td>
                                                 <td class="fw-bold">{{s.title}}</td>
                                                 <td><span class="badge" :class="s.type==='Übung'?'bg-primary':s.type==='Schulung'?'bg-success':'bg-secondary'">{{s.type}}</span></td>
@@ -514,8 +514,8 @@
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div class="d-flex gap-3 align-items-center">
                                         <div class="text-center bg-black bg-opacity-30 rounded-4 p-2" style="min-width: 65px; border: 1px solid var(--card-border);">
-                                            <div class="fw-bold text-danger h4 m-0">{{ s.date.split('-')[2] }}</div>
-                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ s.date.split('-')[1] }}.{{ s.date.split('-')[0].substring(2) }}</div>
+                                            <div class="fw-bold text-danger h4 m-0">{{ formatDateDay(s.date) }}</div>
+                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ formatDateMonthYear(s.date) }}</div>
                                         </div>
                                         <div>
                                             <span class="badge rounded-pill mb-1 shadow-sm small" :class="s.category==='Einsatz'?'bg-danger':(s.category==='Sonstiges'?'bg-warning text-dark':'bg-primary')">{{ s.category }}</span>
@@ -550,8 +550,8 @@
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div class="d-flex gap-3 align-items-center">
                                         <div class="text-center bg-black bg-opacity-30 rounded-4 p-2" style="min-width: 65px; border: 1px solid var(--card-border);">
-                                            <div class="fw-bold text-danger h4 m-0">{{ m.date.split('-')[2] }}</div>
-                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ m.date.split('-')[1] }}.{{ m.date.split('-')[0].substring(2) }}</div>
+                                            <div class="fw-bold text-danger h4 m-0">{{ formatDateDay(m.date) }}</div>
+                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ formatDateMonthYear(m.date) }}</div>
                                         </div>
                                         <div>
                                             <span class="badge bg-danger text-uppercase px-2 rounded-pill mb-1">Einsatz</span>
@@ -1613,12 +1613,19 @@
                     bmas: [],
                     newBma: { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' },
                     newHydrant: { lat: 0.0, lng: 0.0, type: 'Unterflur', label: 'Hydrant' },
+                    newLogRide: { date: '', mileage_start: 0, mileage_end: 0, driver_name: '', purpose: '' },
                     
                     cacheBuster: Date.now()
                 }
             },
             computed: {
-                sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => new Date(b.date) - new Date(a.date)); },
+                sessions() {
+                    if (!this.sessionsList) return [];
+                    return this.sessionsList.filter(s => s && s.date && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
+                        if (!a || !a.date || !b || !b.date) return 0;
+                        return new Date(b.date) - new Date(a.date);
+                    });
+                },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
                 filteredEquipment() {
                     return this.equipment.filter(eq => {
@@ -2124,6 +2131,19 @@
                     if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
                 },
                 
+                formatDateDay(d) {
+                    if (!d || typeof d !== 'string' || !d.includes('-')) return '';
+                    return d.split('-')[2];
+                },
+                formatDateMonth(d) {
+                    if (!d || typeof d !== 'string' || !d.includes('-')) return '';
+                    return d.split('-')[1];
+                },
+                formatDateMonthYear(d) {
+                    if (!d || typeof d !== 'string' || !d.includes('-')) return '';
+                    const parts = d.split('-');
+                    return `${parts[1]}.${parts[0].substring(2)}`;
+                },
                 isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
                 getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
                 

@@ -524,6 +524,12 @@ def get_login(request: Request):
     if user: return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
+@app.get("/login", response_class=FileResponse)
+def get_login_explicit(request: Request):
+    user = get_current_user(request)
+    if user: return FileResponse("static/dashboard.html")
+    return FileResponse("static/login.html")
+
 @app.get("/dashboard", response_class=FileResponse)
 def get_dash(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
