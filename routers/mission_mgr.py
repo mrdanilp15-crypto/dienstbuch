@@ -114,7 +114,7 @@ def get_mission(mission_id: int, request: Request):
 @router.post("")
 def create_mission(m: MissionCreate, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] in ("mannschaft", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection()
     cur = conn.cursor()
@@ -132,7 +132,7 @@ def create_mission(m: MissionCreate, request: Request):
 @router.put("/{mission_id}")
 def update_mission(mission_id: int, m: MissionUpdate, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] in ("mannschaft", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     
     conn = get_db_connection()

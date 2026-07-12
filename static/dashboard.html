@@ -349,6 +349,51 @@
             font-weight: 600;
         }
 
+        /* Input / Select Text visibility fix */
+        input, select, textarea, .form-control, .form-select {
+            color: #ffffff !important;
+        }
+        input::placeholder, textarea::placeholder {
+            color: rgba(255, 255, 255, 0.4) !important;
+        }
+
+        /* Personnel Grid Layout in Dashboard */
+        .person-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .member-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .member-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .avatar-container {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         .sig-wrapper { 
             border: 2px dashed rgba(255, 255, 255, 0.2); 
             border-radius: 20px; 
@@ -716,6 +761,11 @@
                                 <option value="Sonstiges">Sonstiges</option>
                             </select>
                         </div>
+                        <div class="col-12 col-md-4">
+                            <button class="btn w-100 rounded-pill fw-bold" :class="filterDefectiveOnly ? 'btn-warning text-dark' : 'btn-outline-warning text-white border-warning border-opacity-50'" @click="filterDefectiveOnly = !filterDefectiveOnly">
+                                <i class="fa fa-triangle-exclamation me-2"></i> <span v-if="filterDefectiveOnly">Nur Mängel/Defekte aktiv</span><span v-else>Mängelliste (Gerätewart)</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="row g-3">
@@ -724,7 +774,12 @@
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div>
                                         <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
-                                        <small class="text-muted d-block">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
+                                        <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                                            <small class="text-muted">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
+                                            <span v-if="eq.current_status && eq.current_status !== 'Bestanden'" class="badge bg-danger ms-1" style="font-size:0.6rem; padding: 2px 5px;">
+                                                <i class="fa-solid fa-triangle-exclamation me-1"></i>{{eq.current_status}}
+                                            </span>
+                                        </div>
                                     </div>
                                     <span class="badge" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
                                         Nächste Prf: {{eq.next_inspection || 'Keine'}}
@@ -922,13 +977,19 @@
                                     <div v-for="b in bmas" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
                                         <h6 class="fw-bold text-white mb-1">{{b.object_name}}</h6>
                                         <p class="text-muted small mb-2">{{b.address}} &bull; BMA ID: {{b.bma_number}} &bull; Schlüssel-Depot: {{b.key_depot ? 'JA' : 'NEIN'}}</p>
-                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteBma(b.id)"><i class="fa fa-trash"></i></button>
+                                        <div class="d-flex gap-2">
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="startBmaEdit(b)" style="font-size: 0.7rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteBma(b.id)" style="font-size: 0.7rem;"><i class="fa fa-trash me-1"></i>Löschen</button>
+                                        </div>
                                     </div>
                                     <div v-if="bmas.length === 0" class="text-center py-4 text-muted">Keine BMA-Objekte erfasst.</div>
                                 </div>
 
                                 <div v-if="role !== 'mannschaft'">
-                                    <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neues BMA Objekt</h6>
+                                    <h6 class="fw-bold text-white mb-3">
+                                        <i class="fa" :class="activeBmaId ? 'fa-pen-to-square' : 'fa-plus'"></i> 
+                                        <span v-if="activeBmaId">BMA-Objekt bearbeiten</span><span v-else>Neues BMA Objekt</span>
+                                    </h6>
                                     <div class="mb-3">
                                         <label class="form-label">Objekt-Name</label>
                                         <input type="text" v-model="newBma.object_name" class="form-control" placeholder="z. B. Altenheim St. Florian">
@@ -945,7 +1006,12 @@
                                         <input class="form-check-input" type="checkbox" id="keyDepot" v-model="newBma.key_depot">
                                         <label class="form-check-label small fw-bold text-white" for="keyDepot">Schlüssel-Depot (FSD) vorhanden</label>
                                     </div>
-                                    <button class="btn btn-premium w-100 rounded-pill" @click="submitBma">Objekt anlegen</button>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-premium flex-grow-1 rounded-pill" @click="submitBma">
+                                            <span v-if="activeBmaId">Speichern</span><span v-else>Objekt anlegen</span>
+                                        </button>
+                                        <button v-if="activeBmaId" class="btn btn-outline-light rounded-pill px-3" @click="cancelBmaEdit">Abbrechen</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -983,6 +1049,7 @@
                                         <label class="form-label">Systemrolle</label>
                                         <select v-model="newLogin.role" class="form-select">
                                             <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
+                                            <option value="geratewart">Gerätewart (Materialpflege)</option>
                                             <option value="leitung">Leitung (Schreibrechte)</option>
                                             <option value="admin">Administrator (Vollzugriff)</option>
                                         </select>
@@ -1746,6 +1813,7 @@
                     equipment: [],
                     eqSearch: '',
                     eqCategory: '',
+                    filterDefectiveOnly: false,
                     activeEquipment: null,
                     newInspection: { date: new Date().toISOString().split('T')[0], inspector: '', status: 'Bestanden', note: '' },
                     inspectionsHistory: [],
@@ -1778,6 +1846,7 @@
                     // BMA & Hydrants
                     bmas: [],
                     newBma: { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' },
+                    activeBmaId: null,
                     newHydrant: { lat: 0.0, lng: 0.0, type: 'Unterflur', label: 'Hydrant' },
                     newLogRide: { date: '', mileage_start: 0, mileage_end: 0, driver_name: '', purpose: '' },
                     systemUsers: [],
@@ -1830,7 +1899,8 @@
                     return this.equipment.filter(eq => {
                         const mSearch = eq.name.toLowerCase().includes(this.eqSearch.toLowerCase()) || eq.barcode.toLowerCase().includes(this.eqSearch.toLowerCase());
                         const mCat = !this.eqCategory || eq.category === this.eqCategory;
-                        return mSearch && mCat;
+                        const mDefect = !this.filterDefectiveOnly || eq.current_status === 'Mangel' || eq.current_status === 'Defekt';
+                        return mSearch && mCat && mDefect;
                     });
                 },
                 filteredPersonnel() {
@@ -1840,11 +1910,29 @@
             async mounted() {
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
-                    if (!authRes.ok) { window.location.href = '/'; return; }
+                    if (!authRes.ok) {
+                        const params = new URLSearchParams(window.location.search);
+                        const eqBarcode = params.get('eq_barcode');
+                        if (eqBarcode) {
+                            window.location.href = '/?eq_barcode=' + eqBarcode;
+                        } else {
+                            window.location.href = '/';
+                        }
+                        return;
+                    }
                     const authData = await authRes.json();
                     this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role;
                     this.isFirstLoginBlock = !!authData.is_first_login;
-                } catch (e) { window.location.href = '/'; return; }
+                } catch (e) {
+                    const params = new URLSearchParams(window.location.search);
+                    const eqBarcode = params.get('eq_barcode');
+                    if (eqBarcode) {
+                        window.location.href = '/?eq_barcode=' + eqBarcode;
+                    } else {
+                        window.location.href = '/';
+                    }
+                    return;
+                }
                 
                 await this.loadGroups();
                 await this.loadVehicles();
@@ -1880,7 +1968,16 @@
                 }
 
                 this.ready = true;
-                if (this.isFirstLoginBlock) { setTimeout(() => { selfPasswordModal.show(); }, 400); }
+                if (this.isFirstLoginBlock) {
+                    setTimeout(() => {
+                        const el = document.getElementById('selfPasswordModal');
+                        if (el) {
+                            let m = bootstrap.Modal.getInstance(el);
+                            if (!m) m = new bootstrap.Modal(el);
+                            m.show();
+                        }
+                    }, 400);
+                }
             },
             methods: {
                 async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/'; },
@@ -2323,11 +2420,22 @@
                     if(res.ok) this.bmas = await res.json();
                 },
                 async submitBma() {
-                    const res = await fetch('/api/material/bma', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBma) });
+                    const isEdit = this.activeBmaId !== null;
+                    const url = isEdit ? `/api/material/bma/${this.activeBmaId}` : '/api/material/bma';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBma) });
                     if(res.ok) {
-                        this.newBma = { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' };
+                        this.cancelBmaEdit();
                         await this.loadBmas();
                     }
+                },
+                startBmaEdit(b) {
+                    this.activeBmaId = b.id;
+                    this.newBma = { ...b, key_depot: !!b.key_depot };
+                },
+                cancelBmaEdit() {
+                    this.activeBmaId = null;
+                    this.newBma = { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' };
                 },
                 async deleteBma(id) {
                     if(confirm("Objekt löschen?")) {
@@ -2381,11 +2489,28 @@
                         if (res.ok) { this.personalStats = await res.json(); }
                     } catch(e) {}
                 },
-                openSelfPasswordModal() { this.selfPwData = { old_password: '', new_password: '', confirm_password: '' }; this.fetchPersonalStats(); if(selfPasswordModal) selfPasswordModal.show(); },
+                openSelfPasswordModal() {
+                    this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
+                    this.fetchPersonalStats();
+                    const el = document.getElementById('selfPasswordModal');
+                    if (el) {
+                        let m = bootstrap.Modal.getInstance(el);
+                        if (!m) m = new bootstrap.Modal(el);
+                        m.show();
+                    }
+                },
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
                     const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
-                    if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
+                    if (res.ok) {
+                        alert("Dein Passwort wurde erfolgreich aktualisiert!");
+                        this.isFirstLoginBlock = false;
+                        const el = document.getElementById('selfPasswordModal');
+                        if (el) {
+                            const m = bootstrap.Modal.getInstance(el);
+                            if (m) m.hide();
+                        }
+                    }
                 },
                 async bindSelfAccount() {
                     if (!this.selfBindPersonnelId) return alert("Wähle einen Kameraden aus!");

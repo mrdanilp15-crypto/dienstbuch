@@ -217,6 +217,13 @@
     <script>
         localStorage.clear();
 
+        // Preserve QR code redirect across login
+        const params = new URLSearchParams(window.location.search);
+        const eqBarcode = params.get('eq_barcode');
+        if (eqBarcode) {
+            sessionStorage.setItem('eq_barcode_redirect', eqBarcode);
+        }
+
         async function handleLogin(event) {
             event.preventDefault();
             
@@ -263,7 +270,13 @@
                 localStorage.setItem('userRole', data.role);
                 localStorage.setItem('userName', data.username);
 
-                window.location.href = data.redirect;
+                const savedBarcode = sessionStorage.getItem('eq_barcode_redirect');
+                if (savedBarcode) {
+                    sessionStorage.removeItem('eq_barcode_redirect');
+                    window.location.href = '/static/dashboard.html?eq_barcode=' + savedBarcode;
+                } else {
+                    window.location.href = data.redirect;
+                }
 
             } catch (error) {
                 errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;

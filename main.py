@@ -8,7 +8,7 @@ import hmac
 import base64
 import json
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
@@ -532,7 +532,11 @@ def get_login_explicit(request: Request):
 
 @app.get("/dashboard", response_class=FileResponse)
 def get_dash(request: Request):
-    if not get_current_user(request): return FileResponse("static/login.html")
+    if not get_current_user(request):
+        eq_barcode = request.query_params.get("eq_barcode")
+        if eq_barcode:
+            return RedirectResponse(url=f"/login?eq_barcode={eq_barcode}", status_code=302)
+        return FileResponse("static/login.html")
     return FileResponse("static/dashboard.html")
 
 @app.get("/editor", response_class=FileResponse)
@@ -942,7 +946,7 @@ async def get_attendance(group_id: int, request: Request, session_id: Optional[i
 @app.post("/attendance")
 async def save_attendance(payload: AttendanceUpload, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         if payload.session_id:
@@ -977,7 +981,7 @@ def get_instructors(group_id: int, request: Request):
 @app.post("/sessions/{session_id}/leader_signature")
 async def save_leader_sig(session_id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
     c.commit(); c.close(); return {"status": "success"}
@@ -986,7 +990,7 @@ async def save_leader_sig(session_id: int, data: dict, request: Request):
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": 
+    if not user or user["role"] in ("mannschaft", "geratewart"): 
         raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))

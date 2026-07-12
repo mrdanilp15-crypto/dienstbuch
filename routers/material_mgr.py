@@ -80,13 +80,20 @@ def list_equipment(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM equipment ORDER BY next_inspection ASC")
+    cur.execute("""
+        SELECT e.*,
+               (SELECT status FROM equipment_inspections WHERE equipment_id = e.id ORDER BY date DESC, id DESC LIMIT 1) as current_status
+        FROM equipment e
+        ORDER BY e.next_inspection ASC
+    """)
     res = cur.fetchall(); cur.close(); conn.close()
     for row in res:
         if isinstance(row["last_inspection"], date):
             row["last_inspection"] = str(row["last_inspection"])
         if isinstance(row["next_inspection"], date):
             row["next_inspection"] = str(row["next_inspection"])
+        if not row.get("current_status"):
+            row["current_status"] = "Bestanden"
     return res
 
 @router.post("/equipment")
