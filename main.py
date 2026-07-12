@@ -219,6 +219,25 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_config (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                api_key VARCHAR(255) NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                stichwort VARCHAR(255),
+                adresse VARCHAR(255),
+                meldung TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -576,7 +595,9 @@ def delete_broadcast(id: int, request: Request):
 
 # --- FAHRZEUG POOL APIS ---
 @app.get("/api/vehicles")
-def get_vehicles():
+def get_vehicles(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service FROM vehicles ORDER BY name")
     r = cur.fetchall(); c.close()
@@ -634,7 +655,9 @@ def delete_vehicle(id: int, request: Request):
 
 # --- GRUPPEN & DIENST-STRUKTUREN ---
 @app.get("/groups")
-def get_groups():
+def get_groups(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c=get_db_connection(); cur=c.cursor(dictionary=True)
     cur.execute("SELECT * FROM groups_table ORDER BY name")
     r=cur.fetchall(); c.close(); return r
@@ -665,7 +688,9 @@ def delete_group(id: int, request: Request):
     c.commit(); c.close(); return {"status": "deleted"}
 
 @app.get("/groups/{id}/sessions")
-def get_sessions(id: int):
+def get_sessions(id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC", (id,))
     r = cur.fetchall(); c.close()
@@ -676,7 +701,9 @@ def get_sessions(id: int):
     return r
 
 @app.get("/groups/{id}/stats")
-def get_stats(id: int, year: int):
+def get_stats(id: int, year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id, year))
     max_s = cur.fetchone()['total'] or 0
@@ -690,7 +717,9 @@ def get_stats(id: int, year: int):
     return {"persons": p, "total_sessions": max_s}
 
 @app.get("/groups/{group_id}/attendance")
-async def get_attendance(group_id: int, session_id: Optional[int] = None):
+async def get_attendance(group_id: int, request: Request, session_id: Optional[int] = None):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
@@ -755,19 +784,25 @@ async def save_attendance(payload: AttendanceUpload, request: Request):
     finally: cur.close(); conn.close()
 
 @app.get("/groups/{group_id}/topics")
-def get_topics(group_id: int):
+def get_topics(group_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("SELECT DISTINCT description FROM sessions WHERE group_id=%s AND description IS NOT NULL LIMIT 50", (group_id,))
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.get("/groups/{group_id}/instructors")
-def get_instructors(group_id: int):
+def get_instructors(group_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors IS NOT NULL LIMIT 50", (group_id,))
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.post("/sessions/{session_id}/leader_signature")
-async def save_leader_sig(session_id: int, data: dict):
+async def save_leader_sig(session_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
     c.commit(); c.close(); return {"status": "success"}
@@ -786,7 +821,9 @@ def delete_session(session_id: int, request: Request):
 
 # --- BERICHTE & JAHRESBERICHTE SYSTEM ---
 @app.get("/sessions/{session_id}/report", response_class=HTMLResponse)
-def single_report(session_id: int):
+def single_report(session_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.id=%s", (session_id,))
     s = cur.fetchone()
@@ -797,7 +834,9 @@ def single_report(session_id: int):
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{reports.generate_single_report(s, persons, TOWN_NAME)}</body></html>"
 
 @app.get("/groups/{group_id}/print_view", response_class=HTMLResponse)
-def year_report(group_id: int, year: int):
+def year_report(group_id: int, year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM groups_table WHERE id=%s", (group_id,))
     gname_res = cur.fetchone(); gname = gname_res['name'] if gname_res else "Unbekannt"
@@ -842,3 +881,70 @@ def get_my_global_fire_stats(year: int, request: Request):
     cur.execute(query, (klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
     return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0}
+
+# --- ALARMIERUNG (APAGER PRO WEBHOOK & CONFIG) ---
+import uuid
+
+@app.get("/api/apager/config")
+def get_apager_config(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM apager_config LIMIT 1")
+    row = cur.fetchone()
+    if not row:
+        api_key = uuid.uuid4().hex
+        cur.execute("INSERT INTO apager_config (api_key) VALUES (%s)", (api_key,))
+        conn.commit()
+        cur.close(); conn.close()
+        return {"api_key": api_key, "active": True}
+    cur.close(); conn.close()
+    return {"api_key": row['api_key'], "active": bool(row['active'])}
+
+@app.post("/api/apager/config")
+def regenerate_apager_key(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    new_key = uuid.uuid4().hex
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM apager_config")
+    cur.execute("INSERT INTO apager_config (api_key) VALUES (%s)", (new_key,))
+    conn.commit(); cur.close(); conn.close()
+    return {"api_key": new_key, "active": True}
+
+@app.get("/api/apager/logs")
+def get_apager_logs(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
+    r = cur.fetchall(); cur.close(); conn.close()
+    for log in r:
+        log['created_at'] = str(log['created_at'])
+    return r
+
+@app.post("/api/apager/webhook")
+async def apager_webhook(api_key: str, req: Request):
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id FROM apager_config WHERE api_key = %s AND active = 1", (api_key,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=401, detail="Ungültiger API-Key.")
+    
+    try:
+        data = await req.json()
+    except:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Ungültiges JSON.")
+        
+    stichwort = data.get("stichwort", "Alarmierung")
+    adresse = data.get("adresse", "Unbekannter Ort")
+    meldung = data.get("meldung", "Keine weiteren Details.")
+    
+    cur.execute("""
+        INSERT INTO apager_logs (stichwort, adresse, meldung)
+        VALUES (%s, %s, %s)
+    """, (stichwort, adresse, meldung))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success", "message": "Alarm erfolgreich verarbeitet."}

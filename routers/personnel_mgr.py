@@ -68,9 +68,20 @@ def internal_sync_personnel_to_groups():
     except Exception as e:
         print(f"Hintergrund-Synchronisationsfehler: {e}")
 
+# --- SICHERHEITS-HELFER ---
+def check_auth(request: Request, require_admin: bool = False) -> dict:
+    from main import get_current_user
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if require_admin and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    return user
+
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
 @router.get("/list")
-def get_all_personnel():
+def get_all_personnel(request: Request):
+    check_auth(request)
     # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren
     internal_sync_personnel_to_groups()
     
@@ -98,7 +109,8 @@ def get_all_personnel():
 
 # --- EINZELNES MITGLIED VOLLSTÄNDIG LADEN (FÜR MODAL) ---
 @router.get("/get/{member_id}")
-def get_single_member(member_id: int):
+def get_single_member(member_id: int, request: Request):
+    check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE id = %s", (member_id,))
@@ -118,7 +130,8 @@ def get_single_member(member_id: int):
 
 # --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
 @router.get("/avatar/{member_id}")
-def get_avatar(member_id: int):
+def get_avatar(member_id: int, request: Request):
+    check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
@@ -142,7 +155,8 @@ def get_avatar(member_id: int):
 
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
-def add_member(m: PersonnelMember):
+def add_member(m: PersonnelMember, request: Request):
+    check_auth(request, require_admin=True)
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
         
@@ -172,7 +186,8 @@ def add_member(m: PersonnelMember):
     return {"status": "success"}
 
 @router.post("/update/{member_id}")
-def update_member(member_id: int, m: PersonnelMember):
+def update_member(member_id: int, m: PersonnelMember, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -213,7 +228,8 @@ def update_member(member_id: int, m: PersonnelMember):
     return {"status": "updated"}
 
 @router.delete("/delete/{member_id}")
-def delete_member(member_id: int):
+def delete_member(member_id: int, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -231,7 +247,8 @@ def delete_member(member_id: int):
     return {"status": "deleted"}
 
 @router.get("/settings")
-def get_settings():
+def get_settings(request: Request):
+    check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT setting_key, setting_value FROM settings")
@@ -244,7 +261,8 @@ def get_settings():
     return res
 
 @router.post("/settings")
-def save_settings(s: GlobalSettings):
+def save_settings(s: GlobalSettings, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     settings = [

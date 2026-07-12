@@ -3,140 +3,312 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dienstbuch Editor</title>
+    <title>Dienstbuch Portal - Editor</title>
+    
+    <!-- Premium Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
     <style>
-        :root { --primary-color: #b71c1c; --bg-color: #f4f6f8; --exercise: #0d6efd; --incident: #dc3545; --misc: #ffc107; }
-        body { background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; padding-bottom: 120px; }
-        .main-content { padding: 15px; max-width: 900px; margin: 0 auto; }
+        :root { 
+            --primary-color: #b71c1c; 
+            --bg-color: #0f0a0a; 
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --exercise: #0d6efd; 
+            --incident: #dc3545; 
+            --misc: #ffc107; 
+        }
         
-        .header-bar { 
-            background: white; border-bottom: 3px solid var(--primary-color); 
-            padding: 10px 15px; position: sticky; top: 0; z-index: 1000;
-            display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        body { 
+            background: radial-gradient(circle at 50% 50%, #1a0f0f 0%, var(--bg-color) 100%); 
+            font-family: 'Outfit', sans-serif; 
+            padding-bottom: 120px; 
+            color: var(--text-primary);
+        }
+        
+        .main-content { 
+            padding: 25px 15px; 
+            max-width: 900px; 
+            margin: 0 auto; 
+        }
+        
+        .header-bar {
+            background: rgba(15, 10, 10, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--card-border);
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        
-        .btn-cat { border: 2px solid transparent; opacity: 0.5; transition: 0.3s; font-weight: bold; color: #666; }
-        .btn-cat:hover { opacity: 0.8; }
-        
-        .btn-cat-Übung.active { background-color: var(--exercise) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
-        .btn-cat-Einsatz.active { background-color: var(--incident) !important; color: white !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
-        .btn-cat-Sonstiges.active { background-color: var(--misc) !important; color: black !important; opacity: 1; transform: scale(1.05); border-color: rgba(0,0,0,0.1); }
+        .editor-card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--card-border); 
+            border-radius: 24px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
+            margin-bottom: 20px; 
+            padding: 24px; 
+        }
         
         .person-row { 
-            display: flex; align-items: center; padding: 12px; 
-            border-bottom: 1px solid #edf2f7; transition: 0.2s;
+            display: flex; 
+            align-items: center; 
+            padding: 16px; 
+            border-bottom: 1px solid var(--card-border); 
+            transition: all 0.2s ease;
+            gap: 15px;
         }
-        .person-row:last-child { border-bottom: none; }
-        .person-row.absent { background-color: #fff5f5; opacity: 0.8; }
+        .person-row.absent { 
+            background-color: rgba(255, 255, 255, 0.01); 
+            opacity: 0.65; 
+        }
         
-        /* Blutrote Fristenwarnung im Original-Layout */
-        .person-row.g26-expired-alert { background-color: #fef2f2 !important; border-left: 4px solid var(--primary-color); }
-        .g26-crit-text { color: var(--primary-color) !important; font-weight: bold; font-size: 0.75rem; display: block; margin-top: 2px; }
+        .person-row.g26-expired-alert { 
+            border-left: 4px solid var(--primary-color) !important; 
+            background-color: rgba(183, 28, 28, 0.05) !important; 
+        }
+        .g26-crit-text { 
+            color: #ff5252 !important; 
+            font-weight: 700; 
+            font-size: 0.75rem; 
+            display: block; 
+            margin-top: 4px; 
+        }
 
         .name-area { flex-grow: 1; min-width: 0; }
-        .name-text { font-weight: 600; font-size: 1.05rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .name-text { font-weight: 600; font-size: 1.1rem; display: block; color: white; }
         
-        .editor-avatar { width: 42px; height: 42px; border-radius: 10px; background: #e2e8f0; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1; flex-shrink: 0; }
+        .editor-avatar { 
+            width: 44px; 
+            height: 44px; 
+            border-radius: 12px; 
+            background: rgba(255,255,255,0.06); 
+            overflow: hidden; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            border: 1px solid var(--card-border); 
+            flex-shrink: 0; 
+        }
         .editor-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .sig-box { 
-            width: 70px; height: 40px; border: 1px dashed #cbd5e0; border-radius: 6px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            background: #f8fafc; overflow: hidden;
+            width: 80px; 
+            height: 48px; 
+            border: 1px dashed rgba(255,255,255,0.15); 
+            border-radius: 10px;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer;
+            background: rgba(255,255,255,0.02); 
+            overflow: hidden;
+            transition: all 0.2s ease;
         }
-        .sig-box img { max-width: 100%; max-height: 100%; }
+        .sig-box:hover {
+            border-color: var(--primary-color);
+            background: rgba(255,255,255,0.04);
+        }
+        .sig-box img { 
+            max-width: 100%; 
+            max-height: 100%; 
+            filter: invert(1);
+        }
         
         .vehicle-btn { 
-            padding: 4px 8px; font-size: 0.75rem; border-radius: 6px; 
-            border: 1px solid #e2e8f0; background: white; color: #64748b;
+            padding: 4px 10px; 
+            font-size: 0.7rem; 
+            border-radius: 20px; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            background: rgba(255,255,255,0.03); 
+            color: var(--text-secondary);
+            font-weight: 700;
+            transition: all 0.2s ease;
         }
-        .vehicle-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .vehicle-btn.active { 
+            background: var(--primary-color); 
+            color: white; 
+            border-color: var(--primary-color); 
+            box-shadow: 0 0 10px rgba(183, 28, 28, 0.4);
+        }
 
-        .save-indicator { position: fixed; bottom: 85px; right: 20px; z-index: 999; }
+        .save-indicator { 
+            position: fixed; 
+            bottom: 85px; 
+            right: 20px; 
+            z-index: 999; 
+        }
+        
         .bottom-nav { 
-            position: fixed; bottom: 0; left: 0; right: 0; background: white; 
-            padding: 15px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; z-index: 1000;
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: rgba(15, 10, 10, 0.9); 
+            backdrop-filter: blur(15px);
+            padding: 15px; 
+            border-top: 1px solid var(--card-border); 
+            display: flex; 
+            gap: 10px; 
+            z-index: 1000;
+            justify-content: center;
         }
 
-        #sigCanvas { border: 1px solid #ccc; width: 100%; height: 250px; touch-action: none; background: white; }
-        .pool-item { cursor: pointer; padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-        .pool-item:hover { background: #f0f7ff; }
-        [v-cloak] { display: none; }
+        .modal-content {
+            background: rgba(25, 20, 20, 0.95);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            color: var(--text-primary);
+        }
+        .form-control, .form-select {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #ffffff !important;
+            border-radius: 12px;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: var(--primary-color) !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(183, 28, 28, 0.3) !important;
+        }
+
+        .btn-premium {
+            background: linear-gradient(135deg, #b71c1c 0%, #801313 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            border-radius: 14px;
+            padding: 8px 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(183, 28, 28, 0.3);
+        }
+        .btn-premium:hover {
+            background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(183, 28, 28, 0.5);
+            color: white;
+        }
+
+        .btn-cat {
+            border: 1px solid rgba(255,255,255,0.15);
+            color: var(--text-secondary);
+            font-weight: bold;
+            padding: 10px 16px;
+            transition: all 0.3s ease;
+        }
+        .btn-cat:hover {
+            color: white;
+            background: rgba(255,255,255,0.05);
+        }
+        .btn-cat.active-ubung { background-color: var(--exercise) !important; color: white !important; border-color: var(--exercise); }
+        .btn-cat.active-einsatz { background-color: var(--incident) !important; color: white !important; border-color: var(--incident); }
+        .btn-cat.active-sonstiges { background-color: var(--misc) !important; color: black !important; border-color: var(--misc); }
+
+        #sigCanvas { 
+            border: 1px solid var(--card-border); 
+            width: 100%; 
+            height: 250px; 
+            touch-action: none; 
+            background: white; 
+            border-radius: 14px;
+        }
+        .pool-item { 
+            cursor: pointer; 
+            padding: 12px 16px; 
+            border-bottom: 1px solid var(--card-border); 
+            display: flex; 
+            align-items: center; 
+            transition: all 0.2s ease;
+        }
+        .pool-item:hover { 
+            background: rgba(255,255,255,0.03); 
+        }
+
+        [v-cloak] { display: none !important; }
     </style>
 </head>
 <body>
 
 <div id="app" v-cloak>
-    <div class="header-bar">
-        <button class="btn btn-outline-secondary btn-sm" @click="goBack">
-            <i class="fas fa-chevron-left"></i> Zurück
+    <div class="header-bar shadow-sm">
+        <button class="btn btn-outline-danger rounded-pill px-3 btn-sm" @click="goBack">
+            <i class="fas fa-chevron-left"></i> Portal
         </button>
-        <h5 class="m-0 fw-bold">Dienstbuch Protokoll</h5>
+        <h5 class="m-0 fw-bold text-white">Dienstbericht Editor</h5>
         <div>
-            <span v-if="isReadOnly" class="badge bg-secondary"><i class="fa fa-eye me-1"></i> Schreibgeschützt (Mannschaft)</span>
-            <span v-else-if="isAdmin" class="badge bg-danger">Admin</span>
-            <span v-else class="badge bg-primary">User</span>
+            <span v-if="isReadOnly" class="badge bg-secondary"><i class="fa fa-eye me-1"></i> Schreibgeschützt</span>
+            <span v-else-if="isAdmin" class="admin-badge">Admin</span>
+            <span v-else class="user-badge-role">Schreiber</span>
         </div>
     </div>
 
     <div class="main-content">
-        <div class="card p-3">
-            <div class="row g-2 mb-3">
+        <div class="editor-card">
+            <h5 class="fw-bold text-white mb-3"><i class="fa-regular fa-file-lines text-danger me-2"></i>Dienst-Stammdaten</h5>
+            <div class="row g-3">
                 <div class="col-6">
-                    <label class="small text-muted fw-bold">DATUM</label>
+                    <label class="small text-muted fw-bold mb-1">DATUM</label>
                     <input type="date" class="form-control" v-model="currentDate" @change="autoSave" :disabled="isReadOnly">
                 </div>
                 <div class="col-6">
-                    <label class="small text-muted fw-bold">DAUER (Std.)</label>
-                    <input type="number" step="0.5" class="form-control" v-model="duration" @input="autoSave" :disabled="isReadOnly">
+                    <label class="small text-muted fw-bold mb-1">DAUER (Std.)</label>
+                    <input type="number" step="0.5" class="form-control text-center" v-model="duration" @input="autoSave" :disabled="isReadOnly">
                 </div>
-            </div>
+                
+                <div class="col-12 mt-2">
+                    <label class="small text-muted fw-bold mb-2 d-block">DIENSTKATEGORIE</label>
+                    <div class="btn-group w-100 rounded-3 overflow-hidden border border-secondary border-opacity-20">
+                        <button class="btn btn-cat" :class="{'active-ubung': category==='Übung'}" @click="!isReadOnly && setCat('Übung')" :disabled="isReadOnly">Übung</button>
+                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && setCat('Einsatz')" :disabled="isReadOnly">Einsatz</button>
+                        <button class="btn btn-cat" :class="{'active-sonstiges': category==='Sonstiges'}" @click="!isReadOnly && setCat('Sonstiges')" :disabled="isReadOnly">Sonstiges</button>
+                    </div>
+                </div>
 
-            <label class="small text-muted fw-bold">KATEGORIE</label>
-            <div class="d-flex gap-2 mb-3">
-                <button v-for="cat in ['Übung', 'Einsatz', 'Sonstiges']" 
-                        :key="cat"
-                        @click="setCat(cat)"
-                        :class="['btn', 'flex-fill', 'btn-cat', 'btn-cat-' + cat, category === cat ? 'active' : 'bg-light']">
-                    {{cat}}
-                </button>
-            </div>
+                <div class="col-12 mt-3">
+                    <label class="small text-muted fw-bold mb-1">THEMA / BESCHREIBUNG</label>
+                    <input list="topicList" class="form-control fw-bold" v-model="description" @input="autoSave" placeholder="Was wurde ausgebildet?" :disabled="isReadOnly">
+                    <datalist id="topicList">
+                        <option v-for="t in topicOptions" :key="t" :value="t"></option>
+                    </datalist>
+                </div>
 
-            <div class="mb-3">
-                <label class="small text-muted fw-bold">THEMA / BESCHREIBUNG</label>
-                <input list="topicList" class="form-control" v-model="description" @input="autoSave" placeholder="Was wurde gemacht?" :disabled="isReadOnly">
-                <datalist id="topicList">
-                    <option v-for="t in topicOptions" :key="t" :value="t"></option>
-                </datalist>
-            </div>
-
-            <div class="mb-0">
-                <label class="small text-muted fw-bold">ÜBUNGSLEITUNG / AUSBILDER</label>
-                <input list="instrList" class="form-control" v-model="instructors" @input="autoSave" placeholder="Name(n)..." :disabled="isReadOnly">
-                <datalist id="instrList">
-                    <option v-for="i in instrOptions" :key="i" :value="i"></option>
-                </datalist>
+                <div class="col-12 mt-3">
+                    <label class="small text-muted fw-bold mb-1">ÜBUNGSLEITUNG / AUSBILDER</label>
+                    <input list="instrList" class="form-control" v-model="instructors" @input="autoSave" placeholder="Name der Leitung..." :disabled="isReadOnly">
+                    <datalist id="instrList">
+                        <option v-for="i in instrOptions" :key="i" :value="i"></option>
+                    </datalist>
+                </div>
             </div>
         </div>
 
-        <div class="card p-3 mb-3">
+        <!-- Confirm Sign Block -->
+        <div class="editor-card">
+            <h5 class="fw-bold text-white mb-3"><i class="fa fa-user-tie text-danger me-2"></i>Freigabe & Leitung</h5>
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="small text-muted fw-bold d-block">BESTÄTIGUNG ÜBUNGSLEITUNG</span>
-                    <small v-if="!leaderSignature" class="text-danger">Unterschrift fehlt</small>
-                    <small v-else class="text-success">Erfasst <i class="fas fa-check"></i></small>
+                    <span class="small text-muted fw-bold d-block">BESTÄTIGUNG DER LEITUNG</span>
+                    <small v-if="!leaderSignature" class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i>Unterschrift ausstehend</small>
+                    <small v-else class="text-success fw-bold"><i class="fa fa-check-circle me-1"></i>Freigegeben</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button v-if="leaderSignature && !isReadOnly" class="btn btn-sm btn-outline-secondary" @click="clearLeaderSig">
-                        <i class="fas fa-undo"></i>
+                    <button v-if="leaderSignature && !isReadOnly" class="btn btn-sm btn-outline-danger border-0 p-2" @click="clearLeaderSig">
+                        <i class="fas fa-eraser"></i>
                     </button>
                     <div class="sig-box" @click="openSig('LEADER')">
                         <img v-if="leaderSignature" :src="leaderSignature">
@@ -146,37 +318,36 @@
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center px-1 mb-2">
-            <h6 class="m-0 fw-bold">Anwesenheit ({{presentCount}}/{{persons.length}})</h6>
-            <button v-if="!isReadOnly" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#poolModal">
-                <i class="fas fa-plus"></i> Personen
+        <div class="d-flex justify-content-between align-items-center px-1 mb-3">
+            <h5 class="m-0 fw-bold text-white">Anwesende Kameraden ({{presentCount}}/{{persons.length}})</h5>
+            <button v-if="!isReadOnly" class="btn btn-premium btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#poolModal">
+                <i class="fas fa-plus"></i> Kameraden hinzufügen
             </button>
         </div>
 
-        <div class="card overflow-hidden">
-            <div class="p-2 bg-light border-bottom">
-                <input type="text" class="form-control form-control-sm" v-model="q" placeholder="Suchen...">
+        <div class="editor-card p-0 overflow-hidden">
+            <div class="p-3 bg-black bg-opacity-20 border-bottom border-secondary border-opacity-10 position-relative">
+                <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="q" placeholder="Teilnehmer suchen..." style="padding-left: 35px !important;">
+                <i class="fa fa-search text-muted position-absolute" style="left: 28px; top: 50%; transform: translateY(-50%);"></i>
             </div>
             
-            <!-- --- DIE INTEGRIERTE G26.3 OPTIK-WARNUNG --- -->
             <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
-                <div class="me-3">
+                <div>
                     <input type="checkbox" class="form-check-input" style="transform: scale(1.3)" 
                            :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
                 </div>
 
-                <div class="me-3">
+                <div>
                     <div class="editor-avatar">
-                        <img :src="p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'" alt="Profilbild">
+                        <img :src="p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Profilbild">
                     </div>
                 </div>
                 
                 <div class="name-area" @click="togglePresence(p)">
                     <span class="name-text">{{p.name}}</span>
-                    <!-- Rote Textwarnung unter dem Namen -->
                     <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzverbot!</span>
                     
-                    <div class="d-flex gap-1 mt-1 overflow-auto pb-1" v-if="globalVehicles.length">
+                    <div class="d-flex gap-1 mt-2 overflow-auto pb-1" v-if="globalVehicles.length">
                         <button v-for="v in globalVehicles" 
                                 :key="v.id"
                                 @click.stop="setVehicle(p, v.name)"
@@ -187,14 +358,14 @@
                 </div>
 
                 <div class="ms-2 d-flex align-items-center gap-2">
-                    <button v-if="p.signature && !isReadOnly" class="btn btn-sm btn-link text-muted p-0" @click.stop="clearP(p)">
-                        <i class="fas fa-eraser"></i>
+                    <button v-if="p.signature && !isReadOnly" class="btn btn-sm btn-link text-muted p-0 border-0" @click.stop="clearP(p)">
+                        <i class="fas fa-eraser text-danger"></i>
                     </button>
                     <div class="sig-box" @click.stop="openSig(p)">
                         <img v-if="p.signature" :src="p.signature">
                         <i v-else class="fas fa-signature text-muted"></i>
                     </div>
-                    <button v-if="isAdmin && !isReadOnly" class="btn btn-sm text-danger" @click.stop="removePerson(p)">
+                    <button v-if="isAdmin && !isReadOnly" class="btn btn-sm btn-outline-danger border-0 p-2" @click.stop="removePerson(p)">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -202,58 +373,70 @@
         </div>
     </div>
 
+    <!-- Save State Overlay -->
     <div class="save-indicator" v-if="!isReadOnly">
-        <span v-if="saveState === 'saving'" class="badge bg-warning text-dark p-2 shadow-sm">
+        <span v-if="saveState === 'saving'" class="badge bg-warning text-dark p-2 shadow-sm fw-bold">
             <i class="fas fa-sync fa-spin me-1"></i> Speichert...
         </span>
-        <span v-if="saveState === 'saved'" class="badge bg-success p-2 shadow-sm">
+        <span v-if="saveState === 'saved'" class="badge bg-success p-2 shadow-sm fw-bold">
             <i class="fas fa-check me-1"></i> Gespeichert
         </span>
     </div>
 
     <div class="bottom-nav">
-        <button class="btn btn-dark flex-fill py-2 fw-bold shadow" @click="saveAndExit">
+        <button class="btn btn-premium w-75 py-3 fw-bold rounded-pill shadow fs-5" @click="saveAndExit">
             {{ isReadOnly ? 'EDITOR BEENDEN' : 'BEENDEN & SCHLIESSEN' }}
         </button>
     </div>
 
+    <!-- MODAL: ADD PEOPLE FROM POOL -->
     <div class="modal fade" id="poolModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold">Personen hinzufügen</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header border-secondary border-opacity-10">
+                    <h5 class="modal-title fw-bold">Kameraden hinzufügen</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="d-flex gap-2 mb-3">
-                        <input type="text" class="form-control" v-model="poolSearch" placeholder="Name suchen...">
-                        <button class="btn btn-outline-secondary text-nowrap" @click="selectAllPool">Alle an/aus</button>
+                        <div class="position-relative flex-grow-1">
+                            <input type="text" class="form-control rounded-pill ps-4" v-model="poolSearch" placeholder="Name suchen..." style="padding-left:35px !important;">
+                            <i class="fa fa-search text-muted position-absolute" style="left:15px; top:50%; transform:translateY(-50%);"></i>
+                        </div>
+                        <button class="btn btn-outline-light rounded-pill px-3" @click="selectAllPool">Alle an/aus</button>
                     </div>
-                    <div class="list-group list-group-flush border rounded" style="max-height: 400px; overflow-y: auto;">
+                    <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto" style="max-height: 380px;">
                         <div v-for="p in filteredPool" :key="p.id" class="pool-item" @click="p.selected = !p.selected">
                             <input type="checkbox" class="form-check-input me-3" v-model="p.selected" @click.stop>
-                            <div class="me-3" style="width: 35px; height: 35px; border-radius: 8px; overflow: hidden; background: #cbd5e1; display:flex; align-items:center; justify-content:center;">
-                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://via.placeholder.com/150?text=FF'" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">
+                            <div class="me-3 editor-avatar">
+                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Avatar">
                             </div>
-                            <span class="fw-semibold">{{p.name}}</span>
+                            <span class="fw-bold text-white fs-5">{{p.name}}</span>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-primary px-4" @click="addSelectedFromPool">Hinzufügen</button>
+                <div class="modal-footer border-secondary border-opacity-10">
+                    <button type="button" class="btn btn-premium px-4" @click="addSelectedFromPool">Auswahl hinzufügen</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL: SIGNATURE -->
     <div class="modal fade" id="sigModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-body p-3 text-center">
-                    <canvas id="sigCanvas"></canvas>
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-outline-secondary flex-fill" @click="clearModal">Löschen</button>
-                        <button class="btn btn-primary flex-fill" @click="saveSig">Speichern</button>
+                <div class="modal-header border-secondary border-opacity-10">
+                    <h5 class="modal-title fw-bold">Unterschrift leisten</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="sig-wrapper shadow-inner mb-3">
+                        <canvas id="sigCanvas"></canvas>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-light flex-fill rounded-pill" @click="clearModal">Löschen</button>
+                        <button class="btn btn-premium flex-fill rounded-pill" @click="saveSig">Speichern</button>
                     </div>
                 </div>
             </div>
@@ -334,7 +517,24 @@
             } catch(e) {}
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-            sigPad = new SignaturePad(document.getElementById('sigCanvas'), { backgroundColor: 'rgb(255, 255, 255)' });
+            
+            const canvas = document.getElementById('sigCanvas');
+            if (canvas) {
+                sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+            }
+            
+            const resizeCanvas = () => {
+                if(!canvas || !sigPad) return;
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                sigPad.clear(); 
+            };
+            const sigEl = document.getElementById('sigModal');
+            if(sigEl) {
+                sigEl.addEventListener('shown.bs.modal', () => setTimeout(resizeCanvas, 200));
+            }
         },
         methods: {
             async load() {
@@ -415,8 +615,6 @@
                 if(this.isReadOnly) return;
                 this.activeSigner = t; sigModal.show(); 
                 setTimeout(() => {
-                    const c = document.getElementById('sigCanvas');
-                    c.width = c.offsetWidth; c.height = c.offsetHeight; sigPad.clear();
                     if(t !== 'LEADER' && t.signature) { sigPad.fromDataURL(t.signature); } 
                     else if (t === 'LEADER' && this.leaderSignature) { sigPad.fromDataURL(this.leaderSignature); }
                 }, 200); 
