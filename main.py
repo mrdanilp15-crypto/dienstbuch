@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 from routers import reports
 from routers import notes_manager
 from routers import personnel_mgr
+from routers import mission_mgr
+from routers import material_mgr
 
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "2.50"
@@ -36,6 +38,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Externe Router einbinden
 app.include_router(notes_manager.router)
 app.include_router(personnel_mgr.router)
+app.include_router(mission_mgr.router)
+app.include_router(material_mgr.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 def get_db_connection():
@@ -238,6 +242,170 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        # --- NEUE DIENSTBUCH SUITE TABELLEN ---
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS missions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                time VARCHAR(50) NOT NULL,
+                stichwort VARCHAR(255) NOT NULL,
+                adresse VARCHAR(255) NOT NULL,
+                meldung TEXT NOT NULL,
+                description TEXT,
+                duration FLOAT DEFAULT 2.0,
+                status VARCHAR(50) DEFAULT 'Entwurf',
+                leader_signature LONGTEXT,
+                media_files TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mission_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                personnel_id INT,
+                is_present VARCHAR(50) DEFAULT 'Nein',
+                vehicle VARCHAR(255) DEFAULT ''
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS respiration_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                personnel_id INT,
+                druck_start INT,
+                druck_10 INT,
+                druck_20 INT,
+                druck_ende INT,
+                dauer INT,
+                fit_ok BOOLEAN DEFAULT TRUE
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT,
+                date DATE NOT NULL,
+                mileage_start INT,
+                mileage_end INT,
+                driver_name VARCHAR(255),
+                purpose VARCHAR(255)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                barcode VARCHAR(255) UNIQUE NOT NULL,
+                category VARCHAR(255) NOT NULL,
+                image_url TEXT,
+                manual_url TEXT,
+                interval_months INT DEFAULT 12,
+                last_inspection DATE NULL,
+                next_inspection DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment_inspections (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                equipment_id INT,
+                date DATE NOT NULL,
+                inspector VARCHAR(255) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                note TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personal_inventar (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT,
+                item_name VARCHAR(255) NOT NULL,
+                size VARCHAR(50) NOT NULL,
+                issue_date DATE NOT NULL,
+                return_date DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lehrgaenge (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT,
+                course_name VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                certificate_url TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS billing_verursacher (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                recipient_name VARCHAR(255) NOT NULL,
+                address TEXT NOT NULL,
+                amount FLOAT NOT NULL,
+                details TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                paid_at TIMESTAMP NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hydrants (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                lat FLOAT NOT NULL,
+                lng FLOAT NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                label VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bma (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                object_name VARCHAR(255) NOT NULL,
+                address TEXT NOT NULL,
+                bma_number VARCHAR(100) NOT NULL,
+                key_depot BOOLEAN DEFAULT FALSE,
+                map_url TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedules (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                time VARCHAR(50) NOT NULL,
+                description TEXT,
+                type VARCHAR(50) NOT NULL,
+                group_id INT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedule_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                schedule_id INT,
+                personnel_id INT,
+                status VARCHAR(50) DEFAULT 'Nein'
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_feedbacks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                apager_log_id INT,
+                personnel_id INT,
+                status VARCHAR(50) NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -254,6 +422,7 @@ def init_db_extensions():
         # Startet den Abgleich direkt beim Hochfahren des Containers
         sync_personnel_to_editor_groups()
     except Exception as e:
+        print(f"init_db_extensions Fehler: {e}")
         print(f"Fehler bei DB-Erweiterung: {e}")
 
 def init_db():
@@ -946,5 +1115,91 @@ async def apager_webhook(api_key: str, req: Request):
         INSERT INTO apager_logs (stichwort, adresse, meldung)
         VALUES (%s, %s, %s)
     """, (stichwort, adresse, meldung))
+    
+    # --- AUTO-EINSATZERÖFFNUNG & VORBEFÜLLUNG ---
+    today = datetime.now().date().isoformat()
+    now_time = datetime.now().strftime("%H:%M")
+    cur.execute("""
+        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status)
+        VALUES (%s, %s, %s, %s, %s, '', 2.0, 'Entwurf')
+    """, (today, now_time, stichwort, adresse, meldung))
+    
     conn.commit(); cur.close(); conn.close()
-    return {"status": "success", "message": "Alarm erfolgreich verarbeitet."}
+    return {"status": "success", "message": "Alarm erfolgreich verarbeitet und Einsatz angelegt."}
+
+# --- APAGER FEEDBACKS ENDPOINTS ---
+@app.get("/api/apager/feedbacks")
+def get_apager_feedbacks(request: Request):
+    check_user = get_current_user(request)
+    if not check_user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT af.*, p.name 
+        FROM apager_feedbacks af
+        JOIN personnel p ON af.personnel_id = p.id
+        ORDER BY af.updated_at DESC LIMIT 50
+    """)
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        row['updated_at'] = str(row['updated_at'])
+    return res
+
+@app.post("/api/apager/feedbacks")
+def submit_apager_feedback(status: str, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone()
+    if not row or not row["personnel_id"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Kein Kamerad mit diesem Login verknüpft.")
+    
+    personnel_id = row["personnel_id"]
+    
+    # Letzten Alarm holen
+    cur.execute("SELECT id FROM apager_logs ORDER BY created_at DESC LIMIT 1")
+    alarm = cur.fetchone()
+    alarm_id = alarm["id"] if alarm else None
+    
+    cur.execute("""
+        INSERT INTO apager_feedbacks (apager_log_id, personnel_id, status)
+        VALUES (%s, %s, %s)
+        ON DUPLICATE KEY UPDATE status = %s
+    """, (alarm_id, personnel_id, status, status))
+    
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- ICAL / central calendar CENTRAL EXPORT ---
+@app.get("/api/calendar/export.ics", response_class=Response)
+def export_calendar_ical():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM schedules")
+    schedules = cur.fetchall(); cur.close(); conn.close()
+    
+    import datetime
+    ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//FF Dienstbuch//Calendar Export//DE\r\n"
+    for s in schedules:
+        d_val = s["date"] # date object
+        t_val = s["time"] # "HH:MM" format
+        try:
+            h, m = map(int, t_val.split(":"))
+            dt = datetime.datetime(d_val.year, d_val.month, d_val.day, h, m)
+        except:
+            dt = datetime.datetime(d_val.year, d_val.month, d_val.day, 19, 0)
+        
+        dt_str = dt.strftime("%Y%m%dT%H%M%S")
+        dt_end_str = (dt + datetime.timedelta(hours=2)).strftime("%Y%m%dT%H%M%S")
+        
+        ics += "BEGIN:VEVENT\r\n"
+        ics += f"UID:SCH{s['id']}@feuerwehr-dienstbuch.de\r\n"
+        ics += f"DTSTAMP:{dt_str}\r\n"
+        ics += f"DTSTART:{dt_str}\r\n"
+        ics += f"DTEND:{dt_end_str}\r\n"
+        ics += f"SUMMARY:{s['title']}\r\n"
+        ics += f"DESCRIPTION:{s['description'] or ''} ({s['type']})\r\n"
+        ics += "END:VEVENT\r\n"
+    ics += "END:VCALENDAR\r\n"
+    
+    return Response(content=ics, media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=feuerwehr_dienstplan.ics"})

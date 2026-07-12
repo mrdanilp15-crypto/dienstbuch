@@ -10,36 +10,40 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
+    <!-- Leaflet Map CSS/JS for Hydrants -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <style>
         :root { 
-            --primary-color: #b71c1c; 
-            --bg-color: #0f0a0a; 
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #b71c1c; 
+            --bg-color: #121010; 
+            --card-bg: rgba(30, 24, 24, 0.85);
+            --card-border: rgba(255, 255, 255, 0.12);
             --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.6);
-            --exercise-color: #0d6efd; 
-            --incident-color: #dc3545; 
-            --misc-color: #ffc107; 
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --exercise: #0d6efd; 
+            --incident: #dc3545; 
+            --misc: #ffc107; 
         }
         
         body { 
-            background: radial-gradient(circle at 50% 50%, #1a0f0f 0%, var(--bg-color) 100%); 
+            background: radial-gradient(circle at 50% 50%, #201414 0%, var(--bg-color) 100%); 
             font-family: 'Outfit', sans-serif; 
             height: 100vh; 
             overflow: hidden; 
             color: var(--text-primary);
         }
         
-        /* Top Navigation Overhaul */
+        /* Top Navigation */
         .top-nav {
-            background: rgba(15, 10, 10, 0.8);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(18, 14, 14, 0.9);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
             border-bottom: 1px solid var(--card-border);
             z-index: 1000;
             position: relative;
@@ -48,29 +52,13 @@
         .brand-title {
             font-weight: 800;
             letter-spacing: -0.5px;
-            text-shadow: 0 0 10px rgba(183, 28, 28, 0.4);
-        }
-
-        .nav-links .nav-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-secondary);
-            font-weight: 600;
-            padding: 8px 16px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .nav-links .nav-btn:hover, .nav-links .nav-btn.active {
-            color: var(--text-primary);
-            background: rgba(183, 28, 28, 0.15);
-            box-shadow: inset 0 0 10px rgba(183, 28, 28, 0.2);
+            text-shadow: 0 0 10px rgba(183, 28, 28, 0.5);
         }
 
         .admin-badge {
             background: rgba(220, 53, 69, 0.2);
             color: #ff5252;
-            border: 1px solid rgba(220, 53, 69, 0.4);
+            border: 1px solid rgba(220, 53, 69, 0.5);
             padding: 4px 12px;
             border-radius: 20px;
             font-weight: bold;
@@ -93,11 +81,11 @@
             height: calc(100vh - 57px); 
         }
         
-        /* Sidebar Overhaul */
+        /* Sidebar */
         .sidebar { 
             width: 280px; 
-            background: rgba(20, 15, 15, 0.6);
-            backdrop-filter: blur(10px);
+            background: rgba(24, 20, 20, 0.9);
+            backdrop-filter: blur(20px);
             border-right: 1px solid var(--card-border); 
             display: flex; 
             flex-direction: column; 
@@ -124,13 +112,14 @@
             gap: 12px;
         }
         .sidebar-btn:hover {
-            background: rgba(255,255,255,0.02);
+            background: rgba(255,255,255,0.04);
             color: var(--text-primary);
         }
         .sidebar-btn.active {
-            background: rgba(183, 28, 28, 0.12);
+            background: rgba(183, 28, 28, 0.18);
             color: var(--text-primary);
-            box-shadow: inset 0 0 10px rgba(183, 28, 28, 0.15);
+            border: 1px solid rgba(183, 28, 28, 0.3);
+            box-shadow: 0 0 10px rgba(183, 28, 28, 0.2);
         }
 
         .group-item { 
@@ -144,15 +133,13 @@
             border-bottom: 1px solid rgba(255,255,255,0.02); 
             color: var(--text-secondary);
         }
-        
         .group-item:hover {
             background: rgba(255, 255, 255, 0.02);
             color: var(--text-primary);
         }
-
         .group-item.active { 
-            border-left-color: var(--primary-color); 
-            background: rgba(183, 28, 28, 0.08); 
+            border-left-color: var(--primary); 
+            background: rgba(183, 28, 28, 0.1); 
             color: var(--text-primary); 
             font-weight: 700; 
         }
@@ -165,37 +152,37 @@
             position: relative; 
         }
         
-        /* Cards Overhaul (Premium Glassmorphism) */
+        /* Cards (Premium Glassmorphism) */
         .premium-card {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
             transition: all 0.3s ease;
         }
         .premium-card:hover {
-            box-shadow: 0 15px 35px rgba(183, 28, 28, 0.1);
+            box-shadow: 0 15px 35px rgba(183, 28, 28, 0.15);
+            border-color: rgba(255,255,255,0.15);
         }
 
         .stat-card { 
             border-radius: 20px; 
             color: white; 
             padding: 20px; 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3); 
-            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4); 
+            border: 1px solid rgba(255,255,255,0.15);
         }
         .stat-label { 
             font-size: 0.75rem; 
             text-transform: uppercase; 
             font-weight: 700; 
-            opacity: 0.8; 
+            opacity: 0.9; 
             letter-spacing: 1px;
         }
         .stat-val { 
             font-size: 2rem; 
             font-weight: 800; 
             margin: 0; 
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
         
         .rank-card { 
@@ -218,18 +205,18 @@
         .rank-3 { background: linear-gradient(135deg, #f0a070, #cd7f32); color: #fff; }
         .rank-other { background: rgba(255,255,255,0.1); color: var(--text-secondary); }
 
-        .session-item { 
+        .session-item, .mission-item, .equipment-item { 
             background: var(--card-bg); 
             border-radius: 20px; 
             border: 1px solid var(--card-border); 
             margin-bottom: 16px; 
             padding: 20px 25px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
             transition: all 0.3s ease; 
             cursor: pointer; 
         }
-        .session-item:hover { 
-            border-color: rgba(183, 28, 28, 0.4);
+        .session-item:hover, .mission-item:hover, .equipment-item:hover { 
+            border-color: rgba(183, 28, 28, 0.5);
             transform: translateY(-2px); 
         }
 
@@ -250,13 +237,13 @@
         .broadcast-card { 
             border-radius: 20px; 
             border: 1px solid var(--card-border); 
-            background: rgba(255,255,255,0.03); 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            background: rgba(30, 20, 20, 0.85); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
             transition: all 0.3s ease;
         }
         .broadcast-card.mandatory { 
-            border-left: 6px solid var(--primary-color) !important; 
-            background-color: rgba(183, 28, 28, 0.05); 
+            border-left: 6px solid var(--primary) !important; 
+            background-color: rgba(183, 28, 28, 0.1); 
         }
         .broadcast-icon-box { 
             width: 44px; 
@@ -268,28 +255,28 @@
             font-size: 1.2rem; 
             flex-shrink: 0; 
         }
-        .bg-danger-soft { background-color: rgba(220,53,69,0.15); color: #ff5252; }
-        .bg-warning-soft { background-color: rgba(255,193,7,0.15); color: #ffd700; }
+        .bg-danger-soft { background-color: rgba(220,53,69,0.25); color: #ff5252; }
+        .bg-warning-soft { background-color: rgba(255,193,7,0.25); color: #ffd700; }
 
         /* Inputs & Modals */
         .modal-content {
-            background: rgba(25, 20, 20, 0.95);
-            backdrop-filter: blur(25px);
+            background: rgba(25, 20, 20, 0.98);
+            backdrop-filter: blur(30px);
             border: 1px solid var(--card-border);
             border-radius: 24px;
             color: var(--text-primary);
         }
         .form-control, .form-select {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
             color: #ffffff !important;
             border-radius: 12px;
         }
         .form-control:focus, .form-select:focus {
-            background: rgba(255, 255, 255, 0.08) !important;
-            border-color: var(--primary-color) !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: var(--primary) !important;
             color: #ffffff !important;
-            box-shadow: 0 0 10px rgba(183, 28, 28, 0.3) !important;
+            box-shadow: 0 0 10px rgba(183, 28, 28, 0.4) !important;
         }
 
         .btn-premium {
@@ -300,12 +287,12 @@
             border-radius: 14px;
             padding: 8px 20px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(183, 28, 28, 0.3);
+            box-shadow: 0 4px 15px rgba(183, 28, 28, 0.4);
         }
         .btn-premium:hover {
             background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
             transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(183, 28, 28, 0.5);
+            box-shadow: 0 8px 25px rgba(183, 28, 28, 0.6);
             color: white;
         }
 
@@ -313,17 +300,17 @@
             cursor: pointer;
             padding: 12px;
             border-radius: 14px;
-            background: rgba(255,255,255,0.03);
+            background: rgba(255,255,255,0.05);
             border: 1px solid var(--card-border);
             transition: all 0.2s ease;
         }
         .profile-trigger:hover {
-            background: rgba(255,255,255,0.06);
-            border-color: var(--primary-color);
+            background: rgba(255,255,255,0.08);
+            border-color: var(--primary);
         }
 
         .sig-wrapper { 
-            border: 2px dashed rgba(255, 255, 255, 0.15); 
+            border: 2px dashed rgba(255, 255, 255, 0.2); 
             border-radius: 20px; 
             background: white; 
             width: 100%; 
@@ -335,6 +322,13 @@
             width: 100%; 
             height: 100%; 
             border-radius: 20px; 
+        }
+
+        /* Hydrant map container */
+        #hydrantMap {
+            height: 400px;
+            border-radius: 18px;
+            border: 1px solid var(--card-border);
         }
 
         /* Responsive */
@@ -350,12 +344,20 @@
 <body>
     <div id="app" v-cloak v-show="ready">
         <!-- Top Nav -->
-        <nav class="top-nav shadow-sm">
+        <nav class="top-nav shadow">
             <div class="container-fluid d-flex align-items-center justify-content-between px-4 py-2 flex-wrap gap-2">
                 <div class="fw-bold text-danger d-flex align-items-center gap-2 brand-title fs-4">
-                    <i class="fa-solid fa-fire-extinguisher"></i> DIENSTBUCH PORTAL
+                    <i class="fa-solid fa-fire-extinguisher"></i> DIENSTBUCH SUITE PRO
                 </div>
+                <!-- aPager Live-Status -->
                 <div class="d-flex align-items-center gap-3">
+                    <!-- Rückmelde-Schnelltasten -->
+                    <div class="d-flex gap-1 align-items-center border border-secondary border-opacity-20 px-2 py-1 rounded-pill bg-black bg-opacity-30">
+                        <small class="text-muted fw-bold me-1">Rückmeldung:</small>
+                        <button class="btn btn-xs btn-success rounded-pill px-2 py-0.5" style="font-size:0.7rem;" @click="submitFeedback('Komme')"><i class="fa fa-check"></i> Komme</button>
+                        <button class="btn btn-xs btn-danger rounded-pill px-2 py-0.5" style="font-size:0.7rem;" @click="submitFeedback('Komme nicht')"><i class="fa fa-times"></i> Nein</button>
+                    </div>
+                    <a href="/static/alarmdisplay.html" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill"><i class="fa fa-desktop me-1"></i>Hallen-Display</a>
                     <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span>
                     <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i>Logout</button>
                 </div>
@@ -366,15 +368,14 @@
             <!-- Sidebar -->
             <div class="sidebar">
                 <div class="sidebar-menu flex-grow-1">
-                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'"><i class="fa fa-book"></i> Dienstbuch</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'"><i class="fa fa-book"></i> Dienstbetrieb</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions()"><i class="fa fa-fire"></i> Einsatzberichte</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'"><i class="fa fa-truck-emergency"></i> Fahrzeugpool</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment()"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'"><i class="fa fa-bell"></i> Alarmierung</button>
-                    <button v-if="isAdmin" class="sidebar-btn" :class="{active: activeTab === 'audit'}" @click="loadAuditLogs(); activeTab = 'audit'"><i class="fa fa-history"></i> Audit-Logs</button>
-                    
-                    <hr class="border-secondary border-opacity-20 my-3">
-                    
-                    <a href="/notizen" class="sidebar-btn text-decoration-none"><i class="fa fa-sticky-note"></i> Notizen</a>
-                    <a v-if="isAdmin" href="/personal" class="sidebar-btn text-decoration-none"><i class="fa fa-users"></i> Personalverwaltung</a>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations()"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas(); initMap()"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
@@ -415,11 +416,9 @@
                     </div>
                 </div>
 
-                <!-- TAB 1: DIENSTE (DIENSTBUCH) -->
+                <!-- TAB 1: DIENSTBETRIEB -->
                 <div v-show="activeTab === 'dienste'">
-                    <!-- Nested Group Selector & Dienste lists -->
                     <div class="row g-4">
-                        <!-- Nested Left: Group list -->
                         <div class="col-12 col-lg-3">
                             <div class="card premium-card p-3">
                                 <h6 class="fw-bold text-uppercase small text-muted mb-3"><i class="fa fa-list me-2"></i>Listen / Gruppen</h6>
@@ -438,7 +437,6 @@
                             </div>
                         </div>
 
-                        <!-- Nested Right: Attendance book -->
                         <div class="col-12 col-lg-9" v-if="selectedGroup">
                             <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                                 <div>
@@ -450,6 +448,34 @@
                                 <div class="d-flex gap-2">
                                     <a :href="'/groups/' + selectedGroup.id + '/print_view?year=' + selectedYear" target="_blank" class="btn btn-outline-light rounded-pill px-3 fw-bold btn-sm"><i class="fa fa-print me-1"></i> Jahresbericht</a>
                                     <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Dienst erfassen</button>
+                                </div>
+                            </div>
+
+                            <!-- Schedule / Calendar planner -->
+                            <div class="card premium-card p-4 mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-calendar-days text-danger me-2"></i>Dienst- & Übungsplaner</h5>
+                                    <button v-if="role !== 'mannschaft'" class="btn btn-premium btn-sm rounded-pill" @click="openScheduleModal"><i class="fa fa-plus me-1"></i>Termin planen</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-hover mb-0 align-middle">
+                                        <thead><tr class="text-muted small"><th>DATUM</th><th>ZEIT</th><th>THEMA</th><th>KATEGORIE</th><th class="text-end">AKTION</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="s in schedules" :key="s.id">
+                                                <td class="fw-bold text-white">{{s.date.split('-')[2]}}.{{s.date.split('-')[1]}}</td>
+                                                <td>{{s.time}}</td>
+                                                <td class="fw-bold">{{s.title}}</td>
+                                                <td><span class="badge" :class="s.type==='Übung'?'bg-primary':s.type==='Schulung'?'bg-success':'bg-secondary'">{{s.type}}</span></td>
+                                                <td class="text-end">
+                                                    <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-light rounded-pill me-1" @click="openScheduleAttendance(s)"><i class="fa fa-clipboard-user me-1"></i>Anwesenheit</button>
+                                                    <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteSchedule(s.id)"><i class="fa fa-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="schedules.length === 0">
+                                                <td colspan="5" class="text-center py-4 text-muted">Keine geplanten Dienste eingetragen.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
 
@@ -483,7 +509,7 @@
                             </div>
 
                             <!-- Sessions List -->
-                            <h5 class="fw-bold mb-3 text-white">Aktivitäten</h5>
+                            <h5 class="fw-bold mb-3 text-white">Vergangene Dienste</h5>
                             <div v-for="s in sessions" :key="s.id" class="session-item" @click="loadSession(s)">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div class="d-flex gap-3 align-items-center">
@@ -508,85 +534,208 @@
                     </div>
                 </div>
 
-                <!-- TAB 2: VEHICLES (FUHRPARK) -->
-                <div v-show="activeTab === 'fahrzeuge'">
+                <!-- TAB 2: EINSATZBERICHTE -->
+                <div v-show="activeTab === 'einsaetze'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck-emergency text-danger me-2"></i>Fuhrpark- & Fristenmanagement</h2>
-                            <small class="text-muted">Status, HU/SP Fristen und Kilometerstände</small>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzberichte & Einsatzverwaltung</h2>
+                            <small class="text-muted">Teilautomatische Dokumentation und Atemschutz-Nachweise</small>
                         </div>
-                        <button v-if="isAdmin" class="btn btn-premium rounded-pill" @click="openBroadcastModal" style="display:none"></button>
+                        <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill" @click="openNewMissionModal"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
                     </div>
 
-                    <!-- Add vehicle card (Admin) -->
-                    <div v-if="isAdmin" class="card premium-card p-4 mb-4">
-                        <h5 class="fw-bold mb-3 text-white"><i class="fa fa-plus-circle text-danger me-2"></i>Fahrzeug in Flotte aufnehmen</h5>
-                        <div class="row g-3 align-items-end">
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Typ / Modell</label>
-                                <input type="text" v-model="newVehicle.name" class="form-control" placeholder="z.B. HLF 20" required>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Funkrufname</label>
-                                <input type="text" v-model="newVehicle.radio_name" class="form-control" placeholder="z.B. Florian 1/46-1" required>
-                            </div>
-                            <div class="col-12 col-md-2">
-                                <label class="form-label">Kilometerstand</label>
-                                <input type="number" v-model="newVehicle.milage" class="form-control" placeholder="KM">
-                            </div>
-                            <div class="col-12 col-md-2">
-                                <label class="form-label">HU / TÜV Termin</label>
-                                <input type="date" v-model="newVehicle.tuv_date" class="form-control">
-                            </div>
-                            <div class="col-12 col-md-2">
-                                <button class="btn btn-premium w-100" @click="addVehicleAdvanced"><i class="fa fa-check me-1"></i>Speichern</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Vehicles list -->
                     <div class="row g-3">
-                        <div v-for="v in vehicles" :key="v.id" class="col-12 col-md-6 col-lg-4">
-                            <div class="card premium-card p-4">
-                                <div class="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <h4 class="fw-bold text-white mb-0">{{v.name}}</h4>
-                                        <small class="text-muted d-block">{{v.radio_name || 'Ohne Funkrufname'}}</small>
+                        <div v-for="m in missions" :key="m.id" class="col-12">
+                            <div class="mission-item" @click="editMission(m)">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <div class="text-center bg-black bg-opacity-30 rounded-4 p-2" style="min-width: 65px; border: 1px solid var(--card-border);">
+                                            <div class="fw-bold text-danger h4 m-0">{{ m.date.split('-')[2] }}</div>
+                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ m.date.split('-')[1] }}.{{ m.date.split('-')[0].substring(2) }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-danger text-uppercase px-2 rounded-pill mb-1">Einsatz</span>
+                                            <div class="fw-bold text-white fs-5">{{m.stichwort}} &bull; {{m.adresse}}</div>
+                                            <small class="text-muted fw-bold d-block mt-1">
+                                                <i class="fa fa-clock me-1"></i>{{m.time}} Uhr &bull; {{m.duration}} Std &bull; 
+                                                <span :class="m.status === 'Freigegeben' ? 'text-success' : 'text-warning'">{{m.status}}</span>
+                                            </small>
+                                        </div>
                                     </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span class="status-dot" :class="'status-' + v.status"></span>
-                                        <span class="small fw-bold text-muted">Status {{v.status}}</span>
+                                    <div class="d-flex gap-2">
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="openMissionSigModal(m)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
+                                        <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="deleteMission(m.id)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
-                                </div>
-
-                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
-                                    <div class="mb-1 text-muted"><strong>Kilometerstand:</strong> <span class="text-white">{{v.milage || 0}} KM</span></div>
-                                    <div class="mb-1 text-muted"><strong>HU/TÜV:</strong> <span :class="isOverdue(v.tuv_date)?'text-danger fw-bold':'text-white'">{{v.tuv_date || 'Keine Angabe'}}</span></div>
-                                    <div class="text-muted"><strong>Sicherheitsprüfung (SP):</strong> <span :class="isOverdue(v.sp_date)?'text-danger fw-bold':'text-white'">{{v.sp_date || 'Keine Angabe'}}</span></div>
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    <select v-model="v.status" class="form-select form-select-sm" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'">
-                                        <option :value="1">Status 1 (Bereit)</option>
-                                        <option :value="2">Status 2 (Auf Wache)</option>
-                                        <option :value="3">Status 3 (Einsatz übernommen)</option>
-                                        <option :value="4">Status 4 (Am Einsatzort)</option>
-                                        <option :value="6">Status 6 (Außer Dienst)</option>
-                                    </select>
-                                    <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click="deleteVehicle(v.id)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
-                                </div>
-
-                                <!-- Editable fields for admin (SP/Next service dates) -->
-                                <div class="row g-2 mt-3 pt-2 border-top border-secondary border-opacity-10 small" v-if="isAdmin">
-                                    <div class="col-6"><label style="font-size:0.65rem" class="fw-bold text-muted">SP Ändern</label><input type="date" v-model="v.sp_date" class="form-control form-control-sm p-1" @change="saveVehicleEdit(v)"></div>
-                                    <div class="col-6"><label style="font-size:0.65rem" class="fw-bold text-muted">TÜV Ändern</label><input type="date" v-model="v.tuv_date" class="form-control form-control-sm p-1" @change="saveVehicleEdit(v)"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- TAB 3: APAGER (ALARMING) -->
+                <!-- TAB 3: VEHICLES (FUHRPARK & FAHRTENBUCH) -->
+                <div v-show="activeTab === 'fahrzeuge'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck-emergency text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher</h2>
+                            <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-bus-emergency text-danger me-2"></i>Fahrzeug-Status</h5>
+                                <div class="list-group list-group-flush">
+                                    <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-0">{{v.name}}</h6>
+                                            <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}}</small>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="status-dot" :class="'status-' + v.status"></span>
+                                            <select v-model="v.status" class="form-select form-select-sm w-auto" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'">
+                                                <option :value="1">S1</option>
+                                                <option :value="2">S2</option>
+                                                <option :value="3">S3</option>
+                                                <option :value="4">S4</option>
+                                                <option :value="6">S6</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-book-open text-danger me-2"></i>Fahrtenbuch</h5>
+                                    <button v-if="role !== 'mannschaft' && activeVehicleForLog" class="btn btn-premium btn-sm rounded-pill" @click="openLogRideModal"><i class="fa fa-plus me-1"></i>Fahrt eintragen</button>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Fahrzeug wählen</label>
+                                    <select v-model="activeVehicleForLog" class="form-select" @change="loadVehicleLogs">
+                                        <option :value="null">-- Bitte wählen --</option>
+                                        <option v-for="v in vehicles" :key="v.id" :value="v">{{v.name}} ({{v.radio_name}})</option>
+                                    </select>
+                                </div>
+
+                                <div class="table-responsive" v-if="activeVehicleForLog">
+                                    <table class="table table-dark table-hover mb-0 align-middle">
+                                        <thead><tr class="text-muted small"><th>DATUM</th><th>FAHRER</th><th>ZWECK</th><th>KM START</th><th>KM ENDE</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="log in vehicleLogs" :key="log.id">
+                                                <td>{{log.date}}</td>
+                                                <td class="fw-bold text-white">{{log.driver_name}}</td>
+                                                <td>{{log.purpose}}</td>
+                                                <td>{{log.mileage_start}} KM</td>
+                                                <td>{{log.mileage_end}} KM</td>
+                                            </tr>
+                                            <tr v-if="vehicleLogs.length === 0">
+                                                <td colspan="5" class="text-center py-4 text-muted">Keine Fahrtenbucheinträge vorhanden.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: GERÄTE & MATERIAL -->
+                <div v-show="activeTab === 'material'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräte- & Materialverwaltung</h2>
+                            <small class="text-muted">Bestandsakten, Prüffristen und Sammelprüfungen</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button v-if="role !== 'mannschaft'" class="btn btn-outline-warning rounded-pill px-3" @click="openBatchInspectModal"><i class="fa fa-qrcode me-1"></i>Sammelprüfung (Batch)</button>
+                            <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill px-3" @click="openEquipmentModal"><i class="fa fa-plus me-1"></i>Gerät erfassen</button>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-4">
+                            <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <select v-model="eqCategory" class="form-select">
+                                <option value="">Alle Kategorien</option>
+                                <option value="Schläuche">Schläuche</option>
+                                <option value="Armaturen">Armaturen</option>
+                                <option value="Werkzeug">Werkzeug</option>
+                                <option value="Atemschutz">Atemschutz</option>
+                                <option value="Sonstiges">Sonstiges</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div v-for="eq in filteredEquipment" :key="eq.id" class="col-12 col-md-6 col-lg-4">
+                            <div class="equipment-item" @click="editEquipment(eq)">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
+                                        <small class="text-muted d-block">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
+                                    </div>
+                                    <span class="badge" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
+                                        Nächste Prf: {{eq.next_inspection || 'Keine'}}
+                                    </span>
+                                </div>
+                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
+                                    <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{eq.last_inspection || 'Nie'}}</span></div>
+                                    <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
+                                    <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: PERSONALVERWALTUNG -->
+                <div v-show="activeTab === 'personal'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung Pro</h2>
+                            <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
+                        </div>
+                        <button v-if="isAdmin" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-6">
+                            <input type="text" v-model="personnelSearch" class="form-control" placeholder="Kamerad suchen...">
+                        </div>
+                    </div>
+
+                    <div class="person-grid">
+                        <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3" @click="editPersonnel(p)">
+                            <div class="avatar-container">
+                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Profilbild">
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h6 class="fw-bold m-0 text-white">{{ p.name }}</h6>
+                                    <span :class="'badge-status status-' + getStatusClass(p.membership_status)">{{ p.membership_status }}</span>
+                                </div>
+                                <small class="text-danger fw-bold d-block mt-1" style="font-size:0.75rem;">{{ p.rank || 'Anwärter' }}</small>
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    <span v-if="p.is_gf" class="badge bg-danger font-monospace" style="font-size:0.55rem; padding: 3px 5px;">GF</span>
+                                    <span v-if="p.is_tf" class="badge bg-warning text-dark font-monospace" style="font-size:0.55rem; padding: 3px 5px;">TF</span>
+                                    <span v-if="p.is_agt" class="badge bg-dark font-monospace border border-secondary" style="font-size:0.55rem; padding: 3px 5px;">AGT</span>
+                                    <span v-if="p.is_maschinist" class="badge bg-secondary font-monospace" style="font-size:0.55rem; padding: 3px 5px;">MA</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 6: ALARMIERUNG -->
                 <div v-show="activeTab === 'apager'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
@@ -628,39 +777,151 @@
                     </div>
                 </div>
 
-                <!-- TAB 4: AUDIT LOGS (ADMIN ONLY) -->
-                <div v-show="activeTab === 'audit'" v-if="isAdmin">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-history text-danger me-2"></i>Revisions-Logbuch (Audit)</h2>
-                            <small class="text-muted">Protokollierung aller systemrelevanten Aktivitäten</small>
-                        </div>
-                        <button class="btn btn-sm btn-outline-light rounded-pill px-3" @click="loadAuditLogs"><i class="fa fa-sync me-1"></i>Aktualisieren</button>
-                    </div>
+                <!-- TAB 7: ABRECHNUNG -->
+                <div v-show="activeTab === 'abrechnung'">
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4 mb-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-file-invoice-dollar text-danger me-2"></i>Kostenbescheide (Verursacher)</h5>
+                                <div class="list-group list-group-flush mb-4">
+                                    <div v-for="b in bills" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <h6 class="fw-bold text-white mb-0">{{b.recipient_name}}</h6>
+                                            <span class="badge" :class="b.paid_at?'bg-success':'bg-warning text-dark'">{{b.paid_at?'Bezahlt':'Ausstehend'}}</span>
+                                        </div>
+                                        <p class="text-muted small mb-2">{{b.details}} &bull; {{b.amount}} €</p>
+                                        <button v-if="isAdmin && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
+                                        <button v-if="isAdmin" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="bills.length === 0" class="text-center py-4 text-muted">Keine Kostenbescheide erfasst.</div>
+                                </div>
 
-                    <div class="card premium-card p-4">
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover mb-0 align-middle">
-                                <thead>
-                                    <tr class="text-muted small">
-                                        <th>ZEITPUNKT</th>
-                                        <th>NUTZER</th>
-                                        <th>AKTION</th>
-                                        <th>DETAILS</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="log in auditLogs" :key="log.id">
-                                        <td class="text-muted" style="font-size:0.8rem;">{{log.date_formatted}}</td>
-                                        <td class="fw-bold text-white"><i class="fa fa-user me-1 text-danger"></i>{{log.username}}</td>
-                                        <td><span class="badge bg-secondary">{{log.action}}</span></td>
-                                        <td class="text-muted small">{{log.details}}</td>
-                                    </tr>
-                                    <tr v-if="auditLogs.length === 0">
-                                        <td colspan="4" class="text-center py-4 text-muted">Keine Einträge vorhanden.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                <div v-if="isAdmin">
+                                    <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neuer Kostenbescheid</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Einsatz wählen</label>
+                                        <select v-model="newBill.mission_id" class="form-select">
+                                            <option v-for="m in missions" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}})</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Empfänger Name</label>
+                                        <input type="text" v-model="newBill.recipient_name" class="form-control" placeholder="z. B. Max Mustermann">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Anschrift</label>
+                                        <textarea v-model="newBill.address" class="form-control" rows="2"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Betrag (€)</label>
+                                        <input type="number" v-model="newBill.amount" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Details</label>
+                                        <textarea v-model="newBill.details" class="form-control" rows="2"></textarea>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill" @click="submitBill">Kostenbescheid buchen</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-sack-dollar text-danger me-2"></i>Aufwandsentschädigungen & SEPA Export</h5>
+                                
+                                <div class="row g-3 mb-4">
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label">Abrechnungsjahr</label>
+                                        <select v-model="sepaYear" class="form-select" @change="calculateCompensations">
+                                            <option v-for="y in [2024,2025,2026,2027]" :value="y">{{y}}</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label">Stundensatz (€)</label>
+                                        <input type="number" v-model="sepaRate" class="form-control text-center" @change="calculateCompensations">
+                                    </div>
+                                    <div class="col-12 col-md-6" v-if="isAdmin">
+                                        <label class="form-label">SEPA XML herunterladen</label>
+                                        <button class="btn btn-premium w-100" @click="downloadSepa"><i class="fa fa-download me-2"></i>SEPA XML generieren</button>
+                                    </div>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-hover mb-0 align-middle">
+                                        <thead><tr class="text-muted small"><th>KAMERAD</th><th>DIENSTE (Std)</th><th>EINSÄTZE (Std)</th><th>GESAMT (Std)</th><th>BETRAG</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="c in compensations" :key="c.id">
+                                                <td class="fw-bold text-white">{{c.name}}</td>
+                                                <td>{{c.session_hours}} h</td>
+                                                <td>{{c.mission_hours}} h</td>
+                                                <td>{{c.total_hours}} h</td>
+                                                <td class="fw-bold text-danger">{{c.compensation}} €</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 8: VERWALTUNG & VB -->
+                <div v-show="activeTab === 'verwaltung'">
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-6">
+                            <!-- BMA Directory -->
+                            <div class="card premium-card p-4 mb-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-building-shield text-danger me-2"></i>Objektverzeichnis & Brandmeldeanlagen</h5>
+                                <div class="list-group list-group-flush mb-4">
+                                    <div v-for="b in bmas" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
+                                        <h6 class="fw-bold text-white mb-1">{{b.object_name}}</h6>
+                                        <p class="text-muted small mb-2">{{b.address}} &bull; BMA ID: {{b.bma_number}} &bull; Schlüssel-Depot: {{b.key_depot ? 'JA' : 'NEIN'}}</p>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteBma(b.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="bmas.length === 0" class="text-center py-4 text-muted">Keine BMA-Objekte erfasst.</div>
+                                </div>
+
+                                <div v-if="role !== 'mannschaft'">
+                                    <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neues BMA Objekt</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Objekt-Name</label>
+                                        <input type="text" v-model="newBma.object_name" class="form-control" placeholder="z. B. Altenheim St. Florian">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Adresse</label>
+                                        <textarea v-model="newBma.address" class="form-control" rows="2"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">BMA Nummer</label>
+                                        <input type="text" v-model="newBma.bma_number" class="form-control" placeholder="z. B. 1205">
+                                    </div>
+                                    <div class="form-check form-switch mb-3 bg-black bg-opacity-20 p-2 border border-secondary border-opacity-10 rounded ps-5">
+                                        <input class="form-check-input" type="checkbox" id="keyDepot" v-model="newBma.key_depot">
+                                        <label class="form-check-label small fw-bold text-white" for="keyDepot">Schlüssel-Depot (FSD) vorhanden</label>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill" @click="submitBma">Objekt anlegen</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <!-- Hydrants Map -->
+                            <div class="card premium-card p-4 mb-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-location-dot text-danger me-2"></i>POI & Hydrantenplan</h5>
+                                <div id="hydrantMap"></div>
+                                <div class="mt-3 p-3 bg-black bg-opacity-20 rounded border border-secondary border-opacity-10 small" v-if="role !== 'mannschaft'">
+                                    <label class="form-label">Hydranten hinzufügen: Klicke auf die Karte!</label>
+                                </div>
+                            </div>
+
+                            <!-- Calendar ICS Integration -->
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
+                                <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL:</p>
+                                <code class="text-danger d-block text-break mb-3" style="font-size:0.85rem;">
+                                    http://{{serverHost}}/api/calendar/export.ics
+                                </code>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -668,22 +929,563 @@
             </div>
         </div>
 
-        <!-- MODAL: SIGNATURE -->
-        <div class="modal fade" id="sigModal" tabindex="-1">
+        <!-- MODAL: SCHEDULE CREATION -->
+        <div class="modal fade" id="scheduleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-secondary border-opacity-10">
-                        <h5 class="modal-title fw-bold">Unterschrift der Leitung</h5>
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-calendar-plus text-danger me-2"></i>Termin planen</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <div class="sig-wrapper shadow-inner">
-                            <canvas id="sigCanvas"></canvas>
+                        <form @submit.prevent="submitSchedule">
+                            <div class="mb-3">
+                                <label class="form-label">Titel / Thema</label>
+                                <input type="text" v-model="newSchedule.title" class="form-control" placeholder="z. B. Zugübung Brandeinsatz" required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Datum</label>
+                                    <input type="date" v-model="newSchedule.date" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Uhrzeit</label>
+                                    <input type="time" v-model="newSchedule.time" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Kategorie</label>
+                                <select v-model="newSchedule.type" class="form-select">
+                                    <option value="Übung">Übung</option>
+                                    <option value="Schulung">Schulung</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Details</label>
+                                <textarea v-model="newSchedule.description" class="form-control" rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Termin eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: SCHEDULE ATTENDANCE -->
+        <div class="modal fade" id="scheduleAttendanceModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-clipboard-user text-danger me-2"></i>Anwesenheitskontrolle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto" style="max-height: 400px;">
+                            <div v-for="p in schedulePersonnelList" :key="p.personnel_id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-3 d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">{{p.name}}</span>
+                                <select v-model="p.status" class="form-select form-select-sm w-auto">
+                                    <option value="Nein">Fehlt</option>
+                                    <option value="Anwesend">Anwesend</option>
+                                    <option value="Entschuldigt">Entschuldigt</option>
+                                    <option value="Unentschuldigt">Unentschuldigt</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="modal-footer border-secondary border-opacity-10 justify-content-between">
-                        <button class="btn btn-outline-light rounded-pill px-4" @click="clearSig">Löschen</button>
-                        <button class="btn btn-premium rounded-pill px-5 fw-bold" @click="saveSig">Freigeben</button>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <button class="btn btn-premium w-100 rounded-pill" @click="saveScheduleAttendance">Speichern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: MISSION EDIT / DETAILS -->
+        <div class="modal fade" id="missionModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzbericht</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeMission" style="max-height: 70vh; overflow-y: auto;">
+                        <ul class="nav nav-tabs mb-4 border-0" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#m-tab-base">Stammdaten</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#m-tab-att">Personal & Fahrzeuge</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#m-tab-agt">Atemschutz-Log</button></li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- MISSION BASE DATA -->
+                            <div class="tab-pane fade show active" id="m-tab-base">
+                                <div class="row g-3">
+                                    <div class="col-md-6"><label class="form-label">Einsatzstichwort</label><input type="text" v-model="activeMission.stichwort" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-6"><label class="form-label">Einsatzort / Adresse</label><input type="text" v-model="activeMission.adresse" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-6"><label class="form-label">Einsatzdatum</label><input type="date" v-model="activeMission.date" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-3"><label class="form-label">Uhrzeit</label><input type="time" v-model="activeMission.time" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-3"><label class="form-label">Dauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
+                                    <div class="col-md-12"><label class="form-label">Schadensablauf / Bericht</label><textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea></div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Berichtsstatus</label>
+                                        <select v-model="activeMission.status" class="form-select" :disabled="role === 'mannschaft'">
+                                            <option value="Entwurf">Entwurf</option>
+                                            <option value="In Prüfung">In Prüfung</option>
+                                            <option value="Freigegeben">Freigegeben (Sperrung)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- MISSION DISPATCH / ATTENDANCE -->
+                            <div class="tab-pane fade" id="m-tab-att">
+                                <label class="form-label mb-2 d-block">Einsatzbeteiligung Personal</label>
+                                <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto mb-4" style="max-height: 250px;">
+                                    <div v-for="p in activeMission.attList" :key="p.personnel_id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-2 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fw-bold">{{p.name}}</span>
+                                            <span v-if="p.g26_expired" class="text-danger fw-bold ms-2" style="font-size:0.75rem;"><i class="fa fa-warning"></i> G26 abgelaufen!</span>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <select v-model="p.vehicle" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
+                                                <option value="">Kein Fahrzeug</option>
+                                                <option v-for="v in vehicles" :value="v.name">{{v.name}}</option>
+                                            </select>
+                                            <select v-model="p.is_present" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
+                                                <option value="Nein">Nein</option>
+                                                <option value="Abgerückt">Abgerückt</option>
+                                                <option value="Bereitstellung">Bereitstellung</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ATEMSCHUTZ LOG -->
+                            <div class="tab-pane fade" id="m-tab-agt">
+                                <div v-if="role !== 'mannschaft'" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">AGT-Eintrag hinzufügen</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Kamerad (Atemschutz)</label>
+                                            <select v-model="newRespi.personnel_id" class="form-select form-select-sm">
+                                                <option v-for="p in activeMission.attList.filter(x => x.is_present !== 'Nein')" :value="p.personnel_id">{{p.name}}</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="small text-muted fw-bold mb-1">Druck Start</label>
+                                            <input type="number" v-model="newRespi.druck_start" class="form-control form-control-sm" placeholder="bar">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="small text-muted fw-bold mb-1">Druck 10m</label>
+                                            <input type="number" v-model="newRespi.druck_10" class="form-control form-control-sm" placeholder="bar">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="small text-muted fw-bold mb-1">Druck 20m</label>
+                                            <input type="number" v-model="newRespi.druck_20" class="form-control form-control-sm" placeholder="bar">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="small text-muted fw-bold mb-1">Druck Ende</label>
+                                            <input type="number" v-model="newRespi.druck_ende" class="form-control form-control-sm" placeholder="bar">
+                                        </div>
+                                        <div class="col-md-3 mt-2">
+                                            <label class="small text-muted fw-bold mb-1">Dauer (Min)</label>
+                                            <input type="number" v-model="newRespi.dauer" class="form-control form-control-sm" placeholder="min">
+                                        </div>
+                                        <div class="col-md-9 text-end mt-2">
+                                            <button class="btn btn-premium btn-sm" @click="submitRespi"><i class="fa fa-plus me-1"></i>Hinzufügen</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>GERÄTETRÄGER</th><th>START</th><th>10 MIN</th><th>20 MIN</th><th>ENDE</th><th>DAUER</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="res in activeMission.respiList" :key="res.id">
+                                            <td class="fw-bold text-white">{{res.name}}</td>
+                                            <td>{{res.druck_start}} bar</td>
+                                            <td>{{res.druck_10}} bar</td>
+                                            <td>{{res.druck_20}} bar</td>
+                                            <td>{{res.druck_ende}} bar</td>
+                                            <td>{{res.dauer}} min</td>
+                                            <td>
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteRespi(res.id)"><i class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 justify-content-end" v-if="role !== 'mannschaft'">
+                        <button class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                        <button class="btn btn-premium rounded-pill px-5 fw-bold" @click="saveMission">Einsatzbericht speichern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: MISSION SIGNATURE -->
+        <div class="modal fade" id="missionSigModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Freigabe & Unterschrift</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="sig-wrapper shadow-inner mb-3">
+                            <canvas id="missionSigCanvas"></canvas>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-light flex-fill rounded-pill" @click="clearMissionSig">Löschen</button>
+                            <button class="btn btn-premium flex-fill rounded-pill" @click="saveMissionSig">Freigeben</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: VEHICLE LOG RIDE -->
+        <div class="modal fade" id="logRideModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-plus me-1"></i>Fahrtenbucheintrag</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitLogRide">
+                            <div class="mb-3">
+                                <label class="form-label">Datum</label>
+                                <input type="date" v-model="newLogRide.date" class="form-control" required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">KM Start</label>
+                                    <input type="number" v-model="newLogRide.mileage_start" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">KM Ende</label>
+                                    <input type="number" v-model="newLogRide.mileage_end" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fahrer</label>
+                                <input type="text" v-model="newLogRide.driver_name" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fahrzweck</label>
+                                <input type="text" v-model="newLogRide.purpose" class="form-control" placeholder="z. B. Übung oder Werkstatt" required>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Fahrt speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD/EDIT EQUIPMENT -->
+        <div class="modal fade" id="equipmentModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräteakte</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeEquipment">
+                        <form @submit.prevent="saveEquipment">
+                            <div class="mb-3">
+                                <label class="form-label">Bezeichnung / Typ</label>
+                                <input type="text" v-model="activeEquipment.name" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Barcode / ID</label>
+                                <input type="text" v-model="activeEquipment.barcode" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Kategorie</label>
+                                <select v-model="activeEquipment.category" class="form-select">
+                                    <option value="Schläuche">Schläuche</option>
+                                    <option value="Armaturen">Armaturen</option>
+                                    <option value="Werkzeug">Werkzeug</option>
+                                    <option value="Atemschutz">Atemschutz</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüffrist (Monate)</label>
+                                <input type="number" v-model="activeEquipment.interval_months" class="form-control">
+                            </div>
+                            <div class="row g-2 mb-4">
+                                <div class="col-6">
+                                    <label class="form-label">Letzte Prüfung</label>
+                                    <input type="date" v-model="activeEquipment.last_inspection" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Nächste Prüfung</label>
+                                    <input type="date" v-model="activeEquipment.next_inspection" class="form-control">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Gerät speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD INSPECTION -->
+        <div class="modal fade" id="addInspectionModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Geräteprüfung erfassen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeEquipment">
+                        <form @submit.prevent="submitInspection">
+                            <div class="mb-3">
+                                <label class="form-label">Prüfdatum</label>
+                                <input type="date" v-model="newInspection.date" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfer / Sachkundiger</label>
+                                <input type="text" v-model="newInspection.inspector" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfergebnis</label>
+                                <select v-model="newInspection.status" class="form-select">
+                                    <option value="Bestanden">Bestanden</option>
+                                    <option value="Mangel">Mangel (Einsatzbereit)</option>
+                                    <option value="Defekt">Defekt (Außer Dienst)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz / Mängelbeschreibung</label>
+                                <textarea v-model="newInspection.note" class="form-control" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Prüfung verbuchen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: BATCH INSPECT -->
+        <div class="modal fade" id="batchInspectModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-qrcode me-2"></i>Sammelprüfung (Batch)</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitBatchInspect">
+                            <div class="mb-3">
+                                <label class="form-label">Barcodes / IDs (Ein Code pro Zeile)</label>
+                                <textarea v-model="batchInspect.rawBarcodes" class="form-control font-monospace" rows="5" placeholder="Eingeben oder scannen..." required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfer</label>
+                                <input type="text" v-model="batchInspect.inspector" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfergebnis</label>
+                                <select v-model="batchInspect.status" class="form-select">
+                                    <option value="Bestanden">Bestanden</option>
+                                    <option value="Mangel">Mangel</option>
+                                    <option value="Defekt">Defekt</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz</label>
+                                <textarea v-model="batchInspect.note" class="form-control" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Batch Prüfung eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: INSPECTION HISTORY -->
+        <div class="modal fade" id="inspectionsHistoryModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Prüfungsverlauf</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto" style="max-height: 400px;">
+                            <div v-for="h in inspectionsHistory" :key="h.id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-3">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="badge" :class="h.status==='Bestanden'?'bg-success':'bg-danger'">{{h.status}}</span>
+                                    <small class="text-muted">{{h.date}}</small>
+                                </div>
+                                <div class="fw-bold text-white small">Prüfer: {{h.inspector}}</div>
+                                <p class="text-muted mb-0 small" v-if="h.note">{{h.note}}</p>
+                            </div>
+                            <div v-if="inspectionsHistory.length === 0" class="text-center py-4 text-muted">Keine Prüfhistorie vorhanden.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: PERSONNEL EDIT / DETAILS -->
+        <div class="modal fade" id="personnelModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-id-card text-danger me-2"></i>Personalakte</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activePersonnel" style="max-height: 70vh; overflow-y: auto;">
+                        <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
+                            <div class="modal-avatar-upload" @click="$refs.fileInput.click()">
+                                <img :src="activePersonnel.profile_picture || (activePersonnel.has_picture ? '/api/personnel/avatar/' + activePersonnel.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Avatar">
+                                <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
+                            </div>
+                            <div class="flex-grow-1">
+                                <input type="text" v-model="activePersonnel.name" class="form-control form-control-lg fw-bold border-0 mb-2" placeholder="Vorname Nachname" style="background-color: rgba(255,255,255,0.05) !important;">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <select v-model="activePersonnel.membership_status" class="form-select">
+                                            <option value="Aktiv">Aktiver Dienst</option>
+                                            <option value="Passiv">Passiv / Fördernd</option>
+                                            <option value="Jugend">Jugendfeuerwehr</option>
+                                            <option value="Ehrenabteilung">Ehrenabteilung</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <select v-model="activePersonnel.rank" class="form-select">
+                                            <option value="">-- Dienstgrad wählen --</option>
+                                            <option v-for="r in ranks" :value="r">{{ r }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs mb-4 border-0" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tp-base">Stammdaten</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-qual">Qualifikationen</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-lehr">Lehrgänge</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-inv">Kleidung & Inventar</button></li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- BASE DATA -->
+                            <div class="tab-pane fade show active" id="tp-base">
+                                <div class="row g-3">
+                                    <div class="col-md-6"><label class="form-label">Geburtsdatum</label><input type="date" v-model="activePersonnel.birth_date" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Eintrittsdatum</label><input type="date" v-model="activePersonnel.entry_date" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Dienstausweis-Nr.</label><input type="text" v-model="activePersonnel.badge_number" class="form-control" placeholder="Ausweis ID..."></div>
+                                    <div class="col-md-6"><label class="form-label">Telefonnummer</label><input type="text" v-model="activePersonnel.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
+                                    <div class="col-md-12"><label class="form-label">E-Mail-Adresse</label><input type="email" v-model="activePersonnel.email" class="form-control" placeholder="name@beispiel.de"></div>
+                                    <div class="col-md-12"><label class="form-label">Adresse</label><textarea v-model="activePersonnel.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
+                                </div>
+                            </div>
+
+                            <!-- QUALIFICATIONS -->
+                            <div class="tab-pane fade" id="tp-qual">
+                                <h6 class="fw-bold text-danger mb-3"><i class="fa fa-graduation-cap me-2"></i>Feuerwehr-Lehrgänge</h6>
+                                <div class="row g-2 mb-4">
+                                    <div class="col-6 col-md-4" v-for="q in qualifications">
+                                        <div class="form-check form-switch p-2 border border-secondary border-opacity-10 rounded bg-black bg-opacity-20 ps-5">
+                                            <input class="form-check-input" type="checkbox" :id="q.id" v-model="activePersonnel[q.id]">
+                                            <label class="form-check-label fw-bold small text-white" :for="q.id">{{ q.label }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h6 class="fw-bold text-primary mb-3"><i class="fa fa-id-card-clip me-2"></i>Führerscheinklassen</h6>
+                                <div class="row g-2">
+                                    <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
+                                        <div class="form-check border border-secondary border-opacity-10 p-2 rounded text-center bg-black bg-opacity-20">
+                                            <input type="checkbox" :id="l.id" v-model="activePersonnel[l.id]" class="form-check-input float-none me-2">
+                                            <label :for="l.id" class="fw-bold small text-white">{{ l.n }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- LEHRGÄNGE -->
+                            <div class="tab-pane fade" id="tp-lehr">
+                                <div v-if="role !== 'mannschaft'" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Lehrgang eintragen</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-6">
+                                            <label class="small text-muted fw-bold mb-1">Lehrgangsname</label>
+                                            <input type="text" v-model="newCourse.course_name" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Datum</label>
+                                            <input type="date" v-model="newCourse.date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitCourse"><i class="fa fa-plus me-1"></i>Hinzufügen</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>LEHRGANG</th><th>DATUM</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="c in activePersonnel.courses" :key="c.id">
+                                            <td class="fw-bold text-white">{{c.course_name}}</td>
+                                            <td>{{c.date}}</td>
+                                            <td>
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteCourse(c.id)"><i class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- INVENTAR / GEWERBLICHE AUSRÜSTUNG -->
+                            <div class="tab-pane fade" id="tp-inv">
+                                <div v-if="role !== 'mannschaft'" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Ausrüstungsgegenstand ausgeben</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="small text-muted fw-bold mb-1">Gegenstand</label>
+                                            <input type="text" v-model="newGear.item_name" class="form-control form-control-sm" placeholder="z. B. Einsatzjacke S-Gard">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Größe</label>
+                                            <input type="text" v-model="newGear.size" class="form-control form-control-sm" placeholder="M, 52...">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Datum</label>
+                                            <input type="date" v-model="newGear.issue_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitGear"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>AUSRÜSTUNG</th><th>GRÖSSE</th><th>AUSGABE-DATUM</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="g in activePersonnel.gearList" :key="g.id">
+                                            <td class="fw-bold text-white">{{g.item_name}}</td>
+                                            <td>{{g.size}}</td>
+                                            <td>{{g.issue_date}}</td>
+                                            <td>
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteGear(g.id)"><i class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between" v-if="isAdmin">
+                        <button type="button" class="btn btn-link text-danger fw-bold border-0" @click="deletePersonnel"><i class="fa fa-trash me-1"></i> Löschen</button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="button" class="btn btn-premium rounded-pill px-5 fw-bold" @click="savePersonnel">Speichern</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -736,41 +1538,14 @@
             </div>
         </div>
 
-        <!-- MODAL: BROADCAST CREATION -->
-        <div class="modal fade" id="broadcastModal" tabindex="-1">
-            <div class="modal-content modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header border-secondary border-opacity-10">
-                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-bullhorn me-2 text-primary"></i>Systemmeldung verfassen</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-4">
-                        <form @submit.prevent="submitBroadcast">
-                            <div class="mb-3">
-                                <label class="form-label">Betreff</label>
-                                <input type="text" v-model="newBroadcast.title" class="form-control" placeholder="z. B. Wichtige UVV-Unterweisung" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Mitteilung</label>
-                                <textarea v-model="newBroadcast.content" class="form-control" rows="4" placeholder="Nachrichtentext..." required></textarea>
-                            </div>
-                            <div class="form-check form-switch mb-3 bg-black bg-opacity-20 p-2 border border-secondary border-opacity-10 rounded ps-5">
-                                <input class="form-check-input" type="checkbox" id="bcMandatory" v-model="newBroadcast.is_mandatory">
-                                <label class="form-check-label small fw-bold text-danger" for="bcMandatory">Lesepflicht erzwingen (Roter Banner)</label>
-                            </div>
-                            <button type="submit" class="btn btn-premium w-100 rounded-pill shadow">Senden</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
     </div>
 
     <script>
         const { createApp } = Vue;
-        let sigPad = null, sigModal = null, selfPasswordModal = null, broadcastModal = null;
-        
+        let sigPad = null, sigModal = null, selfPasswordModal = null;
+        let missionSigPad = null, missionSigModal = null;
+        let map = null, hydrantMarkers = [];
+
         createApp({
             data() {
                 return {
@@ -778,7 +1553,7 @@
                     groups: [], selectedGroup: null, mobileSelectedId: null,
                     sessionsList: [], selectedYear: new Date().getFullYear(),
                     ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
-                    vehicles: [],
+                    vehicles: [], activeVehicleForLog: null, vehicleLogs: [],
                     newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' },
                     selfPwData: { old_password: '', new_password: '', confirm_password: '' },
                     activeBroadcasts: [],
@@ -786,15 +1561,75 @@
                     isFirstLoginBlock: false,
                     personalStats: { hours: 0, count: 0 },
                     activeTab: 'dienste',
-                    auditLogs: [],
                     apagerConfig: { api_key: '', active: true },
                     apagerLogs: [],
-                    serverHost: window.location.host
+                    serverHost: window.location.host,
+                    
+                    // Schedules / Dienstplanung
+                    schedules: [],
+                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null },
+                    schedulePersonnelList: [],
+                    activeScheduleForAttendance: null,
+                    
+                    // Missions / Einsatzberichte
+                    missions: [],
+                    activeMission: null,
+                    newRespi: { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true },
+                    
+                    // Equipment
+                    equipment: [],
+                    eqSearch: '',
+                    eqCategory: '',
+                    activeEquipment: null,
+                    newInspection: { date: new Date().toISOString().split('T')[0], inspector: '', status: 'Bestanden', note: '' },
+                    inspectionsHistory: [],
+                    batchInspect: { rawBarcodes: '', inspector: '', status: 'Bestanden', note: '' },
+                    
+                    // Personalverwaltung
+                    personnel: [],
+                    personnelSearch: '',
+                    activePersonnel: null,
+                    newGear: { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] },
+                    newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' },
+                    ranks: [
+                        'Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
+                        'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)',
+                        'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)'
+                    ],
+                    qualifications: [
+                        {id: 'is_truppmann', label: 'Truppmann (TM)'}, {id: 'is_funk', label: 'Sprechfunker'},
+                        {id: 'is_agt', label: 'Atemschutzgeräteträger'}, {id: 'is_maschinist', label: 'Maschinist'},
+                        {id: 'is_tf', label: 'Truppführer (TF)'}, {id: 'is_gf', label: 'Gruppenführer (GF)'}
+                    ],
+                    
+                    // Billing / Abrechnung
+                    bills: [],
+                    newBill: { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' },
+                    sepaYear: new Date().getFullYear(),
+                    sepaRate: 15.00,
+                    compensations: [],
+                    
+                    // BMA & Hydrants
+                    bmas: [],
+                    newBma: { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' },
+                    newHydrant: { lat: 0.0, lng: 0.0, type: 'Unterflur', label: 'Hydrant' },
+                    
+                    cacheBuster: Date.now()
                 }
             },
             computed: {
                 sessions() { return this.sessionsList.filter(s => new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => new Date(b.date) - new Date(a.date)); },
-                visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); }
+                visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
+                filteredEquipment() {
+                    return this.equipment.filter(eq => {
+                        const mSearch = eq.name.toLowerCase().includes(this.eqSearch.toLowerCase()) || eq.barcode.toLowerCase().includes(this.eqSearch.toLowerCase());
+                        const mCat = !this.eqCategory || eq.category === this.eqCategory;
+                        return mSearch && mCat;
+                    });
+                },
+                filteredPersonnel() {
+                    return this.personnel.filter(p => p.name.toLowerCase().includes(this.personnelSearch.toLowerCase()));
+                }
             },
             async mounted() {
                 try {
@@ -809,31 +1644,25 @@
                 await this.loadVehicles();
                 await this.loadBroadcasts();
                 await this.loadApagerConfig();
+                await this.loadSchedules();
+                await this.loadPersonnel();
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
                 selfPasswordModal = new bootstrap.Modal(document.getElementById('selfPasswordModal'));
-                broadcastModal = new bootstrap.Modal(document.getElementById('broadcastModal'));
+                
+                const mCanvas = document.getElementById('missionSigCanvas');
+                if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
+                missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
                 
                 this.ready = true;
                 if (this.isFirstLoginBlock) { setTimeout(() => { selfPasswordModal.show(); }, 400); }
-                
-                const resizeCanvas = () => {
-                    if(!canvas || !sigPad) return;
-                    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                    canvas.width = canvas.offsetWidth * ratio;
-                    canvas.height = canvas.offsetHeight * ratio;
-                    canvas.getContext("2d").scale(ratio, ratio);
-                    sigPad.clear(); 
-                };
-                const sigEl = document.getElementById('sigModal');
-                if(sigEl) {
-                    sigEl.addEventListener('shown.bs.modal', () => setTimeout(resizeCanvas, 200));
-                }
             },
             methods: {
                 async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/'; },
+                
+                // Group management
                 async loadGroups() {
                     try {
                         const res = await fetch('/groups', { credentials: 'include' }); this.groups = await res.json();
@@ -841,10 +1670,13 @@
                     } catch(e) {}
                 },
                 selectGroup(g) { this.selectedGroup = g; this.mobileSelectedId = g.id; localStorage.setItem('lastSelectedGroupId', g.id); this.loadData(); },
-                onMobileGroupChange() { const g = this.groups.find(x => x.id == this.mobileSelectedId); if(g) this.selectGroup(g); },
+                
                 async loadData() {
                     if (!this.selectedGroup) return;
-                    const [res, sRes] = await Promise.all([fetch(`/groups/${this.selectedGroup.id}/sessions`, { credentials: 'include' }), fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`, { credentials: 'include' })]);
+                    const [res, sRes] = await Promise.all([
+                        fetch(`/groups/${this.selectedGroup.id}/sessions`, { credentials: 'include' }), 
+                        fetch(`/groups/${this.selectedGroup.id}/stats?year=${this.selectedYear}`, { credentials: 'include' })
+                    ]);
                     this.sessionsList = await res.json(); this.ranking = (await sRes.json()).persons; this.calcStats();
                     this.fetchPersonalStats(); 
                 },
@@ -853,41 +1685,54 @@
                     this.sessions.forEach(x => { if (s[x.category] !== undefined) s[x.category] += parseFloat(x.duration); });
                     this.catStats = s;
                 },
-                async loadVehicles() { const res = await fetch('/api/vehicles', { credentials: 'include' }); this.vehicles = await res.json(); },
-                async loadBroadcasts() {
-                    try {
-                        const res = await fetch('/api/broadcasts/active', { credentials: 'include' });
-                        if(res.ok) this.activeBroadcasts = await res.json();
-                    } catch(e) {}
+                
+                // Schedules / Dienstplanung
+                async loadSchedules() {
+                    const res = await fetch('/api/missions/schedules/list', { credentials: 'include' });
+                    if(res.ok) this.schedules = await res.json();
                 },
-                async markBroadcastAsRead(b) {
-                    try {
-                        const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
-                        if(res.ok) { this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id); }
-                    } catch(e) {}
+                openScheduleModal() {
+                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id };
+                    new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
-                async deleteBroadcast(b) {
-                    if(confirm("Diese Systemmeldung permanent aus der Datenbank löschen?")) {
-                        try {
-                            const res = await fetch(`/api/broadcasts/${b.id}`, { method: 'DELETE', credentials: 'include' });
-                            if(res.ok) { this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id); }
-                        } catch(e) {}
+                async submitSchedule() {
+                    const res = await fetch('/api/missions/schedules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newSchedule) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+                        await this.loadSchedules();
                     }
                 },
-                async fetchPersonalStats() {
-                    try {
-                        const res = await fetch('/api/users/me/stats?year=' + this.selectedYear, { credentials: 'include' });
-                        if (res.ok) {
-                            this.personalStats = await res.json();
-                        }
-                    } catch(e) { console.error("Fehler beim Abruf der persönlichen Statistik:", e); }
+                async deleteSchedule(id) {
+                    if(confirm("Termin wirklich löschen?")) {
+                        await fetch(`/api/missions/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
+                        await this.loadSchedules();
+                    }
                 },
-                async loadAuditLogs() {
-                    try {
-                        const res = await fetch('/api/audit/logs', { credentials: 'include' });
-                        if (res.ok) { this.auditLogs = await res.json(); }
-                    } catch(e) {}
+                async openScheduleAttendance(s) {
+                    this.activeScheduleForAttendance = s;
+                    const [pRes, aRes] = await Promise.all([
+                        fetch('/api/personnel/list', { credentials: 'include' }),
+                        fetch(`/api/missions/schedules/${s.id}/attendance`, { credentials: 'include' })
+                    ]);
+                    const plist = await pRes.json();
+                    const alist = await aRes.json();
+                    this.schedulePersonnelList = plist.map(p => {
+                        const match = alist.find(x => x.personnel_id === p.id);
+                        return { personnel_id: p.id, name: p.name, status: match ? match.status : 'Nein' };
+                    });
+                    new bootstrap.Modal(document.getElementById('scheduleAttendanceModal')).show();
                 },
+                async saveScheduleAttendance() {
+                    const res = await fetch(`/api/missions/schedules/${this.activeScheduleForAttendance.id}/attendance`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify(this.schedulePersonnelList)
+                    });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('scheduleAttendanceModal')).hide();
+                    }
+                },
+
+                // aPager Webhook Log / Config
                 async loadApagerConfig() {
                     try {
                         const [cRes, lRes] = await Promise.all([
@@ -904,38 +1749,385 @@
                         if(res.ok) this.apagerConfig = await res.json();
                     } catch(e) {}
                 },
-                openBroadcastModal() { if(broadcastModal) broadcastModal.show(); },
-                async submitBroadcast() {
+                async submitFeedback(status) {
+                    const res = await fetch(`/api/apager/feedbacks?status=${encodeURIComponent(status)}`, { method: 'POST', credentials: 'include' });
+                    if(res.ok) alert("Rückmeldung erfolgreich gesendet!");
+                },
+
+                // Vehicles & Logs
+                async loadVehicles() { const res = await fetch('/api/vehicles', { credentials: 'include' }); this.vehicles = await res.json(); },
+                async quickStatusChange(v) { await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) }); },
+                async loadVehicleLogs() {
+                    if(!this.activeVehicleForLog) return;
+                    const res = await fetch(`/api/material/vehicles/${this.activeVehicleForLog.id}/log`, { credentials: 'include' });
+                    if(res.ok) this.vehicleLogs = await res.json();
+                },
+                openLogRideModal() {
+                    this.newLogRide = { date: new Date().toISOString().split('T')[0], mileage_start: this.activeVehicleForLog.milage || 0, mileage_end: (this.activeVehicleForLog.milage || 0) + 10, driver_name: '', purpose: '' };
+                    new bootstrap.Modal(document.getElementById('logRideModal')).show();
+                },
+                async submitLogRide() {
+                    const res = await fetch(`/api/material/vehicles/${this.activeVehicleForLog.id}/log`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogRide) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('logRideModal')).hide();
+                        await this.loadVehicles();
+                        this.activeVehicleForLog = this.vehicles.find(x => x.id === this.activeVehicleForLog.id);
+                        await this.loadVehicleLogs();
+                    }
+                },
+
+                // Broadcasts
+                async loadBroadcasts() {
+                    const res = await fetch('/api/broadcasts/active', { credentials: 'include' });
+                    if(res.ok) this.activeBroadcasts = await res.json();
+                },
+                async markBroadcastAsRead(b) {
+                    const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
+                    if(res.ok) this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
+                },
+
+                // Missions
+                async loadMissions() {
+                    const res = await fetch('/api/missions', { credentials: 'include' });
+                    if(res.ok) this.missions = await res.json();
+                },
+                openNewMissionModal() {
+                    this.activeMission = { id: null, date: new Date().toISOString().split('T')[0], time: '12:00', stichwort: '', adresse: '', meldung: '', description: '', duration: 2.0, status: 'Entwurf', attList: [], respiList: [] };
+                    this.initActiveMissionAttendance();
+                    new bootstrap.Modal(document.getElementById('missionModal')).show();
+                },
+                async initActiveMissionAttendance() {
+                    const res = await fetch('/api/personnel/list', { credentials: 'include' });
+                    const pList = await res.json();
+                    this.activeMission.attList = pList.map(p => ({ personnel_id: p.id, name: p.name, is_present: 'Nein', vehicle: '', g26_expired: p.g26_expired }));
+                },
+                async editMission(m) {
+                    const res = await fetch(`/api/missions/${m.id}`, { credentials: 'include' });
+                    if(res.ok) {
+                        const detail = await res.json();
+                        const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
+                        const pList = await pRes.json();
+                        
+                        detail.attList = pList.map(p => {
+                            const match = detail.attendance.find(x => x.personnel_id === p.id);
+                            return { personnel_id: p.id, name: p.name, is_present: match ? match.is_present : 'Nein', vehicle: match ? match.vehicle : '', g26_expired: p.g26_expired };
+                        });
+                        
+                        // Load respiration
+                        const rRes = await fetch(`/api/missions/${m.id}/respiration`, { credentials: 'include' });
+                        detail.respiList = rRes.ok ? await rRes.json() : [];
+                        
+                        this.activeMission = detail;
+                        new bootstrap.Modal(document.getElementById('missionModal')).show();
+                    }
+                },
+                async saveMission() {
+                    const payload = {
+                        date: this.activeMission.date, time: this.activeMission.time, stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
+                        meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: this.activeMission.status,
+                        attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
+                    };
+                    const isEdit = this.activeMission.id !== null;
+                    const url = isEdit ? `/api/missions/${this.activeMission.id}` : '/api/missions';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    
+                    const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
+                        await this.loadMissions();
+                    }
+                },
+                async deleteMission(id) {
+                    if(confirm("Einsatzbericht unwiderruflich löschen?")) {
+                        await fetch(`/api/missions/${id}`, { method: 'DELETE', credentials: 'include' });
+                        await this.loadMissions();
+                    }
+                },
+                openMissionSigModal(m) {
+                    this.activeS = m;
+                    missionSigModal.show();
+                    setTimeout(() => {
+                        const canvas = document.getElementById('missionSigCanvas');
+                        canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+                        missionSigPad.clear();
+                        if(m.leader_signature) missionSigPad.fromDataURL(m.leader_signature);
+                    }, 200);
+                },
+                async saveMissionSig() {
+                    if(missionSigPad.isEmpty()) return alert("Bitte unterschreiben!");
+                    const res = await fetch(`/api/missions/${this.activeS.id}/signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: missionSigPad.toDataURL()}) });
+                    if(res.ok) {
+                        missionSigModal.hide();
+                        await this.loadMissions();
+                    }
+                },
+                clearMissionSig() { missionSigPad.clear(); },
+                
+                // Respiration Atemschutz
+                async submitRespi() {
+                    if(!this.newRespi.personnel_id) return alert("Träger wählen!");
+                    const res = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newRespi) });
+                    if(res.ok) {
+                        this.newRespi = { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true };
+                        const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
+                        this.activeMission.respiList = await rRes.json();
+                    }
+                },
+                async deleteRespi(id) {
+                    const res = await fetch(`/api/missions/respiration/${id}`, { method: 'DELETE', credentials: 'include' });
+                    if(res.ok) {
+                        const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
+                        this.activeMission.respiList = await rRes.json();
+                    }
+                },
+
+                // Equipment
+                async loadEquipment() {
+                    const res = await fetch('/api/material/equipment', { credentials: 'include' });
+                    if(res.ok) this.equipment = await res.json();
+                },
+                openEquipmentModal() {
+                    this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null };
+                    new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                },
+                editEquipment(eq) {
+                    this.activeEquipment = {...eq};
+                    new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                },
+                async saveEquipment() {
+                    const isEdit = this.activeEquipment.id !== null;
+                    const url = isEdit ? `/api/material/equipment/${this.activeEquipment.id}` : '/api/material/equipment';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.activeEquipment) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('equipmentModal')).hide();
+                        await this.loadEquipment();
+                    }
+                },
+                async openInspectionsHistoryModal(eq) {
+                    this.activeEquipment = eq;
+                    const res = await fetch(`/api/material/equipment/${eq.id}/inspections`, { credentials: 'include' });
+                    if(res.ok) this.inspectionsHistory = await res.json();
+                    new bootstrap.Modal(document.getElementById('inspectionsHistoryModal')).show();
+                },
+                openAddInspectionModal(eq) {
+                    this.activeEquipment = eq;
+                    this.newInspection = { date: new Date().toISOString().split('T')[0], inspector: '', status: 'Bestanden', note: '' };
+                    new bootstrap.Modal(document.getElementById('addInspectionModal')).show();
+                },
+                async submitInspection() {
+                    const res = await fetch(`/api/material/equipment/${this.activeEquipment.id}/inspections`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newInspection) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('addInspectionModal')).hide();
+                        await this.loadEquipment();
+                    }
+                },
+                openBatchInspectModal() {
+                    this.batchInspect = { rawBarcodes: '', inspector: '', status: 'Bestanden', note: '' };
+                    new bootstrap.Modal(document.getElementById('batchInspectModal')).show();
+                },
+                async submitBatchInspect() {
+                    const barcodes = this.batchInspect.rawBarcodes.split('\n').map(x => x.trim()).filter(x => x.length > 0);
+                    const payload = { barcodes: barcodes, inspector: this.batchInspect.inspector, status: this.batchInspect.status, note: this.batchInspect.note };
+                    const res = await fetch('/api/material/equipment/batch-inspect', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('batchInspectModal')).hide();
+                        await this.loadEquipment();
+                    }
+                },
+
+                // Personal
+                async loadPersonnel() {
+                    const res = await fetch('/api/personnel/list', { credentials: 'include' });
+                    if(res.ok) this.personnel = await res.json();
+                },
+                openPersonnelModal() {
+                    this.activePersonnel = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: null, entry_date: null, honors: '', profile_picture: '', has_picture: false, courses: [], gearList: [] };
+                    this.qualifications.forEach(q => this.activePersonnel[q.id] = false);
+                    ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => this.activePersonnel[k] = false);
+                    new bootstrap.Modal(document.getElementById('personnelModal')).show();
+                },
+                async editPersonnel(p) {
+                    const res = await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' });
+                    if(res.ok) {
+                        const detail = await res.json();
+                        // Load courses & gear
+                        const [cRes, gRes] = await Promise.all([
+                            fetch(`/api/material/personnel/${p.id}/lehrgaenge`, { credentials: 'include' }),
+                            fetch(`/api/material/personnel/${p.id}/inventar`, { credentials: 'include' })
+                        ]);
+                        detail.courses = cRes.ok ? await cRes.json() : [];
+                        detail.gearList = gRes.ok ? await gRes.json() : [];
+                        this.activePersonnel = detail;
+                        new bootstrap.Modal(document.getElementById('personnelModal')).show();
+                    }
+                },
+                onAvatarChange(e) {
+                    const file = e.target.files[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => { this.activePersonnel.profile_picture = event.target.result; };
+                    reader.readAsDataURL(file);
+                },
+                async savePersonnel() {
+                    const payload = { ...this.activePersonnel };
+                    this.qualifications.forEach(q => payload[q.id] = this.activePersonnel[q.id] ? 1 : 0);
+                    ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => payload[k] = this.activePersonnel[k] ? 1 : 0);
+                    const isNew = this.activePersonnel.id === null;
+                    const endpoint = isNew ? '/api/personnel/add' : `/api/personnel/update/${this.activePersonnel.id}`;
+                    const res = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+                    if(res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
+                        await this.loadPersonnel();
+                    }
+                },
+                async deletePersonnel() {
+                    if(confirm("Mitglied permanent löschen?")) {
+                        await fetch(`/api/personnel/delete/${this.activePersonnel.id}`, { method: 'DELETE', credentials: 'include' });
+                        bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
+                        await this.loadPersonnel();
+                    }
+                },
+                async submitGear() {
+                    const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newGear) });
+                    if(res.ok) {
+                        this.newGear = { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] };
+                        const gRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { credentials: 'include' });
+                        this.activePersonnel.gearList = await gRes.json();
+                    }
+                },
+                async deleteGear(id) {
+                    const res = await fetch(`/api/material/personnel/inventar/${id}`, { method: 'DELETE', credentials: 'include' });
+                    if(res.ok) {
+                        const gRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { credentials: 'include' });
+                        this.activePersonnel.gearList = await gRes.json();
+                    }
+                },
+                async submitCourse() {
+                    const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newCourse) });
+                    if(res.ok) {
+                        this.newCourse = { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' };
+                        const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
+                        this.activePersonnel.courses = await cRes.json();
+                    }
+                },
+                async deleteCourse(id) {
+                    const res = await fetch(`/api/material/personnel/lehrgaenge/${id}`, { method: 'DELETE', credentials: 'include' });
+                    if(res.ok) {
+                        const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
+                        this.activePersonnel.courses = await cRes.json();
+                    }
+                },
+
+                // Billing / Abrechnung
+                async loadBills() {
+                    const res = await fetch('/api/missions/billing/list', { credentials: 'include' });
+                    if(res.ok) this.bills = await res.json();
+                },
+                async submitBill() {
+                    if(!this.newBill.mission_id) return alert("Einsatz auswählen!");
+                    const res = await fetch(`/api/missions/billing/${this.newBill.mission_id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBill) });
+                    if(res.ok) {
+                        this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
+                        await this.loadBills();
+                    }
+                },
+                async deleteBill(id) {
+                    if(confirm("Rechnung löschen?")) {
+                        await fetch(`/api/missions/billing/${id}`, { method: 'DELETE', credentials: 'include' });
+                        await this.loadBills();
+                    }
+                },
+                async payBill(id) {
+                    await fetch(`/api/missions/billing/${id}/pay`, { method: 'POST', credentials: 'include' });
+                    await this.loadBills();
+                },
+                async calculateCompensations() {
+                    const res = await fetch(`/api/missions/billing/compensations/list?year=${this.sepaYear}&hourly_rate=${this.sepaRate}`, { credentials: 'include' });
+                    if(res.ok) this.compensations = await res.json();
+                },
+                downloadSepa() {
+                    const iban = prompt("Sender IBAN eingeben:");
+                    const bic = prompt("Sender BIC eingeben:");
+                    if(iban && bic) {
+                        window.open(`/api/missions/billing/export/sepa?year=${this.sepaYear}&hourly_rate=${this.sepaRate}&sender_iban=${iban}&sender_bic=${bic}`, '_blank');
+                    }
+                },
+
+                // BMA & Hydrants
+                async loadBmas() {
+                    const res = await fetch('/api/material/bma', { credentials: 'include' });
+                    if(res.ok) this.bmas = await res.json();
+                },
+                async submitBma() {
+                    const res = await fetch('/api/material/bma', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBma) });
+                    if(res.ok) {
+                        this.newBma = { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' };
+                        await this.loadBmas();
+                    }
+                },
+                async deleteBma(id) {
+                    if(confirm("Objekt löschen?")) {
+                        await fetch(`/api/material/bma/${id}`, { method: 'DELETE', credentials: 'include' });
+                        await this.loadBmas();
+                    }
+                },
+                initMap() {
+                    setTimeout(() => {
+                        if (map) return;
+                        // Start koordinaten Neustadt
+                        map = L.map('hydrantMap').setView([50.1109, 8.6821], 14);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                        
+                        this.loadHydrants();
+                        
+                        map.on('click', async (e) => {
+                            if(this.role === 'mannschaft') return;
+                            const label = prompt("Bezeichnung des Hydranten / POI:");
+                            if(label) {
+                                const type = prompt("Typ (Unterflur, Überflur, Zisterne):", "Unterflur");
+                                const payload = { lat: e.latlng.lat, lng: e.latlng.lng, type: type, label: label };
+                                const res = await fetch('/api/material/hydrants', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+                                if(res.ok) {
+                                    this.loadHydrants();
+                                }
+                            }
+                        });
+                    }, 500);
+                },
+                async loadHydrants() {
+                    const res = await fetch('/api/material/hydrants', { credentials: 'include' });
+                    if(res.ok) {
+                        const list = await res.json();
+                        hydrantMarkers.forEach(m => map.removeLayer(m));
+                        hydrantMarkers = [];
+                        
+                        list.forEach(h => {
+                            const marker = L.marker([h.lat, h.lng])
+                                .bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}<br><button class="btn btn-xs btn-danger mt-1 text-white" onclick="window.deleteHydrant(${h.id})">Löschen</button>`)
+                                .addTo(map);
+                            hydrantMarkers.push(marker);
+                        });
+                    }
+                },
+
+                // Global Profile
+                async fetchPersonalStats() {
                     try {
-                        const res = await fetch('/api/broadcasts', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBroadcast) });
-                        if(res.ok) {
-                            broadcastModal.hide();
-                            this.newBroadcast = { title: '', content: '', is_mandatory: false };
-                            await this.loadBroadcasts();
-                        }
+                        const res = await fetch('/api/users/me/stats?year=' + this.selectedYear, { credentials: 'include' });
+                        if (res.ok) { this.personalStats = await res.json(); }
                     } catch(e) {}
                 },
                 openSelfPasswordModal() { this.selfPwData = { old_password: '', new_password: '', confirm_password: '' }; this.fetchPersonalStats(); if(selfPasswordModal) selfPasswordModal.show(); },
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
-                    try {
-                        const res = await fetch('/api/auth/change-password', {
-                            method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
-                            body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password })
-                        });
-                        if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
-                    } catch(e) { alert("Netzwerkfehler."); }
+                    const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
+                    if (res.ok) { alert("Dein Passwort wurde erfolgreich aktualisiert!"); this.isFirstLoginBlock = false; selfPasswordModal.hide(); }
                 },
+                
                 isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
-                async quickStatusChange(v) { await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) }); },
-                async addVehicleAdvanced() {
-                    if(!this.newVehicle.name) return;
-                    await fetch('/api/vehicles', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newVehicle) });
-                    this.newVehicle = { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' };
-                    await this.loadVehicles();
-                },
-                async saveVehicleEdit(v) { await fetch(`/api/vehicles/${v.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(v) }); },
-                async deleteVehicle(id) { if (confirm("Fahrzeug aus Flotte löschen?")) { await fetch(`/api/vehicles/${id}`, { method: 'DELETE', credentials: 'include' }); await this.loadVehicles(); } },
+                getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
+                
+                // Group methods
                 async addGroup() { const name = prompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async editGroup(g) { const name = prompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async deleteGroup(g) { if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
@@ -943,6 +2135,7 @@
                 createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 openReport(s) { window.open('/sessions/' + s.id + '/report', '_blank'); },
+                
                 openSig(s) { this.activeS = s; if(sigModal) sigModal.show(); },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
@@ -952,6 +2145,16 @@
                 clearSig() { if(sigPad) sigPad.clear(); }
             }
         }).mount('#app');
+
+        // Global function for map popup delete button
+        window.deleteHydrant = async (id) => {
+            if(confirm("Hydrant permanent löschen?")) {
+                const res = await fetch(`/api/material/hydrants/${id}`, { method: 'DELETE' });
+                if(res.ok) {
+                    location.reload(); // Refresh markers
+                }
+            }
+        };
     </script>
 </body>
 </html>

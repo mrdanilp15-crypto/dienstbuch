@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einsatz-Alarmdisplay - Fahrzeughalle</title>
+    
+    <!-- Premium Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <style>
+        :root {
+            --fire-red: #ef4444;
+            --dark-gray: #0d0d0e;
+            --card-gray: #1a1a1c;
+            --border-gray: #2d2d30;
+            --text-light: #ffffff;
+            --text-muted: #a3a3a6;
+        }
+
+        body {
+            background-color: var(--dark-gray);
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-light);
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Alarm Header Banner */
+        .alarm-header {
+            background: linear-gradient(135deg, #b71c1c 0%, #dc2626 100%);
+            padding: 20px 40px;
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--text-light);
+            animation: pulse-border 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3); }
+            100% { box-shadow: 0 15px 40px rgba(239, 68, 68, 0.6); }
+        }
+
+        .alarm-title {
+            font-size: 2.8rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            margin: 0;
+            text-shadow: 0 3px 10px rgba(0,0,0,0.5);
+        }
+
+        .clock-container {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-family: monospace;
+            background: rgba(0,0,0,0.4);
+            padding: 5px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .main-grid {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            padding: 30px;
+            overflow: hidden;
+        }
+
+        .details-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .alarm-card {
+            background-color: var(--card-gray);
+            border: 2px solid var(--border-gray);
+            border-radius: 24px;
+            padding: 35px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+        }
+
+        .card-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--fire-red);
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .stichwort-val {
+            font-size: 4rem;
+            font-weight: 900;
+            color: var(--text-light);
+            line-height: 1;
+            letter-spacing: -2px;
+        }
+
+        .adresse-val {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #ffd700;
+        }
+
+        .meldung-val {
+            font-size: 1.8rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .feedback-panel {
+            background-color: var(--card-gray);
+            border: 2px solid var(--border-gray);
+            border-radius: 24px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+        }
+
+        .feedback-header {
+            font-size: 1.5rem;
+            font-weight: 800;
+            border-bottom: 2px solid var(--border-gray);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .feedback-list {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .feedback-item {
+            display: flex;
+            justify-content: justify;
+            align-items: center;
+            padding: 12px 15px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .feedback-item.status-komme {
+            border-left: 5px solid #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .feedback-item.status-nein {
+            border-left: 5px solid #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .feedback-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            flex-grow: 1;
+        }
+
+        .feedback-status {
+            font-weight: 800;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+        }
+
+        /* Print styling */
+        @media print {
+            body { background: white; color: black; }
+            .alarm-header, .feedback-panel, .print-btn { display: none !important; }
+            .main-grid { grid-template-columns: 1fr; padding: 0; }
+            .alarm-card { border: none; box-shadow: none; padding: 0; }
+            .stichwort-val { color: black; font-size: 3rem; }
+            .adresse-val { color: black; font-size: 2rem; }
+            .meldung-val { color: black; font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <!-- Alarm Header -->
+        <header class="alarm-header">
+            <div class="d-flex align-items-center gap-3">
+                <i class="fa fa-triangle-exclamation fa-spin fa-2x"></i>
+                <h1 class="alarm-title">EINSATZALARM</h1>
+            </div>
+            <div class="d-flex align-items-center gap-4">
+                <button class="btn btn-light rounded-pill px-4 fw-bold print-btn" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
+                <div class="clock-container">{{ timeStr }}</div>
+            </div>
+        </header>
+
+        <!-- Main Grid Area -->
+        <div class="main-grid">
+            
+            <!-- Details Area -->
+            <div class="details-panel">
+                <div class="alarm-card flex-grow-1 d-flex flex-column justify-content-center">
+                    <div class="mb-4">
+                        <span class="card-label">Einsatzstichwort</span>
+                        <div class="stichwort-val">{{ lastAlarm.stichwort || 'KEIN AKTIVER ALARM' }}</div>
+                    </div>
+
+                    <div class="mb-4" v-if="lastAlarm.adresse">
+                        <span class="card-label">Einsatzort / Adresse</span>
+                        <div class="adresse-val"><i class="fa fa-location-dot me-2"></i>{{ lastAlarm.adresse }}</div>
+                    </div>
+
+                    <div v-if="lastAlarm.meldung">
+                        <span class="card-label">Zusatzinformation / Meldung</span>
+                        <div class="meldung-val">{{ lastAlarm.meldung }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feedback Sidebar -->
+            <div class="feedback-panel">
+                <div class="feedback-header">
+                    <span>RÜCKMELDUNGEN</span>
+                    <span class="badge bg-success rounded-pill">{{ kommeCount }} Zusage(n)</span>
+                </div>
+                <div class="feedback-list">
+                    <div v-for="f in feedbacks" :key="f.id" class="feedback-item" :class="f.status === 'Komme' ? 'status-komme' : 'status-nein'">
+                        <span class="feedback-name text-white">{{ f.name }}</span>
+                        <span class="feedback-status" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
+                            {{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}
+                        </span>
+                    </div>
+                    <div v-if="feedbacks.length === 0" class="text-center py-5 text-muted small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    lastAlarm: { stichwort: '', adresse: '', meldung: '' },
+                    feedbacks: [],
+                    timeStr: '00:00:00',
+                    kommeCount: 0
+                }
+            },
+            mounted() {
+                this.updateClock();
+                setInterval(this.updateClock, 1000);
+                
+                this.pollAlarm();
+                setInterval(this.pollAlarm, 5000); // alle 5 Sek neu laden
+            },
+            methods: {
+                updateClock() {
+                    const now = new Date();
+                    this.timeStr = now.toTimeString().split(' ')[0];
+                },
+                async pollAlarm() {
+                    try {
+                        const [aRes, fRes] = await Promise.all([
+                            fetch('/api/apager/logs'),
+                            fetch('/api/apager/feedbacks')
+                        ]);
+                        if(aRes.ok) {
+                            const logs = await aRes.json();
+                            if(logs && logs.length > 0) {
+                                // Prüfen, ob der Alarm frisch ist (letzte 30 Min)
+                                const last = logs[0];
+                                const alarmTime = new Date(last.created_at);
+                                const diffMin = (new Date() - alarmTime) / (1000 * 60);
+                                if(diffMin < 30) {
+                                    this.lastAlarm = last;
+                                } else {
+                                    this.lastAlarm = { stichwort: 'Bereitstellung / Standby', adresse: 'Keine aktiven Alarme in den letzten 30 Minuten.', meldung: '' };
+                                }
+                            } else {
+                                this.lastAlarm = { stichwort: 'Bereitstellung / Standby', adresse: 'Keine Einsätze registriert.', meldung: '' };
+                            }
+                        }
+                        if(fRes.ok) {
+                            this.feedbacks = await fRes.json();
+                            this.kommeCount = this.feedbacks.filter(x => x.status === 'Komme').length;
+                        }
+                    } catch(e) { console.error("Poll error", e); }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
