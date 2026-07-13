@@ -732,6 +732,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                        <!-- TAB 4: GERÄTE & MATERIAL -->
                 <div v-show="activeTab === 'material'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -940,7 +941,7 @@
                             </div>
 
                             <!-- Test-Alarm -->
-                            <div class="card premium-card p-4 border border-warning border-opacity-25" v-if="role === 'admin' || role === 'leitung'">
+                            <div class="card premium-card p-4 border border-warning border-opacity-25" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
                                 <h5 class="fw-bold text-white mb-1"><i class="fa fa-flask text-warning me-2"></i>Test-Alarmierung</h5>
                                 <p class="text-muted small mb-3">Erzeugt einen Testeintrag im Protokoll. <strong class="text-warning">Kein echter Alarm!</strong></p>
                                 <div class="mb-3">
@@ -1004,8 +1005,8 @@
                     </div>
                 </div>
 
-                <!-- TAB 7: ABRECHNUNG -->
                 <div v-show="activeTab === 'abrechnung'">
+                    <div class="row g-4">
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4 mb-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-file-invoice-dollar text-danger me-2"></i>Kostenbescheide (Verursacher)</h5>
@@ -1163,8 +1164,9 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- SUB-TAB BMA: right column for quick info card -->
+                        <!-- SUB-TAB BMA: right column for quick info card -->
                                 <div class="col-12 col-lg-5">
                                     <div class="card premium-card p-4">
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Hinweise</h5>
@@ -1313,11 +1315,8 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
             </div>
         </div>
-
         <!-- MODAL: SCHEDULE CREATION -->
         <div class="modal fade" id="scheduleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
