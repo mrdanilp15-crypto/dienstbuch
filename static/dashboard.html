@@ -360,27 +360,27 @@
         /* Personnel Grid Layout in Dashboard */
         .person-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 0.75rem;
         }
         .member-card {
             background: var(--card-bg);
-            border-radius: 16px;
+            border-radius: 12px;
             border: 1px solid var(--card-border);
-            padding: 12px 16px;
+            padding: 10px 12px;
             transition: all 0.3s ease;
             cursor: pointer;
             position: relative;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
         .member-card:hover {
             border-color: var(--primary);
             transform: translateY(-1px);
         }
         .avatar-container {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
             overflow: hidden;
             background: rgba(255,255,255,0.05);
             display: flex;
@@ -460,7 +460,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations()"><i class="fa fa-euro-sign"></i> Abrechnung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas(); initMap()"><i class="fa fa-gears"></i> Verwaltung & VB</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas()"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
@@ -732,9 +732,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- TAB 4: GERÄTE & MATERIAL -->
+                       <!-- TAB 4: GERÄTE & MATERIAL -->
                 <div v-show="activeTab === 'material'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
@@ -747,51 +745,134 @@
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-12 col-md-4">
-                            <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <select v-model="eqCategory" class="form-select">
-                                <option value="">Alle Kategorien</option>
-                                <option value="Schläuche">Schläuche</option>
-                                <option value="Armaturen">Armaturen</option>
-                                <option value="Werkzeug">Werkzeug</option>
-                                <option value="Atemschutz">Atemschutz</option>
-                                <option value="Sonstiges">Sonstiges</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <button class="btn w-100 rounded-pill fw-bold" :class="filterDefectiveOnly ? 'btn-warning text-dark' : 'btn-outline-warning text-white border-warning border-opacity-50'" @click="filterDefectiveOnly = !filterDefectiveOnly">
-                                <i class="fa fa-triangle-exclamation me-2"></i> <span v-if="filterDefectiveOnly">Nur Mängel/Defekte aktiv</span><span v-else>Mängelliste (Gerätewart)</span>
+                    <!-- Material sub-tabs: Geräteliste / Mängelmelder -->
+                    <ul class="nav nav-pills mb-4 gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'geraete' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'geraete'"><i class="fa fa-list me-1"></i>Geräteliste</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link position-relative" :class="materialSubTab === 'maengel' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'maengel'; loadDefectReports()">
+                                <i class="fa fa-triangle-exclamation me-1"></i>Mängelmelder
+                                <span v-if="defectReports.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size:0.6rem;">{{defectReports.length}}</span>
                             </button>
+                        </li>
+                    </ul>
+
+                    <!-- Geräteliste -->
+                    <div v-show="materialSubTab === 'geraete'">
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-4">
+                                <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <select v-model="eqCategory" class="form-select">
+                                    <option value="">Alle Kategorien</option>
+                                    <option value="Schläuche">Schläuche</option>
+                                    <option value="Armaturen">Armaturen</option>
+                                    <option value="Werkzeug">Werkzeug</option>
+                                    <option value="Atemschutz">Atemschutz</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <button class="btn w-100 rounded-pill fw-bold" :class="filterDefectiveOnly ? 'btn-warning text-dark' : 'btn-outline-warning text-white border-warning border-opacity-50'" @click="filterDefectiveOnly = !filterDefectiveOnly">
+                                    <i class="fa fa-triangle-exclamation me-2"></i> <span v-if="filterDefectiveOnly">Nur Mängel/Defekte aktiv</span><span v-else>Nur Mängel anzeigen</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div v-for="eq in filteredEquipment" :key="eq.id" class="col-12 col-md-6 col-lg-4">
+                                <div class="equipment-item" @click="editEquipment(eq)">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
+                                            <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                                                <small class="text-muted">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
+                                                <span v-if="eq.current_status && eq.current_status !== 'Bestanden'" class="badge bg-danger ms-1" style="font-size:0.6rem; padding: 2px 5px;">
+                                                    <i class="fa-solid fa-triangle-exclamation me-1"></i>{{eq.current_status}}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <span class="badge" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
+                                            Nächste Prf: {{eq.next_inspection || 'Keine'}}
+                                        </span>
+                                    </div>
+                                    <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
+                                        <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{eq.last_inspection || 'Nie'}}</span></div>
+                                        <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
+                                        <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="row g-3">
-                        <div v-for="eq in filteredEquipment" :key="eq.id" class="col-12 col-md-6 col-lg-4">
-                            <div class="equipment-item" @click="editEquipment(eq)">
-                                <div class="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
-                                        <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
-                                            <small class="text-muted">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
-                                            <span v-if="eq.current_status && eq.current_status !== 'Bestanden'" class="badge bg-danger ms-1" style="font-size:0.6rem; padding: 2px 5px;">
-                                                <i class="fa-solid fa-triangle-exclamation me-1"></i>{{eq.current_status}}
-                                            </span>
+                    <!-- Mängelmelder -->
+                    <div v-show="materialSubTab === 'maengel'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Gemeldete Mängel</h5>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Offen' ? 'btn-warning text-dark' : 'btn-outline-secondary text-white'" @click="defectFilter='Offen'; loadDefectReports()">Offen</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Erledigt' ? 'btn-success' : 'btn-outline-secondary text-white'" @click="defectFilter='Erledigt'; loadDefectReports()">Erledigt</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'alle' ? 'btn-secondary' : 'btn-outline-secondary text-white'" @click="defectFilter='alle'; loadDefectReports()">Alle</button>
                                         </div>
                                     </div>
-                                    <span class="badge" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
-                                        Nächste Prf: {{eq.next_inspection || 'Keine'}}
-                                    </span>
+                                    <div v-if="defectReports.length === 0" class="text-center py-5 text-muted">
+                                        <i class="fa fa-circle-check fa-3x mb-3 text-success"></i>
+                                        <p class="fw-bold">Keine offenen Mängel vorhanden!</p>
+                                    </div>
+                                    <div v-for="dr in defectReports" :key="dr.id" class="p-3 mb-3 rounded-3 border" :class="dr.severity === 'Kritisch' ? 'border-danger bg-danger bg-opacity-10' : dr.severity === 'Mittel' ? 'border-warning bg-warning bg-opacity-10' : 'border-secondary bg-black bg-opacity-20'">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div>
+                                                <span class="badge me-2" :class="dr.severity === 'Kritisch' ? 'bg-danger' : dr.severity === 'Mittel' ? 'bg-warning text-dark' : 'bg-secondary'">{{dr.severity}}</span>
+                                                <span class="badge" :class="dr.status === 'Offen' ? 'bg-danger' : 'bg-success'">{{dr.status}}</span>
+                                            </div>
+                                            <small class="text-muted">{{dr.created_at ? dr.created_at.substring(0,10) : ''}}</small>
+                                        </div>
+                                        <h6 class="fw-bold text-white mb-1"><i class="fa fa-screwdriver-wrench me-1 text-muted"></i>{{dr.equipment_name}} <small class="text-muted fw-normal">(ID: {{dr.barcode}})</small></h6>
+                                        <p class="text-white mb-2 small">{{dr.description}}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted"><i class="fa fa-user me-1"></i>Gemeldet von: <strong class="text-white">{{dr.reporter_name}}</strong></small>
+                                            <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Offen'" class="d-flex gap-1">
+                                                <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
+                                                <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                            </div>
+                                            <small v-else-if="dr.status !== 'Offen'" class="text-muted">Erledigt von: <strong class="text-success">{{dr.resolved_by}}</strong></small>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
-                                    <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{eq.last_inspection || 'Nie'}}</span></div>
-                                    <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
-                                    <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-exclamation-circle text-warning me-2"></i>Mangel melden</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">Gerät auswählen</label>
+                                        <select v-model="newDefect.equipment_id" class="form-select">
+                                            <option :value="null">-- Gerät wählen --</option>
+                                            <option v-for="eq in equipment" :key="eq.id" :value="eq.id">{{eq.name}} ({{eq.barcode}})</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Beschreibung des Mangels</label>
+                                        <textarea v-model="newDefect.description" class="form-control" rows="3" placeholder="Was ist defekt / mangelhaft?"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Dringlichkeit</label>
+                                        <select v-model="newDefect.severity" class="form-select">
+                                            <option value="Gering">Gering (kein Einsatzhindernis)</option>
+                                            <option value="Mittel" selected>Mittel (baldige Reparatur)</option>
+                                            <option value="Kritisch">Kritisch (sofort außer Betrieb!)</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="submitDefectReport"><i class="fa fa-triangle-exclamation me-2"></i>Mangel melden</button>
                                 </div>
                             </div>
                         </div>
@@ -846,26 +927,71 @@
                     </div>
 
                     <div class="row g-4">
+                        <!-- Schnittstellen-Daten -->
                         <div class="col-12 col-md-5">
-                            <div class="card premium-card p-4">
+                            <div class="card premium-card p-4 mb-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-cog text-danger me-2"></i>Schnittstellen-Daten</h5>
                                 <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-4 border border-secondary border-opacity-10">
                                     <div class="text-muted small mb-2"><strong>Webhook-URL für aPagerPro:</strong></div>
-                                    <code class="text-danger d-block text-break" style="font-size: 0.8rem;">
-                                        http://{{serverHost}}/api/apager/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}
-                                    </code>
+                                    <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/apager/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
+                                    <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>Kopieren</button>
                                 </div>
                                 <button v-if="isAdmin" class="btn btn-premium w-100 rounded-pill" @click="generateApiKey"><i class="fa fa-key me-2"></i>Neuen API-Key generieren</button>
                             </div>
+
+                            <!-- Test-Alarm -->
+                            <div class="card premium-card p-4 border border-warning border-opacity-25" v-if="role === 'admin' || role === 'leitung'">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-flask text-warning me-2"></i>Test-Alarmierung</h5>
+                                <p class="text-muted small mb-3">Erzeugt einen Testeintrag im Protokoll. <strong class="text-warning">Kein echter Alarm!</strong></p>
+                                <div class="mb-3">
+                                    <label class="form-label">Stichwort</label>
+                                    <input type="text" v-model="testAlarm.stichwort" class="form-control" placeholder="z. B. TH – Probealarm">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Einsatzort</label>
+                                    <input type="text" v-model="testAlarm.adresse" class="form-control" placeholder="z. B. Feuerwehrhaus">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Meldung</label>
+                                    <textarea v-model="testAlarm.meldung" class="form-control" rows="2" placeholder="Freitext..."></textarea>
+                                </div>
+                                <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="sendTestAlarm">
+                                    <i class="fa fa-bolt me-2"></i>Test-Alarm auslösen
+                                </button>
+                            </div>
                         </div>
 
+                        <!-- Protokoll & Rückmeldungen -->
                         <div class="col-12 col-md-7">
+                            <!-- Rückmeldungen zum letzten Alarm -->
+                            <div class="card premium-card p-4 mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-users text-danger me-2"></i>Rückmeldungen (Letzter Alarm)</h5>
+                                    <span class="badge bg-success rounded-pill px-3">{{ activeFeedbacksCount }} Zusage(n)</span>
+                                </div>
+                                <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 small" v-if="apagerFeedbacks.length > 0">
+                                    <div class="row g-2">
+                                        <div class="col-6" v-for="f in apagerFeedbacks" :key="f.id">
+                                            <div class="p-2 rounded bg-black bg-opacity-40 d-flex justify-content-between align-items-center border border-secondary border-opacity-10">
+                                                <span class="fw-bold text-white text-truncate" style="max-width: 70%;" :title="f.name">{{ f.name }}</span>
+                                                <span class="badge" :class="f.status === 'Komme' ? 'bg-success' : 'bg-danger'">{{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="text-center py-4 text-muted small">Bislang keine Rückmeldungen eingegangen.</div>
+                            </div>
+
+                            <!-- Protokoll -->
                             <div class="card premium-card p-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-list-check text-danger me-2"></i>Einsatz-Alarmierungsprotokoll</h5>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-list-check text-danger me-2"></i>Alarmierungsprotokoll</h5>
+                                    <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadApagerConfig"><i class="fa fa-refresh me-1"></i>Aktualisieren</button>
+                                </div>
                                 <div class="list-group list-group-flush">
                                     <div v-for="log in apagerLogs" :key="log.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <span class="badge bg-danger">ALARM</span>
+                                            <span class="badge" :class="log.stichwort && log.stichwort.startsWith('[TEST]') ? 'bg-warning text-dark' : 'bg-danger'">{{log.stichwort && log.stichwort.startsWith('[TEST]') ? 'TEST' : 'ALARM'}}</span>
                                             <small class="text-muted">{{log.created_at}}</small>
                                         </div>
                                         <h6 class="fw-bold text-white mb-1">{{log.stichwort}} &bull; {{log.adresse}}</h6>
@@ -880,7 +1006,6 @@
 
                 <!-- TAB 7: ABRECHNUNG -->
                 <div v-show="activeTab === 'abrechnung'">
-                    <div class="row g-4">
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4 mb-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-file-invoice-dollar text-danger me-2"></i>Kostenbescheide (Verursacher)</h5>
@@ -968,10 +1093,34 @@
 
                 <!-- TAB 8: VERWALTUNG & VB -->
                 <div v-show="activeTab === 'verwaltung'">
-                    <div class="row g-4">
-                        <div class="col-12 col-lg-6">
-                            <!-- BMA Directory -->
-                            <div class="card premium-card p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-gears text-danger me-2"></i>Verwaltung & Vorbeugender Brandschutz</h2>
+                            <small class="text-muted">Objekte, Hydranten, Zugänge und Kalender</small>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Navigation -->
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="verwaltungTab === 'bma' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'bma'"><i class="fa fa-building-shield me-1"></i>Objekte & BMA</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="verwaltungTab === 'hydrant' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'hydrant'; initMap()"><i class="fa fa-map-location-dot me-1"></i>POI & Hydranten</button>
+                        </li>
+                        <li class="nav-item" v-if="isAdmin">
+                            <button class="nav-link" :class="verwaltungTab === 'logins' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'logins'; loadSystemUsers()"><i class="fa fa-key me-1"></i>System-Logins</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUB-TAB: BMA Objekte -->
+                    <div v-show="verwaltungTab === 'bma'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-building-shield text-danger me-2"></i>Objektverzeichnis & Brandmeldeanlagen</h5>
                                 <div class="list-group list-group-flush mb-4">
                                     <div v-for="b in bmas" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
@@ -1015,74 +1164,152 @@
                                 </div>
                             </div>
 
-                            <!-- System-Logins card (Admin only) -->
-                            <div class="card premium-card p-4 mt-4" v-if="isAdmin">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-key text-danger me-2"></i>System-Logins verwalten <i class="fa fa-question-circle text-muted" style="font-size:0.95rem; cursor:pointer;" title="Erstelle und verwalte die Konten für Kameraden. Nur Admins können dies tun."></i></h5>
-                                
-                                <div class="table-responsive mb-4" style="max-height: 250px;">
-                                    <table class="table table-dark table-hover mb-0 align-middle small">
-                                        <thead><tr class="text-muted"><th>BENUTZERNAME</th><th>ROLLE</th><th>AKTION</th></tr></thead>
-                                        <tbody>
-                                            <tr v-for="usr in systemUsers" :key="usr.id">
-                                                <td class="fw-bold text-white">{{ usr.username }}</td>
-                                                <td><span class="badge bg-secondary">{{ usr.role }}</span></td>
-                                                <td>
-                                                    <button class="btn btn-xs btn-outline-warning rounded-pill me-1" @click="resetUserPassword(usr)" style="font-size:0.7rem;">PW Reset</button>
-                                                    <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteUserAccount(usr.id)" style="display:inline-flex; align-items:center;"><i class="fa fa-trash text-danger"></i></button>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <div>
-                                    <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neuen System-Login erstellen</h6>
-                                    <div class="mb-3">
-                                        <label class="form-label">Benutzername</label>
-                                        <input type="text" v-model="newLogin.username" class="form-control" placeholder="z. B. f.mueller">
+                            <!-- SUB-TAB BMA: right column for quick info card -->
+                                <div class="col-12 col-lg-5">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Hinweise</h5>
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 small mb-3">
+                                            <p class="text-white mb-1"><i class="fa fa-fire-extinguisher text-danger me-2"></i><strong>BMA = Brandmeldeanlage</strong></p>
+                                            <p class="text-muted mb-1">Erfasse hier alle Objekte mit automatischen Meldern oder Sonderobjekte im Ausrückebereich.</p>
+                                        </div>
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-warning border-opacity-20 small">
+                                            <p class="text-white mb-1"><i class="fa fa-key text-warning me-2"></i><strong>FSD = Feuerwehr-Schlüsseldepot</strong></p>
+                                            <p class="text-muted mb-0">Markiere Objekte, bei denen ein Schlüsseldepot für schnellen Zugang vorhanden ist.</p>
+                                        </div>
                                     </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Passwort</label>
-                                        <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 4 Zeichen">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Systemrolle</label>
-                                        <select v-model="newLogin.role" class="form-select">
-                                            <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
-                                            <option value="geratewart">Gerätewart (Materialpflege)</option>
-                                            <option value="leitung">Leitung (Schreibrechte)</option>
-                                            <option value="admin">Administrator (Vollzugriff)</option>
-                                        </select>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Kamerad verknüpfen</label>
-                                        <select v-model="newLogin.personnel_id" class="form-select">
-                                            <option :value="null">-- Keiner --</option>
-                                            <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
-                                        </select>
-                                    </div>
-                                    <button class="btn btn-premium w-100 rounded-pill" @click="submitNewLogin">System-Login erstellen</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-12 col-lg-6">
-                            <!-- Hydrants Map -->
-                            <div class="card premium-card p-4 mb-4">
+                        <!-- SUB-TAB: Hydranten & POI -->
+                        <div v-show="verwaltungTab === 'hydrant'">
+                            <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-location-dot text-danger me-2"></i>POI & Hydrantenplan</h5>
                                 <div id="hydrantMap"></div>
                                 <div class="mt-3 p-3 bg-black bg-opacity-20 rounded border border-secondary border-opacity-10 small" v-if="role !== 'mannschaft'">
-                                    <label class="form-label">Hydranten hinzufügen: Klicke auf die Karte!</label>
+                                    <label class="form-label"><i class="fa fa-mouse-pointer me-1 text-muted"></i>Hydranten hinzufügen: Klicke auf die Karte!</label>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Calendar ICS Integration -->
-                            <div class="card premium-card p-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
-                                <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL:</p>
-                                <code class="text-danger d-block text-break mb-3" style="font-size:0.85rem;">
-                                    http://{{serverHost}}/api/calendar/export.ics
-                                </code>
+                        <!-- SUB-TAB: System-Logins -->
+                        <div v-show="verwaltungTab === 'logins'" v-if="isAdmin">
+                            <div class="row g-4">
+                                <div class="col-12 col-lg-8">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-key text-danger me-2"></i>System-Logins verwalten <i class="fa fa-question-circle text-muted" style="font-size:0.9rem;" title="Erstelle, bearbeite und verwalte die Zugangskonten aller Kameraden."></i></h5>
+                                        <div class="table-responsive" style="max-height: 400px;">
+                                            <table class="table table-dark table-hover mb-0 align-middle small">
+                                                <thead><tr class="text-muted"><th>BENUTZER</th><th>ROLLE</th><th>KAMERAD</th><th>AKTIONEN</th></tr></thead>
+                                                <tbody>
+                                                    <tr v-for="usr in systemUsers" :key="usr.id">
+                                                        <td class="fw-bold text-white">{{ usr.username }}</td>
+                                                        <td>
+                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='geratewart'?'bg-info text-dark':'bg-secondary'">{{ usr.role }}</span>
+                                                        </td>
+                                                        <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
+                                                        <td>
+                                                            <div class="d-flex gap-1 flex-wrap">
+                                                                <button class="btn btn-xs btn-outline-primary rounded-pill" @click="startUserEdit(usr)" style="font-size:0.65rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
+                                                                <button class="btn btn-xs btn-outline-warning rounded-pill" @click="resetUserPassword(usr)" style="font-size:0.65rem;">PW Reset</button>
+                                                                <button class="btn btn-xs btn-outline-danger rounded-pill" @click="deleteUserAccount(usr.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-if="systemUsers.length === 0"><td colspan="4" class="text-center py-3 text-muted">Keine Benutzer gefunden.</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-lg-4">
+                                    <!-- Create / Edit Form -->
+                                    <div class="card premium-card p-4">
+                                        <h6 class="fw-bold text-white mb-3">
+                                            <i class="fa" :class="editingUserId ? 'fa-pen-to-square text-warning' : 'fa-plus text-danger'"></i>
+                                            <span v-if="editingUserId"> Login bearbeiten</span><span v-else> Neuen Login erstellen</span>
+                                        </h6>
+
+                                        <!-- Username only shown when creating -->
+                                        <div class="mb-3" v-if="!editingUserId">
+                                            <label class="form-label">Benutzername</label>
+                                            <input type="text" v-model="newLogin.username" class="form-control" placeholder="z. B. f.mueller">
+                                        </div>
+                                        <div class="mb-3" v-if="!editingUserId">
+                                            <label class="form-label">Passwort</label>
+                                            <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 4 Zeichen">
+                                        </div>
+
+                                        <!-- Info banner in edit mode -->
+                                        <div v-if="editingUserId" class="alert alert-info small p-2 rounded-3 mb-3" style="background:rgba(13,202,240,0.1); border: 1px solid rgba(13,202,240,0.3);">
+                                            <i class="fa fa-circle-info me-1"></i>Bearbeite Rolle & Kamerad-Verknüpfung für <strong>{{ editingUsername }}</strong>. Für Passwort-Änderungen → PW Reset.
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Systemrolle</label>
+                                            <select v-if="editingUserId" v-model="editUserRole" class="form-select">
+                                                <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
+                                                <option value="geratewart">Gerätewart (Materialpflege)</option>
+                                                <option value="leitung">Leitung (Schreibrechte)</option>
+                                                <option value="admin">Administrator (Vollzugriff)</option>
+                                            </select>
+                                            <select v-else v-model="newLogin.role" class="form-select">
+                                                <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
+                                                <option value="geratewart">Gerätewart (Materialpflege)</option>
+                                                <option value="leitung">Leitung (Schreibrechte)</option>
+                                                <option value="admin">Administrator (Vollzugriff)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Kamerad verknüpfen</label>
+                                            <select v-if="editingUserId" v-model="editUserPersonnelId" class="form-select">
+                                                <option :value="null">-- Keiner --</option>
+                                                <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            </select>
+                                            <select v-else v-model="newLogin.personnel_id" class="form-select">
+                                                <option :value="null">-- Keiner --</option>
+                                                <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="d-flex gap-2">
+                                            <button v-if="!editingUserId" class="btn btn-premium flex-grow-1 rounded-pill" @click="submitNewLogin"><i class="fa fa-plus me-1"></i>Login erstellen</button>
+                                            <button v-if="editingUserId" class="btn btn-warning flex-grow-1 rounded-pill text-dark fw-bold" @click="saveUserEdit"><i class="fa fa-save me-1"></i>Speichern</button>
+                                            <button v-if="editingUserId" class="btn btn-outline-light rounded-pill px-3" @click="cancelUserEdit">Abbrechen</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SUB-TAB: Kalender -->
+                        <div v-show="verwaltungTab === 'kalender'">
+                            <div class="row g-4">
+                                <div class="col-12 col-lg-6">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
+                                        <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL:</p>
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">http://{{serverHost}}/api/calendar/export.ics</code>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-light rounded-pill" onclick="navigator.clipboard.writeText(window.location.protocol+'//'+window.location.host+'/api/calendar/export.ics')"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <a :href="'webcal://'+serverHost+'/api/calendar/export.ics'" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Kompatibilität</h5>
+                                        <ul class="list-unstyled text-muted small">
+                                            <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Microsoft Outlook</strong> – Datei → Kontoeinstellungen → Internetkalender hinzufügen</li>
+                                            <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Apple Kalender</strong> – Datei → Neues Kalenderabonnement</li>
+                                            <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Google Kalender</strong> – Andere Kalender → Per URL hinzufügen</li>
+                                            <li><i class="fa fa-mobile text-success me-2"></i><strong class="text-white">iOS / Android</strong> – Link direkt öffnen → Kalender-App öffnet automatisch</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1796,6 +2023,7 @@
                     activeTab: 'dienste',
                     apagerConfig: { api_key: '', active: true },
                     apagerLogs: [],
+                    apagerFeedbacks: [],
                     serverHost: window.location.host,
                     
                     // Schedules / Dienstplanung
@@ -1854,6 +2082,24 @@
                     activeVehicle: null,
                     selfBindPersonnelId: null,
                     
+                    // Sub-tab navigation
+                    materialSubTab: 'geraete',
+                    verwaltungTab: 'bma',
+                    
+                    // Mängelmelder
+                    defectReports: [],
+                    defectFilter: 'Offen',
+                    newDefect: { equipment_id: null, description: '', severity: 'Mittel' },
+                    
+                    // Test Alarm
+                    testAlarm: { stichwort: '', adresse: '', meldung: '' },
+                    
+                    // User Edit State
+                    editingUserId: null,
+                    editingUsername: '',
+                    editUserRole: 'mannschaft',
+                    editUserPersonnelId: null,
+                    
                     cacheBuster: Date.now()
                 }
             },
@@ -1905,6 +2151,9 @@
                 },
                 filteredPersonnel() {
                     return this.personnel.filter(p => p.name.toLowerCase().includes(this.personnelSearch.toLowerCase()));
+                },
+                activeFeedbacksCount() {
+                    return this.apagerFeedbacks.filter(f => f.status === 'Komme').length;
                 }
             },
             async mounted() {
@@ -2055,12 +2304,14 @@
                 // aPager Webhook Log / Config
                 async loadApagerConfig() {
                     try {
-                        const [cRes, lRes] = await Promise.all([
+                        const [cRes, lRes, fRes] = await Promise.all([
                             fetch('/api/apager/config', { credentials: 'include' }),
-                            fetch('/api/apager/logs', { credentials: 'include' })
+                            fetch('/api/apager/logs', { credentials: 'include' }),
+                            fetch('/api/apager/feedbacks', { credentials: 'include' })
                         ]);
                         if(cRes.ok) this.apagerConfig = await cRes.json();
                         if(lRes.ok) this.apagerLogs = await lRes.json();
+                        if(fRes.ok) this.apagerFeedbacks = await fRes.json();
                     } catch(e) {}
                 },
                 async generateApiKey() {
@@ -2071,7 +2322,10 @@
                 },
                 async submitFeedback(status) {
                     const res = await fetch(`/api/apager/feedbacks?status=${encodeURIComponent(status)}`, { method: 'POST', credentials: 'include' });
-                    if(res.ok) alert("Rückmeldung erfolgreich gesendet!");
+                    if(res.ok) {
+                        alert("Rückmeldung erfolgreich gesendet!");
+                        await this.loadApagerConfig();
+                    }
                 },
 
                 // Vehicles & Logs
@@ -2212,6 +2466,7 @@
                 async loadEquipment() {
                     const res = await fetch('/api/material/equipment', { credentials: 'include' });
                     if(res.ok) this.equipment = await res.json();
+                    await this.loadDefectReports();
                 },
                 openEquipmentModal() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null };
@@ -2445,7 +2700,10 @@
                 },
                 initMap() {
                     setTimeout(() => {
-                        if (map) return;
+                        if (map) {
+                            map.invalidateSize();
+                            return;
+                        }
                         // Start koordinaten Neustadt
                         map = L.map('hydrantMap').setView([50.1109, 8.6821], 14);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -2521,11 +2779,7 @@
                     }
                 },
                 
-                // System user accounts
-                async loadSystemUsers() {
-                    const res = await fetch('/api/users/list', { credentials: 'include' });
-                    if (res.ok) this.systemUsers = await res.json();
-                },
+                
                 async submitNewLogin() {
                     if (!this.newLogin.username || !this.newLogin.password) return alert("Benutzername und Passwort sind erforderlich!");
                     const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogin) });
@@ -2612,7 +2866,102 @@
                     const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
                     if (r.ok) { sigModal.hide(); this.loadData(); }
                 },
-                clearSig() { if(sigPad) sigPad.clear(); }
+                clearSig() { if(sigPad) sigPad.clear(); },
+                
+                // === MÄNGELMELDER METHODS ===
+                async loadDefectReports() {
+                    try {
+                        const res = await fetch(`/api/material/defect-reports?status=${encodeURIComponent(this.defectFilter)}`, { credentials: 'include' });
+                        if (res.ok) this.defectReports = await res.json();
+                    } catch(e) { console.error('Defect reports error:', e); }
+                },
+                openDefectReportModal(eq) {
+                    this.newDefect = { equipment_id: eq.id, description: '', severity: 'Mittel' };
+                    this.materialSubTab = 'maengel';
+                    this.loadDefectReports();
+                },
+                async submitDefectReport() {
+                    if (!this.newDefect.equipment_id || !this.newDefect.description.trim()) {
+                        alert('Bitte Gerät und Beschreibung angeben!'); return;
+                    }
+                    const res = await fetch('/api/material/defect-reports', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        credentials: 'include', body: JSON.stringify(this.newDefect)
+                    });
+                    if (res.ok) {
+                        alert('✅ Mangel wurde gemeldet!');
+                        this.newDefect = { equipment_id: null, description: '', severity: 'Mittel' };
+                        await this.loadDefectReports();
+                    } else { const d = await res.json(); alert(d.detail || 'Fehler beim Melden.'); }
+                },
+                async resolveDefect(id, status) {
+                    const res = await fetch(`/api/material/defect-reports/${id}`, {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'},
+                        credentials: 'include', body: JSON.stringify({ status: status })
+                    });
+                    if (res.ok) await this.loadDefectReports();
+                },
+                
+                // === TEST ALARM METHODS ===
+                async sendTestAlarm() {
+                    if (!confirm('Test-Alarm wirklich auslösen? Dies erscheint im Protokoll.')) return;
+                    const res = await fetch('/api/apager/test-alarm', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        credentials: 'include', body: JSON.stringify(this.testAlarm)
+                    });
+                    if (res.ok) {
+                        alert('✅ Test-Alarm wurde im Protokoll eingetragen!');
+                        this.testAlarm = { stichwort: '', adresse: '', meldung: '' };
+                        await this.loadApagerConfig();
+                    } else { const d = await res.json(); alert(d.detail || 'Fehler beim Test-Alarm.'); }
+                },
+                copyWebhookUrl() {
+                    const url = `${window.location.protocol}//${this.serverHost}/api/apager/webhook?api_key=${this.apagerConfig.api_key || ''}`;
+                    navigator.clipboard.writeText(url).then(() => alert('✅ Webhook-URL in Zwischenablage kopiert!'));
+                },
+                
+                // === USER EDIT METHODS ===
+                async loadSystemUsers() {
+                    const res = await fetch('/api/users/list', { credentials: 'include' });
+                    if (res.ok) {
+                        const users = await res.json();
+                        // Enrich with personnel name lookup
+                        this.systemUsers = users.map(u => ({
+                            ...u,
+                            personnel_name: u.personnel_id ? (this.personnel.find(p => p.id === u.personnel_id)?.name || `ID ${u.personnel_id}`) : null
+                        }));
+                    }
+                },
+                startUserEdit(usr) {
+                    this.editingUserId = usr.id;
+                    this.editingUsername = usr.username;
+                    this.editUserRole = usr.role;
+                    this.editUserPersonnelId = usr.personnel_id || null;
+                },
+                cancelUserEdit() {
+                    this.editingUserId = null;
+                    this.editingUsername = '';
+                    this.editUserRole = 'mannschaft';
+                    this.editUserPersonnelId = null;
+                },
+                async saveUserEdit() {
+                    if (!this.editingUserId) return;
+                    const [r1, r2] = await Promise.all([
+                        fetch(`/api/users/${this.editingUserId}/role`, {
+                            method: 'PUT', headers: {'Content-Type': 'application/json'},
+                            credentials: 'include', body: JSON.stringify({ role: this.editUserRole })
+                        }),
+                        fetch(`/api/users/${this.editingUserId}/personnel`, {
+                            method: 'PUT', headers: {'Content-Type': 'application/json'},
+                            credentials: 'include', body: JSON.stringify({ personnel_id: this.editUserPersonnelId })
+                        })
+                    ]);
+                    if (r1.ok && r2.ok) {
+                        alert('✅ Login erfolgreich aktualisiert!');
+                        this.cancelUserEdit();
+                        await this.loadSystemUsers();
+                    } else { alert('Fehler beim Speichern. Bitte erneut versuchen.'); }
+                }
             }
         }).mount('#app');
 
@@ -2628,3 +2977,4 @@
     </script>
 </body>
 </html>
+

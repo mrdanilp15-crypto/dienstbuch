@@ -350,7 +350,10 @@
                     vehicles: [],
                     timeStr: '00:00:00',
                     kommeCount: 0,
-                    isAlarmActive: false
+                    isAlarmActive: false,
+                    destMarker: null,
+                    routeLine: null,
+                    geocodedAddress: ''
                 }
             },
             mounted() {
@@ -400,7 +403,7 @@
                         }
                     } catch(e){}
                 },
-                async pollData() {
+                 async pollData() {
                     try {
                         const [aRes, fRes, vRes] = await Promise.all([
                             fetch('/api/apager/logs'),
@@ -421,14 +424,24 @@
                                     if(last.id !== this.lastAlarm.id) {
                                         this.triggerAlarmSound(last);
                                     }
+                                    if(last.adresse && last.adresse !== this.geocodedAddress) {
+                                        this.geocodedAddress = last.adresse;
+                                        this.geocodeAddress(last.adresse);
+                                    }
                                     this.lastAlarm = last;
                                 } else {
                                     this.isAlarmActive = false;
                                     this.lastAlarm = { id: last.id, stichwort: 'Bereitstellung / Standby', adresse: 'Keine aktiven Einsätze.', meldung: '' };
+                                    if(this.destMarker) { map.removeLayer(this.destMarker); this.destMarker = null; }
+                                    if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
+                                    this.geocodedAddress = '';
                                 }
                             } else {
                                 this.isAlarmActive = false;
                                 this.lastAlarm = { id: null, stichwort: 'Bereitstellung / Standby', adresse: 'Bereit für Einsätze.', meldung: '' };
+                                if(this.destMarker) { map.removeLayer(this.destMarker); this.destMarker = null; }
+                                if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
+                                this.geocodedAddress = '';
                             }
                         }
                         
@@ -441,6 +454,42 @@
                             this.vehicles = await vRes.json();
                         }
                     } catch(e) { console.error("Poll error", e); }
+                },
+                async geocodeAddress(addr) {
+                    if (!addr) return;
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.length > 0) {
+                                const lat = parseFloat(data[0].lat);
+                                const lon = parseFloat(data[0].lon);
+                                
+                                if(this.destMarker) map.removeLayer(this.destMarker);
+                                if(this.routeLine) map.removeLayer(this.routeLine);
+                                
+                                this.destMarker = L.marker([lat, lon], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/2991/2991157.png',
+                                        iconSize: [40, 40],
+                                        iconAnchor: [20, 40]
+                                    })
+                                }).bindPopup(`<b>Einsatzort:</b><br>${addr}`).addTo(map);
+                                
+                                this.routeLine = L.polyline([[50.1109, 8.6821], [lat, lon]], {
+                                    color: 'red',
+                                    weight: 4,
+                                    opacity: 0.7,
+                                    dashArray: '10, 10'
+                                }).addTo(map);
+                                
+                                const bounds = L.latLngBounds([[50.1109, 8.6821], [lat, lon]]);
+                                map.fitBounds(bounds, { padding: [50, 50] });
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Geocoding failed", e);
+                    }
                 },
                 triggerAlarmSound(alarm) {
                     // Play synthesizer siren tones

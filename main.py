@@ -406,6 +406,20 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment_defect_reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                equipment_id INT NOT NULL,
+                reporter_name VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                severity VARCHAR(50) NOT NULL DEFAULT 'Mittel',
+                status VARCHAR(50) NOT NULL DEFAULT 'Offen',
+                resolved_by VARCHAR(255) NULL,
+                resolved_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -1203,6 +1217,85 @@ def submit_apager_feedback(status: str, request: Request):
     """, (alarm_id, personnel_id, status, status))
     
     conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- TEST ALARM ---
+@app.post("/api/apager/test-alarm")
+async def send_test_alarm(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Nur Admins/Leitung können Test-Alarme senden.")
+    stichwort = "[TEST] " + (data.get("stichwort") or "Probealarm")
+    adresse = data.get("adresse") or "Übungsgelände"
+    meldung = data.get("meldung") or "Dies ist ein Test-Alarm – keine echte Gefahr!"
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO apager_logs (stichwort, adresse, meldung) VALUES (%s, %s, %s)",
+        (stichwort, adresse, meldung)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
+    return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}
+
+# --- MÄNGELMELDER (GERÄTEWART) ---
+@app.post("/api/material/defect-reports")
+def create_defect_report(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    eq_id = data.get("equipment_id")
+    desc = data.get("description", "").strip()
+    severity = data.get("severity", "Mittel")
+    if not eq_id or not desc:
+        raise HTTPException(status_code=400, detail="Gerät und Beschreibung erforderlich.")
+    reporter = data.get("reporter_name") or user["username"]
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO equipment_defect_reports (equipment_id, reporter_name, description, severity) VALUES (%s, %s, %s, %s)",
+        (eq_id, reporter, desc, severity)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_MELDEN", f"Mangel für Gerät-ID {eq_id} gemeldet: {desc[:60]}")
+    return {"status": "success"}
+
+@app.get("/api/material/defect-reports")
+def get_defect_reports(request: Request, status: str = "Offen"):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    if status == "alle":
+        cur.execute("""
+            SELECT dr.*, e.name as equipment_name, e.barcode
+            FROM equipment_defect_reports dr
+            LEFT JOIN equipment e ON dr.equipment_id = e.id
+            ORDER BY dr.created_at DESC LIMIT 100
+        """)
+    else:
+        cur.execute("""
+            SELECT dr.*, e.name as equipment_name, e.barcode
+            FROM equipment_defect_reports dr
+            LEFT JOIN equipment e ON dr.equipment_id = e.id
+            WHERE dr.status = %s
+            ORDER BY dr.created_at DESC LIMIT 100
+        """, (status,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    for r in rows:
+        for k in ["created_at", "resolved_at"]:
+            if r.get(k): r[k] = str(r[k])
+    return rows
+
+@app.put("/api/material/defect-reports/{report_id}")
+def resolve_defect_report(report_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    new_status = data.get("status", "Erledigt")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "UPDATE equipment_defect_reports SET status = %s, resolved_by = %s, resolved_at = NOW() WHERE id = %s",
+        (new_status, user["username"], report_id)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_ERLEDIGT", f"Mangel-Meldung ID {report_id} als '{new_status}' markiert.")
     return {"status": "success"}
 
 # --- ICAL / central calendar CENTRAL EXPORT ---
