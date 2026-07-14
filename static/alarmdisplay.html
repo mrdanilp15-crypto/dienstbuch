@@ -387,8 +387,8 @@
                 },
                 initDisplayMap() {
                     setTimeout(() => {
-                        map = L.map('displayMap').setView([this.stationLat, this.stationLng], this.stationZoom);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                        map = L.map('displayMap', { maxZoom: 22 }).setView([this.stationLat, this.stationLng], this.stationZoom);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
                         
                         // Add base station marker
                         L.marker([this.stationLat, this.stationLng], {

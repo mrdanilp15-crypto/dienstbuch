@@ -471,6 +471,24 @@
             background: #1e1e1e !important;
             color: #ffffff !important;
         }
+
+        /* Prevent infinite scrolling on mobile viewports */
+        @media (max-width: 991px) {
+            .list-group, .table-responsive {
+                max-height: 320px;
+                overflow-y: auto;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                padding-right: 4px;
+            }
+            .premium-card {
+                margin-bottom: 10px;
+                padding: 15px !important;
+            }
+            .main-content {
+                padding: 10px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1423,7 +1441,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
                 <!-- TAB 9: DOCUMENT ARCHIVE -->
                 <div v-show="activeTab === 'archiv'">
@@ -2137,7 +2154,7 @@
                         <button v-if="!isFirstLoginBlock" type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <div v-if="isFirstLoginBlock" class="alert alert-danger small rounded-3 mb-3 fw-bold">
+                        <div v-if="isFirstLoginBlock" class="p-3 mb-3 rounded-4" style="background: rgba(220, 53, 69, 0.15); border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; font-weight: bold;">
                             <i class="fa fa-exclamation-triangle me-2"></i> Initial-Passwort aktiv! Bitte ändern Sie Ihr Passwort ab, um das Cockpit freizuschalten.
                         </div>
                         
@@ -2912,8 +2929,8 @@
                             return;
                         }
                         // Start koordinaten
-                        map = L.map('hydrantMap').setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                        map = L.map('hydrantMap', { maxZoom: 22 }).setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
                         
                         this.loadHydrants();
                         
