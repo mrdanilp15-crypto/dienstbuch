@@ -121,6 +121,9 @@
             padding: 12px 16px !important;
             transition: all 0.3s ease !important;
         }
+        .pw-input {
+            border-radius: 0 !important;
+        }
         
         .form-control::placeholder {
             color: rgba(255,255,255,0.7) !important;
@@ -203,7 +206,10 @@
                 <label class="form-label">Passwort</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-lock"></i></span>
-                    <input type="password" id="passwordInput" class="form-control" placeholder="********" required autocomplete="current-password">
+                    <input type="password" id="passwordInput" class="form-control pw-input" placeholder="********" required autocomplete="current-password">
+                    <button class="btn btn-outline-secondary text-white-50" type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()" style="border-radius: 0 16px 16px 0 !important; background: rgba(255,255,255,0.08); border: 1px solid rgba(255, 255, 255, 0.1) !important; border-left: none !important;">
+                        <i class="fa fa-eye" id="togglePasswordIcon"></i>
+                    </button>
                 </div>
             </div>
 
@@ -284,6 +290,18 @@
                 btn.disabled = false;
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const input = document.getElementById('passwordInput');
+            const icon = document.getElementById('togglePasswordIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fa fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fa fa-eye';
             }
         }
     </script>

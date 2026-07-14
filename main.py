@@ -696,6 +696,7 @@ def api_login(data: LoginRequest, response: Response):
         if user["lockout_until"] and datetime.now() < user["lockout_until"]:
             cur.close(); conn.close()
             remaining = (user["lockout_until"] - datetime.now()).seconds // 60 + 1
+            log_audit_action("SYSTEM", "LOGIN_VERSUCH_GESPERRT", f"Anmeldeversuch auf gesperrtes Konto '{username_clean}'.")
             raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
             
         if verify_password(user['password_hash'], data.password):
@@ -711,10 +712,14 @@ def api_login(data: LoginRequest, response: Response):
             lockout = datetime.now() + timedelta(minutes=15) if failed >= 5 else None
             cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (failed, lockout, user["id"],))
             conn.commit(); cur.close(); conn.close()
-            if failed >= 5: raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+            if failed >= 5:
+                log_audit_action("SYSTEM", "KONTO_GESPERRT", f"Konto '{username_clean}' wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+                raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+            log_audit_action("SYSTEM", "LOGIN_FEHLVERSUCH", f"Falsches Passwort für Benutzer '{username_clean}' ({failed}/5).")
             raise HTTPException(status_code=401, detail=f"Passwort falsch! ({failed}/5)")
     else:
         cur.close(); conn.close()
+        log_audit_action("SYSTEM", "LOGIN_BENUTZER_UNBEKANNT", f"Anmeldeversuch mit nicht existierendem Namen '{username_clean}'.")
         raise HTTPException(status_code=401, detail="Benutzername existiert nicht!")
 
 @app.get("/api/auth/me")
