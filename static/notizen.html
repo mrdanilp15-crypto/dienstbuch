@@ -143,6 +143,21 @@
         }
 
         [v-cloak] { display: none !important; }
+
+        /* Global high-contrast overrides for dark theme readability */
+        label, .form-label {
+            color: #ffffff !important;
+        }
+        .text-muted {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        input::placeholder, textarea::placeholder, select::placeholder {
+            color: rgba(255, 255, 255, 0.65) !important;
+        }
+        option {
+            background: #1e1e1e !important;
+            color: #ffffff !important;
+        }
     </style>
 </head>
 <body>

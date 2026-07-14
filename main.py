@@ -177,6 +177,17 @@ def init_db_extensions():
             cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES ('Feuerwehr Neustadt', 50.1109, 8.6821, 14)")
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS archive_files (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                url VARCHAR(255) NOT NULL,
+                uploaded_by VARCHAR(255) NOT NULL,
+                is_public BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(255) NOT NULL UNIQUE,
@@ -799,6 +810,74 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         
     url = f"/static/uploads/{filename}"
     return {"url": url, "filename": file.filename}
+
+# --- DOCUMENT ARCHIVE SYSTEM ---
+@app.post("/api/archive/upload")
+async def upload_archive_file(request: Request, file: UploadFile = File(...), is_public: bool = False):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = os.path.join("static", "uploads", filename)
+    
+    with open(filepath, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+        
+    url = f"/static/uploads/{filename}"
+    
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO archive_files (filename, url, uploaded_by, is_public) VALUES (%s, %s, %s, %s)",
+        (file.filename, url, user["username"], 1 if is_public else 0)
+    )
+    conn.commit(); cur.close(); conn.close()
+    
+    log_audit_action(user["username"], "ARCHIV_DATEI_HOCHGELADEN", f"Datei '{file.filename}' hochgeladen (Öffentlich: {is_public}).")
+    return {"status": "success", "url": url}
+
+@app.get("/api/archive/files")
+def get_archive_files(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    if user["role"] in ("admin", "leitung"):
+        cur.execute("SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at FROM archive_files ORDER BY id DESC")
+    else:
+        cur.execute("""
+            SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
+            FROM archive_files
+            WHERE is_public = 1 OR uploaded_by = %s
+            ORDER BY id DESC
+        """, (user["username"],))
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.delete("/api/archive/files/{file_id}")
+def delete_archive_file(file_id: int, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT uploaded_by, filename FROM archive_files WHERE id = %s", (file_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        
+    if row["uploaded_by"] != user["username"] and user["role"] not in ("admin", "leitung"):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=403, detail="Keine Berechtigung zum Löschen dieser Datei")
+        
+    cur.execute("DELETE FROM archive_files WHERE id = %s", (file_id,))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "ARCHIV_DATEI_GELOESCHT", f"Datei '{row['filename']}' gelöscht.")
+    return {"status": "success"}
 
 # --- AUDIT-LOG ROUTE (REVISIONS-PROTOKOLL) ---
 @app.get("/api/audit/logs")

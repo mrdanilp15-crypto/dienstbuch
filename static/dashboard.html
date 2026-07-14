@@ -456,6 +456,21 @@
             .main-content { padding: 15px; width: 100%; } 
         }
         [v-cloak] { display: none !important; }
+
+        /* Global high-contrast overrides for dark theme readability */
+        label, .form-label {
+            color: #ffffff !important;
+        }
+        .text-muted {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        input::placeholder, textarea::placeholder, select::placeholder {
+            color: rgba(255, 255, 255, 0.65) !important;
+        }
+        option {
+            background: #1e1e1e !important;
+            color: #ffffff !important;
+        }
     </style>
 </head>
 <body>
@@ -498,6 +513,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas(); showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
@@ -1368,7 +1384,10 @@
                                         
                                         <div class="mb-3">
                                             <label class="form-label text-white">Name der Feuerwache / Wache</label>
-                                            <input type="text" v-model="stationConfig.station_name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Feuerwehr Neustadt">
+                                            <div class="d-flex gap-2">
+                                                <input type="text" v-model="stationConfig.station_name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Feuerwehr Neustadt">
+                                                <button type="button" class="btn btn-outline-warning text-nowrap fw-bold" @click="lookupStationCoordinates"><i class="fa fa-search-location me-1"></i> Suchen</button>
+                                            </div>
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
@@ -1404,6 +1423,73 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- TAB 9: DOCUMENT ARCHIVE -->
+                <div v-show="activeTab === 'archiv'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-folder-open text-danger me-2"></i>Dokumente & Archiv</h2>
+                            <small class="text-muted">Lade Dienstanweisungen, Pläne, private Nachweise oder Protokolle hoch.</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Left pane: Upload new file -->
+                        <div class="col-12 col-lg-4">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-cloud-arrow-up text-danger me-2"></i>Datei hochladen</h5>
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Sichtbarkeit</label>
+                                    <select v-model="newArchiveFile.is_public" class="form-select bg-dark border-secondary text-white">
+                                        <option :value="false">🔒 Privat (nur für mich sichtbar)</option>
+                                        <option :value="true">🔓 Öffentlich (für jeden sichtbar)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Datei auswählen</label>
+                                    <input type="file" ref="archiveFileInput" class="form-control bg-dark border-secondary text-white" @change="uploadArchiveFile">
+                                </div>
+                                <div class="text-muted small"><i class="fa fa-info-circle me-1"></i> Private Dateien sind nur für dich und Admins/Leitung einsehbar.</div>
+                            </div>
+                        </div>
+
+                        <!-- Right pane: Files Directory list -->
+                        <div class="col-12 col-lg-8">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-file-invoice text-danger me-2"></i>Dateiverzeichnis</h5>
+                                    <input type="text" v-model="archiveSearch" class="form-control bg-dark border-secondary text-white form-control-sm w-auto" placeholder="Suchen...">
+                                </div>
+
+                                <!-- Filter Buttons -->
+                                <div class="d-flex gap-2 mb-3">
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'all' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'all'">Alle</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'public' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'public'">Öffentlich</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'private' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'private'">Privat</button>
+                                </div>
+
+                                <div class="list-group list-group-flush" style="max-height: 480px; overflow-y: auto;">
+                                    <div v-for="f in filteredArchiveFiles" :key="f.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-3 flex-wrap gap-2">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-file me-2 text-danger"></i>{{ f.filename }}</h6>
+                                            <small class="text-muted">
+                                                Gemeldet von: <strong class="text-white">{{ f.uploaded_by }}</strong> &bull; 
+                                                <span>{{ f.is_public ? '🔓 Öffentlich' : '🔒 Privat' }}</span> &bull; 
+                                                <span>{{ f.created_at }}</span>
+                                            </small>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a :href="f.url" target="_blank" class="btn btn-xs btn-outline-light rounded-pill px-3 py-1 text-white" style="font-size:0.7rem;"><i class="fa fa-download me-1"></i>Öffnen</a>
+                                            <button v-if="f.uploaded_by === username || isAdmin || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteArchiveFile(f.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <div v-if="filteredArchiveFiles.length === 0" class="text-center py-5 text-muted">Keine passenden Dateien vorhanden.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- MODAL: SCHEDULE CREATION -->
@@ -2069,9 +2155,9 @@
                             </div>
                         </div>
                         
-                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="alert alert-warning small rounded-4 mb-4 border border-warning border-opacity-20 p-3">
-                            <h6 class="fw-bold mb-1 text-warning"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
-                            <p class="mb-2 text-white">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
+                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="p-3 mb-4 rounded-4" style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.35);">
+                            <h6 class="fw-bold mb-1" style="color: #ffc107;"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
+                            <p class="mb-2 text-white-50">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
                             <div class="d-flex gap-2">
                                 <select v-model="selfBindPersonnelId" class="form-select form-select-sm">
                                     <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -2204,6 +2290,10 @@
                     showMobileSidebar: false,
                     stationConfig: { station_name: 'Feuerwehr Neustadt', lat: 50.1109, lng: 8.6821, zoom: 14 },
                     uploadedMissionFiles: [],
+                    archiveFiles: [],
+                    newArchiveFile: { is_public: false },
+                    archiveSearch: '',
+                    archiveFilter: 'all',
                     cacheBuster: Date.now()
                 }
             },
@@ -2258,6 +2348,15 @@
                 },
                 activeFeedbacksCount() {
                     return this.apagerFeedbacks.filter(f => f.status === 'Komme').length;
+                },
+                filteredArchiveFiles() {
+                    return this.archiveFiles.filter(f => {
+                        const mSearch = f.filename.toLowerCase().includes(this.archiveSearch.toLowerCase()) || f.uploaded_by.toLowerCase().includes(this.archiveSearch.toLowerCase());
+                        let mFilter = true;
+                        if (this.archiveFilter === 'public') mFilter = !!f.is_public;
+                        else if (this.archiveFilter === 'private') mFilter = !f.is_public;
+                        return mSearch && mFilter;
+                    });
                 }
             },
             async mounted() {
@@ -3111,6 +3210,35 @@
                         alert("Verbindung fehlgeschlagen.");
                     }
                 },
+                async lookupStationCoordinates() {
+                    const query = this.stationConfig.station_name.trim();
+                    if (!query) {
+                        alert("Bitte gib zuerst einen Wachennamen an!");
+                        return;
+                    }
+                    try {
+                        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+                        const res = await fetch(url);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.length > 0) {
+                                const lat = parseFloat(data[0].lat);
+                                const lon = parseFloat(data[0].lon);
+                                this.stationConfig.lat = lat;
+                                this.stationConfig.lng = lon;
+                                this.stationConfig.zoom = 15;
+                                alert(`✅ Koordinaten gefunden:\nBreitengrad: ${lat}\nLängengrad: ${lon}`);
+                            } else {
+                                alert("Es konnten keine Koordinaten für diesen Namen gefunden werden. Bitte genauer angeben (z. B. 'Feuerwehrhaus Buxheim' oder inklusive Postleitzahl/Ort).");
+                            }
+                        } else {
+                            alert("Fehler bei der Verbindung zum Geokodierungs-Dienst.");
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert("Fehler beim Suchen der Koordinaten.");
+                    }
+                },
                 async uploadMissionFile(event) {
                     const file = event.target.files[0];
                     if (!file) return;
@@ -3134,8 +3262,58 @@
                         alert('Fehler beim Datei-Upload.');
                     }
                 },
-                removeMissionFile(index) {
+                 removeMissionFile(index) {
                     this.uploadedMissionFiles.splice(index, 1);
+                },
+                async loadArchiveFiles() {
+                    try {
+                        const res = await fetch('/api/archive/files', { credentials: 'include' });
+                        if (res.ok) {
+                            this.archiveFiles = await res.json();
+                        }
+                    } catch(e) { console.error("Error loading archive files", e); }
+                },
+                async uploadArchiveFile(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const url = `/api/archive/upload?is_public=${this.newArchiveFile.is_public}`;
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include'
+                        });
+                        if (res.ok) {
+                            alert("✅ Datei erfolgreich ins Archiv hochgeladen!");
+                            this.$refs.archiveFileInput.value = '';
+                            await this.loadArchiveFiles();
+                        } else {
+                            alert("Fehler beim Hochladen ins Archiv.");
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert("Verbindung fehlgeschlagen.");
+                    }
+                },
+                async deleteArchiveFile(id) {
+                    if (!confirm("Datei wirklich permanent aus dem Archiv löschen?")) return;
+                    try {
+                        const res = await fetch(`/api/archive/files/${id}`, {
+                            method: 'DELETE',
+                            credentials: 'include'
+                        });
+                        if (res.ok) {
+                            await this.loadArchiveFiles();
+                        } else {
+                            const d = await res.json();
+                            alert(d.detail || "Fehler beim Löschen.");
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert("Verbindung fehlgeschlagen.");
+                    }
                 }
             }
         }).mount('#app');
