@@ -144,11 +144,20 @@ def get_avatar(member_id: int, request: Request):
     
     try:
         data_str = row[0]
-        if "," in data_str:
+        if data_str.startswith("data:"):
             header, encoded = data_str.split(",", 1)
             mime = header.split(";")[0].split(":")[1]
             image_bytes = base64.b64decode(encoded)
             return Response(content=image_bytes, media_type=mime)
+        elif data_str.startswith("/static/") or data_str.startswith("static/"):
+            filepath = data_str.lstrip("/")
+            if not os.path.exists(filepath):
+                raise HTTPException(status_code=404, detail="Bilddatei nicht gefunden")
+            mime = "image/jpeg"
+            if filepath.endswith(".png"): mime = "image/png"
+            elif filepath.endswith(".gif"): mime = "image/gif"
+            with open(filepath, "rb") as f:
+                return Response(content=f.read(), media_type=mime)
     except Exception:
         pass
     raise HTTPException(status_code=400, detail="Ungültige Bilddaten")

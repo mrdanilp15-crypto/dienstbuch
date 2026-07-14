@@ -845,15 +845,13 @@ def get_archive_files(request: Request):
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
         
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    if user["role"] in ("admin", "leitung"):
-        cur.execute("SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at FROM archive_files ORDER BY id DESC")
-    else:
-        cur.execute("""
-            SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
-            FROM archive_files
-            WHERE is_public = 1 OR uploaded_by = %s
-            ORDER BY id DESC
-        """, (user["username"],))
+    # Everyone only sees public files or files they uploaded themselves!
+    cur.execute("""
+        SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
+        FROM archive_files
+        WHERE is_public = 1 OR uploaded_by = %s
+        ORDER BY id DESC
+    """, (user["username"],))
     res = cur.fetchall(); cur.close(); conn.close()
     return res
 
@@ -864,13 +862,16 @@ def delete_archive_file(file_id: int, request: Request):
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
         
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT uploaded_by, filename FROM archive_files WHERE id = %s", (file_id,))
+    cur.execute("SELECT uploaded_by, filename, is_public FROM archive_files WHERE id = %s", (file_id,))
     row = cur.fetchone()
     if not row:
         cur.close(); conn.close()
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
         
-    if row["uploaded_by"] != user["username"] and user["role"] not in ("admin", "leitung"):
+    is_owner = (row["uploaded_by"] == user["username"])
+    is_privileged = (user["role"] in ("admin", "leitung"))
+    
+    if not is_owner and not (is_privileged and row["is_public"]):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Keine Berechtigung zum Löschen dieser Datei")
         

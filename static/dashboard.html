@@ -2211,7 +2211,7 @@
         let missionSigPad = null, missionSigModal = null;
         let map = null, hydrantMarkers = [];
 
-        createApp({
+        window.vueApp = createApp({
             data() {
                 return {
                     ready: false, isAdmin: false, username: '', role: '',
@@ -2802,11 +2802,27 @@
                         new bootstrap.Modal(document.getElementById('personnelModal')).show();
                     }
                 },
-                onAvatarChange(e) {
+                async onAvatarChange(e) {
                     const file = e.target.files[0]; if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (event) => { this.activePersonnel.profile_picture = event.target.result; };
-                    reader.readAsDataURL(file);
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include'
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.activePersonnel.profile_picture = data.url;
+                            this.activePersonnel.has_picture = true;
+                        } else {
+                            alert("Fehler beim Hochladen des Profilbilds.");
+                        }
+                    } catch(err) {
+                        console.error(err);
+                        alert("Verbindung fehlgeschlagen beim Hochladen des Profilbilds.");
+                    }
                 },
                 async savePersonnel() {
                     const payload = { ...this.activePersonnel };
@@ -3340,7 +3356,11 @@
             if(confirm("Hydrant permanent löschen?")) {
                 const res = await fetch(`/api/material/hydrants/${id}`, { method: 'DELETE' });
                 if(res.ok) {
-                    location.reload(); // Refresh markers
+                    if (window.vueApp && window.vueApp.loadHydrants) {
+                        window.vueApp.loadHydrants();
+                    } else {
+                        location.reload();
+                    }
                 }
             }
         };
