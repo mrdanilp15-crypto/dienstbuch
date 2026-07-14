@@ -525,13 +525,40 @@
                 <div class="sidebar-menu flex-grow-1">
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions(); showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; initMap(); showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'werkstatt'}" @click="activeTab = 'werkstatt'; loadWerkstattData(); showMobileSidebar = false"><i class="fa fa-wrench"></i> Werkstatt & Prüfungen</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugend & Verein</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas(); showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
+                </div>
+
+                <!-- Gebäudeautomation Widget -->
+                <div class="px-3 py-2 bg-black bg-opacity-30 border-top border-secondary border-opacity-10">
+                    <div class="text-white-50 small fw-bold mb-2 text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;"><i class="fa fa-home-laptop me-1 text-danger"></i> Gebäudeautomation</div>
+                    <div class="d-flex flex-column gap-1">
+                        <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-20 p-1.5 rounded border border-secondary border-opacity-5">
+                            <span style="font-size: 0.7rem; color: rgba(255,255,255,0.85);">Fahrzeugtore 1-4</span>
+                            <div class="form-check form-switch p-0 m-0 d-flex align-items-center">
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="automation.toreOpen" @change="triggerGateSim">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-20 p-1.5 rounded border border-secondary border-opacity-5">
+                            <span style="font-size: 0.7rem; color: rgba(255,255,255,0.85);">Alarmbeleuchtung</span>
+                            <div class="form-check form-switch p-0 m-0 d-flex align-items-center">
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="automation.lightsOn">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.6rem;">
+                            <span class="text-muted"><i class="fa fa-charging-station text-success me-1"></i>Netzstrom: OK</span>
+                            <span class="text-muted"><i class="fa fa-thermometer-half text-danger me-1"></i>Heizung: 21°C</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
@@ -1467,7 +1494,7 @@
                                     <label class="form-label text-white">Datei auswählen</label>
                                     <input type="file" ref="archiveFileInput" class="form-control bg-dark border-secondary text-white" @change="uploadArchiveFile">
                                 </div>
-                                <div class="text-muted small"><i class="fa fa-info-circle me-1"></i> Private Dateien sind nur für dich und Admins/Leitung einsehbar.</div>
+                                <div class="text-muted small"><i class="fa fa-info-circle me-1"></i> Private Dateien sind ausschließlich für dich sichtbar und können von keinem anderen Benutzer eingesehen werden.</div>
                             </div>
                         </div>
 
@@ -1498,7 +1525,7 @@
                                         </div>
                                         <div class="d-flex gap-2">
                                             <a :href="f.url" target="_blank" class="btn btn-xs btn-outline-light rounded-pill px-3 py-1 text-white" style="font-size:0.7rem;"><i class="fa fa-download me-1"></i>Öffnen</a>
-                                            <button v-if="f.uploaded_by === username || isAdmin || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteArchiveFile(f.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                            <button v-if="f.uploaded_by === username || ((isAdmin || role === 'leitung') && f.is_public)" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteArchiveFile(f.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
                                         </div>
                                     </div>
                                     <div v-if="filteredArchiveFiles.length === 0" class="text-center py-5 text-muted">Keine passenden Dateien vorhanden.</div>
@@ -1507,8 +1534,696 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- TAB: LAGEKARTE & HYDRANTEN -->
+                <div v-show="activeTab === 'lagekarte'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-map-location-dot text-danger me-2"></i>Lagekarte & Hydrantennetz</h2>
+                            <small class="text-muted">Digitale Lagekarte mit Wasserentnahmestellen, Brandmeldeanlagen (BMA) und Rettungswegen</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Map Column -->
+                        <div class="col-12 col-lg-8">
+                            <div class="card premium-card p-0 overflow-hidden shadow-lg border border-secondary border-opacity-10" style="position: relative; border-radius: 16px;">
+                                <div id="hydrantMap" style="height: 520px; width: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Objects list sidebar -->
+                        <div class="col-12 col-lg-4">
+                            <div class="card premium-card p-4 d-flex flex-column" style="height: 520px; max-height: 520px;">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-list text-danger me-2"></i>Kartenverzeichnis</h5>
+                                <input type="text" v-model="mapSearchQuery" class="form-control form-control-sm mb-3 bg-dark border-secondary text-white" placeholder="Objekt suchen...">
+                                
+                                <div class="btn-group btn-group-sm mb-3 w-100" role="group">
+                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'all'}" @click="mapFilterCategory = 'all'">Alle</button>
+                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'hydrant'}" @click="mapFilterCategory = 'hydrant'">Hydranten</button>
+                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'bma'}" @click="mapFilterCategory = 'bma'">BMAs</button>
+                                </div>
+
+                                <div class="list-group list-group-flush flex-grow-1 overflow-auto pe-1" style="max-height: 320px;">
+                                    <!-- Hydrants list -->
+                                    <div v-for="h in filteredMapHydrants" :key="'h-'+h.id" class="list-group-item bg-transparent text-white px-0 py-2 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div style="cursor: pointer;" @click="panToCoords(h.lat, h.lng, 20)">
+                                            <i class="fa fa-location-crosshairs text-danger me-2"></i>
+                                            <span class="fw-bold small">{{ h.label }}</span>
+                                            <div class="text-muted" style="font-size:0.7rem;">{{ h.type }} &bull; GPS: {{ h.lat.toFixed(4) }}, {{ h.lng.toFixed(4) }}</div>
+                                        </div>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteHydrantItem(h.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    
+                                    <!-- BMAs list -->
+                                    <div v-for="b in filteredMapBmas" :key="'b-'+b.id" class="list-group-item bg-transparent text-white px-0 py-2 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div style="cursor: pointer;" @click="b.lat ? panToCoords(b.lat, b.lng, 20) : null">
+                                            <i class="fa fa-building-shield text-warning me-2"></i>
+                                            <span class="fw-bold small">{{ b.object_name }}</span>
+                                            <div class="text-muted" style="font-size:0.7rem;">BMA-Nr: {{ b.bma_number }} &bull; FSD: {{ b.key_depot ? 'JA' : 'NEIN' }}</div>
+                                            <div v-if="!b.lat" class="text-warning" style="font-size:0.65rem;"><i class="fa fa-exclamation-triangle me-1"></i>Nicht auf Karte platziert</div>
+                                        </div>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteBmaItem(b.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="filteredMapHydrants.length === 0 && filteredMapBmas.length === 0" class="text-center py-4 text-muted small">Keine passenden Objekte gefunden.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drone footage, air maps, live tracking simulator -->
+                    <div class="row g-4 mt-1">
+                        <div class="col-12 col-md-6">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-2"><i class="fa fa-images text-danger me-2"></i>Luftbilder & Wärmebildkameras</h5>
+                                <p class="text-muted small mb-3">Lade Drohnenaufnahmen oder Einsatzpläne hoch, um sie als taktische Orientierungshilfe zu sichern.</p>
+                                <div class="mb-3" v-if="role !== 'mannschaft'">
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" @change="uploadDroneImage">
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-4" v-for="img in droneImages" :key="img.id">
+                                        <div class="position-relative rounded overflow-hidden shadow-sm" style="height: 75px; border: 1px solid rgba(255,255,255,0.05);">
+                                            <a :href="img.url" target="_blank"><img :src="img.url" class="w-100 h-100 object-fit-cover"></a>
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-danger position-absolute top-0 end-0 p-1 m-1 border-0 rounded" @click="deleteDroneImage(img.id)"><i class="fa fa-trash" style="font-size: 8px;"></i></button>
+                                        </div>
+                                    </div>
+                                    <div v-if="droneImages.length === 0" class="col-12 text-center text-muted small py-3">Keine Luftbilder vorhanden.</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 col-md-6">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-2"><i class="fa fa-satellite-dish text-danger me-2"></i>Fahrzeug-Live-Tracking (GPS-Simulator)</h5>
+                                <p class="text-muted small mb-3">Visualisiere die realen Standorte der aktiven Einheiten im Ausrückebereich auf der Karte.</p>
+                                <div class="form-check form-switch mb-3 bg-black bg-opacity-20 p-2 border border-secondary border-opacity-10 rounded ps-5">
+                                    <input class="form-check-input" type="checkbox" id="trackingSim" v-model="trackingSimActive" @change="toggleTrackingSim">
+                                    <label class="form-check-label small fw-bold text-white" for="trackingSim">Live-Tracking für HLF 20 und MZF aktivieren</label>
+                                </div>
+                                <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
+                                    <div v-if="trackingSimActive" class="d-flex align-items-center gap-2 text-success fw-bold">
+                                        <span class="spinner-grow spinner-grow-sm text-success"></span>
+                                        GPS-Tracker aktiv. Fahrzeuge senden kontinuierlich GPS-Daten.
+                                    </div>
+                                    <div v-else class="text-muted">
+                                        GPS-Tracker offline. Aktiviere den Schalter, um simulierte Echtzeit-Bewegungen auf der Karte einzublenden.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: WERKSTATT & PRÜFUNGEN -->
+                <div v-show="activeTab === 'werkstatt'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-wrench text-danger me-2"></i>Werkstatt & Wartung</h2>
+                            <small class="text-muted">Auswertung von Mängelmeldungen, Prüffristen von PSA, Leitern und Schläuchen</small>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Nav pills -->
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="werkstattTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'pruefungen'"><i class="fa fa-calendar-check me-1"></i>PSA & Geräteprüfungen</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="werkstattTab === 'defect' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'defect'; loadDefectReports()"><i class="fa fa-screwdriver-wrench me-1"></i>Erweiterte Mängelberichte</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="werkstattTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUBTAB: PRÜFUNGEN -->
+                    <div v-show="werkstattTab === 'pruefungen'">
+                        <div class="row g-4">
+                            <!-- Inspection planner list -->
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Barcode/ID</th>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Kategorie</th>
+                                                    <th>Letzte Prüfung</th>
+                                                    <th>Intervall</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in equipInspectSchedule" :key="item.barcode">
+                                                    <td class="font-monospace text-danger">{{ item.barcode }}</td>
+                                                    <td><strong>{{ item.name }}</strong></td>
+                                                    <td>{{ item.category }}</td>
+                                                    <td>{{ item.lastTest }}</td>
+                                                    <td>{{ item.interval }} Monate</td>
+                                                    <td>
+                                                        <span class="badge" :class="item.status === 'OK' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- QR Code Scanner Simulator -->
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-qrcode text-danger me-2"></i>QR-Code Prüfungs-Scanner</h5>
+                                    <p class="text-muted small mb-3">Gib den Geräte-Barcode manuell ein, um den Prüfstatus direkt abzufragen und eine neue Prüfung zu verbuchen.</p>
+                                    <div class="input-group mb-3">
+                                        <input type="text" v-model="qrScanInput" class="form-control form-control-sm bg-dark border-secondary text-white font-monospace" placeholder="z. B. EQ-AGT-01">
+                                        <button class="btn btn-premium btn-sm" @click="scanQrCodeSim"><i class="fa fa-search"></i></button>
+                                    </div>
+
+                                    <div v-if="scannedQrObject" class="bg-black bg-opacity-35 p-3 rounded-4 border border-secondary border-opacity-10 small shadow-sm">
+                                        <h6 class="fw-bold text-white mb-2">{{ scannedQrObject.name }}</h6>
+                                        <div class="mb-1 text-muted">Kategorie: <strong class="text-white">{{ scannedQrObject.category }}</strong></div>
+                                        <div class="mb-1 text-muted">Letzter Check: <strong class="text-white">{{ scannedQrObject.lastTest }}</strong></div>
+                                        <div class="mb-3 text-muted">Fälligkeits-Intervall: <strong class="text-white">{{ scannedQrObject.interval }} Monate</strong></div>
+                                        
+                                        <button class="btn btn-premium btn-sm w-100 rounded-pill mt-2" @click="confirmQrCheck"><i class="fa fa-check me-1"></i>Prüfung jetzt durchführen</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: DEFECTS -->
+                    <div v-show="werkstattTab === 'defect'">
+                        <div class="row g-4">
+                            <!-- Defect list -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="fw-bold text-white m-0"><i class="fa fa-circle-exclamation text-danger me-2"></i>Gemeldete Gerätemängel</h5>
+                                        <select v-model="defectFilter" class="form-select form-select-sm bg-dark text-white border-secondary w-auto" @change="loadDefectReports">
+                                            <option value="Offen">Offen</option>
+                                            <option value="In Bearbeitung">In Bearbeitung</option>
+                                            <option value="Erledigt">Erledigt</option>
+                                            <option value="alle">Alle anzeigen</option>
+                                        </select>
+                                    </div>
+                                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                                        <div v-for="dr in defectReports" :key="dr.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
+                                            <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                                                <div>
+                                                    <h6 class="fw-bold text-white m-0">{{ dr.equipment_name }} <span class="badge bg-danger small ms-2" v-if="dr.priority==='Kritisch'">KRITISCH</span></h6>
+                                                    <small class="text-muted">Barcode: {{ dr.barcode }} &bull; Gemeldet von: {{ dr.reporter_name }}</small>
+                                                </div>
+                                                <span class="badge" :class="dr.status === 'Offen' ? 'bg-danger' : dr.status === 'In Bearbeitung' ? 'bg-warning text-dark' : 'bg-success'">{{ dr.status }}</span>
+                                            </div>
+                                            <p class="text-muted small mb-2 lh-base">{{ dr.description }}</p>
+                                            
+                                            <!-- Additional fields -->
+                                            <div class="d-flex flex-wrap gap-3 align-items-center text-muted small mb-3 bg-black bg-opacity-20 p-2 rounded">
+                                                <span v-if="dr.assigned_to"><i class="fa fa-user-gear me-1"></i>Gerätewart: <strong>{{ dr.assigned_to }}</strong></span>
+                                                <span v-if="dr.image_url"><i class="fa fa-image me-1"></i><a :href="dr.image_url" target="_blank" class="text-info">Foto anzeigen</a></span>
+                                            </div>
+
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" class="d-flex gap-1">
+                                                    <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
+                                                    <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                                </div>
+                                                <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2 ms-auto" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                        <div v-if="defectReports.length === 0" class="text-center py-5 text-muted small">Keine Mängelberichte in diesem Status vorhanden.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Create defect report form -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Mangel melden</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Gerät auswählen</label>
+                                        <select v-model="newDefect.equipment_id" class="form-select bg-dark border-secondary text-white">
+                                            <option :value="null">-- Bitte wählen --</option>
+                                            <option v-for="eq in equipment" :key="eq.id" :value="eq.id">{{ eq.name }} ({{ eq.barcode }})</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Zuweisung an Gerätewart</label>
+                                        <select v-model="newDefect.assigned_to" class="form-select bg-dark border-secondary text-white">
+                                            <option value="">-- Keine Zuweisung --</option>
+                                            <option v-for="p in personnel" :key="p.id" v-if="p.rank && p.rank.includes('meister')" :value="p.name">{{ p.name }}</option>
+                                            <option value="Gerätewart Team">Gerätewart Team</option>
+                                        </select>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Priorisierung</label>
+                                            <select v-model="newDefect.priority" class="form-select bg-dark border-secondary text-white">
+                                                <option value="Mittel">Mittel (normal)</option>
+                                                <option value="Kritisch">Kritisch (nicht einsatzbereit!)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Foto URL (Optional)</label>
+                                            <input type="text" v-model="newDefect.image_url" class="form-control bg-dark border-secondary text-white form-control-sm" placeholder="Bild-Link...">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Beschreibung des Defekts</label>
+                                        <textarea v-model="newDefect.description" class="form-control bg-dark border-secondary text-white" rows="3" required placeholder="z. B. Trageriemen gerissen oder Dichtung porös..."></textarea>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDefectReport">Mangel absenden</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: FUNK -->
+                    <div v-show="werkstattTab === 'funk'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Typ</th>
+                                                    <th>Funkrufname (BOS)</th>
+                                                    <th>Akkustand</th>
+                                                    <th>Ladezyklen</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="dev in funkDevices" :key="dev.name">
+                                                    <td><strong>{{ dev.name }}</strong></td>
+                                                    <td>{{ dev.type }}</td>
+                                                    <td class="text-danger font-monospace">{{ dev.rufname }}</td>
+                                                    <td>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <div class="progress flex-grow-1" style="height: 6px;">
+                                                                <div class="progress-bar bg-success" :style="{width: dev.akku + '%'}"></div>
+                                                            </div>
+                                                            <span>{{ dev.akku }}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>{{ dev.ladezyklen }} Zyklen</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-info-circle text-danger me-2"></i>TETRA Funkverwaltung</h5>
+                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small mb-3">
+                                        <h6 class="fw-bold text-white mb-1">BOS TETRA Einstellungen</h6>
+                                        <p class="text-muted mb-0">Die Funkgruppe ist primär auf <strong>TMO_FF_REG_2</strong> konfiguriert. Ausweichgruppe im Nahbereich ist DMO_Grup_5.</p>
+                                    </div>
+                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
+                                        <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
+                                        <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: JUGEND & VEREIN -->
+                <div v-show="activeTab === 'jugend'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugend & Feuerwehrverein</h2>
+                            <small class="text-muted">Mitgliederverwaltung der Jugendfeuerwehr und Kassenwesen/Inventar des Vereins</small>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="jugendTab === 'members' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'members'"><i class="fa fa-users-gear me-1"></i>Jugendfeuerwehr</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="jugendTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'verein'"><i class="fa fa-building-columns me-1"></i>Vereinsverwaltung</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUBTAB: JUGEND -->
+                    <div v-show="jugendTab === 'members'">
+                        <div class="row g-4">
+                            <!-- Youth list -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendgruppe</h5>
+                                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                                        <div v-for="ym in youthMembers" :key="ym.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                            <div>
+                                                <h6 class="fw-bold text-white m-0">{{ ym.name }}</h6>
+                                                <small class="text-muted">Elternkontakt: {{ ym.parent_contact || 'Kein Kontakt hinterlegt' }}</small>
+                                                <div class="mt-1" v-if="ym.badges">
+                                                    <span class="badge bg-success small me-1" v-for="b in ym.badges.split(',')" v-if="b.trim()">{{ b }}</span>
+                                                </div>
+                                            </div>
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteYouthMember(ym.id)"><i class="fa fa-trash"></i></button>
+                                        </div>
+                                        <div v-if="youthMembers.length === 0" class="text-center py-4 text-muted">Keine Jugendmitglieder erfasst.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add youth form -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Jugendlichen hinzufügen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Name des Jugendlichen</label>
+                                        <input type="text" v-model="newYouth.name" class="form-control bg-dark border-secondary text-white" placeholder="Vorname Nachname" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Elternkontakt (Telefon / E-Mail)</label>
+                                        <input type="text" v-model="newYouth.parent_contact" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Telefon 0172/...">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Erhaltene Abzeichen (Kommagetrennt)</label>
+                                        <input type="text" v-model="newYouth.badges" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Jugendflamme 1, Wissenstest 2025">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitYouthMember">Jugendlichen erfassen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: VEREIN -->
+                    <div v-show="jugendTab === 'verein'">
+                        <div class="row g-4">
+                            <!-- Club finances and inventory -->
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4 mb-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Gegenstand</th>
+                                                    <th>Menge</th>
+                                                    <th>Zustand</th>
+                                                    <th>Aktion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in clubInventory" :key="item.id">
+                                                    <td><strong>{{ item.item_name }}</strong></td>
+                                                    <td>{{ item.quantity }}x</td>
+                                                    <td><span class="badge bg-success">{{ item.status }}</span></td>
+                                                    <td>
+                                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="role !== 'mannschaft'">
+                                                    <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
+                                                    <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
+                                                    <td><span class="badge bg-success">OK</span></td>
+                                                    <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Spender / Mitglied</th>
+                                                    <th>Betrag</th>
+                                                    <th>Datum</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="d in clubDonations" :key="d.id">
+                                                    <td><strong>{{ d.donor }}</strong></td>
+                                                    <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
+                                                    <td>{{ d.formatted_date }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add donation form -->
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4 h-100">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Zahler / Spender</label>
+                                        <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Betrag (€)</label>
+                                        <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Datum</label>
+                                        <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: FIRST RESPONDER / HvO -->
+                <div v-show="activeTab === 'hvo'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-heart-pulse text-danger me-2"></i>First Responder (HvO)</h2>
+                            <small class="text-muted">Dokumentation von Helfer vor Ort (HvO) Einsätzen – Patientendaten DSGVO-konform verschlüsselt</small>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'protocols' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'protocols'"><i class="fa fa-notes-medical me-1"></i>Einsatzprotokolle</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'checks' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'checks'"><i class="fa fa-suitcase-medical me-1"></i>AED & Ausrüstungs-Check</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUBTAB: PROTOCOLS -->
+                    <div v-show="hvoTab === 'protocols'">
+                        <div class="row g-4">
+                            <!-- Protocols list -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-history text-danger me-2"></i>Letzte HvO Einsätze</h5>
+                                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                                        <div v-for="p in hvoProtocols" :key="p.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <h6 class="fw-bold text-white m-0">Einsatz {{ p.id }}</h6>
+                                                <small class="text-muted">{{ p.formatted_date }}</small>
+                                            </div>
+                                            <div class="small mb-1 text-white">Symptome: <span class="text-muted">{{ p.symptoms }}</span></div>
+                                            <div class="small mb-1 text-white">Maßnahmen: <span class="text-muted">{{ p.therapy }}</span></div>
+                                            <div class="small text-white">Handgabe an: <span class="text-muted">{{ p.handover }}</span></div>
+                                        </div>
+                                        <div v-if="hvoProtocols.length === 0" class="text-center py-4 text-muted">Keine HvO Einsätze erfasst.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add protocol form -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Einsatz erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Einsatzdatum</label>
+                                        <input type="date" v-model="newHvoProtocol.date" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Symptome / Diagnose</label>
+                                        <input type="text" v-model="newHvoProtocol.symptoms" class="form-control bg-dark border-secondary text-white" placeholder="z. B. V.a. Apoplex oder Akutes Koronarsyndrom" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Maßnahmen (AED, Sauerstoff, Reanimation)</label>
+                                        <input type="text" v-model="newHvoProtocol.therapy" class="form-control bg-dark border-secondary text-white" placeholder="z. B. AED Analyse, 4l Sauerstoff, Betreuung">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Übergabe an (z. B. Rettungsdienst)</label>
+                                        <input type="text" v-model="newHvoProtocol.handover" class="form-control bg-dark border-secondary text-white" placeholder="z. B. RTW Neustadt 71/1 + Notarzt">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoProtocol">Einsatz speichern</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: CHECKS -->
+                    <div v-show="hvoTab === 'checks'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clipboard-check text-danger me-2"></i>Ausrüstungsprüfungen (AED & Rucksack)</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Gerät / Fach</th>
+                                                    <th>Prüfdatum</th>
+                                                    <th>Status</th>
+                                                    <th>Prüfer</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="c in hvoChecks" :key="c.id">
+                                                    <td><strong>{{ c.device_name }}</strong></td>
+                                                    <td>{{ c.formatted_date }}</td>
+                                                    <td><span class="badge bg-success">{{ c.status }}</span></td>
+                                                    <td><small class="text-muted">{{ c.checked_by }}</small></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-check text-danger me-2"></i>Ausrüstung freigeben</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Prüfobjekt</label>
+                                        <select v-model="newHvoCheck.device_name" class="form-select bg-dark border-secondary text-white">
+                                            <option value="">-- Bitte wählen --</option>
+                                            <option value="AED (Defibrillator) Akku & Pads">AED (Defibrillator) Akku & Pads</option>
+                                            <option value="Sauerstoffflasche (Druckprüfung)">Sauerstoffflasche (Druckprüfung)</option>
+                                            <option value="Erste-Hilfe Rucksack (Mindesthaltbarkeit)">Erste-Hilfe Rucksack (Mindesthaltbarkeit)</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoCheck">Erfolgreich prüfen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        <!-- MODAL: MAP OBJECT CREATION -->
+        <div class="modal fade" id="mapObjectModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-map-pin text-danger me-2"></i>Karten-Objekt anlegen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="mb-3 text-muted small bg-black bg-opacity-25 p-2 rounded">
+                            <i class="fa fa-location-crosshairs me-1 text-danger"></i> Geklickte Position: <strong>{{ clickedLat.toFixed(6) }}</strong>, <strong>{{ clickedLng.toFixed(6) }}</strong>
+                        </div>
+                        <form @submit.prevent="submitMapObject">
+                            <!-- Category Select -->
+                            <div class="mb-3">
+                                <label class="form-label">Kategorie des Objekts</label>
+                                <select v-model="newMapObject.category" class="form-select bg-dark border-secondary text-white">
+                                    <option value="hydrant">💧 Wasserentnahmestelle (Hydrant/POI)</option>
+                                    <option value="access">🚪 Zufahrt / Rettungsweg / Sammelplatz</option>
+                                    <option value="bma">🏢 Brandmeldeanlage (BMA)</option>
+                                    <option value="danger">⚠️ Gefahrenschwerpunkt (Gefahrgut)</option>
+                                </select>
+                            </div>
+
+                            <!-- Fields for Hydrant -->
+                            <div v-show="newMapObject.category === 'hydrant'">
+                                <div class="mb-3">
+                                    <label class="form-label">Hydranten-Typ (Vorlage)</label>
+                                    <select v-model="newMapObject.hydrantType" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Unterflurhydrant">Unterflurhydrant</option>
+                                        <option value="Überflurhydrant">Überflurhydrant</option>
+                                        <option value="Löschwasserzisterne">Löschwasserzisterne</option>
+                                        <option value="Tiefbrunnen">Tiefbrunnen</option>
+                                        <option value="Saugstelle (Bach/Fluss)">Saugstelle (Bach/Fluss)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Eigene Bezeichnung (Optional)</label>
+                                    <input type="text" v-model="newMapObject.label" class="form-control" placeholder="z. B. H100 Hauptstr.">
+                                </div>
+                            </div>
+
+                            <!-- Fields for Access -->
+                            <div v-show="newMapObject.category === 'access'">
+                                <div class="mb-3">
+                                    <label class="form-label">Art des Rettungswegs (Vorlage)</label>
+                                    <select v-model="newMapObject.accessType" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Feuerwehrzufahrt">Feuerwehrzufahrt</option>
+                                        <option value="Rettungsweg">Rettungsweg</option>
+                                        <option value="Sammelplatz">Sammelplatz</option>
+                                        <option value="Anleiterbereitschaft">Anleiterbereitschaft</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Eigene Bezeichnung (Optional)</label>
+                                    <input type="text" v-model="newMapObject.label" class="form-control" placeholder="z. B. Tor 2 West">
+                                </div>
+                            </div>
+
+                            <!-- Fields for BMA -->
+                            <div v-show="newMapObject.category === 'bma'">
+                                <div class="mb-3">
+                                    <label class="form-label">Objektname / Gebäude</label>
+                                    <input type="text" v-model="newMapObject.bma_name" class="form-control" placeholder="z. B. Seniorenheim St. Josef" :required="newMapObject.category === 'bma'">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Adresse</label>
+                                    <input type="text" v-model="newMapObject.bma_address" class="form-control" placeholder="z. B. Bergstr. 12" :required="newMapObject.category === 'bma'">
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label">BMA Nummer</label>
+                                        <input type="text" v-model="newMapObject.bma_number" class="form-control" placeholder="z. B. 1004" :required="newMapObject.category === 'bma'">
+                                    </div>
+                                    <div class="col-6 d-flex align-items-center mt-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" v-model="newMapObject.bma_fsd" id="fsdCheck">
+                                            <label class="form-check-label text-white" for="fsdCheck">Schlüsseldepot (FSD)</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Fields for Danger -->
+                            <div v-show="newMapObject.category === 'danger'">
+                                <div class="mb-3">
+                                    <label class="form-label">Gefahrenstoff / Gefahrenquelle</label>
+                                    <input type="text" v-model="newMapObject.danger_name" class="form-control" placeholder="z. B. Gefahrstofflager NH3" :required="newMapObject.category === 'danger'">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Gefahrenstufe</label>
+                                    <select v-model="newMapObject.danger_level" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Mittel">Mittel (Gefahrenstufe 1)</option>
+                                        <option value="Hoch">Hoch (Gefahrenstufe 2)</option>
+                                        <option value="Sehr hoch">Sehr hoch (Gefahrenstufe 3)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-3">Objekt auf Karte anlegen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: SCHEDULE CREATION -->
         <div class="modal fade" id="scheduleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -1605,7 +2320,13 @@
                                     <div class="col-md-3"><label class="form-label">Uhrzeit</label><input type="time" v-model="activeMission.time" class="form-control" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-3"><label class="form-label">Dauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
-                                    <div class="col-md-12"><label class="form-label">Schadensablauf / Bericht</label><textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea></div>
+                                    <div class="col-md-12">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label mb-0">Schadensablauf / Bericht</label>
+                                            <button v-if="role !== 'mannschaft'" type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="generateAiMissionDraft" style="font-size: 0.7rem;"><i class="fa fa-wand-magic-sparkles me-1"></i>KI-Entwurf generieren</button>
+                                        </div>
+                                        <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea>
+                                    </div>
                                     <div class="col-md-12">
                                         <label class="form-label">Berichtsstatus</label>
                                         <select v-model="activeMission.status" class="form-select" :disabled="role === 'mannschaft'">
@@ -2289,12 +3010,12 @@
                     
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
-                    verwaltungTab: 'bma',
+                    verwaltungTab: 'logins',
                     
                     // Mängelmelder
                     defectReports: [],
                     defectFilter: 'Offen',
-                    newDefect: { equipment_id: null, description: '', severity: 'Mittel' },
+                    newDefect: { equipment_id: null, description: '', severity: 'Mittel', assigned_to: '', priority: 'Mittel', image_url: '' },
                     
                     // Test Alarm
                     testAlarm: { stichwort: '', adresse: '', meldung: '' },
@@ -2311,7 +3032,50 @@
                     newArchiveFile: { is_public: false },
                     archiveSearch: '',
                     archiveFilter: 'all',
-                    cacheBuster: Date.now()
+                    cacheBuster: Date.now(),
+
+                    // Neue Felder für Checkpoint 14 (Automatisierung, Lagekarte, Jugend, HvO, Werkstatt)
+                    mapSearchQuery: '',
+                    mapFilterCategory: 'all',
+                    clickedLat: 0.0,
+                    clickedLng: 0.0,
+                    newMapObject: { category: 'hydrant', label: '', hydrantType: 'Unterflurhydrant', accessType: 'Zufahrt', bma_name: '', bma_address: '', bma_number: '', bma_fsd: false, danger_name: '', danger_level: 'Mittel' },
+                    hydrantsList: [],
+                    droneImages: [],
+                    trackingSimActive: false,
+                    automation: { toreOpen: false, lightsOn: false },
+                    
+                    jugendTab: 'members',
+                    youthMembers: [],
+                    newYouth: { name: '', parent_contact: '', badges: '' },
+                    
+                    clubTab: 'inventory',
+                    clubInventory: [],
+                    newClubItem: { item_name: '', quantity: 1, status: 'OK' },
+                    clubDonations: [],
+                    newDonation: { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] },
+                    
+                    hvoTab: 'protocols',
+                    hvoProtocols: [],
+                    newHvoProtocol: { date: new Date().toISOString().split('T')[0], symptoms: '', therapy: '', handover: '' },
+                    hvoChecks: [],
+                    newHvoCheck: { device_name: '' },
+                    
+                    werkstattTab: 'pruefungen',
+                    equipInspectSchedule: [
+                        { name: 'Atemschutzgerät (Dräger)', category: 'Atemschutz', lastTest: '2026-03-12', interval: 6, status: 'OK', barcode: 'EQ-AGT-01' },
+                        { name: '4-teilige Steckleiter (Alu)', category: 'Leitern', lastTest: '2025-11-20', interval: 12, status: 'Prüfung fällig', barcode: 'EQ-LEI-04' },
+                        { name: 'Kreiselpumpe (FPN 10-2000)', category: 'Pumpen', lastTest: '2026-05-02', interval: 12, status: 'OK', barcode: 'EQ-PMP-02' },
+                        { name: 'Tragkraftspritze (TS 8/8)', category: 'Pumpen', lastTest: '2025-08-10', interval: 12, status: 'Prüfung fällig', barcode: 'EQ-PMP-08' },
+                        { name: 'Stromerzeuger (Honda)', category: 'Aggregate', lastTest: '2026-01-15', interval: 6, status: 'OK', barcode: 'EQ-AGG-03' }
+                    ],
+                    funkDevices: [
+                        { name: 'HRT 1 (Ausrüstung)', type: 'HRT (Handfunkgerät)', rufname: 'Florian Neustadt 40/1 - Hand 1', akku: 92, ladezyklen: 110 },
+                        { name: 'HRT 2 (Ausrüstung)', type: 'HRT (Handfunkgerät)', rufname: 'Florian Neustadt 40/1 - Hand 2', akku: 85, ladezyklen: 140 },
+                        { name: 'MRT 1 (Fahrzeug)', type: 'MRT (Fahrzeugfunk)', rufname: 'Florian Neustadt 40/1 - MRT', akku: 100, ladezyklen: 10 }
+                    ],
+                    qrScanInput: '',
+                    scannedQrObject: null
                 }
             },
             computed: {
@@ -2374,6 +3138,16 @@
                         else if (this.archiveFilter === 'private') mFilter = !f.is_public;
                         return mSearch && mFilter;
                     });
+                },
+                filteredMapHydrants() {
+                    const q = this.mapSearchQuery.toLowerCase();
+                    if (this.mapFilterCategory !== 'all' && this.mapFilterCategory !== 'hydrant') return [];
+                    return (this.hydrantsList || []).filter(h => h.label.toLowerCase().includes(q) || h.type.toLowerCase().includes(q));
+                },
+                filteredMapBmas() {
+                    const q = this.mapSearchQuery.toLowerCase();
+                    if (this.mapFilterCategory !== 'all' && this.mapFilterCategory !== 'bma') return [];
+                    return (this.bmas || []).filter(b => b.object_name.toLowerCase().includes(q) || b.address.toLowerCase().includes(q) || b.bma_number.toLowerCase().includes(q));
                 }
             },
             async mounted() {
@@ -2944,39 +3718,393 @@
                             map.invalidateSize();
                             return;
                         }
-                        // Start koordinaten
+                        // Start koordinaten (Buxheim / Neustadt)
                         map = L.map('hydrantMap', { maxZoom: 22 }).setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
                         
                         this.loadHydrants();
+                        this.loadDroneImages();
                         
-                        map.on('click', async (e) => {
+                        map.on('click', (e) => {
                             if(this.role === 'mannschaft') return;
-                            const label = prompt("Bezeichnung des Hydranten / POI:");
-                            if(label) {
-                                const type = prompt("Typ (Unterflur, Überflur, Zisterne):", "Unterflur");
-                                const payload = { lat: e.latlng.lat, lng: e.latlng.lng, type: type, label: label };
-                                const res = await fetch('/api/material/hydrants', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
-                                if(res.ok) {
-                                    this.loadHydrants();
-                                }
+                            this.clickedLat = e.latlng.lat;
+                            this.clickedLng = e.latlng.lng;
+                            
+                            this.newMapObject = {
+                                category: 'hydrant',
+                                label: '',
+                                hydrantType: 'Unterflurhydrant',
+                                accessType: 'Zufahrt',
+                                bma_name: '',
+                                bma_address: '',
+                                bma_number: '',
+                                bma_fsd: false,
+                                danger_name: '',
+                                danger_level: 'Mittel'
+                            };
+                            
+                            const el = document.getElementById('mapObjectModal');
+                            if (el) {
+                                let m = bootstrap.Modal.getInstance(el);
+                                if (!m) m = new bootstrap.Modal(el);
+                                m.show();
                             }
                         });
                     }, 500);
                 },
                 async loadHydrants() {
-                    const res = await fetch('/api/material/hydrants', { credentials: 'include' });
-                    if(res.ok) {
-                        const list = await res.json();
-                        hydrantMarkers.forEach(m => map.removeLayer(m));
-                        hydrantMarkers = [];
+                    if (!map) return;
+                    const [hRes, bRes] = await Promise.all([
+                        fetch('/api/material/hydrants', { credentials: 'include' }),
+                        fetch('/api/material/bma', { credentials: 'include' })
+                    ]);
+                    
+                    if(hRes.ok) this.hydrantsList = await hRes.json();
+                    if(bRes.ok) this.bmas = await bRes.json();
+                    
+                    hydrantMarkers.forEach(m => map.removeLayer(m));
+                    hydrantMarkers = [];
+                    
+                    const getIconHtml = (bgColor, iconClass, color = 'white') => {
+                        return `<div style="background-color: ${bgColor}; border: 2px solid white; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: ${color}; box-shadow: 0 2px 5px rgba(0,0,0,0.4);"><i class="${iconClass}" style="font-size: 11px;"></i></div>`;
+                    };
+                    
+                    this.hydrantsList.forEach(h => {
+                        let bgColor = '#dc3545';
+                        let iconClass = 'fa fa-faucet';
                         
-                        list.forEach(h => {
-                            const marker = L.marker([h.lat, h.lng])
-                                .bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}<br><button class="btn btn-xs btn-danger mt-1 text-white" onclick="window.deleteHydrant(${h.id})">Löschen</button>`)
+                        if (h.type.includes('Zisterne')) {
+                            bgColor = '#0d6efd';
+                            iconClass = 'fa fa-droplet';
+                        } else if (h.type.includes('Brunnen')) {
+                            bgColor = '#0dcaf0';
+                            iconClass = 'fa fa-water';
+                        } else if (h.type.includes('Zufahrt') || h.type.includes('Rettungsweg')) {
+                            bgColor = '#198754';
+                            iconClass = 'fa fa-right-to-bracket';
+                        } else if (h.type.includes('Sammelplatz')) {
+                            bgColor = '#20c997';
+                            iconClass = 'fa fa-users';
+                        } else if (h.type.includes('Anleiterbereitschaft')) {
+                            bgColor = '#6f42c1';
+                            iconClass = 'fa fa-ladder';
+                        } else if (h.type.includes('Gefahrstofflager')) {
+                            bgColor = '#fd7e14';
+                            iconClass = 'fa fa-triangle-exclamation';
+                        }
+                        
+                        const divIcon = L.divIcon({
+                            html: getIconHtml(bgColor, iconClass),
+                            className: 'custom-div-icon',
+                            iconSize: [26, 26],
+                            iconAnchor: [13, 13]
+                        });
+                        
+                        const marker = L.marker([h.lat, h.lng], { icon: divIcon })
+                            .bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteHydrant(${h.id})">Löschen</button>`)
+                            .addTo(map);
+                        hydrantMarkers.push(marker);
+                    });
+                    
+                    this.bmas.forEach(b => {
+                        if (b.lat && b.lng) {
+                            const divIcon = L.divIcon({
+                                html: getIconHtml('#ffc107', 'fa fa-building-shield', 'black'),
+                                className: 'custom-div-icon',
+                                iconSize: [26, 26],
+                                iconAnchor: [13, 13]
+                            });
+                            
+                            const marker = L.marker([b.lat, b.lng], { icon: divIcon })
+                                .bindPopup(`<b>BMA: ${b.object_name}</b><br>BMA-Nr: ${b.bma_number}<br>Schlüssel-Depot: ${b.key_depot ? 'JA' : 'NEIN'}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteBmaOnMap(${b.id})">Entfernen</button>`)
                                 .addTo(map);
                             hydrantMarkers.push(marker);
+                        }
+                    });
+                },
+                async submitMapObject() {
+                    const o = this.newMapObject;
+                    let url = '';
+                    let payload = {};
+                    
+                    if (o.category === 'bma') {
+                        url = '/api/material/bma';
+                        payload = {
+                            object_name: o.bma_name,
+                            address: o.bma_address,
+                            bma_number: o.bma_number,
+                            key_depot: o.bma_fsd,
+                            map_url: '',
+                            lat: this.clickedLat,
+                            lng: this.clickedLng
+                        };
+                    } else {
+                        url = '/api/material/hydrants';
+                        let label = o.label;
+                        let type = '';
+                        if (o.category === 'hydrant') {
+                            type = o.hydrantType;
+                            if(!label) label = `${type} #${Math.floor(Math.random() * 1000)}`;
+                        } else if (o.category === 'access') {
+                            type = o.accessType;
+                            if(!label) label = type;
+                        } else {
+                            type = 'Gefahrstofflager';
+                            if(!label) label = o.danger_name || 'Gefahrstofflager';
+                        }
+                        payload = {
+                            lat: this.clickedLat,
+                            lng: this.clickedLng,
+                            type: type,
+                            label: label
+                        };
+                    }
+                    
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('mapObjectModal')).hide();
+                        this.loadHydrants();
+                    } else {
+                        alert("Fehler beim Speichern des Objekts.");
+                    }
+                },
+                panToCoords(lat, lng, zoom) {
+                    if (map) {
+                        map.setView([lat, lng], zoom);
+                    }
+                },
+                async deleteHydrantItem(id) {
+                    if (confirm("Objekt wirklich permanent von der Karte löschen?")) {
+                        const res = await fetch(`/api/material/hydrants/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) this.loadHydrants();
+                    }
+                },
+                async deleteBmaItem(id) {
+                    if (confirm("BMA-Objekt wirklich permanent aus dem Verzeichnis und von der Karte löschen?")) {
+                        const res = await fetch(`/api/material/bma/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) this.loadHydrants();
+                    }
+                },
+                async loadDroneImages() {
+                    const res = await fetch('/api/material/drone-images', { credentials: 'include' });
+                    if(res.ok) this.droneImages = await res.json();
+                },
+                async uploadDroneImage(e) {
+                    const file = e.target.files[0]; if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' });
+                        if (res.ok) {
+                            const d = await res.json();
+                            await fetch('/api/material/drone-images', {
+                                method: 'POST',
+                                headers: {'Content-Type':'application/json'},
+                                credentials: 'include',
+                                body: JSON.stringify({ url: d.url })
+                            });
+                            await this.loadDroneImages();
+                        }
+                    } catch(err) { console.error(err); }
+                },
+                async deleteDroneImage(id) {
+                    if (confirm("Bild wirklich permanent löschen?")) {
+                        const res = await fetch(`/api/material/drone-images/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) await this.loadDroneImages();
+                    }
+                },
+                triggerGateSim() {
+                    const msg = this.automation.toreOpen ? "Fahrzeugtore 1-4 geöffnet." : "Fahrzeugtore 1-4 geschlossen.";
+                    alert(msg);
+                },
+                toggleTrackingSim() {
+                    if (this.trackingSimActive) {
+                        this.trackingInterval = setInterval(() => {
+                            if (!map) return;
+                            const hlfLat = this.stationConfig.lat + (Math.sin(Date.now() / 5000) * 0.003) - 0.001;
+                            const hlfLng = this.stationConfig.lng + (Math.cos(Date.now() / 5000) * 0.003);
+                            
+                            const mzfLat = this.stationConfig.lat + (Math.cos(Date.now() / 7000) * 0.002);
+                            const mzfLng = this.stationConfig.lng + (Math.sin(Date.now() / 7000) * 0.002) + 0.001;
+                            
+                            if (!window.vehicleSimMarkers) window.vehicleSimMarkers = {};
+                            
+                            if (!window.vehicleSimMarkers['hlf']) {
+                                window.vehicleSimMarkers['hlf'] = L.marker([hlfLat, hlfLng], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/1039/1039943.png',
+                                        iconSize: [28, 28]
+                                    })
+                                }).bindPopup('<b>HLF 20 (Florian Neustadt 40/1)</b><br>Status: 3 - Einsatzfahrt<br>Live-GPS aktiv').addTo(map);
+                            } else {
+                                window.vehicleSimMarkers['hlf'].setLatLng([hlfLat, hlfLng]);
+                            }
+                            
+                            if (!window.vehicleSimMarkers['mzf']) {
+                                window.vehicleSimMarkers['mzf'] = L.marker([mzfLat, mzfLng], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/1039/1039943.png',
+                                        iconSize: [28, 28]
+                                    })
+                                }).bindPopup('<b>MZF (Florian Neustadt 11/1)</b><br>Status: 1 - Einsatzbereit über Funk<br>Live-GPS aktiv').addTo(map);
+                            } else {
+                                window.vehicleSimMarkers['mzf'].setLatLng([mzfLat, mzfLng]);
+                            }
+                        }, 1500);
+                    } else {
+                        clearInterval(this.trackingInterval);
+                        if (window.vehicleSimMarkers) {
+                            if (window.vehicleSimMarkers['hlf']) { map.removeLayer(window.vehicleSimMarkers['hlf']); }
+                            if (window.vehicleSimMarkers['mzf']) { map.removeLayer(window.vehicleSimMarkers['mzf']); }
+                            window.vehicleSimMarkers = null;
+                        }
+                    }
+                },
+                
+                // Jugend & Verein Module
+                async loadJugendData() {
+                    try {
+                        const [yRes, iRes, dRes] = await Promise.all([
+                            fetch('/api/jugend/members', { credentials: 'include' }),
+                            fetch('/api/verein/inventory', { credentials: 'include' }),
+                            fetch('/api/verein/donations', { credentials: 'include' })
+                        ]);
+                        if(yRes.ok) this.youthMembers = await yRes.json();
+                        if(iRes.ok) this.clubInventory = await iRes.json();
+                        if(dRes.ok) this.clubDonations = await dRes.json();
+                    } catch(err) { console.error(err); }
+                },
+                async submitYouthMember() {
+                    const res = await fetch('/api/jugend/members', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(this.newYouth)
+                    });
+                    if(res.ok) {
+                        this.newYouth = { name: '', parent_contact: '', badges: '' };
+                        await this.loadJugendData();
+                    }
+                },
+                async deleteYouthMember(id) {
+                    if (confirm("Jugendfeuerwehr-Mitglied wirklich löschen?")) {
+                        const res = await fetch(`/api/jugend/members/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) await this.loadJugendData();
+                    }
+                },
+                async submitClubItem() {
+                    const res = await fetch('/api/verein/inventory', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(this.newClubItem)
+                    });
+                    if(res.ok) {
+                        this.newClubItem = { item_name: '', quantity: 1, status: 'OK' };
+                        await this.loadJugendData();
+                    }
+                },
+                async deleteClubItem(id) {
+                    if(confirm("Vereins-Inventargegenstand löschen?")) {
+                        const res = await fetch(`/api/verein/inventory/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) await this.loadJugendData();
+                    }
+                },
+                async submitDonation() {
+                    const res = await fetch('/api/verein/donations', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(this.newDonation)
+                    });
+                    if(res.ok) {
+                        this.newDonation = { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] };
+                        await this.loadJugendData();
+                    }
+                },
+                
+                // First Responder / HvO Module
+                async loadHvoData() {
+                    try {
+                        const [pRes, cRes] = await Promise.all([
+                            fetch('/api/hvo/protocols', { credentials: 'include' }),
+                            fetch('/api/hvo/checks', { credentials: 'include' })
+                        ]);
+                        if(pRes.ok) this.hvoProtocols = await pRes.json();
+                        if(cRes.ok) this.hvoChecks = await cRes.json();
+                    } catch(err) { console.error(err); }
+                },
+                async submitHvoProtocol() {
+                    const res = await fetch('/api/hvo/protocols', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(this.newHvoProtocol)
+                    });
+                    if(res.ok) {
+                        this.newHvoProtocol = { date: new Date().toISOString().split('T')[0], symptoms: '', therapy: '', handover: '' };
+                        await this.loadHvoData();
+                    }
+                },
+                async submitHvoCheck() {
+                    const res = await fetch('/api/hvo/checks', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(this.newHvoCheck)
+                    });
+                    if(res.ok) {
+                        this.newHvoCheck = { device_name: '' };
+                        await this.loadHvoData();
+                    }
+                },
+                
+                // AI Mission summary generator draft trigger
+                async generateAiMissionDraft() {
+                    if (!this.activeMission) return;
+                    try {
+                        const res = await fetch('/api/missions/ai-draft', {
+                            method: 'POST',
+                            headers: {'Content-Type':'application/json'},
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                stichwort: this.activeMission.stichwort || 'Bandeinsatz',
+                                adresse: this.activeMission.adresse || 'Musterstraße 1',
+                                meldung: this.activeMission.meldung || 'Rauchentwicklung'
+                            })
                         });
+                        if (res.ok) {
+                            const d = await res.json();
+                            this.activeMission.description = d.draft;
+                        }
+                    } catch(err) { console.error(err); }
+                },
+                
+                // Werkstatt Scanner Simulator
+                scanQrCodeSim() {
+                    const code = this.qrScanInput.trim();
+                    if (!code) return;
+                    const match = this.equipInspectSchedule.find(x => x.barcode === code);
+                    if (match) {
+                        this.scannedQrObject = match;
+                    } else {
+                        alert("Prüfobjekt mit diesem QR-Code / Barcode nicht gefunden!");
+                        this.scannedQrObject = null;
+                    }
+                },
+                confirmQrCheck() {
+                    if (this.scannedQrObject) {
+                        this.scannedQrObject.lastTest = new Date().toISOString().split('T')[0];
+                        this.scannedQrObject.status = 'OK';
+                        alert(`Prüfung für ${this.scannedQrObject.name} erfolgreich erfasst.`);
+                        this.scannedQrObject = null;
+                        this.qrScanInput = '';
                     }
                 },
 
@@ -3360,6 +4488,26 @@
                         window.vueApp.loadHydrants();
                     } else {
                         location.reload();
+                    }
+                }
+            }
+        };
+
+        window.deleteBmaOnMap = async (id) => {
+            if(confirm("BMA-Objekt von der Karte entfernen? (Das Objekt bleibt in der Liste vorhanden)")) {
+                if (window.vueApp) {
+                    const match = window.vueApp.bmas.find(b => b.id === id);
+                    if (match) {
+                        const payload = { ...match, lat: null, lng: null };
+                        const res = await fetch(`/api/material/bma/${id}`, {
+                            method: 'PUT',
+                            headers: {'Content-Type':'application/json'},
+                            credentials: 'include',
+                            body: JSON.stringify(payload)
+                        });
+                        if (res.ok) {
+                            window.vueApp.loadHydrants();
+                        }
                     }
                 }
             }

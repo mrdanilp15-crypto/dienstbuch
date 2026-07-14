@@ -19,15 +19,15 @@
     <style>
         :root {
             --fire-red: #ef4444;
-            --dark-gray: #09090b;
-            --card-gray: #141416;
-            --border-gray: #27272a;
+            --dark-zinc: #09090b;
+            --card-zinc: #141416;
+            --border-zinc: #27272a;
             --text-light: #ffffff;
             --text-muted: #a1a1aa;
         }
 
         body {
-            background-color: var(--dark-gray);
+            background-color: var(--dark-zinc);
             font-family: 'Outfit', sans-serif;
             color: var(--text-light);
             height: 100vh;
@@ -37,11 +37,11 @@
             flex-direction: column;
         }
 
-        /* Top Alarm Header Banner */
+        /* Widescreen Header Banner */
         .alarm-header {
-            background: linear-gradient(135deg, #b71c1c 0%, #dc2626 100%);
-            padding: 15px 30px;
-            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+            background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
+            padding: 12px 24px;
+            box-shadow: 0 10px 35px rgba(239, 68, 68, 0.25);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -57,114 +57,184 @@
         }
 
         @keyframes pulse-border {
-            0% { box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3); }
-            100% { box-shadow: 0 15px 40px rgba(239, 68, 68, 0.6); }
+            0% { box-shadow: 0 5px 15px rgba(239, 68, 68, 0.2); }
+            100% { box-shadow: 0 15px 40px rgba(239, 68, 68, 0.5); }
         }
 
         .alarm-title {
-            font-size: 2.2rem;
+            font-size: 2rem;
             font-weight: 900;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             margin: 0;
-            text-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            text-shadow: 0 3px 8px rgba(0,0,0,0.4);
+        }
+
+        /* Weather Widget Styling */
+        .weather-banner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 6px 16px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        .weather-temp {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #ffd700;
         }
 
         .clock-container {
-            font-size: 2.2rem;
+            font-size: 2rem;
             font-weight: 800;
             font-family: monospace;
             background: rgba(0,0,0,0.4);
-            padding: 5px 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.2);
+            padding: 4px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.15);
         }
 
+        /* 3-Column Command Center Grid */
         .main-grid {
             flex-grow: 1;
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1.2fr 1fr 1.2fr;
             gap: 20px;
             padding: 20px;
             overflow: hidden;
         }
 
-        .left-column {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-
-        .right-column {
+        .column-pane {
             display: flex;
             flex-direction: column;
             gap: 20px;
             overflow: hidden;
         }
 
-        .alarm-card {
-            background-color: var(--card-gray);
-            border: 1px solid var(--border-gray);
+        .column-pane.scrollable {
+            overflow-y: auto;
+        }
+
+        /* Card panels */
+        .command-card {
+            background-color: var(--card-zinc);
+            border: 1px solid var(--border-zinc);
             border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
 
         .card-label {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             font-weight: 700;
             letter-spacing: 1px;
             color: var(--fire-red);
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             display: block;
         }
 
+        /* Tactical details */
         .stichwort-val {
-            font-size: 3.5rem;
+            font-size: 2.8rem;
             font-weight: 900;
             color: var(--text-light);
             line-height: 1.1;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
         }
 
         .stichwort-val.alert-active {
             color: var(--fire-red);
-            text-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+            text-shadow: 0 0 15px rgba(239, 68, 68, 0.35);
         }
 
         .adresse-val {
-            font-size: 2rem;
+            font-size: 1.6rem;
             font-weight: 700;
             color: #ffd700;
         }
 
         .meldung-val {
-            font-size: 1.4rem;
+            font-size: 1.15rem;
             color: #e4e4e7;
             white-space: pre-wrap;
-            line-height: 1.4;
+            line-height: 1.35;
         }
 
-        /* Vehicle status board styling */
-        .vehicles-card {
-            background-color: var(--card-gray);
-            border: 1px solid var(--border-gray);
-            border-radius: 20px;
-            padding: 20px;
+        /* Alarm timer widget */
+        .timer-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--fire-red);
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.2);
+            padding: 4px 14px;
+            border-radius: 10px;
         }
 
+        /* AAO vehicle layout styling */
+        .aao-badge {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+
+        /* Qualification Dashboard */
+        .quali-dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .quali-stat-box {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .quali-stat-num {
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: #10b981;
+        }
+
+        .quali-stat-num.low {
+            color: var(--fire-red);
+        }
+
+        .quali-stat-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Vehicles grid */
         .vehicle-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
         }
 
         .vehicle-status-item {
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 12px;
+            border-radius: 10px;
+            padding: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -172,38 +242,38 @@
         }
 
         .status-badge {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 900;
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: white;
-            box-shadow: 0 0 10px currentColor;
+            box-shadow: 0 0 8px currentColor;
         }
 
-        .fms-1 { color: #2563eb; background-color: #2563eb; }
-        .fms-2 { color: #16a34a; background-color: #16a34a; }
-        .fms-3 { color: #eab308; background-color: #eab308; }
-        .fms-4 { color: #dc2626; background-color: #dc2626; }
-        .fms-6 { color: #4b5563; background-color: #4b5563; }
+        .fms-1 { color: #3b82f6; background-color: #3b82f6; }
+        .fms-2 { color: #10b981; background-color: #10b981; }
+        .fms-3 { color: #f59e0b; background-color: #f59e0b; }
+        .fms-4 { color: #ef4444; background-color: #ef4444; }
+        .fms-6 { color: #6b7280; background-color: #6b7280; }
 
         /* Map styling */
         #displayMap {
-            height: 250px;
+            height: 320px;
             border-radius: 20px;
-            border: 1px solid var(--border-gray);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-zinc);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
 
-        /* Feedback styling */
+        /* Feedbacks list */
         .feedback-panel {
-            background-color: var(--card-gray);
-            border: 1px solid var(--border-gray);
+            background-color: var(--card-zinc);
+            border: 1px solid var(--border-zinc);
             border-radius: 20px;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             flex-grow: 1;
@@ -211,10 +281,10 @@
         }
 
         .feedback-header {
-            font-size: 1.2rem;
+            font-size: 1.05rem;
             font-weight: 800;
-            border-bottom: 1px solid var(--border-gray);
-            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-zinc);
+            padding-bottom: 8px;
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
@@ -230,29 +300,30 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 12px;
+            padding: 8px 10px;
             border-radius: 8px;
-            margin-bottom: 6px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 4px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.85rem;
         }
 
         .feedback-item.status-komme {
-            border-left: 4px solid #10b981;
-            background: rgba(16, 185, 129, 0.05);
+            border-left: 3px solid #10b981;
+            background: rgba(16, 185, 129, 0.04);
         }
 
         .feedback-item.status-nein {
-            border-left: 4px solid #ef4444;
-            background: rgba(239, 68, 68, 0.05);
+            border-left: 3px solid #ef4444;
+            background: rgba(239, 68, 68, 0.04);
         }
 
         /* Print overrides */
         @media print {
             body { background: white; color: black; }
-            .alarm-header, .feedback-panel, .print-btn, #displayMap, .vehicles-card { display: none !important; }
+            .alarm-header, .feedback-panel, .print-btn, #displayMap, .command-card:not(.main-alarm-card), .weather-banner { display: none !important; }
             .main-grid { grid-template-columns: 1fr; padding: 0; }
-            .alarm-card { border: none; box-shadow: none; padding: 0; }
+            .main-alarm-card { border: none; box-shadow: none; padding: 0; }
             .stichwort-val { color: black; font-size: 3rem; }
             .adresse-val { color: black; font-size: 2rem; }
             .meldung-val { color: black; font-size: 1.2rem; }
@@ -261,24 +332,41 @@
 </head>
 <body>
     <div id="app" v-cloak style="display:flex; flex-direction:column; height:100vh;">
-        <!-- Alarm Header -->
+        <!-- Alarm Header Banner -->
         <header class="alarm-header" :class="{'no-alarm': !isAlarmActive}">
             <div class="d-flex align-items-center gap-3">
                 <i v-if="isAlarmActive" class="fa fa-triangle-exclamation fa-spin fa-2x text-white"></i>
                 <i v-else class="fa fa-desktop fa-2x text-muted"></i>
                 <h1 class="alarm-title">{{ isAlarmActive ? '🚨 EINSATZALARM' : 'STATIONSMONITOR' }}</h1>
             </div>
+            
+            <!-- Live Weather & Clock Widget -->
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-light rounded-pill px-4 fw-bold print-btn" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
+                <!-- Weather info widget -->
+                <div class="weather-banner" v-if="weather.loaded">
+                    <i class="fa fa-2x" :class="weather.iconClass" style="color: #ffd700;"></i>
+                    <div>
+                        <div class="weather-temp">{{ weather.temp.toFixed(1) }} °C</div>
+                        <div class="text-white-50" style="font-size:0.7rem;">
+                            {{ weather.description }} &bull; Wind: {{ weather.windspeed }} km/h ({{ weather.windDirection }}°)
+                        </div>
+                    </div>
+                </div>
+                <div class="weather-banner text-muted small" v-else>
+                    <i class="fa fa-spinner fa-spin me-1"></i> Wetter laden...
+                </div>
+                
+                <button class="btn btn-light rounded-pill px-3 fw-bold print-btn btn-sm" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
 
-        <!-- Main Display Grid -->
+        <!-- 3-Column Command Center Grid -->
         <div class="main-grid">
-            <!-- Left Panel (Einsatzdaten & Fuhrpark) -->
-            <div class="left-column">
-                <div class="alarm-card d-flex flex-column justify-content-center">
+            <!-- Left Column: Primary Dispatch & Operational Guides -->
+            <div class="column-pane scrollable">
+                <!-- Main Alarm Information Card -->
+                <div class="command-card main-alarm-card d-flex flex-column">
                     <div class="mb-3">
                         <span class="card-label">Einsatzstichwort</span>
                         <div class="stichwort-val" :class="{'alert-active': isAlarmActive}">{{ lastAlarm.stichwort || 'BEREITSCHAFT' }}</div>
@@ -286,7 +374,7 @@
 
                     <div class="mb-3" v-if="lastAlarm.adresse">
                         <span class="card-label">Einsatzort / Adresse</span>
-                        <div class="adresse-val"><i class="fa fa-location-dot me-2"></i>{{ lastAlarm.adresse }}</div>
+                        <div class="adresse-val"><i class="fa fa-location-dot me-2 text-danger"></i>{{ lastAlarm.adresse }}</div>
                     </div>
 
                     <div v-if="lastAlarm.meldung">
@@ -295,42 +383,96 @@
                     </div>
                 </div>
 
-                <!-- Vehicles Status Board -->
-                <div class="vehicles-card">
-                    <h6 class="card-label mb-3"><i class="fa fa-truck me-2"></i>Fahrzeugstatus & BOS Funkverkehr</h6>
-                    <div class="vehicle-grid">
-                        <div v-for="v in vehicles" :key="v.id" class="vehicle-status-item">
+                <!-- Alarm Elapsed Timer Widget -->
+                <div class="command-card" v-if="isAlarmActive">
+                    <span class="card-label">Alarmierungszeit & Dauer</span>
+                    <div class="d-flex align-items-center justify-content-between mt-2">
+                        <div>
+                            <div class="text-white small">Ausgelöst um:</div>
+                            <div class="fw-bold text-white-50 fs-5">{{ formattedAlarmTime }} Uhr</div>
+                        </div>
+                        <div class="timer-badge">
+                            <i class="fa fa-stopwatch fa-spin me-1"></i> {{ alarmElapsedMinutes }}:{{ alarmElapsedSeconds }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AAO (Alarm- und Ausrückordnung) Recommender -->
+                <div class="command-card">
+                    <span class="card-label"><i class="fa fa-route me-1"></i> AAO Taktischer Ausrücke-Leitfaden</span>
+                    <p class="text-white-50 small mb-3">Vorgeschlagene Fahrzeugreihenfolge und Beladungsziele für das Stichwort.</p>
+                    <div class="d-flex flex-column gap-2">
+                        <div v-for="(rec, index) in aaoRecommendations" :key="index" class="aao-badge">
+                            <span class="badge bg-danger rounded-pill">{{ index + 1 }}</span>
                             <div>
-                                <div class="fw-bold text-white small">{{ v.name }}</div>
-                                <div class="text-muted" style="font-size:0.75rem;">{{ v.radio_name }}</div>
-                            </div>
-                            <div class="status-badge" :class="'fms-' + v.status">
-                                {{ v.status }}
+                                <div class="text-white fw-bold">{{ rec.vehicle }}</div>
+                                <div class="text-white-50 small" style="font-size:0.7rem;">{{ rec.role }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel (Hydrantenkarte & Rückmeldungen) -->
-            <div class="right-column">
-                <!-- Map showing hydrants -->
-                <div id="displayMap"></div>
-
-                <!-- Feedbacks list -->
+            <!-- Middle Column: Personnel Feedbacks & Qualification Status -->
+            <div class="column-pane">
                 <div class="feedback-panel">
                     <div class="feedback-header">
-                        <span class="text-white fw-bold"><i class="fa fa-users me-2"></i>EINSATZKRÄFTE</span>
+                        <span class="text-white fw-bold"><i class="fa fa-users me-2"></i>RÜCKMELDUNGEN</span>
                         <span class="badge bg-success rounded-pill px-3">{{ kommeCount }} Zusage(n)</span>
                     </div>
+
+                    <!-- Personnel Stats Dashboard -->
+                    <div class="quali-dashboard">
+                        <div class="quali-stat-box">
+                            <div class="quali-stat-num" :class="{low: agtCount === 0}">{{ agtCount }}</div>
+                            <div class="quali-stat-label">Atemschutz</div>
+                        </div>
+                        <div class="quali-stat-box">
+                            <div class="quali-stat-num" :class="{low: maschinistCount === 0}">{{ maschinistCount }}</div>
+                            <div class="quali-stat-label">Maschinist</div>
+                        </div>
+                        <div class="quali-stat-box">
+                            <div class="quali-stat-num" :class="{low: leadershipCount === 0}">{{ leadershipCount }}</div>
+                            <div class="quali-stat-label">Führungskr.</div>
+                        </div>
+                    </div>
+
+                    <!-- Responders Feed List -->
                     <div class="feedback-list">
                         <div v-for="f in feedbacks" :key="f.id" class="feedback-item" :class="f.status === 'Komme' ? 'status-komme' : 'status-nein'">
-                            <span class="feedback-name text-white">{{ f.name }}</span>
+                            <span class="feedback-name text-white">
+                                {{ f.name }}
+                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_agt">AGT</span>
+                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_maschinist">MASCH</span>
+                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_gf || f.is_tf">FÜHRUNG</span>
+                            </span>
                             <span class="feedback-status" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
                                 {{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}
                             </span>
                         </div>
                         <div v-if="feedbacks.length === 0" class="text-center py-5 text-muted small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Navigation Map & Station Fleet -->
+            <div class="column-pane">
+                <!-- Tactical Map showing routing & Hydrants -->
+                <div id="displayMap"></div>
+
+                <!-- Vehicles status table -->
+                <div class="command-card flex-grow-1 overflow-auto">
+                    <span class="card-label mb-3"><i class="fa fa-truck me-2"></i>Fahrzeugstatus (FMS)</span>
+                    <div class="vehicle-grid">
+                        <div v-for="v in vehicles" :key="v.id" class="vehicle-status-item">
+                            <div>
+                                <div class="fw-bold text-white small">{{ v.name }}</div>
+                                <div class="text-muted" style="font-size:0.7rem;">{{ v.radio_name }}</div>
+                            </div>
+                            <div class="status-badge" :class="'fms-' + v.status">
+                                {{ v.status }}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -345,7 +487,7 @@
         createApp({
             data() {
                 return {
-                    lastAlarm: { id: null, stichwort: '', adresse: '', meldung: '' },
+                    lastAlarm: { id: null, stichwort: '', adresse: '', meldung: '', created_at: '' },
                     feedbacks: [],
                     vehicles: [],
                     timeStr: '00:00:00',
@@ -354,10 +496,60 @@
                     destMarker: null,
                     routeLine: null,
                     geocodedAddress: '',
+                    
                     stationLat: 50.1109,
                     stationLng: 8.6821,
                     stationZoom: 15,
-                    stationName: 'Feuerwehrgerätehaus'
+                    stationName: 'Feuerwehrgerätehaus',
+
+                    // Weather widget state
+                    weather: {
+                        loaded: false,
+                        temp: 0.0,
+                        windspeed: 0.0,
+                        windDirection: 0,
+                        description: 'Wetterdaten',
+                        iconClass: 'fa-cloud'
+                    },
+
+                    // Alarm timer states
+                    formattedAlarmTime: '00:00',
+                    alarmElapsedMinutes: '00',
+                    alarmElapsedSeconds: '00',
+                    timerInterval: null
+                }
+            },
+            computed: {
+                agtCount() {
+                    return this.feedbacks.filter(x => x.status === 'Komme' && x.is_agt).length;
+                },
+                maschinistCount() {
+                    return this.feedbacks.filter(x => x.status === 'Komme' && x.is_maschinist).length;
+                },
+                leadershipCount() {
+                    return this.feedbacks.filter(x => x.status === 'Komme' && (x.is_gf || x.is_tf)).length;
+                },
+                aaoRecommendations() {
+                    const st = (this.lastAlarm.stichwort || '').toUpperCase();
+                    if (st.includes('BRAND') || st.includes('FEUER') || st.includes('B1') || st.includes('B2') || st.includes('B3') || st.includes('B4')) {
+                        return [
+                            { vehicle: 'HLF 20', role: 'Brandbekämpfung / Rettungsweg' },
+                            { vehicle: 'MZF', role: 'Einsatzleitung / Absicherung' }
+                        ];
+                    } else if (st.includes('THL') || st.includes('UNFALL') || st.includes('STRASSE') || st.includes('VERKEHR')) {
+                        return [
+                            { vehicle: 'HLF 20', role: 'Technische Hilfeleistung / Rüstsatz' },
+                            { vehicle: 'MZF', role: 'Verkehrsabsicherung / Unterstützung' }
+                        ];
+                    } else if (st.includes('HVO') || st.includes('RESPONDER') || st.includes('MEDICAL') || st.includes('REANIMATION')) {
+                        return [
+                            { vehicle: 'MZF', role: 'Helfer vor Ort / Notfallmedizin' }
+                        ];
+                    }
+                    return [
+                        { vehicle: 'HLF 20', role: 'Erstangriff universal' },
+                        { vehicle: 'MZF', role: 'Unterstützung / Funkleitung' }
+                    ];
                 }
             },
             async mounted() {
@@ -379,45 +571,118 @@
                 setInterval(this.pollData, 5000); // 5 sec poll
                 
                 this.initDisplayMap();
+                this.fetchWeather();
+                setInterval(this.fetchWeather, 300000); // Update weather every 5 mins
             },
             methods: {
                 updateClock() {
                     const now = new Date();
                     this.timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 },
+                async fetchWeather() {
+                    try {
+                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${this.stationLat}&longitude=${this.stationLng}&current_weather=true`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            const cw = data.current_weather;
+                            this.weather.temp = cw.temperature;
+                            this.weather.windspeed = cw.windspeed;
+                            this.weather.windDirection = cw.winddirection;
+                            
+                            // Map WMO weather codes to descriptive German text and icons
+                            const code = cw.weathercode;
+                            let desc = 'Heiter';
+                            let icon = 'fa-cloud-sun';
+                            
+                            if (code === 0) { desc = 'Klarer Himmel'; icon = 'fa-sun'; }
+                            else if (code >= 1 && code <= 3) { desc = 'Leicht bewölkt'; icon = 'fa-cloud-sun'; }
+                            else if (code === 45 || code === 48) { desc = 'Nebel'; icon = 'fa-smog'; }
+                            else if (code >= 51 && code <= 55) { desc = 'Sprühregen'; icon = 'fa-cloud-rain'; }
+                            else if (code >= 61 && code <= 65) { desc = 'Regen'; icon = 'fa-cloud-showers-heavy'; }
+                            else if (code >= 71 && code <= 75) { desc = 'Schneefall'; icon = 'fa-snowflake'; }
+                            else if (code >= 80 && code <= 82) { desc = 'Regenschauer'; icon = 'fa-cloud-showers-water'; }
+                            else if (code >= 95 && code <= 99) { desc = 'Gewitter'; icon = 'fa-cloud-bolt'; }
+                            
+                            this.weather.description = desc;
+                            this.weather.iconClass = icon;
+                            this.weather.loaded = true;
+                        }
+                    } catch(err) {
+                        console.error("Open-Meteo weather fetch error", err);
+                    }
+                },
                 initDisplayMap() {
                     setTimeout(() => {
                         map = L.map('displayMap', { maxZoom: 22 }).setView([this.stationLat, this.stationLng], this.stationZoom);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
                         
-                        // Add base station marker
-                        L.marker([this.stationLat, this.stationLng], {
-                            icon: L.icon({
-                                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png',
-                                iconSize: [35, 35]
-                            })
-                        }).bindPopup(`<b>${this.stationName}</b>`).addTo(map);
+                        // Add base station marker with custom red fire department shield icon
+                        const stationIcon = L.divIcon({
+                            html: `<div style="background-color: #ef4444; border: 2px solid white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.4);"><i class="fa fa-fire-extinguisher" style="font-size: 13px;"></i></div>`,
+                            className: 'custom-div-icon',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                        });
+                        L.marker([this.stationLat, this.stationLng], { icon: stationIcon }).bindPopup(`<b>${this.stationName}</b>`).addTo(map);
                         
                         this.loadHydrants();
                     }, 500);
                 },
                 async loadHydrants() {
                     try {
-                        const res = await fetch('/api/material/hydrants');
-                        if (res.ok) {
-                            const list = await res.json();
+                        const [hRes, bRes] = await Promise.all([
+                            fetch('/api/material/hydrants'),
+                            fetch('/api/material/bma')
+                        ]);
+                        
+                        const getIconHtml = (bgColor, iconClass, color = 'white') => {
+                            return `<div style="background-color: ${bgColor}; border: 2px solid white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: ${color}; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"><i class="${iconClass}" style="font-size: 9px;"></i></div>`;
+                        };
+
+                        if (hRes.ok) {
+                            const list = await hRes.json();
                             list.forEach(h => {
-                                L.circleMarker([h.lat, h.lng], {
-                                    radius: 6,
-                                    color: '#2563eb',
-                                    fillColor: '#3b82f6',
-                                    fillOpacity: 0.8
-                                }).bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}`).addTo(map);
+                                let bgColor = '#3b82f6';
+                                let iconClass = 'fa fa-faucet';
+                                
+                                if (h.type.includes('Zisterne')) {
+                                    bgColor = '#0d6efd';
+                                    iconClass = 'fa fa-droplet';
+                                } else if (h.type.includes('Zufahrt')) {
+                                    bgColor = '#10b981';
+                                    iconClass = 'fa fa-right-to-bracket';
+                                } else if (h.type.includes('Sammelplatz')) {
+                                    bgColor = '#20c997';
+                                    iconClass = 'fa fa-users';
+                                }
+                                
+                                const divIcon = L.divIcon({
+                                    html: getIconHtml(bgColor, iconClass),
+                                    className: 'custom-div-icon',
+                                    iconSize: [22, 22],
+                                    iconAnchor: [11, 11]
+                                });
+                                L.marker([h.lat, h.lng], { icon: divIcon }).bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}`).addTo(map);
+                            });
+                        }
+
+                        if (bRes.ok) {
+                            const bmas = await bRes.json();
+                            bmas.forEach(b => {
+                                if (b.lat && b.lng) {
+                                    const divIcon = L.divIcon({
+                                        html: getIconHtml('#ffc107', 'fa fa-building-shield', 'black'),
+                                        className: 'custom-div-icon',
+                                        iconSize: [22, 22],
+                                        iconAnchor: [11, 11]
+                                    });
+                                    L.marker([b.lat, b.lng], { icon: divIcon }).bindPopup(`<b>BMA: ${b.object_name}</b><br>BMA-Nr: ${b.bma_number}`).addTo(map);
+                                }
                             });
                         }
                     } catch(e){}
                 },
-                 async pollData() {
+                async pollData() {
                     try {
                         const [aRes, fRes, vRes] = await Promise.all([
                             fetch('/api/apager/logs'),
@@ -433,10 +698,13 @@
                                 
                                 if(diffMin < 30) {
                                     this.isAlarmActive = true;
-                                    // Check if this is a new alarm to trigger sound/alert
+                                    
+                                    // Start the elapsed timer
                                     if(last.id !== this.lastAlarm.id) {
                                         this.triggerAlarmSound(last);
+                                        this.startAlarmTimer(last.created_at);
                                     }
+                                    
                                     if(last.adresse && last.adresse !== this.geocodedAddress) {
                                         this.geocodedAddress = last.adresse;
                                         this.geocodeAddress(last.adresse);
@@ -448,6 +716,7 @@
                                     if(this.destMarker) { map.removeLayer(this.destMarker); this.destMarker = null; }
                                     if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
                                     this.geocodedAddress = '';
+                                    clearInterval(this.timerInterval);
                                 }
                             } else {
                                 this.isAlarmActive = false;
@@ -455,6 +724,7 @@
                                 if(this.destMarker) { map.removeLayer(this.destMarker); this.destMarker = null; }
                                 if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
                                 this.geocodedAddress = '';
+                                clearInterval(this.timerInterval);
                             }
                         }
                         
@@ -467,6 +737,22 @@
                             this.vehicles = await vRes.json();
                         }
                     } catch(e) { console.error("Poll error", e); }
+                },
+                startAlarmTimer(alarmTimeStr) {
+                    clearInterval(this.timerInterval);
+                    const alarmTime = new Date(alarmTimeStr);
+                    
+                    // Format output triggered time
+                    this.formattedAlarmTime = alarmTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    
+                    this.timerInterval = setInterval(() => {
+                        const diffMs = Date.now() - alarmTime.getTime();
+                        if (diffMs < 0) return;
+                        const mins = Math.floor(diffMs / 60000);
+                        const secs = Math.floor((diffMs % 60000) / 1000);
+                        this.alarmElapsedMinutes = mins < 10 ? '0' + mins : mins;
+                        this.alarmElapsedSeconds = secs < 10 ? '0' + secs : secs;
+                    }, 1000);
                 },
                 async geocodeAddress(addr) {
                     if (!addr) return;

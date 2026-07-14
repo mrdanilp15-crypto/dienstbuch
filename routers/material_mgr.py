@@ -60,6 +60,8 @@ class BmaCreate(BaseModel):
     bma_number: str
     key_depot: Optional[bool] = False
     map_url: Optional[str] = ""
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 class HydrantCreate(BaseModel):
     lat: float
@@ -281,9 +283,9 @@ def create_bma(b: BmaCreate, request: Request):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
-        INSERT INTO bma (object_name, address, bma_number, key_depot, map_url)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (b.object_name.strip(), b.address.strip(), b.bma_number.strip(), int(b.key_depot), b.map_url))
+        INSERT INTO bma (object_name, address, bma_number, key_depot, map_url, lat, lng)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (b.object_name.strip(), b.address.strip(), b.bma_number.strip(), int(b.key_depot), b.map_url, b.lat, b.lng))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
@@ -295,9 +297,9 @@ def update_bma(b_id: int, b: BmaCreate, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         UPDATE bma 
-        SET object_name=%s, address=%s, bma_number=%s, key_depot=%s, map_url=%s
+        SET object_name=%s, address=%s, bma_number=%s, key_depot=%s, map_url=%s, lat=%s, lng=%s
         WHERE id=%s
-    """, (b.object_name.strip(), b.address.strip(), b.bma_number.strip(), int(b.key_depot), b.map_url, b_id))
+    """, (b.object_name.strip(), b.address.strip(), b.bma_number.strip(), int(b.key_depot), b.map_url, b.lat, b.lng, b_id))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
