@@ -353,13 +353,28 @@
                     isAlarmActive: false,
                     destMarker: null,
                     routeLine: null,
-                    geocodedAddress: ''
+                    geocodedAddress: '',
+                    stationLat: 50.1109,
+                    stationLng: 8.6821,
+                    stationZoom: 15,
+                    stationName: 'Feuerwehrgerätehaus'
                 }
             },
-            mounted() {
+            async mounted() {
                 this.updateClock();
                 setInterval(this.updateClock, 1000);
                 
+                try {
+                    const sRes = await fetch('/api/settings/station');
+                    if (sRes.ok) {
+                        const sData = await sRes.json();
+                        this.stationLat = sData.lat;
+                        this.stationLng = sData.lng;
+                        this.stationZoom = sData.zoom;
+                        this.stationName = sData.station_name;
+                    }
+                } catch(e) { console.error("Error loading station settings", e); }
+
                 this.pollData();
                 setInterval(this.pollData, 5000); // 5 sec poll
                 
@@ -368,21 +383,20 @@
             methods: {
                 updateClock() {
                     const now = new Date();
-                    this.timeStr = now.toTimeString().split(' ')[0];
+                    this.timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 },
                 initDisplayMap() {
                     setTimeout(() => {
-                        // Station location (Neustadt)
-                        map = L.map('displayMap').setView([50.1109, 8.6821], 15);
+                        map = L.map('displayMap').setView([this.stationLat, this.stationLng], this.stationZoom);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                         
                         // Add base station marker
-                        L.marker([50.1109, 8.6821], {
+                        L.marker([this.stationLat, this.stationLng], {
                             icon: L.icon({
                                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png',
                                 iconSize: [35, 35]
                             })
-                        }).bindPopup('<b>Feuerwehrgerätehaus</b>').addTo(map);
+                        }).bindPopup(`<b>${this.stationName}</b>`).addTo(map);
                         
                         this.loadHydrants();
                     }, 500);
@@ -415,8 +429,7 @@
                             const logs = await aRes.json();
                             if(logs && logs.length > 0) {
                                 const last = logs[0];
-                                const alarmTime = new Date(last.created_at);
-                                const diffMin = (new Date() - alarmTime) / (1000 * 60);
+                                const diffMin = last.diff_min !== undefined ? last.diff_min : 999.0;
                                 
                                 if(diffMin < 30) {
                                     this.isAlarmActive = true;
@@ -476,14 +489,14 @@
                                     })
                                 }).bindPopup(`<b>Einsatzort:</b><br>${addr}`).addTo(map);
                                 
-                                this.routeLine = L.polyline([[50.1109, 8.6821], [lat, lon]], {
+                                this.routeLine = L.polyline([[this.stationLat, this.stationLng], [lat, lon]], {
                                     color: 'red',
                                     weight: 4,
                                     opacity: 0.7,
                                     dashArray: '10, 10'
                                 }).addTo(map);
                                 
-                                const bounds = L.latLngBounds([[50.1109, 8.6821], [lat, lon]]);
+                                const bounds = L.latLngBounds([[this.stationLat, this.stationLng], [lat, lon]]);
                                 map.fitBounds(bounds, { padding: [50, 50] });
                             }
                         }

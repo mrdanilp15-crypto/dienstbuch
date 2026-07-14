@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dienstbuch Portal - Dashboard</title>
+    <title>Dienstbuch</title>
     
     <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
@@ -416,12 +416,44 @@
             border: 1px solid var(--card-border);
         }
 
-        /* Responsive */
+        /* Responsive & Hamburger Mobile Sidebar */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1040;
+            backdrop-filter: blur(4px);
+        }
+        .sidebar-overlay.mobile-open {
+            display: block;
+        }
+
         @media (max-width: 991px) { 
-            .app-container { flex-direction: column; height: auto; } 
-            .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--card-border); } 
+            .app-container { flex-direction: column; height: auto; position: relative; } 
+            .sidebar { 
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 280px; 
+                height: 100vh; 
+                z-index: 1050;
+                background: var(--body-bg);
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                border-right: 1px solid var(--card-border);
+                box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+                display: flex;
+                flex-direction: column;
+            } 
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
             body { overflow: auto; } 
-            .main-content { padding: 15px; } 
+            .main-content { padding: 15px; width: 100%; } 
         }
         [v-cloak] { display: none !important; }
     </style>
@@ -432,7 +464,10 @@
         <nav class="top-nav shadow">
             <div class="container-fluid d-flex align-items-center justify-content-between px-4 py-2 flex-wrap gap-2">
                 <div class="fw-bold text-danger d-flex align-items-center gap-2 brand-title fs-4">
-                    <i class="fa-solid fa-fire-extinguisher"></i> DIENSTBUCH SUITE PRO
+                    <button class="btn btn-outline-danger d-lg-none me-1 px-2 py-1" @click="showMobileSidebar = !showMobileSidebar" style="border-radius: 8px;">
+                        <i class="fa fa-bars"></i>
+                    </button>
+                    <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
                 </div>
                 <!-- aPager Live-Status -->
                 <div class="d-flex align-items-center gap-3">
@@ -449,22 +484,24 @@
             </div>
         </nav>
 
+        <div class="sidebar-overlay" :class="{'mobile-open': showMobileSidebar}" @click="showMobileSidebar = false"></div>
+
         <div class="app-container">
             <!-- Sidebar -->
-            <div class="sidebar">
+            <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
                 <div class="sidebar-menu flex-grow-1">
-                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'"><i class="fa fa-book"></i> Dienstbetrieb</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions()"><i class="fa fa-fire"></i> Einsatzberichte</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'"><i class="fa fa-truck"></i> Fahrzeugpool</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment()"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'"><i class="fa fa-users"></i> Personalverwaltung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'"><i class="fa fa-bell"></i> Alarmierung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations()"><i class="fa fa-euro-sign"></i> Abrechnung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas()"><i class="fa fa-gears"></i> Verwaltung & VB</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions(); showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; loadBmas(); showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
-                    <div class="profile-trigger" @click="openSelfPasswordModal">
+                    <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
                         <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
                         <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
                     </div>
@@ -842,11 +879,14 @@
                                         <p class="text-white mb-2 small">{{dr.description}}</p>
                                         <div class="d-flex justify-content-between align-items-center">
                                             <small class="text-muted"><i class="fa fa-user me-1"></i>Gemeldet von: <strong class="text-white">{{dr.reporter_name}}</strong></small>
-                                            <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Offen'" class="d-flex gap-1">
-                                                <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
-                                                <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Offen'" class="d-flex gap-1">
+                                                    <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
+                                                    <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                                </div>
+                                                <small v-else-if="dr.status !== 'Offen'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
+                                                <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
                                             </div>
-                                            <small v-else-if="dr.status !== 'Offen'" class="text-muted">Erledigt von: <strong class="text-success">{{dr.resolved_by}}</strong></small>
                                         </div>
                                     </div>
                                 </div>
@@ -1112,6 +1152,9 @@
                         <li class="nav-item" v-if="isAdmin">
                             <button class="nav-link" :class="verwaltungTab === 'logins' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'logins'; loadSystemUsers()"><i class="fa fa-key me-1"></i>System-Logins</button>
                         </li>
+                        <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
+                            <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
+                        </li>
                         <li class="nav-item">
                             <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
                         </li>
@@ -1314,6 +1357,52 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- SUB-TAB: Standort -->
+                        <div v-show="verwaltungTab === 'standort'">
+                            <div class="row g-4">
+                                <div class="col-12 col-lg-6">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-pin text-danger me-2"></i>Feuerwache & Standort-Einstellungen</h5>
+                                        <p class="text-muted small">Lege hier den Namen und die geografischen Koordinaten deiner Feuerwache fest. Diese werden als Zentrum für alle Einsatzkarten (Dashboard & Hallendisplay) verwendet.</p>
+                                        
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Name der Feuerwache / Wache</label>
+                                            <input type="text" v-model="stationConfig.station_name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Feuerwehr Neustadt">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label text-white">Breitengrad (Latitude)</label>
+                                                <input type="number" step="any" v-model.number="stationConfig.lat" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 50.1109">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label text-white">Längengrad (Longitude)</label>
+                                                <input type="number" step="any" v-model.number="stationConfig.lng" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 8.6821">
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Standard Zoomstufe (Map Zoom)</label>
+                                            <input type="number" v-model.number="stationConfig.zoom" class="form-control bg-dark border-secondary text-white" min="1" max="20">
+                                        </div>
+                                        <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-question text-danger me-2"></i>Wie finde ich die Koordinaten?</h5>
+                                        <p class="text-muted small">Du kannst z.B. Google Maps oder OpenStreetMap aufrufen, mit der rechten Maustaste auf den Standort deiner Wache klicken und die Koordinaten kopieren.</p>
+                                        <hr class="border-secondary border-opacity-10 my-3">
+                                        <p class="text-white fw-bold mb-2">Aktuelle Einstellungen:</p>
+                                        <table class="table table-sm table-dark table-borderless small text-muted">
+                                            <tr><td>Wachenname:</td><td class="text-white">{{ stationConfig.station_name }}</td></tr>
+                                            <tr><td>Breitengrad (Lat):</td><td class="text-white">{{ stationConfig.lat }}</td></tr>
+                                            <tr><td>Längengrad (Lng):</td><td class="text-white">{{ stationConfig.lng }}</td></tr>
+                                            <tr><td>Zoom:</td><td class="text-white">{{ stationConfig.zoom }}</td></tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
             </div>
         </div>
@@ -1421,6 +1510,20 @@
                                             <option value="In Prüfung">In Prüfung</option>
                                             <option value="Freigegeben">Freigegeben (Sperrung)</option>
                                         </select>
+                                    </div>
+                                    <div class="col-md-12 mt-3">
+                                        <label class="form-label text-white"><i class="fa fa-paperclip me-2 text-danger"></i>Archiv-Anhänge (Berichte, Fotos, Dokumente)</label>
+                                        <div class="d-flex gap-2 mb-2" v-if="role !== 'mannschaft'">
+                                            <input type="file" ref="missionFile" class="form-control bg-dark border-secondary text-white" @change="uploadMissionFile">
+                                        </div>
+                                        <!-- Display list of attached files -->
+                                        <div v-if="uploadedMissionFiles.length > 0" class="list-group list-group-flush bg-transparent mt-2">
+                                            <div v-for="(file, index) in uploadedMissionFiles" :key="index" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                                <a :href="file.url" target="_blank" class="small text-danger text-decoration-underline"><i class="fa fa-file-alt me-2"></i>{{ file.name }}</a>
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="removeMissionFile(index)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-muted small">Keine Anhänge vorhanden.</div>
                                     </div>
                                 </div>
                             </div>
@@ -1940,7 +2043,7 @@
         </div>
 
         <!-- MODAL: PROFILE & PASSWORD CHANGE -->
-        <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-secondary border-opacity-10">
@@ -2098,7 +2201,9 @@
                     editingUsername: '',
                     editUserRole: 'mannschaft',
                     editUserPersonnelId: null,
-                    
+                    showMobileSidebar: false,
+                    stationConfig: { station_name: 'Feuerwehr Neustadt', lat: 50.1109, lng: 8.6821, zoom: 14 },
+                    uploadedMissionFiles: [],
                     cacheBuster: Date.now()
                 }
             },
@@ -2182,6 +2287,7 @@
                     return;
                 }
                 
+                await this.loadStationSettings();
                 await this.loadGroups();
                 await this.loadVehicles();
                 await this.loadBroadcasts();
@@ -2373,6 +2479,7 @@
                 },
                 openNewMissionModal() {
                     this.activeMission = { id: null, date: new Date().toISOString().split('T')[0], time: '12:00', stichwort: '', adresse: '', meldung: '', description: '', duration: 2.0, status: 'Entwurf', attList: [], respiList: [] };
+                    this.uploadedMissionFiles = [];
                     this.initActiveMissionAttendance();
                     new bootstrap.Modal(document.getElementById('missionModal')).show();
                 },
@@ -2385,6 +2492,7 @@
                     const res = await fetch(`/api/missions/${m.id}`, { credentials: 'include' });
                     if(res.ok) {
                         const detail = await res.json();
+                        this.uploadedMissionFiles = detail.media_files ? JSON.parse(detail.media_files) : [];
                         const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
                         const pList = await pRes.json();
                         
@@ -2405,6 +2513,7 @@
                     const payload = {
                         date: this.activeMission.date, time: this.activeMission.time, stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
                         meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: this.activeMission.status,
+                        media_files: JSON.stringify(this.uploadedMissionFiles),
                         attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
                     };
                     const isEdit = this.activeMission.id !== null;
@@ -2703,8 +2812,8 @@
                             map.invalidateSize();
                             return;
                         }
-                        // Start koordinaten Neustadt
-                        map = L.map('hydrantMap').setView([50.1109, 8.6821], 14);
+                        // Start koordinaten
+                        map = L.map('hydrantMap').setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                         
                         this.loadHydrants();
@@ -2900,6 +3009,19 @@
                     });
                     if (res.ok) await this.loadDefectReports();
                 },
+                async deleteDefectReport(id) {
+                    if (!confirm("Mangelmeldung unwiderruflich löschen?")) return;
+                    const res = await fetch(`/api/material/defect-reports/${id}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    if (res.ok) {
+                        await this.loadDefectReports();
+                    } else {
+                        const d = await res.json();
+                        alert(d.detail || "Fehler beim Löschen.");
+                    }
+                },
                 
                 // === TEST ALARM METHODS ===
                 async sendTestAlarm() {
@@ -2960,6 +3082,60 @@
                         this.cancelUserEdit();
                         await this.loadSystemUsers();
                     } else { alert('Fehler beim Speichern. Bitte erneut versuchen.'); }
+                },
+                async loadStationSettings() {
+                    try {
+                        const res = await fetch('/api/settings/station', { credentials: 'include' });
+                        if (res.ok) {
+                            this.stationConfig = await res.json();
+                        }
+                    } catch(e) { console.error("Error loading station settings", e); }
+                },
+                async saveStationSettings() {
+                    try {
+                        const res = await fetch('/api/settings/station', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify(this.stationConfig)
+                        });
+                        if (res.ok) {
+                            alert("✅ Standort-Einstellungen erfolgreich gespeichert!");
+                            await this.loadStationSettings();
+                        } else {
+                            const d = await res.json();
+                            alert(d.detail || "Fehler beim Speichern der Wachen-Einstellungen.");
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert("Verbindung fehlgeschlagen.");
+                    }
+                },
+                async uploadMissionFile(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include'
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.uploadedMissionFiles.push({ name: data.filename, url: data.url });
+                            this.$refs.missionFile.value = ''; // clear input
+                        } else {
+                            alert('Fehler beim Datei-Upload.');
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert('Fehler beim Datei-Upload.');
+                    }
+                },
+                removeMissionFile(index) {
+                    this.uploadedMissionFiles.splice(index, 1);
                 }
             }
         }).mount('#app');

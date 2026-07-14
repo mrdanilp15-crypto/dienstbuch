@@ -273,7 +273,7 @@
                 const savedBarcode = sessionStorage.getItem('eq_barcode_redirect');
                 if (savedBarcode) {
                     sessionStorage.removeItem('eq_barcode_redirect');
-                    window.location.href = '/static/dashboard.html?eq_barcode=' + savedBarcode;
+                    window.location.href = '/dashboard?eq_barcode=' + savedBarcode;
                 } else {
                     window.location.href = data.redirect;
                 }

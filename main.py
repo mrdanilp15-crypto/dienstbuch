@@ -7,12 +7,14 @@ import secrets
 import hmac
 import base64
 import json
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
+import uuid
+import shutil
 
 # --- Externe Berichts- und Verwaltungsmodule laden ---
 from routers import reports
@@ -33,6 +35,8 @@ app = FastAPI()
 # Statische Ordnerstruktur absichern
 if not os.path.exists("static"):
     os.makedirs("static")
+if not os.path.exists("static/uploads"):
+    os.makedirs("static/uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Externe Router einbinden
@@ -158,6 +162,19 @@ def init_db_extensions():
         default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12)]
         for key, val in default_settings:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS station_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                station_name VARCHAR(255) DEFAULT 'Feuerwehr Neustadt',
+                lat FLOAT DEFAULT 50.1109,
+                lng FLOAT DEFAULT 8.6821,
+                zoom INT DEFAULT 14
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("SELECT COUNT(*) as cnt FROM station_settings")
+        if cur.fetchone()["cnt"] == 0:
+            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES ('Feuerwehr Neustadt', 50.1109, 8.6821, 14)")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -628,7 +645,7 @@ def api_auth_me(request: Request):
 
 @app.post("/api/logout")
 def api_logout(response: Response):
-    response.delete_cookie("session_token")
+    response.delete_cookie("session_token", path="/")
     return {"status": "success"}
 
 @app.put("/api/auth/change-password")
@@ -722,6 +739,66 @@ def delete_user(user_id: int, request: Request):
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
+
+# --- FEUERWACHE STANDORT EINSTELLUNGEN ---
+@app.get("/api/settings/station")
+def get_station_settings():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT station_name, lat, lng, zoom FROM station_settings LIMIT 1")
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row:
+        return {"station_name": "Feuerwehr Neustadt", "lat": 50.1109, "lng": 8.6821, "zoom": 14}
+    return row
+
+@app.put("/api/settings/station")
+def update_station_settings(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    
+    station_name = data.get("station_name", "Feuerwehr").strip()
+    try:
+        lat = float(data.get("lat", 50.1109))
+        lng = float(data.get("lng", 8.6821))
+        zoom = int(data.get("zoom", 14))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Ungültige Koordinaten")
+        
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT id FROM station_settings LIMIT 1")
+    row = cur.fetchone()
+    if row:
+        cur.execute("""
+            UPDATE station_settings 
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s
+            WHERE id = %s
+        """, (station_name, lat, lng, zoom, row[0]))
+    else:
+        cur.execute("""
+            INSERT INTO station_settings (station_name, lat, lng, zoom)
+            VALUES (%s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
+    return {"status": "success"}
+
+# --- DATEI UPLOAD SYSTEM ---
+@app.post("/api/upload")
+async def upload_file(request: Request, file: UploadFile = File(...)):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = os.path.join("static", "uploads", filename)
+    
+    with open(filepath, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+        
+    url = f"/static/uploads/{filename}"
+    return {"url": url, "filename": file.filename}
 
 # --- AUDIT-LOG ROUTE (REVISIONS-PROTOKOLL) ---
 @app.get("/api/audit/logs")
@@ -1136,7 +1213,14 @@ def get_apager_logs(request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
     r = cur.fetchall(); cur.close(); conn.close()
+    import datetime
+    now = datetime.datetime.now()
     for log in r:
+        if isinstance(log.get('created_at'), datetime.datetime):
+            diff_sec = (now - log['created_at']).total_seconds()
+            log['diff_min'] = diff_sec / 60.0
+        else:
+            log['diff_min'] = 999.0
         log['created_at'] = str(log['created_at'])
     return r
 
@@ -1296,6 +1380,17 @@ def resolve_defect_report(report_id: int, data: dict, request: Request):
     )
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_ERLEDIGT", f"Mangel-Meldung ID {report_id} als '{new_status}' markiert.")
+    return {"status": "success"}
+
+@app.delete("/api/material/defect-reports/{report_id}")
+def delete_defect_report(report_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM equipment_defect_reports WHERE id = %s", (report_id,))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_GELOESCHT", f"Mangel-Meldung ID {report_id} gelöscht.")
     return {"status": "success"}
 
 # --- ICAL / central calendar CENTRAL EXPORT ---
