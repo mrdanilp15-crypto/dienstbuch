@@ -1775,7 +1775,7 @@
                                         <label class="form-label text-white">Zuweisung an Gerätewart</label>
                                         <select v-model="newDefect.assigned_to" class="form-select bg-dark border-secondary text-white">
                                             <option value="">-- Keine Zuweisung --</option>
-                                            <option v-for="p in personnel" :key="p.id" v-if="p.rank && p.rank.includes('meister')" :value="p.name">{{ p.name }}</option>
+                                            <option v-for="p in personnel.filter(x => x.rank && x.rank.toLowerCase().includes('meister'))" :key="p.id" :value="p.name">{{ p.name }}</option>
                                             <option value="Gerätewart Team">Gerätewart Team</option>
                                         </select>
                                     </div>
@@ -1888,7 +1888,7 @@
                                                 <h6 class="fw-bold text-white m-0">{{ ym.name }}</h6>
                                                 <small class="text-muted">Elternkontakt: {{ ym.parent_contact || 'Kein Kontakt hinterlegt' }}</small>
                                                 <div class="mt-1" v-if="ym.badges">
-                                                    <span class="badge bg-success small me-1" v-for="b in ym.badges.split(',')" v-if="b.trim()">{{ b }}</span>
+                                                    <span class="badge bg-success small me-1" v-for="b in (ym.badges || '').split(',').filter(x => x.trim())">{{ b }}</span>
                                                 </div>
                                             </div>
                                             <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteYouthMember(ym.id)"><i class="fa fa-trash"></i></button>
