@@ -172,9 +172,9 @@ def init_db_extensions():
                 zoom INT DEFAULT 14
             ) ENGINE=InnoDB;
         """)
-        cur.execute("SELECT COUNT(*) as cnt FROM station_settings")
-        if cur.fetchone()["cnt"] == 0:
-            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES ('Feuerwehr Neustadt', 50.1109, 8.6821, 14)")
+        cur.execute("SELECT COUNT(*) FROM station_settings")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES (%s, 50.1109, 8.6821, 14)", (TOWN_NAME,))
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS archive_files (
@@ -845,7 +845,7 @@ def get_station_settings():
     cur.execute("SELECT station_name, lat, lng, zoom FROM station_settings LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": "Feuerwehr Neustadt", "lat": 50.1109, "lng": 8.6821, "zoom": 14}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14}
     return row
 
 @app.put("/api/settings/station")
@@ -1332,6 +1332,31 @@ def get_my_global_fire_stats(year: int, request: Request):
     cur.execute(query, (klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
     return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0, "unlinked": False, "name": klarnat_name}
+
+@app.get("/api/users/me/sessions")
+def get_my_sessions(year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT p.name FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    res = cur.fetchone()
+    if not res or not res["name"]:
+        cur.close(); conn.close()
+        return []
+    
+    query = """
+        SELECT s.date, s.category, s.description, s.duration
+        FROM attendance a 
+        JOIN sessions s ON a.session_id = s.id 
+        JOIN persons p ON a.person_id = p.id
+        WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+        ORDER BY s.date DESC
+    """
+    cur.execute(query, (res["name"], year))
+    sessions = cur.fetchall(); cur.close(); conn.close()
+    for s in sessions:
+        s["date"] = str(s["date"])
+    return sessions
 
 @app.put("/api/users/me/bind-personnel")
 def bind_self_personnel(data: dict, request: Request):

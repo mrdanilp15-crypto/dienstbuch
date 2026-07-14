@@ -528,7 +528,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; initMap(); showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'werkstatt'}" @click="activeTab = 'werkstatt'; loadWerkstattData(); showMobileSidebar = false"><i class="fa fa-wrench"></i> Werkstatt & Prüfungen</button>
+
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugend & Verein</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
@@ -538,28 +538,6 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
                 </div>
 
-                <!-- Gebäudeautomation Widget -->
-                <div class="px-3 py-2 bg-black bg-opacity-30 border-top border-secondary border-opacity-10">
-                    <div class="text-white-50 small fw-bold mb-2 text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;"><i class="fa fa-home-laptop me-1 text-danger"></i> Gebäudeautomation</div>
-                    <div class="d-flex flex-column gap-1">
-                        <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-20 p-1.5 rounded border border-secondary border-opacity-5">
-                            <span style="font-size: 0.7rem; color: rgba(255,255,255,0.85);">Fahrzeugtore 1-4</span>
-                            <div class="form-check form-switch p-0 m-0 d-flex align-items-center">
-                                <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="automation.toreOpen" @change="triggerGateSim">
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-20 p-1.5 rounded border border-secondary border-opacity-5">
-                            <span style="font-size: 0.7rem; color: rgba(255,255,255,0.85);">Alarmbeleuchtung</span>
-                            <div class="form-check form-switch p-0 m-0 d-flex align-items-center">
-                                <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="automation.lightsOn">
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.6rem;">
-                            <span class="text-muted"><i class="fa fa-charging-station text-success me-1"></i>Netzstrom: OK</span>
-                            <span class="text-muted"><i class="fa fa-thermometer-half text-danger me-1"></i>Heizung: 21°C</span>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
                     <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
@@ -844,7 +822,7 @@
                         </div>
                     </div>
 
-                    <!-- Material sub-tabs: Geräteliste / Mängelmelder -->
+                    <!-- Material sub-tabs: Geräteliste / Mängelmelder / Prüftermine / Funkgeräte -->
                     <ul class="nav nav-pills mb-4 gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
                         <li class="nav-item">
                             <button class="nav-link" :class="materialSubTab === 'geraete' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'geraete'"><i class="fa fa-list me-1"></i>Geräteliste</button>
@@ -854,6 +832,12 @@
                                 <i class="fa fa-triangle-exclamation me-1"></i>Mängelmelder
                                 <span v-if="defectReports.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size:0.6rem;">{{defectReports.length}}</span>
                             </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'pruefungen'; loadWerkstattData()"><i class="fa fa-calendar-check me-1"></i>PSA & Prüffristen</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
                         </li>
                     </ul>
 
@@ -975,6 +959,119 @@
                                         </select>
                                     </div>
                                     <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="submitDefectReport"><i class="fa fa-triangle-exclamation me-2"></i>Mangel melden</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: PRÜFUNGEN (PSA & Prüffristen) -->
+                    <div v-show="materialSubTab === 'pruefungen'">
+                        <div class="row g-4">
+                            <!-- Inspection planner list -->
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Barcode/ID</th>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Kategorie</th>
+                                                    <th>Letzte Prüfung</th>
+                                                    <th>Intervall</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in equipInspectSchedule" :key="item.barcode">
+                                                    <td class="font-monospace text-danger">{{ item.barcode }}</td>
+                                                    <td><strong>{{ item.name }}</strong></td>
+                                                    <td>{{ item.category }}</td>
+                                                    <td>{{ item.lastTest }}</td>
+                                                    <td>{{ item.interval }} Monate</td>
+                                                    <td>
+                                                        <span class="badge" :class="item.status === 'OK' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- QR Code Scanner Simulator -->
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-qrcode text-danger me-2"></i>QR-Code Prüfungs-Scanner</h5>
+                                    <p class="text-muted small mb-3">Gib den Geräte-Barcode manuell ein, um den Prüfstatus direkt abzufragen und eine neue Prüfung zu verbuchen.</p>
+                                    <div class="input-group mb-3">
+                                        <input type="text" v-model="qrScanInput" class="form-control form-control-sm bg-dark border-secondary text-white font-monospace" placeholder="z. B. EQ-AGT-01">
+                                        <button class="btn btn-premium btn-sm" @click="scanQrCodeSim"><i class="fa fa-search"></i></button>
+                                    </div>
+
+                                    <div v-if="scannedQrObject" class="bg-black bg-opacity-35 p-3 rounded-4 border border-secondary border-opacity-10 small shadow-sm">
+                                        <h6 class="fw-bold text-white mb-2">{{ scannedQrObject.name }}</h6>
+                                        <div class="mb-1 text-muted">Kategorie: <strong class="text-white">{{ scannedQrObject.category }}</strong></div>
+                                        <div class="mb-1 text-muted">Letzter Check: <strong class="text-white">{{ scannedQrObject.lastTest }}</strong></div>
+                                        <div class="mb-3 text-muted">Fälligkeits-Intervall: <strong class="text-white">{{ scannedQrObject.interval }} Monate</strong></div>
+                                        
+                                        <button class="btn btn-premium btn-sm w-100 rounded-pill mt-2" @click="confirmQrCheck"><i class="fa fa-check me-1"></i>Prüfung jetzt durchführen</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: FUNK (TETRA MRT/HRT) -->
+                    <div v-show="materialSubTab === 'funk'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Typ</th>
+                                                    <th>Funkrufname (BOS)</th>
+                                                    <th>Akkustand</th>
+                                                    <th>Ladezyklen</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="dev in funkDevices" :key="dev.name">
+                                                    <td><strong>{{ dev.name }}</strong></td>
+                                                    <td>{{ dev.type }}</td>
+                                                    <td class="text-danger font-monospace">{{ dev.rufname.replace('Neustadt', getCityName()) }}</td>
+                                                    <td>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <div class="progress flex-grow-1" style="height: 6px;">
+                                                                <div class="progress-bar bg-success" :style="{width: dev.akku + '%'}"></div>
+                                                            </div>
+                                                            <span>{{ dev.akku }}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>{{ dev.ladezyklen }} Zyklen</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-info-circle text-danger me-2"></i>TETRA Funkverwaltung</h5>
+                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small mb-3">
+                                        <h6 class="fw-bold text-white mb-1">BOS TETRA Einstellungen</h6>
+                                        <p class="text-muted mb-0">Die Funkgruppe ist primär auf <strong>TMO_FF_REG_2</strong> konfiguriert. Ausweichgruppe im Nahbereich ist DMO_Grup_5.</p>
+                                    </div>
+                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
+                                        <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
+                                        <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1207,9 +1304,7 @@
                         <li class="nav-item">
                             <button class="nav-link" :class="verwaltungTab === 'bma' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'bma'"><i class="fa fa-building-shield me-1"></i>Objekte & BMA</button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link" :class="verwaltungTab === 'hydrant' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'hydrant'; initMap()"><i class="fa fa-map-location-dot me-1"></i>POI & Hydranten</button>
-                        </li>
+
                         <li class="nav-item" v-if="isAdmin">
                             <button class="nav-link" :class="verwaltungTab === 'logins' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'logins'; loadSystemUsers()"><i class="fa fa-key me-1"></i>System-Logins</button>
                         </li>
@@ -1287,16 +1382,7 @@
                             </div>
                         </div>
 
-                        <!-- SUB-TAB: Hydranten & POI -->
-                        <div v-show="verwaltungTab === 'hydrant'">
-                            <div class="card premium-card p-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-location-dot text-danger me-2"></i>POI & Hydrantenplan</h5>
-                                <div id="hydrantMap"></div>
-                                <div class="mt-3 p-3 bg-black bg-opacity-20 rounded border border-secondary border-opacity-10 small" v-if="role !== 'mannschaft'">
-                                    <label class="form-label"><i class="fa fa-mouse-pointer me-1 text-muted"></i>Hydranten hinzufügen: Klicke auf die Karte!</label>
-                                </div>
-                            </div>
-                        </div>
+
 
                         <!-- SUB-TAB: System-Logins -->
                         <div v-show="verwaltungTab === 'logins'" v-if="isAdmin">
@@ -1634,227 +1720,6 @@
                     </div>
                 </div>
 
-                <!-- TAB: WERKSTATT & PRÜFUNGEN -->
-                <div v-show="activeTab === 'werkstatt'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                        <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-wrench text-danger me-2"></i>Werkstatt & Wartung</h2>
-                            <small class="text-muted">Auswertung von Mängelmeldungen, Prüffristen von PSA, Leitern und Schläuchen</small>
-                        </div>
-                    </div>
-
-                    <!-- Sub-Nav pills -->
-                    <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
-                        <li class="nav-item">
-                            <button class="nav-link" :class="werkstattTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'pruefungen'"><i class="fa fa-calendar-check me-1"></i>PSA & Geräteprüfungen</button>
-                        </li>
-                        <li class="nav-item">
-                            <button class="nav-link" :class="werkstattTab === 'defect' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'defect'; loadDefectReports()"><i class="fa fa-screwdriver-wrench me-1"></i>Erweiterte Mängelberichte</button>
-                        </li>
-                        <li class="nav-item">
-                            <button class="nav-link" :class="werkstattTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="werkstattTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
-                        </li>
-                    </ul>
-
-                    <!-- SUBTAB: PRÜFUNGEN -->
-                    <div v-show="werkstattTab === 'pruefungen'">
-                        <div class="row g-4">
-                            <!-- Inspection planner list -->
-                            <div class="col-12 col-lg-8">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Barcode/ID</th>
-                                                    <th>Bezeichnung</th>
-                                                    <th>Kategorie</th>
-                                                    <th>Letzte Prüfung</th>
-                                                    <th>Intervall</th>
-                                                    <th>Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="item in equipInspectSchedule" :key="item.barcode">
-                                                    <td class="font-monospace text-danger">{{ item.barcode }}</td>
-                                                    <td><strong>{{ item.name }}</strong></td>
-                                                    <td>{{ item.category }}</td>
-                                                    <td>{{ item.lastTest }}</td>
-                                                    <td>{{ item.interval }} Monate</td>
-                                                    <td>
-                                                        <span class="badge" :class="item.status === 'OK' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- QR Code Scanner Simulator -->
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-qrcode text-danger me-2"></i>QR-Code Prüfungs-Scanner</h5>
-                                    <p class="text-muted small mb-3">Gib den Geräte-Barcode manuell ein, um den Prüfstatus direkt abzufragen und eine neue Prüfung zu verbuchen.</p>
-                                    <div class="input-group mb-3">
-                                        <input type="text" v-model="qrScanInput" class="form-control form-control-sm bg-dark border-secondary text-white font-monospace" placeholder="z. B. EQ-AGT-01">
-                                        <button class="btn btn-premium btn-sm" @click="scanQrCodeSim"><i class="fa fa-search"></i></button>
-                                    </div>
-
-                                    <div v-if="scannedQrObject" class="bg-black bg-opacity-35 p-3 rounded-4 border border-secondary border-opacity-10 small shadow-sm">
-                                        <h6 class="fw-bold text-white mb-2">{{ scannedQrObject.name }}</h6>
-                                        <div class="mb-1 text-muted">Kategorie: <strong class="text-white">{{ scannedQrObject.category }}</strong></div>
-                                        <div class="mb-1 text-muted">Letzter Check: <strong class="text-white">{{ scannedQrObject.lastTest }}</strong></div>
-                                        <div class="mb-3 text-muted">Fälligkeits-Intervall: <strong class="text-white">{{ scannedQrObject.interval }} Monate</strong></div>
-                                        
-                                        <button class="btn btn-premium btn-sm w-100 rounded-pill mt-2" @click="confirmQrCheck"><i class="fa fa-check me-1"></i>Prüfung jetzt durchführen</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SUBTAB: DEFECTS -->
-                    <div v-show="werkstattTab === 'defect'">
-                        <div class="row g-4">
-                            <!-- Defect list -->
-                            <div class="col-12 col-lg-7">
-                                <div class="card premium-card p-4">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h5 class="fw-bold text-white m-0"><i class="fa fa-circle-exclamation text-danger me-2"></i>Gemeldete Gerätemängel</h5>
-                                        <select v-model="defectFilter" class="form-select form-select-sm bg-dark text-white border-secondary w-auto" @change="loadDefectReports">
-                                            <option value="Offen">Offen</option>
-                                            <option value="In Bearbeitung">In Bearbeitung</option>
-                                            <option value="Erledigt">Erledigt</option>
-                                            <option value="alle">Alle anzeigen</option>
-                                        </select>
-                                    </div>
-                                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                                        <div v-for="dr in defectReports" :key="dr.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
-                                            <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
-                                                <div>
-                                                    <h6 class="fw-bold text-white m-0">{{ dr.equipment_name }} <span class="badge bg-danger small ms-2" v-if="dr.priority==='Kritisch'">KRITISCH</span></h6>
-                                                    <small class="text-muted">Barcode: {{ dr.barcode }} &bull; Gemeldet von: {{ dr.reporter_name }}</small>
-                                                </div>
-                                                <span class="badge" :class="dr.status === 'Offen' ? 'bg-danger' : dr.status === 'In Bearbeitung' ? 'bg-warning text-dark' : 'bg-success'">{{ dr.status }}</span>
-                                            </div>
-                                            <p class="text-muted small mb-2 lh-base">{{ dr.description }}</p>
-                                            
-                                            <!-- Additional fields -->
-                                            <div class="d-flex flex-wrap gap-3 align-items-center text-muted small mb-3 bg-black bg-opacity-20 p-2 rounded">
-                                                <span v-if="dr.assigned_to"><i class="fa fa-user-gear me-1"></i>Gerätewart: <strong>{{ dr.assigned_to }}</strong></span>
-                                                <span v-if="dr.image_url"><i class="fa fa-image me-1"></i><a :href="dr.image_url" target="_blank" class="text-info">Foto anzeigen</a></span>
-                                            </div>
-
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" class="d-flex gap-1">
-                                                    <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
-                                                    <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
-                                                </div>
-                                                <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2 ms-auto" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
-                                            </div>
-                                        </div>
-                                        <div v-if="defectReports.length === 0" class="text-center py-5 text-muted small">Keine Mängelberichte in diesem Status vorhanden.</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Create defect report form -->
-                            <div class="col-12 col-lg-5">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Mangel melden</h5>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Gerät auswählen</label>
-                                        <select v-model="newDefect.equipment_id" class="form-select bg-dark border-secondary text-white">
-                                            <option :value="null">-- Bitte wählen --</option>
-                                            <option v-for="eq in equipment" :key="eq.id" :value="eq.id">{{ eq.name }} ({{ eq.barcode }})</option>
-                                        </select>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Zuweisung an Gerätewart</label>
-                                        <select v-model="newDefect.assigned_to" class="form-select bg-dark border-secondary text-white">
-                                            <option value="">-- Keine Zuweisung --</option>
-                                            <option v-for="p in personnel.filter(x => x.rank && x.rank.toLowerCase().includes('meister'))" :key="p.id" :value="p.name">{{ p.name }}</option>
-                                            <option value="Gerätewart Team">Gerätewart Team</option>
-                                        </select>
-                                    </div>
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-6">
-                                            <label class="form-label text-white">Priorisierung</label>
-                                            <select v-model="newDefect.priority" class="form-select bg-dark border-secondary text-white">
-                                                <option value="Mittel">Mittel (normal)</option>
-                                                <option value="Kritisch">Kritisch (nicht einsatzbereit!)</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label text-white">Foto URL (Optional)</label>
-                                            <input type="text" v-model="newDefect.image_url" class="form-control bg-dark border-secondary text-white form-control-sm" placeholder="Bild-Link...">
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Beschreibung des Defekts</label>
-                                        <textarea v-model="newDefect.description" class="form-control bg-dark border-secondary text-white" rows="3" required placeholder="z. B. Trageriemen gerissen oder Dichtung porös..."></textarea>
-                                    </div>
-                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDefectReport">Mangel absenden</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SUBTAB: FUNK -->
-                    <div v-show="werkstattTab === 'funk'">
-                        <div class="row g-4">
-                            <div class="col-12 col-lg-8">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Bezeichnung</th>
-                                                    <th>Typ</th>
-                                                    <th>Funkrufname (BOS)</th>
-                                                    <th>Akkustand</th>
-                                                    <th>Ladezyklen</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="dev in funkDevices" :key="dev.name">
-                                                    <td><strong>{{ dev.name }}</strong></td>
-                                                    <td>{{ dev.type }}</td>
-                                                    <td class="text-danger font-monospace">{{ dev.rufname }}</td>
-                                                    <td>
-                                                        <div class="d-flex align-items-center gap-2">
-                                                            <div class="progress flex-grow-1" style="height: 6px;">
-                                                                <div class="progress-bar bg-success" :style="{width: dev.akku + '%'}"></div>
-                                                            </div>
-                                                            <span>{{ dev.akku }}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>{{ dev.ladezyklen }} Zyklen</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-info-circle text-danger me-2"></i>TETRA Funkverwaltung</h5>
-                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small mb-3">
-                                        <h6 class="fw-bold text-white mb-1">BOS TETRA Einstellungen</h6>
-                                        <p class="text-muted mb-0">Die Funkgruppe ist primär auf <strong>TMO_FF_REG_2</strong> konfiguriert. Ausweichgruppe im Nahbereich ist DMO_Grup_5.</p>
-                                    </div>
-                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
-                                        <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
-                                        <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- TAB: JUGEND & VEREIN -->
@@ -2892,15 +2757,43 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Table of attended services -->
+                        <div v-if="!isFirstLoginBlock && !personalStats.unlinked" class="mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-calendar-check text-danger me-2"></i>Besuchte Dienste (Jahresliste)</h6>
+                            <div class="table-responsive" style="max-height: 180px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+                                <table class="table table-dark table-striped align-middle small mb-0 text-white">
+                                    <thead>
+                                        <tr class="text-muted" style="font-size:0.75rem;">
+                                            <th>Datum</th>
+                                            <th>Typ</th>
+                                            <th>Beschreibung</th>
+                                            <th class="text-end">Dauer</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="s in personalSessions" :key="s.date + s.description">
+                                            <td>{{ s.date.substring(8,10) }}.{{ s.date.substring(5,7) }}</td>
+                                            <td><span class="badge bg-secondary" style="font-size:0.6rem;">{{ s.category }}</span></td>
+                                            <td>{{ s.description }}</td>
+                                            <td class="text-end fw-bold">{{ s.duration }}h</td>
+                                        </tr>
+                                        <tr v-if="personalSessions.length === 0">
+                                            <td colspan="4" class="text-center text-muted py-3">Keine Dienste in diesem Jahr besucht.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                         
-                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="p-3 mb-4 rounded-4" style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.35);">
-                            <h6 class="fw-bold mb-1" style="color: #ffc107;"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
-                            <p class="mb-2 text-white-50">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
+                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="p-3 mb-4 rounded-4 text-start shadow-sm" style="background: #ffc107; border: 1px solid #ffb300; color: #000000;">
+                            <h6 class="fw-bold mb-1" style="color: #000000;"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
+                            <p class="mb-2 small" style="color: #1e1e24; font-weight: 500;">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
                             <div class="d-flex gap-2">
-                                <select v-model="selfBindPersonnelId" class="form-select form-select-sm">
+                                <select v-model="selfBindPersonnelId" class="form-select form-select-sm bg-dark text-white border-secondary">
                                     <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
                                 </select>
-                                <button type="button" class="btn btn-premium btn-sm rounded-pill fw-bold text-nowrap" @click="bindSelfAccount">Verknüpfen</button>
+                                <button type="button" class="btn btn-dark btn-sm rounded-pill fw-bold text-nowrap" @click="bindSelfAccount">Verknüpfen</button>
                             </div>
                         </div>
                         
@@ -2932,7 +2825,7 @@
         let missionSigPad = null, missionSigModal = null;
         let map = null, hydrantMarkers = [];
 
-        window.vueApp = createApp({
+        const app = createApp({
             data() {
                 return {
                     ready: false, isAdmin: false, username: '', role: '',
@@ -2946,6 +2839,7 @@
                     newBroadcast: { title: '', content: '', is_mandatory: false },
                     isFirstLoginBlock: false,
                     personalStats: { hours: 0, count: 0 },
+                    personalSessions: [],
                     activeTab: 'dienste',
                     apagerConfig: { api_key: '', active: true },
                     apagerLogs: [],
@@ -3026,7 +2920,7 @@
                     editUserRole: 'mannschaft',
                     editUserPersonnelId: null,
                     showMobileSidebar: false,
-                    stationConfig: { station_name: 'Feuerwehr Neustadt', lat: 50.1109, lng: 8.6821, zoom: 14 },
+                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14 },
                     uploadedMissionFiles: [],
                     archiveFiles: [],
                     newArchiveFile: { is_public: false },
@@ -3043,7 +2937,7 @@
                     hydrantsList: [],
                     droneImages: [],
                     trackingSimActive: false,
-                    automation: { toreOpen: false, lightsOn: false },
+
                     
                     jugendTab: 'members',
                     youthMembers: [],
@@ -3919,10 +3813,7 @@
                         if (res.ok) await this.loadDroneImages();
                     }
                 },
-                triggerGateSim() {
-                    const msg = this.automation.toreOpen ? "Fahrzeugtore 1-4 geöffnet." : "Fahrzeugtore 1-4 geschlossen.";
-                    alert(msg);
-                },
+
                 toggleTrackingSim() {
                     if (this.trackingSimActive) {
                         this.trackingInterval = setInterval(() => {
@@ -3941,7 +3832,7 @@
                                         iconUrl: 'https://cdn-icons-png.flaticon.com/512/1039/1039943.png',
                                         iconSize: [28, 28]
                                     })
-                                }).bindPopup('<b>HLF 20 (Florian Neustadt 40/1)</b><br>Status: 3 - Einsatzfahrt<br>Live-GPS aktiv').addTo(map);
+                                }).bindPopup(`<b>HLF 20 (Florian ${this.getCityName()} 40/1)</b><br>Status: 3 - Einsatzfahrt<br>Live-GPS active`).addTo(map);
                             } else {
                                 window.vehicleSimMarkers['hlf'].setLatLng([hlfLat, hlfLng]);
                             }
@@ -3952,7 +3843,7 @@
                                         iconUrl: 'https://cdn-icons-png.flaticon.com/512/1039/1039943.png',
                                         iconSize: [28, 28]
                                     })
-                                }).bindPopup('<b>MZF (Florian Neustadt 11/1)</b><br>Status: 1 - Einsatzbereit über Funk<br>Live-GPS aktiv').addTo(map);
+                                }).bindPopup(`<b>MZF (Florian ${this.getCityName()} 11/1)</b><br>Status: 1 - Einsatzbereit über Funk<br>Live-GPS active`).addTo(map);
                             } else {
                                 window.vehicleSimMarkers['mzf'].setLatLng([mzfLat, mzfLng]);
                             }
@@ -4113,7 +4004,13 @@
                     try {
                         const res = await fetch('/api/users/me/stats?year=' + this.selectedYear, { credentials: 'include' });
                         if (res.ok) { this.personalStats = await res.json(); }
+                        const sRes = await fetch('/api/users/me/sessions?year=' + this.selectedYear, { credentials: 'include' });
+                        if (sRes.ok) { this.personalSessions = await sRes.json(); }
                     } catch(e) {}
+                },
+                getCityName() {
+                    const name = this.stationConfig.station_name || 'Neustadt';
+                    return name.replace(/feuerwehr/gi, '').trim() || 'Neustadt';
                 },
                 openSelfPasswordModal() {
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
@@ -4477,7 +4374,8 @@
                     }
                 }
             }
-        }).mount('#app');
+        });
+        window.vueApp = app.mount('#app');
 
         // Global function for map popup delete button
         window.deleteHydrant = async (id) => {
