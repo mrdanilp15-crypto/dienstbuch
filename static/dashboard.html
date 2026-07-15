@@ -1187,10 +1187,11 @@
                                     <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
                                         <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
                                         <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
-                                    </div>
                                 </div>
+                            </div>
                         </div>
                     </div>
+                </div>
                     <!-- SUBTAB: VEREIN (Vereinskasse & Inventar - Moved to Material) -->
                     <div v-show="materialSubTab === 'verein'">
                         <div class="row g-4">
@@ -1916,12 +1917,13 @@
                                     <div v-else class="text-muted">
                                         GPS-Tracker offline. Aktiviere den Schalter, um simulierte Echtzeit-Bewegungen auf der Karte einzublenden.
                                     </div>
-                                </div>
                             </div>
                         </div>
                     </div>
-
-                <!-- TAB: JUGENDFEUERWEHR -->
+                </div>
+            </div>
+            
+            <!-- TAB: JUGENDFEUERWEHR -->
                 <div v-show="activeTab === 'jugend'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
@@ -2494,6 +2496,27 @@
             </div>
         </div>
 
+        <!-- MODAL: SIGNATURE -->
+        <div class="modal fade" id="sigModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Unterschrift leisten</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="sig-wrapper shadow-inner mb-3">
+                            <canvas id="sigCanvas"></canvas>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-light flex-fill rounded-pill" @click="clearSig">Löschen</button>
+                            <button class="btn btn-premium flex-fill rounded-pill" @click="saveSig">Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: MISSION SIGNATURE -->
         <div class="modal fade" id="missionSigModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -3007,8 +3030,6 @@
         </div>
 
     </div>
-</div>
-</div>
 
     <script>
         const { createApp } = Vue;
