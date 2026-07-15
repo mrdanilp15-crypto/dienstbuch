@@ -122,6 +122,18 @@
             border: 1px solid rgba(183, 28, 28, 0.3);
             box-shadow: 0 0 10px rgba(183, 28, 28, 0.2);
         }
+        
+        .sidebar-section-header {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.35);
+            font-weight: 700;
+            padding: 14px 16px 6px 16px;
+            margin-top: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            margin-bottom: 4px;
+        }
 
         .group-item { 
             padding: 12px 20px; 
@@ -441,7 +453,7 @@
                 width: 280px; 
                 height: 100vh; 
                 z-index: 1050;
-                background: var(--body-bg);
+                background: #0f0f12;
                 transform: translateX(-100%);
                 transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 border-right: 1px solid var(--card-border);
@@ -453,7 +465,21 @@
                 transform: translateX(0);
             }
             body { overflow: auto; } 
-            .main-content { padding: 15px; width: 100%; } 
+            .main-content { padding: 12px; width: 100%; } 
+            
+            /* Responsive pill scrollbar hiding */
+            .nav-pills {
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                white-space: nowrap !important;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+                max-width: 100%;
+                padding-bottom: 4px;
+            }
+            .nav-pills::-webkit-scrollbar {
+                display: none;
+            }
         }
         [v-cloak] { display: none !important; }
 
@@ -488,6 +514,58 @@
             .main-content {
                 padding: 10px !important;
             }
+            
+            /* Compact custom scrollbars for mobile elements */
+            .table-responsive::-webkit-scrollbar, 
+            .list-group::-webkit-scrollbar, 
+            .sidebar-menu::-webkit-scrollbar {
+                width: 4px;
+                height: 4px;
+            }
+            .table-responsive::-webkit-scrollbar-thumb, 
+            .list-group::-webkit-scrollbar-thumb,
+            .sidebar-menu::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 2px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-nav {
+                padding: 6px 12px !important;
+            }
+            .top-nav .container-fluid {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            .brand-title {
+                font-size: 1.15rem !important;
+            }
+            /* Split Top-Nav elements on mobile for layout alignment */
+            .top-nav .d-flex.align-items-center.gap-3 {
+                width: 100%;
+                justify-content: space-between;
+                margin-top: 6px;
+                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                padding-top: 8px;
+            }
+            .top-nav .d-flex.gap-1.align-items-center {
+                background: transparent !important;
+                border: none !important;
+                padding: 0 !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            h2 { font-size: 1.4rem !important; }
+            h3 { font-size: 1.2rem !important; }
+            h5 { font-size: 1.0rem !important; }
+            
+            /* Stack forms vertically in single-column on tiny phones */
+            .row > * {
+                padding-left: 6px !important;
+                padding-right: 6px !important;
+            }
         }
     </style>
 </head>
@@ -520,22 +598,31 @@
         <div class="sidebar-overlay" :class="{'mobile-open': showMobileSidebar}" @click="showMobileSidebar = false"></div>
 
         <div class="app-container">
-            <!-- Sidebar -->
             <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
-                <div class="sidebar-menu flex-grow-1">
-                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
+                <div class="d-flex justify-content-between align-items-center p-3 d-lg-none border-bottom border-secondary border-opacity-10 bg-black bg-opacity-20">
+                    <span class="fw-bold text-white small"><i class="fa fa-fire-extinguisher text-danger me-2"></i>Dienstbuch</span>
+                    <button class="btn btn-sm btn-outline-danger px-2 py-1 border-0" @click="showMobileSidebar = false"><i class="fa fa-times"></i></button>
+                </div>
+                <div class="sidebar-menu flex-grow-1" style="overflow-y: auto;">
+                    <div class="sidebar-section-header">Einsatz & Taktik</div>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions(); showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; initMap(); showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
+
+                    <div class="sidebar-section-header">Organisation & Personal</div>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
+
+                    <div class="sidebar-section-header">Logistik & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-
-                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugend & Verein</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
+
+                    <div class="sidebar-section-header">System</div>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                 </div>
 
 
@@ -834,10 +921,13 @@
                             </button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" :class="materialSubTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'pruefungen'; loadWerkstattData()"><i class="fa fa-calendar-check me-1"></i>PSA & Prüffristen</button>
+                            <button class="nav-link" :class="materialSubTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'pruefungen'"><i class="fa fa-calendar-check me-1"></i>PSA & Prüffristen</button>
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" :class="materialSubTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'verein'; loadClubData()"><i class="fa fa-building-columns me-1"></i>Vereinskasse & Inventar</button>
                         </li>
                     </ul>
 
@@ -970,7 +1060,10 @@
                             <!-- Inspection planner list -->
                             <div class="col-12 col-lg-8">
                                 <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click="addPsaEquipment"><i class="fa fa-plus me-1"></i>Objekt anlegen</button>
+                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
                                             <thead>
@@ -981,6 +1074,7 @@
                                                     <th>Letzte Prüfung</th>
                                                     <th>Intervall</th>
                                                     <th>Status</th>
+                                                    <th v-if="role !== 'mannschaft'" class="text-end">Aktion</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -991,8 +1085,17 @@
                                                     <td>{{ item.lastTest }}</td>
                                                     <td>{{ item.interval }} Monate</td>
                                                     <td>
-                                                        <span class="badge" :class="item.status === 'OK' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
+                                                        <span class="badge" :class="item.status === 'OK' || item.status === 'Bestanden' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
                                                     </td>
+                                                    <td v-if="role !== 'mannschaft'" class="text-end">
+                                                        <div class="d-flex justify-content-end gap-1">
+                                                            <button class="btn btn-sm btn-outline-light p-1 border-0" @click="editEquipment(item.rawEq)" title="Bearbeiten"><i class="fa fa-edit"></i></button>
+                                                            <button class="btn btn-sm btn-outline-danger p-1 border-0" @click="deleteEquipmentFromSubtab(item.id)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="equipInspectSchedule.length === 0">
+                                                    <td colspan="7" class="text-center text-muted py-3">Keine Geräteprüfungen erfasst.</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1028,7 +1131,10 @@
                         <div class="row g-4">
                             <div class="col-12 col-lg-8">
                                 <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click="addFunkEquipment"><i class="fa fa-plus me-1"></i>Gerät anlegen</button>
+                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
                                             <thead>
@@ -1038,13 +1144,14 @@
                                                     <th>Funkrufname (BOS)</th>
                                                     <th>Akkustand</th>
                                                     <th>Ladezyklen</th>
+                                                    <th v-if="role !== 'mannschaft'" class="text-end">Aktion</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr v-for="dev in funkDevices" :key="dev.name">
                                                     <td><strong>{{ dev.name }}</strong></td>
                                                     <td>{{ dev.type }}</td>
-                                                    <td class="text-danger font-monospace">{{ dev.rufname.replace('Neustadt', getCityName()) }}</td>
+                                                    <td class="text-danger font-monospace">{{ dev.rufname }}</td>
                                                     <td>
                                                         <div class="d-flex align-items-center gap-2">
                                                             <div class="progress flex-grow-1" style="height: 6px;">
@@ -1054,6 +1161,15 @@
                                                         </div>
                                                     </td>
                                                     <td>{{ dev.ladezyklen }} Zyklen</td>
+                                                    <td v-if="role !== 'mannschaft'" class="text-end">
+                                                        <div class="d-flex justify-content-end gap-1">
+                                                            <button class="btn btn-sm btn-outline-light p-1 border-0" @click="editEquipment(dev.rawEq)" title="Bearbeiten"><i class="fa fa-edit"></i></button>
+                                                            <button class="btn btn-sm btn-outline-danger p-1 border-0" @click="deleteEquipmentFromSubtab(dev.id)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="funkDevices.length === 0">
+                                                    <td colspan="6" class="text-center text-muted py-3">Keine Funkgeräte erfasst.</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1072,6 +1188,86 @@
                                         <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
                                         <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    <!-- SUBTAB: VEREIN (Vereinskasse & Inventar - Moved to Material) -->
+                    <div v-show="materialSubTab === 'verein'">
+                        <div class="row g-4">
+                            <!-- Club finances and inventory -->
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4 mb-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Gegenstand</th>
+                                                    <th>Menge</th>
+                                                    <th>Zustand</th>
+                                                    <th v-if="role !== 'mannschaft'">Aktion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in clubInventory" :key="item.id">
+                                                    <td><strong>{{ item.item_name }}</strong></td>
+                                                    <td>{{ item.quantity }}x</td>
+                                                    <td><span class="badge bg-success">{{ item.status }}</span></td>
+                                                    <td v-if="role !== 'mannschaft'">
+                                                        <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="role !== 'mannschaft'">
+                                                    <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
+                                                    <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
+                                                    <td><span class="badge bg-success">OK</span></td>
+                                                    <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Spender / Mitglied</th>
+                                                    <th>Betrag</th>
+                                                    <th>Datum</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="d in clubDonations" :key="d.id">
+                                                    <td><strong>{{ d.donor }}</strong></td>
+                                                    <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
+                                                    <td>{{ d.formatted_date }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add donation form -->
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4 h-100">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Zahler / Spender</label>
+                                        <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Betrag (€)</label>
+                                        <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Datum</label>
+                                        <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
                                 </div>
                             </div>
                         </div>
@@ -1397,7 +1593,7 @@
                                                     <tr v-for="usr in systemUsers" :key="usr.id">
                                                         <td class="fw-bold text-white">{{ usr.username }}</td>
                                                         <td>
-                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='geratewart'?'bg-info text-dark':'bg-secondary'">{{ usr.role }}</span>
+                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':'bg-secondary'">{{ usr.role }}</span>
                                                         </td>
                                                         <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                         <td>
@@ -1443,12 +1639,14 @@
                                             <select v-if="editingUserId" v-model="editUserRole" class="form-select">
                                                 <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
                                                 <option value="geratewart">Gerätewart (Materialpflege)</option>
+                                                <option value="jugendwarte">Jugendwart (Jugend-Schreibrechte)</option>
                                                 <option value="leitung">Leitung (Schreibrechte)</option>
                                                 <option value="admin">Administrator (Vollzugriff)</option>
                                             </select>
                                             <select v-else v-model="newLogin.role" class="form-select">
                                                 <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
                                                 <option value="geratewart">Gerätewart (Materialpflege)</option>
+                                                <option value="jugendwarte">Jugendwart (Jugend-Schreibrechte)</option>
                                                 <option value="leitung">Leitung (Schreibrechte)</option>
                                                 <option value="admin">Administrator (Vollzugriff)</option>
                                             </select>
@@ -1702,6 +1900,10 @@
                             <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-2"><i class="fa fa-satellite-dish text-danger me-2"></i>Fahrzeug-Live-Tracking (GPS-Simulator)</h5>
                                 <p class="text-muted small mb-3">Visualisiere die realen Standorte der aktiven Einheiten im Ausrückebereich auf der Karte.</p>
+                                <div class="p-3 rounded-4 mb-3 border border-secondary border-opacity-10 small bg-black bg-opacity-20 text-muted">
+                                    <span class="text-info fw-bold d-block mb-1"><i class="fa fa-circle-info me-1"></i>Funktionsweise & Einstellungen</span>
+                                    Das System simuliert Echtzeit-GPS-Tracker der Fahrzeuge. Die Basis-Koordinaten orientieren sich am <strong>Wachen-Standort (Breiten- und Längengrad)</strong>, der in den globalen Einstellungen unter <strong>Verwaltung & VB &rarr; Standort-Einstellungen</strong> konfiguriert werden kann.
+                                </div>
                                 <div class="form-check form-switch mb-3 bg-black bg-opacity-20 p-2 border border-secondary border-opacity-10 rounded ps-5">
                                     <input class="form-check-input" type="checkbox" id="trackingSim" v-model="trackingSimActive" @change="toggleTrackingSim">
                                     <label class="form-check-label small fw-bold text-white" for="trackingSim">Live-Tracking für HLF 20 und MZF aktivieren</label>
@@ -1718,25 +1920,22 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                </div>
-
-                <!-- TAB: JUGEND & VEREIN -->
+                <!-- TAB: JUGENDFEUERWEHR -->
                 <div v-show="activeTab === 'jugend'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugend & Feuerwehrverein</h2>
-                            <small class="text-muted">Mitgliederverwaltung der Jugendfeuerwehr und Kassenwesen/Inventar des Vereins</small>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr</h2>
+                            <small class="text-muted">Mitgliederverwaltung und Dienstberichte der Jugendgruppe</small>
                         </div>
                     </div>
 
                     <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 16px; padding: 8px; display: inline-flex;">
                         <li class="nav-item">
-                            <button class="nav-link" :class="jugendTab === 'members' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'members'"><i class="fa fa-users-gear me-1"></i>Jugendfeuerwehr</button>
+                            <button class="nav-link" :class="jugendTab === 'members' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'members'"><i class="fa fa-users-gear me-1"></i>Jugendfeuerwehr-Mitglieder</button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" :class="jugendTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'verein'"><i class="fa fa-building-columns me-1"></i>Vereinsverwaltung</button>
+                            <button class="nav-link" :class="jugendTab === 'sessions' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'sessions'"><i class="fa fa-book me-1"></i>Dienstberichte & Berichte</button>
                         </li>
                     </ul>
 
@@ -1785,83 +1984,73 @@
                         </div>
                     </div>
 
-                    <!-- SUBTAB: VEREIN -->
-                    <div v-show="jugendTab === 'verein'">
+                    <!-- SUBTAB: DIENSTBERICHTE (JUGEND) -->
+                    <div v-show="jugendTab === 'sessions'">
                         <div class="row g-4">
-                            <!-- Club finances and inventory -->
-                            <div class="col-12 col-lg-8">
-                                <div class="card premium-card p-4 mb-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Gegenstand</th>
-                                                    <th>Menge</th>
-                                                    <th>Zustand</th>
-                                                    <th>Aktion</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="item in clubInventory" :key="item.id">
-                                                    <td><strong>{{ item.item_name }}</strong></td>
-                                                    <td>{{ item.quantity }}x</td>
-                                                    <td><span class="badge bg-success">{{ item.status }}</span></td>
-                                                    <td>
-                                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
-                                                    </td>
-                                                </tr>
-                                                <tr v-if="role !== 'mannschaft'">
-                                                    <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
-                                                    <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
-                                                    <td><span class="badge bg-success">OK</span></td>
-                                                    <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
+                            <!-- Sessions list -->
+                            <div class="col-12 col-lg-7">
                                 <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Spender / Mitglied</th>
-                                                    <th>Betrag</th>
-                                                    <th>Datum</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="d in clubDonations" :key="d.id">
-                                                    <td><strong>{{ d.donor }}</strong></td>
-                                                    <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
-                                                    <td>{{ d.formatted_date }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-book text-danger me-2"></i>Jugend-Dienstberichte</h5>
+                                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                                        <div v-for="s in youthSessions" :key="s.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="fw-bold text-white m-0">{{ s.topic }}</h6>
+                                                <small class="text-muted">{{ s.date }} &bull; {{ s.duration }}h</small>
+                                            </div>
+                                            <div class="small mb-2 text-white">Ausbilder: <span class="text-muted">{{ s.instructors || 'Keine Angabe' }}</span></div>
+                                            <p class="small text-muted mb-2">{{ s.description || 'Keine Beschreibung vorhanden' }}</p>
+                                            <div class="mb-2">
+                                                <small class="fw-bold text-white d-block mb-1">Anwesende Jugendliche:</small>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    <span v-for="att in s.attendance" :key="att.member_id" class="badge" :class="att.is_present ? 'bg-success' : 'bg-outline-secondary text-muted'" style="font-size:0.65rem;">
+                                                        {{ att.name }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0 mt-2" @click="deleteYouthSession(s.id)"><i class="fa fa-trash me-1"></i>Dienstbericht löschen</button>
+                                        </div>
+                                        <div v-if="youthSessions.length === 0" class="text-center py-4 text-muted">Keine Dienstberichte erfasst.</div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Add donation form -->
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4 h-100">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
+                            <!-- Add session form -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Dienstbericht erfassen</h5>
                                     <div class="mb-3">
-                                        <label class="form-label text-white">Zahler / Spender</label>
-                                        <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
+                                        <label class="form-label text-white">Datum des Dienstes</label>
+                                        <input type="date" v-model="newYouthSession.date" class="form-control bg-dark border-secondary text-white" required>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label text-white">Betrag (€)</label>
-                                        <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
+                                        <label class="form-label text-white">Thema / Inhalt</label>
+                                        <input type="text" v-model="newYouthSession.topic" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Fahrzeugkunde HLF 20" required>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label text-white">Datum</label>
-                                        <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
+                                        <label class="form-label text-white">Dauer (Std)</label>
+                                        <input type="number" step="0.5" v-model="newYouthSession.duration" class="form-control bg-dark border-secondary text-white" required>
                                     </div>
-                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Ausbilder / Jugendwarte</label>
+                                        <input type="text" v-model="newYouthSession.instructors" class="form-control bg-dark border-secondary text-white" placeholder="z. B. J. Schmidt" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Dienstbericht / Ablauf</label>
+                                        <textarea v-model="newYouthSession.description" class="form-control bg-dark border-secondary text-white" rows="3" placeholder="Ablauf und Ausbildungsinhalte beschreiben..."></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white fw-bold d-block mb-2">Anwesenheit der Jugendlichen</label>
+                                        <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10" style="max-height: 200px; overflow-y: auto;">
+                                            <div v-for="ym in youthMembers" :key="ym.id" class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" :id="'ym-att-' + ym.id" v-model="newYouthSession.attendance[ym.id]">
+                                                <label class="form-check-label text-white small" :for="'ym-att-' + ym.id">
+                                                    {{ ym.name }}
+                                                </label>
+                                            </div>
+                                            <div v-if="youthMembers.length === 0" class="text-muted small text-center">Keine Jugendmitglieder vorhanden.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitYouthSession"><i class="fa fa-save me-2"></i>Dienstbericht speichern</button>
                                 </div>
                             </div>
                         </div>
@@ -2942,6 +3131,8 @@
                     jugendTab: 'members',
                     youthMembers: [],
                     newYouth: { name: '', parent_contact: '', badges: '' },
+                    youthSessions: [],
+                    newYouthSession: { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} },
                     
                     clubTab: 'inventory',
                     clubInventory: [],
@@ -2956,23 +3147,62 @@
                     newHvoCheck: { device_name: '' },
                     
                     werkstattTab: 'pruefungen',
-                    equipInspectSchedule: [
-                        { name: 'Atemschutzgerät (Dräger)', category: 'Atemschutz', lastTest: '2026-03-12', interval: 6, status: 'OK', barcode: 'EQ-AGT-01' },
-                        { name: '4-teilige Steckleiter (Alu)', category: 'Leitern', lastTest: '2025-11-20', interval: 12, status: 'Prüfung fällig', barcode: 'EQ-LEI-04' },
-                        { name: 'Kreiselpumpe (FPN 10-2000)', category: 'Pumpen', lastTest: '2026-05-02', interval: 12, status: 'OK', barcode: 'EQ-PMP-02' },
-                        { name: 'Tragkraftspritze (TS 8/8)', category: 'Pumpen', lastTest: '2025-08-10', interval: 12, status: 'Prüfung fällig', barcode: 'EQ-PMP-08' },
-                        { name: 'Stromerzeuger (Honda)', category: 'Aggregate', lastTest: '2026-01-15', interval: 6, status: 'OK', barcode: 'EQ-AGG-03' }
-                    ],
-                    funkDevices: [
-                        { name: 'HRT 1 (Ausrüstung)', type: 'HRT (Handfunkgerät)', rufname: 'Florian Neustadt 40/1 - Hand 1', akku: 92, ladezyklen: 110 },
-                        { name: 'HRT 2 (Ausrüstung)', type: 'HRT (Handfunkgerät)', rufname: 'Florian Neustadt 40/1 - Hand 2', akku: 85, ladezyklen: 140 },
-                        { name: 'MRT 1 (Fahrzeug)', type: 'MRT (Fahrzeugfunk)', rufname: 'Florian Neustadt 40/1 - MRT', akku: 100, ladezyklen: 10 }
-                    ],
                     qrScanInput: '',
                     scannedQrObject: null
                 }
             },
             computed: {
+                equipInspectSchedule() {
+                    if (!this.equipment) return [];
+                    return this.equipment.filter(eq => eq && eq.interval_months > 0 && eq.category !== 'Funk' && eq.category !== 'Funkgerät' && eq.category !== 'TETRA').map(eq => {
+                        let status = 'OK';
+                        if (eq.next_inspection) {
+                            const nextDate = new Date(eq.next_inspection);
+                            const today = new Date();
+                            if (nextDate < today) {
+                                status = 'Prüfung fällig';
+                            }
+                        }
+                        return {
+                            id: eq.id,
+                            barcode: eq.barcode,
+                            name: eq.name,
+                            category: eq.category,
+                            lastTest: eq.last_inspection || 'Nie',
+                            interval: eq.interval_months,
+                            status: eq.current_status !== 'Bestanden' ? eq.current_status : status,
+                            rawEq: eq
+                        };
+                    });
+                },
+                funkDevices() {
+                    if (!this.equipment) return [];
+                    return this.equipment.filter(eq => eq && (eq.category === 'Funk' || eq.category === 'Funkgerät' || eq.category === 'TETRA')).map(eq => {
+                        let type = 'HRT (Handfunkgerät)';
+                        if (eq.name.toLowerCase().includes('mrt') || eq.name.toLowerCase().includes('fahrzeug')) {
+                            type = 'MRT (Fahrzeugfunk)';
+                        }
+                        let rufname = `Florian ${this.getCityName()} - ${eq.name}`;
+                        let akku = 100;
+                        let ladezyklen = 0;
+                        if (eq.barcode) {
+                            let sum = 0;
+                            for (let i = 0; i < eq.barcode.length; i++) sum += eq.barcode.charCodeAt(i);
+                            akku = 70 + (sum % 31);
+                            ladezyklen = 10 + (sum % 200);
+                        }
+                        return {
+                            id: eq.id,
+                            barcode: eq.barcode,
+                            name: eq.name,
+                            type: type,
+                            rufname: rufname,
+                            akku: akku,
+                            ladezyklen: ladezyklen,
+                            rawEq: eq
+                        };
+                    });
+                },
                 sessions() {
                     if (!this.sessionsList) return [];
                     return this.sessionsList.filter(s => s && s.date && s.category !== 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
@@ -3359,6 +3589,7 @@
                     const res = await fetch('/api/material/equipment', { credentials: 'include' });
                     if(res.ok) this.equipment = await res.json();
                     await this.loadDefectReports();
+                    await this.loadClubData();
                 },
                 openEquipmentModal() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null };
@@ -3859,16 +4090,15 @@
                 },
                 
                 // Jugend & Verein Module
+                // Jugendfeuerwehr Module
                 async loadJugendData() {
                     try {
-                        const [yRes, iRes, dRes] = await Promise.all([
+                        const [yRes, sRes] = await Promise.all([
                             fetch('/api/jugend/members', { credentials: 'include' }),
-                            fetch('/api/verein/inventory', { credentials: 'include' }),
-                            fetch('/api/verein/donations', { credentials: 'include' })
+                            fetch('/api/jugend/sessions', { credentials: 'include' })
                         ]);
                         if(yRes.ok) this.youthMembers = await yRes.json();
-                        if(iRes.ok) this.clubInventory = await iRes.json();
-                        if(dRes.ok) this.clubDonations = await dRes.json();
+                        if(sRes.ok) this.youthSessions = await sRes.json();
                     } catch(err) { console.error(err); }
                 },
                 async submitYouthMember() {
@@ -3889,6 +4119,47 @@
                         if(res.ok) await this.loadJugendData();
                     }
                 },
+                async submitYouthSession() {
+                    const payload = {
+                        date: this.newYouthSession.date,
+                        topic: this.newYouthSession.topic,
+                        duration: parseFloat(this.newYouthSession.duration),
+                        instructors: this.newYouthSession.instructors,
+                        description: this.newYouthSession.description,
+                        attendance: this.newYouthSession.attendance
+                    };
+                    const res = await fetch('/api/jugend/sessions', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+                    if(res.ok) {
+                        this.newYouthSession = { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
+                        await this.loadJugendData();
+                        alert("Dienstbericht erfolgreich gespeichert!");
+                    } else {
+                        alert("Fehler beim Speichern des Dienstberichts.");
+                    }
+                },
+                async deleteYouthSession(id) {
+                    if (confirm("Dienstbericht wirklich löschen?")) {
+                        const res = await fetch(`/api/jugend/sessions/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) await this.loadJugendData();
+                    }
+                },
+
+                // Vereinsverwaltung Module (Moved to Material)
+                async loadClubData() {
+                    try {
+                        const [iRes, dRes] = await Promise.all([
+                            fetch('/api/verein/inventory', { credentials: 'include' }),
+                            fetch('/api/verein/donations', { credentials: 'include' })
+                        ]);
+                        if(iRes.ok) this.clubInventory = await iRes.json();
+                        if(dRes.ok) this.clubDonations = await dRes.json();
+                    } catch(err) { console.error(err); }
+                },
                 async submitClubItem() {
                     const res = await fetch('/api/verein/inventory', {
                         method: 'POST',
@@ -3898,13 +4169,13 @@
                     });
                     if(res.ok) {
                         this.newClubItem = { item_name: '', quantity: 1, status: 'OK' };
-                        await this.loadJugendData();
+                        await this.loadClubData();
                     }
                 },
                 async deleteClubItem(id) {
                     if(confirm("Vereins-Inventargegenstand löschen?")) {
                         const res = await fetch(`/api/verein/inventory/${id}`, { method: 'DELETE', credentials: 'include' });
-                        if(res.ok) await this.loadJugendData();
+                        if(res.ok) await this.loadClubData();
                     }
                 },
                 async submitDonation() {
@@ -3916,7 +4187,7 @@
                     });
                     if(res.ok) {
                         this.newDonation = { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] };
-                        await this.loadJugendData();
+                        await this.loadClubData();
                     }
                 },
                 
@@ -3977,7 +4248,6 @@
                     } catch(err) { console.error(err); }
                 },
                 
-                // Werkstatt Scanner Simulator
                 scanQrCodeSim() {
                     const code = this.qrScanInput.trim();
                     if (!code) return;
@@ -3989,13 +4259,67 @@
                         this.scannedQrObject = null;
                     }
                 },
-                confirmQrCheck() {
-                    if (this.scannedQrObject) {
-                        this.scannedQrObject.lastTest = new Date().toISOString().split('T')[0];
-                        this.scannedQrObject.status = 'OK';
-                        alert(`Prüfung für ${this.scannedQrObject.name} erfolgreich erfasst.`);
-                        this.scannedQrObject = null;
-                        this.qrScanInput = '';
+                async confirmQrCheck() {
+                    if (this.scannedQrObject && this.scannedQrObject.rawEq) {
+                        const eq = this.scannedQrObject.rawEq;
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        let nextDateStr = null;
+                        if (eq.interval_months) {
+                            const d = new Date();
+                            d.setMonth(d.getMonth() + eq.interval_months);
+                            nextDateStr = d.toISOString().split('T')[0];
+                        }
+                        const res = await fetch(`/api/material/equipment/${eq.id}/inspections`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                date: todayStr,
+                                inspector: this.username || 'System',
+                                status: 'Bestanden',
+                                note: 'Automatische QR-Code Prüfung'
+                            })
+                        });
+                        if (res.ok) {
+                            const updatePayload = {
+                                name: eq.name,
+                                barcode: eq.barcode,
+                                category: eq.category,
+                                image_url: eq.image_url,
+                                manual_url: eq.manual_url,
+                                interval_months: eq.interval_months,
+                                last_inspection: todayStr,
+                                next_inspection: nextDateStr
+                            };
+                            await fetch(`/api/material/equipment/${eq.id}`, {
+                                method: 'PUT',
+                                headers: {'Content-Type': 'application/json'},
+                                credentials: 'include',
+                                body: JSON.stringify(updatePayload)
+                            });
+                            await this.loadEquipment();
+                            alert(`Prüfung für ${eq.name} erfolgreich erfasst.`);
+                            this.scannedQrObject = null;
+                            this.qrScanInput = '';
+                        } else {
+                            alert("Fehler beim Übermitteln der Prüfung.");
+                        }
+                    }
+                },
+                addPsaEquipment() {
+                    this.activeEquipment = { id: null, name: '', barcode: '', category: 'Atemschutz', image_url: '', manual_url: '', interval_months: 12, last_inspection: null, next_inspection: null };
+                    new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                },
+                addFunkEquipment() {
+                    this.activeEquipment = { id: null, name: '', barcode: '', category: 'Funkgerät', image_url: '', manual_url: '', interval_months: 0, last_inspection: null, next_inspection: null };
+                    new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                },
+                async deleteEquipmentFromSubtab(id) {
+                    if (confirm("Gerät permanent aus der Datenbank löschen? All seine Prüf- und Mängeldaten gehen verloren!")) {
+                        const res = await fetch(`/api/material/equipment/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) {
+                            await this.loadEquipment();
+                        }
                     }
                 },
 

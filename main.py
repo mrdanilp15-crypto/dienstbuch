@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import uuid
 import shutil
 
@@ -33,10 +33,16 @@ SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112"
 app = FastAPI()
 
 # Statische Ordnerstruktur absichern
+if os.path.exists("/app/data") or os.name != 'nt':
+    UPLOAD_DIR = "/app/data/uploads"
+else:
+    UPLOAD_DIR = os.path.join("static", "uploads")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 if not os.path.exists("static"):
     os.makedirs("static")
-if not os.path.exists("static/uploads"):
-    os.makedirs("static/uploads")
+
+app.mount("/static/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Externe Router einbinden
@@ -337,6 +343,25 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        cur.execute("SELECT COUNT(*) FROM equipment")
+        if cur.fetchone()[0] == 0:
+            default_eqs = [
+                ('Atemschutzgerät (Dräger)', 'EQ-AGT-01', 'Atemschutz', 6, '2026-03-12', '2026-09-12'),
+                ('4-teilige Steckleiter (Alu)', 'EQ-LEI-04', 'Leitern', 12, '2025-11-20', '2026-11-20'),
+                ('Kreiselpumpe (FPN 10-2000)', 'EQ-PMP-02', 'Pumpen', 12, '2026-05-02', '2027-05-02'),
+                ('Tragkraftspritze (TS 8/8)', 'EQ-PMP-08', 'Pumpen', 12, '2025-08-10', '2026-08-10'),
+                ('Stromerzeuger (Honda)', 'EQ-AGG-03', 'Aggregate', 6, '2026-01-15', '2026-07-15'),
+                ('HRT 1 (Ausrüstung)', 'EQ-FUNK-01', 'Funkgerät', 0, None, None),
+                ('HRT 2 (Ausrüstung)', 'EQ-FUNK-02', 'Funkgerät', 0, None, None),
+                ('MRT 1 (Fahrzeug)', 'EQ-FUNK-03', 'Funkgerät', 0, None, None)
+            ]
+            for name, barcode, cat, interval, last, next_i in default_eqs:
+                cur.execute("""
+                    INSERT INTO equipment (name, barcode, category, interval_months, last_inspection, next_inspection)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (name, barcode, cat, interval, last, next_i))
+            conn.commit()
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS equipment_inspections (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -517,6 +542,29 @@ def init_db_extensions():
                 checked_at DATE NOT NULL,
                 status VARCHAR(50) DEFAULT 'OK',
                 checked_by VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS youth_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                topic VARCHAR(255) NOT NULL,
+                duration DECIMAL(5,2) NOT NULL,
+                instructors VARCHAR(255) NULL,
+                description TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS youth_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                member_id INT NOT NULL,
+                is_present BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (session_id) REFERENCES youth_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (member_id) REFERENCES youth_members(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         """)
 
@@ -889,7 +937,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     
     ext = os.path.splitext(file.filename)[1]
     filename = f"{uuid.uuid4()}{ext}"
-    filepath = os.path.join("static", "uploads", filename)
+    filepath = os.path.join(UPLOAD_DIR, filename)
     
     with open(filepath, "wb") as buffer:
         content = await file.read()
@@ -907,7 +955,7 @@ async def upload_archive_file(request: Request, file: UploadFile = File(...), is
     
     ext = os.path.splitext(file.filename)[1]
     filename = f"{uuid.uuid4()}{ext}"
-    filepath = os.path.join("static", "uploads", filename)
+    filepath = os.path.join(UPLOAD_DIR, filename)
     
     with open(filepath, "wb") as buffer:
         content = await file.read()
@@ -1632,7 +1680,7 @@ def get_youth_members(request: Request):
 @app.post("/api/jugend/members")
 def add_youth_member(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     name = data.get("name")
     parent = data.get("parent_contact", "")
@@ -1646,10 +1694,70 @@ def add_youth_member(data: dict, request: Request):
 @app.delete("/api/jugend/members/{m_id}")
 def delete_youth_member(m_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM youth_members WHERE id = %s", (m_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- JUGEND-DIENSTBERICHTE ---
+@app.get("/api/jugend/sessions")
+def get_youth_sessions(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM youth_sessions ORDER BY date DESC, id DESC")
+    sessions = cur.fetchall()
+    for s in sessions:
+        if isinstance(s["date"], date):
+            s["date"] = str(s["date"])
+        cur.execute("""
+            SELECT ya.member_id, ya.is_present, ym.name
+            FROM youth_attendance ya
+            JOIN youth_members ym ON ya.member_id = ym.id
+            WHERE ya.session_id = %s
+        """, (s["id"],))
+        s["attendance"] = cur.fetchall()
+    cur.close(); conn.close()
+    return sessions
+
+@app.post("/api/jugend/sessions")
+def add_youth_session(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    sess_date = data.get("date")
+    topic = data.get("topic")
+    duration = float(data.get("duration", 2.0))
+    instructors = data.get("instructors", "")
+    description = data.get("description", "")
+    attendance = data.get("attendance", {})
+    if not sess_date or not topic:
+        raise HTTPException(status_code=400, detail="Datum und Thema erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO youth_sessions (date, topic, duration, instructors, description)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (sess_date, topic, duration, instructors, description))
+    session_id = cur.lastrowid
+    cur.execute("SELECT id FROM youth_members")
+    member_ids = [row[0] for row in cur.fetchall()]
+    for m_id in member_ids:
+        is_pres = attendance.get(str(m_id)) or attendance.get(m_id) or False
+        cur.execute("""
+            INSERT INTO youth_attendance (session_id, member_id, is_present)
+            VALUES (%s, %s, %s)
+        """, (session_id, m_id, 1 if is_pres else 0))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success", "session_id": session_id}
+
+@app.delete("/api/jugend/sessions/{s_id}")
+def delete_youth_session(s_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM youth_sessions WHERE id = %s", (s_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
