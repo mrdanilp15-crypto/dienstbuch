@@ -604,16 +604,16 @@
                     <button class="btn btn-sm btn-outline-danger px-2 py-1 border-0" @click="showMobileSidebar = false"><i class="fa fa-times"></i></button>
                 </div>
                 <div class="sidebar-menu flex-grow-1" style="overflow-y: auto;">
+                    <div class="sidebar-section-header">Organisation & Personal</div>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
+
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions(); showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; initMap(); showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
-
-                    <div class="sidebar-section-header">Organisation & Personal</div>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
 
                     <div class="sidebar-section-header">Logistik & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
@@ -1189,8 +1189,8 @@
                                         <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
                                     </div>
                                 </div>
-                            </div>
                         </div>
+                    </div>
                     <!-- SUBTAB: VEREIN (Vereinskasse & Inventar - Moved to Material) -->
                     <div v-show="materialSubTab === 'verein'">
                         <div class="row g-4">
@@ -3007,6 +3007,8 @@
         </div>
 
     </div>
+</div>
+</div>
 
     <script>
         const { createApp } = Vue;
