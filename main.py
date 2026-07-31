@@ -604,6 +604,14 @@ def init_db_extensions():
         except Exception as mig_err:
             print("Fehler bei defect reports Migration:", mig_err)
 
+        # Migration für Einsatzberichte (Gruppe / Einheit)
+        try:
+            cur.execute("SHOW COLUMNS FROM missions LIKE 'group_id'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE missions ADD COLUMN group_id INT NULL")
+        except Exception as m_err:
+            print("Fehler bei missions group_id Migration:", m_err)
+
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -1409,7 +1417,8 @@ def get_stats(id: int, year: int, request: Request):
                    JOIN missions m ON ma.mission_id = m.id
                    JOIN personnel pl ON ma.personnel_id = pl.id
                    WHERE pl.name = p.name 
-                     AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
+                     AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
+                     AND ma.is_present IS NOT NULL
                      AND YEAR(m.date) = %s
                ), 0) as mission_hours
         FROM persons p 
@@ -1622,14 +1631,14 @@ def get_my_global_fire_stats(year: int, request: Request):
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_hours,
             COALESCE((
                 SELECT COUNT(DISTINCT m.id) 
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_count
     """
     cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
@@ -1675,7 +1684,7 @@ def get_my_sessions(year: int, request: Request):
             FROM mission_attendance ma
             JOIN missions m ON ma.mission_id = m.id
             JOIN personnel pl ON ma.personnel_id = pl.id
-            WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
+            WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
         """, (klarnat_name, year))
         m_sessions = cur.fetchall()
         sessions.extend(m_sessions)
