@@ -1943,216 +1943,49 @@
                         </li>
                     </ul>
 
-                    <!-- SUBTAB: JUGEND -->
+                    <!-- SUBTAB: JUGEND MITGLIEDER (Optik wie Personalverwaltung) -->
                     <div v-show="jugendTab === 'members'">
-                        <div class="row g-4">
-                            <!-- Youth list -->
-                            <div class="col-12 col-lg-7">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendgruppe & Personalakten</h5>
-                                    <div class="list-group list-group-flush" style="max-height: 650px; overflow-y: auto;">
-                                        <div v-for="ym in youthMembers" :key="ym.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-start flex-wrap gap-2">
-                                            <div class="flex-grow-1">
-                                                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                                                    <h6 class="fw-bold text-white m-0 fs-5">{{ ym.name }}</h6>
-                                                    <span v-if="calculateAge(ym.birth_date)" class="badge bg-info text-dark fw-bold">{{ calculateAge(ym.birth_date) }} Jahre</span>
-                                                    <span v-if="ym.birth_date" class="badge bg-dark border border-secondary text-muted">Geb. {{ ym.birth_date }}</span>
-                                                    <span v-if="ym.entry_date" class="badge bg-dark border border-secondary text-muted"><i class="fa fa-calendar me-1"></i>Eintritt {{ ym.entry_date }}</span>
-                                                </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <div>
+                                <h5 class="fw-bold text-white mb-0"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr-Mitglieder</h5>
+                                <small class="text-muted">Übersicht der Jugendgruppe & Akten</small>
+                            </div>
+                            <button v-if="role !== 'mannschaft'" class="btn btn-premium btn-sm rounded-pill px-3" @click="openNewYouthModal">
+                                <i class="fa fa-user-plus me-1"></i>Jugendlichen anlegen
+                            </button>
+                        </div>
 
-                                                <div class="small text-muted mb-1">
-                                                    <span v-if="ym.parent_contact"><i class="fa fa-user-shield text-warning me-1"></i>Eltern: <strong>{{ ym.parent_contact }}</strong></span>
-                                                    <span v-if="ym.phone" class="ms-2"><i class="fa fa-phone text-success me-1"></i>{{ ym.phone }}</span>
-                                                    <span v-if="ym.email" class="ms-2"><i class="fa fa-envelope text-info me-1"></i>{{ ym.email }}</span>
-                                                </div>
-                                                <div v-if="ym.address" class="small text-muted mb-1"><i class="fa fa-location-dot text-danger me-1"></i>{{ ym.address }}</div>
-                                                
-                                                <!-- Führerscheine -->
-                                                <div class="mt-2" v-if="ym.lic_am || ym.lic_a1 || ym.lic_b || ym.lic_l || ym.lic_t">
-                                                    <small class="text-muted fw-bold me-1">Führerschein:</small>
-                                                    <span v-if="ym.lic_am" class="badge bg-secondary me-1">AM</span>
-                                                    <span v-if="ym.lic_a1" class="badge bg-secondary me-1">A1</span>
-                                                    <span v-if="ym.lic_b" class="badge bg-warning text-dark fw-bold me-1">B (BF17)</span>
-                                                    <span v-if="ym.lic_l" class="badge bg-secondary me-1">L</span>
-                                                    <span v-if="ym.lic_t" class="badge bg-secondary me-1">T</span>
-                                                </div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-6">
+                                <input type="text" v-model="youthSearch" class="form-control" placeholder="Jugendlichen suchen...">
+                            </div>
+                        </div>
 
-                                                <!-- Ausbildungsstand & Abzeichen -->
-                                                <div class="mt-2 d-flex flex-wrap gap-1">
-                                                    <span v-if="ym.has_jf1" class="badge bg-success"><i class="fa fa-award me-1"></i>JF 1</span>
-                                                    <span v-if="ym.has_jf2" class="badge bg-success"><i class="fa fa-award me-1"></i>JF 2</span>
-                                                    <span v-if="ym.has_jf3" class="badge bg-success"><i class="fa fa-award me-1"></i>JF 3</span>
-                                                    <span v-if="ym.has_wissentest" class="badge bg-primary"><i class="fa fa-certificate me-1"></i>Wissenstest</span>
-                                                    <span v-if="ym.has_leistungsspange" class="badge bg-danger"><i class="fa fa-star me-1"></i>Leistungsspange</span>
-                                                    <span v-if="ym.has_jugendabzeichen" class="badge bg-warning text-dark"><i class="fa fa-shield me-1"></i>Jugendleistungsabzeichen</span>
-                                                    <span v-if="ym.has_mta_basis" class="badge bg-danger text-white fw-bold"><i class="fa fa-fire me-1"></i>MTA Basis</span>
-                                                    <span v-if="ym.has_erste_hilfe" class="badge bg-info text-dark"><i class="fa fa-kit-medical me-1"></i>Erste Hilfe</span>
-                                                    <span v-if="ym.has_funk" class="badge bg-dark border border-secondary text-white"><i class="fa fa-walkie-talkie me-1"></i>Funk</span>
-                                                    <span class="badge bg-dark border border-secondary text-light me-1" v-for="b in (ym.badges || '').split(',').filter(x => x.trim())"><i class="fa fa-award me-1"></i>{{ b.trim() }}</span>
-                                                </div>
-
-                                                <!-- Was er/sie schon alles kann -->
-                                                <div v-if="ym.skills" class="small text-light bg-black bg-opacity-40 p-2 rounded-3 mt-2 border border-secondary border-opacity-10">
-                                                    <i class="fa fa-screwdriver-wrench text-warning me-1"></i><strong>Fertigkeiten & Können:</strong> {{ ym.skills }}
-                                                </div>
-
-                                                <div v-if="ym.notes" class="small text-warning bg-black bg-opacity-30 p-2 rounded-3 mt-2 border border-secondary border-opacity-10">
-                                                    <i class="fa fa-notes-medical me-1"></i><strong>Notiz / Notfallhinweise:</strong> {{ ym.notes }}
-                                                </div>
-                                            </div>
-
-                                            <div class="d-flex gap-1" v-if="role !== 'mannschaft'">
-                                                <button class="btn btn-xs btn-warning text-dark rounded-pill px-2 fw-bold border-0" @click="editYouthMember(ym)" title="Akte bearbeiten"><i class="fa fa-pen me-1"></i> Akte bearbeiten</button>
-                                                <button class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteYouthMember(ym.id)" title="Löschen"><i class="fa fa-trash"></i></button>
-                                            </div>
-                                        </div>
-                                        <div v-if="youthMembers.length === 0" class="text-center py-4 text-muted">Keine Jugendmitglieder erfasst.</div>
+                        <div class="person-grid">
+                            <div v-for="ym in filteredYouthMembers" :key="ym.id" class="member-card d-flex align-items-center gap-3" @click="editYouthMember(ym)" style="cursor: pointer;">
+                                <div class="avatar-container">
+                                    <div class="w-100 h-100 d-flex align-items-center justify-content-center bg-black bg-opacity-40 text-danger fs-3" style="border-radius: 50%;">
+                                        <i class="fa fa-child-reaching"></i>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Add & Edit youth form -->
-                            <div class="col-12 col-lg-5">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3">
-                                        <i class="fa" :class="editingYouthId ? 'fa-pen-to-square text-warning me-2' : 'fa-plus text-danger me-2'"></i>
-                                        <span v-if="editingYouthId">Jugend-Personalakte bearbeiten</span>
-                                        <span v-else>Neue Jugend-Personalakte anlegen</span>
-                                    </h5>
-                                    
-                                    <!-- Stammdaten -->
-                                    <h6 class="text-danger fw-bold border-bottom border-secondary border-opacity-10 pb-1 mb-2">1. Stammdaten</h6>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Name des Jugendlichen *</label>
-                                        <input type="text" v-model="newYouth.name" class="form-control bg-dark border-secondary text-white" placeholder="Vorname Nachname" required>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="fw-bold m-0 text-white">{{ ym.name }}</h6>
+                                        <span v-if="calculateAge(ym.birth_date)" class="badge bg-info text-dark fw-bold">{{ calculateAge(ym.birth_date) }} J.</span>
                                     </div>
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-6">
-                                            <label class="form-label text-white">Geburtsdatum</label>
-                                            <input type="date" v-model="newYouth.birth_date" class="form-control bg-dark border-secondary text-white">
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label text-white">Eintrittsdatum</label>
-                                            <input type="date" v-model="newYouth.entry_date" class="form-control bg-dark border-secondary text-white">
-                                        </div>
-                                    </div>
-
-                                    <!-- Kontaktdaten & Notfall -->
-                                    <h6 class="text-danger fw-bold border-bottom border-secondary border-opacity-10 pb-1 mb-2 mt-3">2. Erziehungsberechtigte & Notfall</h6>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Elternkontakt (Erziehungsberechtigte)</label>
-                                        <input type="text" v-model="newYouth.parent_contact" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Max Mustermann (Vater)">
-                                    </div>
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-6">
-                                            <label class="form-label text-white">Notfall-Telefon</label>
-                                            <input type="text" v-model="newYouth.phone" class="form-control bg-dark border-secondary text-white" placeholder="0170/1234567">
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label text-white">E-Mail-Adresse</label>
-                                            <input type="email" v-model="newYouth.email" class="form-control bg-dark border-secondary text-white" placeholder="eltern@beispiel.de">
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Anschrift / Wohnort</label>
-                                        <input type="text" v-model="newYouth.address" class="form-control bg-dark border-secondary text-white" placeholder="Musterstraße 1, 12345 Ort">
-                                    </div>
-
-                                    <!-- Führerscheine -->
-                                    <h6 class="text-danger fw-bold border-bottom border-secondary border-opacity-10 pb-1 mb-2 mt-3">3. Führerschein-Klassen</h6>
-                                    <div class="d-flex flex-wrap gap-3 mb-3 bg-black bg-opacity-20 p-2 rounded-3 border border-secondary border-opacity-10">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="lic_am" v-model="newYouth.lic_am">
-                                            <label class="form-check-label text-white small" for="lic_am">AM (Moped)</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="lic_a1" v-model="newYouth.lic_a1">
-                                            <label class="form-check-label text-white small" for="lic_a1">A1 (125ccm)</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="lic_b" v-model="newYouth.lic_b">
-                                            <label class="form-check-label text-white small" for="lic_b">B (BF17 / Auto)</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="lic_l" v-model="newYouth.lic_l">
-                                            <label class="form-check-label text-white small" for="lic_l">L</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="lic_t" v-model="newYouth.lic_t">
-                                            <label class="form-check-label text-white small" for="lic_t">T (Traktor)</label>
-                                        </div>
-                                    </div>
-
-                                    <!-- Ausbildungsstand & Abzeichen -->
-                                    <h6 class="text-danger fw-bold border-bottom border-secondary border-opacity-10 pb-1 mb-2 mt-3">4. Ausbildungsstand & Abzeichen</h6>
-                                    <div class="row g-2 mb-3 bg-black bg-opacity-20 p-2 rounded-3 border border-secondary border-opacity-10">
-                                        <div class="col-6">
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_jf1" v-model="newYouth.has_jf1">
-                                                <label class="form-check-label text-white small" for="has_jf1">Jugendflamme 1</label>
-                                            </div>
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_jf2" v-model="newYouth.has_jf2">
-                                                <label class="form-check-label text-white small" for="has_jf2">Jugendflamme 2</label>
-                                            </div>
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_jf3" v-model="newYouth.has_jf3">
-                                                <label class="form-check-label text-white small" for="has_jf3">Jugendflamme 3</label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="has_wissentest" v-model="newYouth.has_wissentest">
-                                                <label class="form-check-label text-white small" for="has_wissentest">Wissentest</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_leistungsspange" v-model="newYouth.has_leistungsspange">
-                                                <label class="form-check-label text-white small" for="has_leistungsspange">Leistungsspange</label>
-                                            </div>
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_jugendabzeichen" v-model="newYouth.has_jugendabzeichen">
-                                                <label class="form-check-label text-white small" for="has_jugendabzeichen">Jugendleistungsabz.</label>
-                                            </div>
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_mta_basis" v-model="newYouth.has_mta_basis">
-                                                <label class="form-check-label text-white small fw-bold text-danger" for="has_mta_basis">MTA Basis (Truppmann)</label>
-                                            </div>
-                                            <div class="form-check mb-1">
-                                                <input class="form-check-input" type="checkbox" id="has_erste_hilfe" v-model="newYouth.has_erste_hilfe">
-                                                <label class="form-check-label text-white small" for="has_erste_hilfe">Erste Hilfe Kurs</label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="has_funk" v-model="newYouth.has_funk">
-                                                <label class="form-check-label text-white small" for="has_funk">Sprechfunker</label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Weitere Abzeichen (Kommagetrennt)</label>
-                                        <input type="text" v-model="newYouth.badges" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Wissenstest 2025 (Gold)...">
-                                    </div>
-
-                                    <!-- Fertigkeiten / Was er schon alles kann -->
-                                    <h6 class="text-danger fw-bold border-bottom border-secondary border-opacity-10 pb-1 mb-2 mt-3">5. Fertigkeiten & Können</h6>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Was er/sie schon alles kann</label>
-                                        <textarea v-model="newYouth.skills" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="z. B. Saugschlauch kuppeln, Standrohr setzen, Funken, Erste Hilfe..."></textarea>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Notizen / Allergien / Notfallhinweise</label>
-                                        <textarea v-model="newYouth.notes" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Besondere Hinweise, z. B. Bienenstichallergie..."></textarea>
-                                    </div>
-
-                                    <div class="d-flex gap-2 mt-4">
-                                        <button v-if="!editingYouthId" class="btn btn-premium w-100 rounded-pill py-2" @click="submitYouthMember"><i class="fa fa-plus me-1"></i>Akte anlegen</button>
-                                        <button v-if="editingYouthId" class="btn btn-warning text-dark fw-bold flex-grow-1 rounded-pill py-2" @click="submitYouthMember"><i class="fa fa-save me-1"></i> Akte Speichern</button>
-                                        <button v-if="editingYouthId" class="btn btn-outline-light rounded-pill px-3" @click="cancelYouthEdit">Abbrechen</button>
+                                    <small class="text-muted d-block mt-1" style="font-size:0.75rem;">
+                                        <i class="fa fa-user-shield text-warning me-1"></i>{{ ym.parent_contact || 'Kein Elternkontakt' }}
+                                    </small>
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        <span v-if="ym.has_mta_basis" class="badge bg-danger text-white font-monospace" style="font-size:0.6rem; padding: 3px 6px;">MTA</span>
+                                        <span v-if="ym.has_jf1 || ym.has_jf2 || ym.has_jf3" class="badge bg-success font-monospace" style="font-size:0.6rem; padding: 3px 6px;">JF</span>
+                                        <span v-if="ym.has_wissentest" class="badge bg-primary font-monospace" style="font-size:0.6rem; padding: 3px 6px;">Wissentest</span>
+                                        <span v-if="ym.lic_b" class="badge bg-warning text-dark font-monospace" style="font-size:0.6rem; padding: 3px 6px;">BF17</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <div v-if="filteredYouthMembers.length === 0" class="text-center py-5 text-muted">Keine Jugendmitglieder gefunden.</div>
                     </div>
 
                     <!-- SUBTAB: DIENSTBERICHTE (JUGEND) -->
@@ -3099,13 +2932,182 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+</div>
                     </div>
                     <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between" v-if="isAdmin">
                         <button type="button" class="btn btn-link text-danger fw-bold border-0" @click="deletePersonnel"><i class="fa fa-trash me-1"></i> Löschen</button>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
                             <button type="button" class="btn btn-premium rounded-pill px-5 fw-bold" @click="savePersonnel">Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: JUGEND-PERSONALAKTE -->
+        <div class="modal fade" id="youthModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                            <i class="fa fa-graduation-cap text-danger"></i>
+                            <span>{{ editingYouthId ? 'Jugend-Personalakte: ' + newYouth.name : 'Neue Jugend-Personalakte anlegen' }}</span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 14px; padding: 6px;">
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'stamm' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'stamm'"><i class="fa fa-user me-1"></i>Stammdaten & Eltern</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'abzeichen' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'abzeichen'"><i class="fa fa-award me-1"></i>Abzeichen & MTA</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'skills' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'skills'"><i class="fa fa-screwdriver-wrench me-1"></i>Führerschein & Können</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'notes' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'notes'"><i class="fa fa-notes-medical me-1"></i>Notfall & Notizen</button></li>
+                        </ul>
+
+                        <!-- TAB 1: Stammdaten & Eltern -->
+                        <div v-show="youthModalTab === 'stamm'">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label text-white">Name des Jugendlichen *</label>
+                                    <input type="text" v-model="newYouth.name" class="form-control bg-dark border-secondary text-white" placeholder="Vorname Nachname" required>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Geburtsdatum</label>
+                                    <input type="date" v-model="newYouth.birth_date" class="form-control bg-dark border-secondary text-white">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Eintrittsdatum</label>
+                                    <input type="date" v-model="newYouth.entry_date" class="form-control bg-dark border-secondary text-white">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label text-white">Erziehungsberechtigte (Elternkontakt)</label>
+                                    <input type="text" v-model="newYouth.parent_contact" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Max Mustermann (Vater)">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Notfall-Telefon</label>
+                                    <input type="text" v-model="newYouth.phone" class="form-control bg-dark border-secondary text-white" placeholder="0170/1234567">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">E-Mail-Adresse</label>
+                                    <input type="email" v-model="newYouth.email" class="form-control bg-dark border-secondary text-white" placeholder="eltern@beispiel.de">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label text-white">Anschrift / Wohnort</label>
+                                    <input type="text" v-model="newYouth.address" class="form-control bg-dark border-secondary text-white" placeholder="Musterstraße 1, 12345 Ort">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: Abzeichen & MTA -->
+                        <div v-show="youthModalTab === 'abzeichen'">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <h6 class="text-danger fw-bold mb-3"><i class="fa fa-award me-1"></i>Jugendfeuerwehr Abzeichen</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf1" v-model="newYouth.has_jf1">
+                                        <label class="form-check-label text-white" for="m_has_jf1">Jugendflamme Stufe 1</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf2" v-model="newYouth.has_jf2">
+                                        <label class="form-check-label text-white" for="m_has_jf2">Jugendflamme Stufe 2</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf3" v-model="newYouth.has_jf3">
+                                        <label class="form-check-label text-white" for="m_has_jf3">Jugendflamme Stufe 3</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_wissentest" v-model="newYouth.has_wissentest">
+                                        <label class="form-check-label text-white" for="m_has_wissentest">Wissentest (Bestanden)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="m_has_leistungsspange" v-model="newYouth.has_leistungsspange">
+                                        <label class="form-check-label text-white" for="m_has_leistungsspange">Leistungsspange der DJF</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <h6 class="text-danger fw-bold mb-3"><i class="fa fa-fire me-1"></i>Feuerwehr-Qualifikationen</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_mta_basis" v-model="newYouth.has_mta_basis">
+                                        <label class="form-check-label text-white fw-bold text-danger" for="m_has_mta_basis">MTA Basismodul (Truppmann)</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_erste_hilfe" v-model="newYouth.has_erste_hilfe">
+                                        <label class="form-check-label text-white" for="m_has_erste_hilfe">Erste Hilfe Kurs</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_funk" v-model="newYouth.has_funk">
+                                        <label class="form-check-label text-white" for="m_has_funk">Sprechfunker</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jugendabzeichen" v-model="newYouth.has_jugendabzeichen">
+                                        <label class="form-check-label text-white" for="m_has_jugendabzeichen">Jugendleistungsabzeichen</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-3">
+                                    <label class="form-label text-white">Weitere Abzeichen / Auszeichnungen</label>
+                                    <input type="text" v-model="newYouth.badges" class="form-control bg-dark border-secondary text-white" placeholder="Kommagetrennt: z. B. Wissenstest Gold 2025...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: Führerschein & Können -->
+                        <div v-show="youthModalTab === 'skills'">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <h6 class="text-danger fw-bold mb-2"><i class="fa fa-id-card me-1"></i>Führerschein-Klassen</h6>
+                                    <div class="d-flex flex-wrap gap-4 bg-black bg-opacity-30 p-3 rounded-3 border border-secondary border-opacity-10">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_am" v-model="newYouth.lic_am">
+                                            <label class="form-check-label text-white" for="m_lic_am">AM (Moped / 45 km/h)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_a1" v-model="newYouth.lic_a1">
+                                            <label class="form-check-label text-white" for="m_lic_a1">A1 (125 ccm)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_b" v-model="newYouth.lic_b">
+                                            <label class="form-check-label text-white fw-bold text-warning" for="m_lic_b">B (BF17 / Pkw)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_l" v-model="newYouth.lic_l">
+                                            <label class="form-check-label text-white" for="m_lic_l">L (Traktor bis 40 km/h)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_t" v-model="newYouth.lic_t">
+                                            <label class="form-check-label text-white" for="m_lic_t">T (Zugmaschinen)</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 mt-3">
+                                    <label class="form-label text-white"><i class="fa fa-screwdriver-wrench text-warning me-1"></i>Was er/sie schon alles kann (Fertigkeiten)</label>
+                                    <textarea v-model="newYouth.skills" class="form-control bg-dark border-secondary text-white" rows="4" placeholder="z. B. Saugschlauch kuppeln, Standrohr setzen, Funken, Erste Hilfe, Fahrzeugkunde HLF 20..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 4: Notfall & Notizen -->
+                        <div v-show="youthModalTab === 'notes'">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="p-3 rounded-4 bg-warning bg-opacity-10 border border-warning border-opacity-30 text-warning mb-3">
+                                        <i class="fa fa-triangle-exclamation me-2"></i><strong>Wichtiger Notfallhinweis:</strong> Notiere hier Allergien, Unverträglichkeiten, Medikamente oder Notfallkontakte.
+                                    </div>
+                                    <label class="form-label text-white">Notizen & Notfallhinweise</label>
+                                    <textarea v-model="newYouth.notes" class="form-control bg-dark border-secondary text-white" rows="5" placeholder="Besondere Hinweise, z. B. Bienenstichallergie, Asthmaspray..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 d-flex justify-content-between">
+                        <div>
+                            <button v-if="editingYouthId && role !== 'mannschaft'" type="button" class="btn btn-outline-danger rounded-pill" @click="deleteYouthMemberInModal">
+                                <i class="fa fa-trash me-1"></i> Mitglied löschen
+                            </button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
+                            <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4" @click="saveYouthModal"><i class="fa fa-save me-1"></i> Speichern</button>
                         </div>
                     </div>
                 </div>
@@ -3322,6 +3324,8 @@
                     
                     jugendTab: 'members',
                     youthMembers: [],
+                    youthSearch: '',
+                    youthModalTab: 'stamm',
                     editingYouthId: null,
                     newYouth: {
                         name: '', parent_contact: '', badges: '', skills: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', notes: '',
@@ -3349,6 +3353,17 @@
                 }
             },
             computed: {
+                filteredYouthMembers() {
+                    if (!this.youthSearch) return this.youthMembers;
+                    const q = this.youthSearch.toLowerCase();
+                    return this.youthMembers.filter(m => 
+                        (m.name && m.name.toLowerCase().includes(q)) ||
+                        (m.parent_contact && m.parent_contact.toLowerCase().includes(q)) ||
+                        (m.skills && m.skills.toLowerCase().includes(q)) ||
+                        (m.badges && m.badges.toLowerCase().includes(q)) ||
+                        (m.address && m.address.toLowerCase().includes(q))
+                    );
+                },
                 equipInspectSchedule() {
                     if (!this.equipment) return [];
                     return this.equipment.filter(eq => eq && eq.interval_months > 0 && eq.category !== 'Funk' && eq.category !== 'Funkgerät' && eq.category !== 'TETRA').map(eq => {
@@ -4265,8 +4280,14 @@
                     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
                     return age >= 0 ? age : null;
                 },
+                openNewYouthModal() {
+                    this.cancelYouthEdit();
+                    this.youthModalTab = 'stamm';
+                    new bootstrap.Modal('#youthModal').show();
+                },
                 editYouthMember(ym) {
                     this.editingYouthId = ym.id;
+                    this.youthModalTab = 'stamm';
                     this.newYouth = {
                         name: ym.name || '',
                         parent_contact: ym.parent_contact || '',
@@ -4293,6 +4314,7 @@
                         has_erste_hilfe: !!ym.has_erste_hilfe,
                         has_funk: !!ym.has_funk
                     };
+                    new bootstrap.Modal('#youthModal').show();
                 },
                 cancelYouthEdit() {
                     this.editingYouthId = null;
@@ -4301,6 +4323,24 @@
                         lic_am: false, lic_a1: false, lic_b: false, lic_l: false, lic_t: false,
                         has_jf1: false, has_jf2: false, has_jf3: false, has_wissentest: false, has_leistungsspange: false, has_jugendabzeichen: false, has_mta_basis: false, has_erste_hilfe: false, has_funk: false
                     };
+                },
+                async saveYouthModal() {
+                    if (!this.newYouth.name || !this.newYouth.name.trim()) {
+                        alert("Bitte gib den Namen des Jugendlichen ein!");
+                        return;
+                    }
+                    await this.submitYouthMember();
+                    const modalEl = document.getElementById('youthModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                },
+                async deleteYouthMemberInModal() {
+                    if (this.editingYouthId) {
+                        await this.deleteYouthMember(this.editingYouthId);
+                        const modalEl = document.getElementById('youthModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
                 },
                 async submitYouthMember() {
                     if (!this.newYouth.name || !this.newYouth.name.trim()) {
