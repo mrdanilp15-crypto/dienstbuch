@@ -23,8 +23,6 @@ services:
       - DB_USER=${DB_USER:-app_user}
       - DB_PASSWORD=${DB_PASS:-dein_app_passwort}
       - DB_NAME=${DB_NAME:-attendance_system}
-      - ADMIN_PIN=${ADMIN_PIN:-1234}
-      - USER_PIN=${USER_PIN:-5678}
       - TOWN_NAME=${TOWN_NAME:-Musterstadt}
       - SECRET_KEY=${SECRET_KEY:-feuerwehr-dienstbuch-geheimschluessel-112}
     ports:
