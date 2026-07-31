@@ -3417,7 +3417,7 @@
                 },
                 sessions() {
                     if (!this.sessionsList) return [];
-                    return this.sessionsList.filter(s => s && s.date && s.category !== 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
+                    return this.sessionsList.filter(s => s && s.date && new Date(s.date).getFullYear() === this.selectedYear).sort((a, b) => {
                         if (!a || !a.date || !b || !b.date) return 0;
                         return new Date(b.date) - new Date(a.date);
                     });

@@ -1408,7 +1408,9 @@ def get_stats(id: int, year: int, request: Request):
                    FROM mission_attendance ma
                    JOIN missions m ON ma.mission_id = m.id
                    JOIN personnel pl ON ma.personnel_id = pl.id
-                   WHERE pl.name = p.name AND ma.is_present IN ('Abgerückt', 'Bereitstellung') AND YEAR(m.date) = %s
+                   WHERE pl.name = p.name 
+                     AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
+                     AND YEAR(m.date) = %s
                ), 0) as mission_hours
         FROM persons p 
         LEFT JOIN attendance a ON p.id = a.person_id 
@@ -1620,14 +1622,14 @@ def get_my_global_fire_stats(year: int, request: Request):
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
             ), 0) as mission_hours,
             COALESCE((
                 SELECT COUNT(DISTINCT m.id) 
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
             ), 0) as mission_count
     """
     cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
@@ -1673,7 +1675,7 @@ def get_my_sessions(year: int, request: Request):
             FROM mission_attendance ma
             JOIN missions m ON ma.mission_id = m.id
             JOIN personnel pl ON ma.personnel_id = pl.id
-            WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+            WHERE pl.name = %s AND YEAR(m.date) = %s AND (ma.is_present IN ('Abgerückt', 'Bereitstellung', 'Ja', 'Anwesend', '1', 'true', 'True') OR ma.is_present = 1)
         """, (klarnat_name, year))
         m_sessions = cur.fetchall()
         sessions.extend(m_sessions)
