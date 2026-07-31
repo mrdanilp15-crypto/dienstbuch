@@ -899,11 +899,39 @@ async def import_database_backup(request: Request, file: UploadFile = File(...))
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
 
+    content = await file.read()
+
+    # --- FALL 1: ALTE ODER FREMDE SQL-DATEI (.sql) ---
+    if file.filename.lower().endswith(".sql"):
+        try:
+            sql_script = content.decode('utf-8', errors='ignore')
+            conn = get_db_connection()
+            cur = conn.cursor()
+            statements = [s.strip() for s in sql_script.split(';') if s.strip()]
+            executed_count = 0
+            for stmt in statements:
+                if stmt and not stmt.startswith("--") and not stmt.startswith("/*"):
+                    try:
+                        cur.execute(stmt)
+                        executed_count += 1
+                    except Exception as s_err:
+                        print(f"SQL import statement notice: {s_err}")
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            sync_personnel_to_editor_groups()
+            init_db_extensions()
+            log_audit_action(user["username"], "DATENBANK-IMPORT-SQL", f"SQL-Datei '{file.filename}' erfolgreich importiert ({executed_count} Befehle ausgeführt).")
+            return {"status": "success", "imported_rows": executed_count, "message": f"{executed_count} SQL-Befehle erfolgreich ausgeführt."}
+        except Exception as sql_err:
+            raise HTTPException(status_code=500, detail=f"Fehler beim Importieren der SQL-Datei: {sql_err}")
+
+    # --- FALL 2: DIENSTBUCH JSON-BACKUP (.json) ---
     try:
-        content = await file.read()
         backup_data = json.loads(content.decode('utf-8'))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ungültiges JSON-Backup: {e}")
+        raise HTTPException(status_code=400, detail=f"Ungültige Backup-Datei (.json oder .sql erwartet): {e}")
 
     if not isinstance(backup_data, dict) or "tables" not in backup_data:
         raise HTTPException(status_code=400, detail="Ungültiges Backup-Format (Schlüssel 'tables' fehlt).")
@@ -943,6 +971,7 @@ async def import_database_backup(request: Request, file: UploadFile = File(...))
     conn.close()
 
     sync_personnel_to_editor_groups()
+    init_db_extensions()
     log_audit_action(user["username"], "DATENBANK-IMPORT", f"Backup-Datei '{file.filename}' erfolgreich importiert ({imported_count} Datensätze).")
 
     return {"status": "success", "imported_rows": imported_count}

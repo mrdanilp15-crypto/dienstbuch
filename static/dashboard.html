@@ -1688,8 +1688,8 @@
                                     <div class="p-3 rounded-4 bg-black bg-opacity-20 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between">
                                         <div>
                                             <h6 class="fw-bold text-white mb-1"><i class="fa fa-upload text-warning me-2"></i>Backup Wiederherstellen (Import)</h6>
-                                            <small class="text-muted d-block mb-2">Spielt ein vorhandenes `.json` Backup in die Datenbank ein.</small>
-                                            <input type="file" ref="backupFileInput" class="form-control form-control-sm bg-dark border-secondary text-white mb-2" accept=".json">
+                                            <small class="text-muted d-block mb-2">Spielt ein vorhandenes `.json` oder `.sql` Backup in die Datenbank ein.</small>
+                                            <input type="file" ref="backupFileInput" class="form-control form-control-sm bg-dark border-secondary text-white mb-2" accept=".json,.sql">
                                         </div>
                                         <button class="btn btn-warning text-dark rounded-pill fw-bold w-100" @click="uploadBackupFile">
                                             <i class="fa fa-file-import me-1"></i> Backup Einspielen
