@@ -6,12 +6,7 @@ import os
 
 router = APIRouter(prefix="/api/notes", tags=["Notes"])
 
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
-    )
+from database import get_db_connection
 
 def init_notes_db():
     conn = get_db_connection()
@@ -29,8 +24,6 @@ def init_notes_db():
     conn.commit()
     cur.close()
     conn.close()
-
-init_notes_db()
 
 class NoteCreate(BaseModel):
     title: str

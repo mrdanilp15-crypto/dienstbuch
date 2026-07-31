@@ -7,12 +7,7 @@ import base64
 from datetime import date
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
-    )
+from database import get_db_connection
 
 class PersonnelMember(BaseModel):
     name: str
@@ -68,16 +63,27 @@ def internal_sync_personnel_to_groups():
     except Exception as e:
         print(f"Hintergrund-Synchronisationsfehler: {e}")
 
+# --- SICHERHEITS-HELFER ---
+def check_auth(request: Request, require_admin: bool = False) -> dict:
+    from main import get_current_user
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if require_admin and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    return user
+
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
 @router.get("/list")
-def get_all_personnel():
+def get_all_personnel(request: Request):
+    check_auth(request)
     # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren
     internal_sync_personnel_to_groups()
     
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     sql = """SELECT id, name, rank, membership_status, phone, email, address, 
-                    badge_number, birth_date, entry_date, is_truppmann, is_funk, 
+                    badge_number, birth_date, entry_date, profile_picture, is_truppmann, is_funk, 
                     is_agt, is_maschinist, is_tf, is_gf, lic_b, lic_be, lic_c, lic_ce, 
                     g26_3_date, belastungslauf_date, unterweisung_date,
                     CASE WHEN profile_picture IS NOT NULL AND LENGTH(profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture
@@ -98,7 +104,8 @@ def get_all_personnel():
 
 # --- EINZELNES MITGLIED VOLLSTÄNDIG LADEN (FÜR MODAL) ---
 @router.get("/get/{member_id}")
-def get_single_member(member_id: int):
+def get_single_member(member_id: int, request: Request):
+    check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE id = %s", (member_id,))
@@ -116,33 +123,43 @@ def get_single_member(member_id: int):
             row[key] = bool(value)
     return row
 
+DEFAULT_AVATAR_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-3.8-1.04-4.83-2.61.03-1.6 3.23-2.48 4.83-2.48s4.79.87 4.83 2.48C15.8 18.96 14.03 20 12 20z"/></svg>"""
+
 # --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
 @router.get("/avatar/{member_id}")
-def get_avatar(member_id: int):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    
-    if not row or not row[0]:
-        raise HTTPException(status_code=404, detail="Kein Bild vorhanden")
-    
+def get_avatar(member_id: int, request: Request):
+    check_auth(request)
     try:
-        data_str = row[0]
-        if "," in data_str:
-            header, encoded = data_str.split(",", 1)
-            mime = header.split(";")[0].split(":")[1]
-            image_bytes = base64.b64decode(encoded)
-            return Response(content=image_bytes, media_type=mime)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row and row[0]:
+            data_str = row[0].strip()
+            if data_str.startswith("data:"):
+                header, encoded = data_str.split(",", 1)
+                mime = header.split(";")[0].split(":")[1]
+                image_bytes = base64.b64decode(encoded)
+                return Response(content=image_bytes, media_type=mime)
+            elif data_str.startswith("/static/") or data_str.startswith("static/"):
+                filepath = data_str.lstrip("/")
+                if os.path.exists(filepath):
+                    mime = "image/jpeg"
+                    if filepath.endswith(".png"): mime = "image/png"
+                    elif filepath.endswith(".gif"): mime = "image/gif"
+                    with open(filepath, "rb") as f:
+                        return Response(content=f.read(), media_type=mime)
     except Exception:
         pass
-    raise HTTPException(status_code=400, detail="Ungültige Bilddaten")
+    return Response(content=DEFAULT_AVATAR_SVG, media_type="image/svg+xml")
 
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
-def add_member(m: PersonnelMember):
+def add_member(m: PersonnelMember, request: Request):
+    check_auth(request, require_admin=True)
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
         
@@ -172,7 +189,8 @@ def add_member(m: PersonnelMember):
     return {"status": "success"}
 
 @router.post("/update/{member_id}")
-def update_member(member_id: int, m: PersonnelMember):
+def update_member(member_id: int, m: PersonnelMember, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -213,7 +231,8 @@ def update_member(member_id: int, m: PersonnelMember):
     return {"status": "updated"}
 
 @router.delete("/delete/{member_id}")
-def delete_member(member_id: int):
+def delete_member(member_id: int, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -231,7 +250,8 @@ def delete_member(member_id: int):
     return {"status": "deleted"}
 
 @router.get("/settings")
-def get_settings():
+def get_settings(request: Request):
+    check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT setting_key, setting_value FROM settings")
@@ -244,7 +264,8 @@ def get_settings():
     return res
 
 @router.post("/settings")
-def save_settings(s: GlobalSettings):
+def save_settings(s: GlobalSettings, request: Request):
+    check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
     settings = [
@@ -308,5 +329,3 @@ def init_personnel_db():
         conn.close()
     except Exception as e:
         print(f"Fehler bei init_personnel_db: {e}")
-
-init_personnel_db()

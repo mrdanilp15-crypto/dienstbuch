@@ -6,25 +6,26 @@ services:
     container_name: attendance_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${ROOT_PASS}
-      MYSQL_DATABASE: attendance_system
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: ${DB_PASS}
+      MYSQL_ROOT_PASSWORD: ${ROOT_PASS:-dein_ganz_geheimes_root_passwort}
+      MYSQL_DATABASE: ${DB_NAME:-attendance_system}
+      MYSQL_USER: ${DB_USER:-app_user}
+      MYSQL_PASSWORD: ${DB_PASS:-dein_app_passwort}
     volumes:
-      - ./attendance_db:/var/lib/mysql
+      - db_data:/var/lib/mysql
 
   api:
     image: ghcr.io/mrdanilp15-crypto/dienstbuch:main
     container_name: attendance_api
     restart: unless-stopped
     environment:
-      - DB_PASSWORD=${DB_PASS}
-      - ADMIN_PIN=${ADMIN_PIN}
-      - USER_PIN=${USER_PIN}
-      - TOWN_NAME=${TOWN_NAME}
-      - DATABASE_URL=mysql+pymysql://app_user:${DB_PASS}@db/attendance_system
-      # Der Pfad innerhalb des Containers für die Notizen
-      - SQLITE_DB_PATH=/app/data/notes.db
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-app_user}
+      - DB_PASSWORD=${DB_PASS:-dein_app_passwort}
+      - DB_NAME=${DB_NAME:-attendance_system}
+      - TOWN_NAME=${TOWN_NAME:-Musterstadt}
+      - SECRET_KEY=${SECRET_KEY:-feuerwehr-dienstbuch-geheimschluessel-112}
+      - UPDATE_BASE_URL=${UPDATE_BASE_URL:-https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/}
     ports:
       - "9000:8000"
     volumes:
@@ -33,5 +34,5 @@ services:
       - db
 
 volumes:
-  attendance_data:
+  db_data:
   notes_data:
