@@ -1423,8 +1423,10 @@
                                     <div class="mb-3">
                                         <label class="form-label">Einsatz wählen</label>
                                         <select v-model="newBill.mission_id" class="form-select">
-                                            <option v-for="m in missions" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}})</option>
+                                            <option :value="null" disabled>-- Bitte Einsatz auswählen --</option>
+                                            <option v-for="m in missions" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}} - {{m.adresse}})</option>
                                         </select>
+                                        <div v-if="missions.length === 0" class="text-muted small mt-1"><i class="fa fa-info-circle me-1"></i>Keine Einsätze zum Abrechnen vorhanden. Erfasse zuerst einen Einsatzbericht im Menü "Einsatzberichte".</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Empfänger Name</label>
@@ -4024,8 +4026,16 @@
 
                 // Billing / Abrechnung
                 async loadBills() {
-                    const res = await fetch('/api/missions/billing/list', { credentials: 'include' });
+                    const [res, mRes] = await Promise.all([
+                        fetch('/api/missions/billing/list', { credentials: 'include' }),
+                        fetch('/api/missions', { credentials: 'include' })
+                    ]);
                     if(res.ok) this.bills = await res.json();
+                    if(mRes.ok) this.missions = await mRes.json();
+                    if (this.missions.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
+                        if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
+                        this.newBill.mission_id = this.missions[0].id;
+                    }
                 },
                 async submitBill() {
                     if(!this.newBill.mission_id) return alert("Einsatz auswählen!");
