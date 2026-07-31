@@ -25,6 +25,7 @@ services:
       - DB_NAME=${DB_NAME:-attendance_system}
       - TOWN_NAME=${TOWN_NAME:-Musterstadt}
       - SECRET_KEY=${SECRET_KEY:-feuerwehr-dienstbuch-geheimschluessel-112}
+      - UPDATE_BASE_URL=${UPDATE_BASE_URL:-https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/}
     ports:
       - "9000:8000"
     volumes:

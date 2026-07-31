@@ -123,39 +123,38 @@ def get_single_member(member_id: int, request: Request):
             row[key] = bool(value)
     return row
 
+DEFAULT_AVATAR_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-3.8-1.04-4.83-2.61.03-1.6 3.23-2.48 4.83-2.48s4.79.87 4.83 2.48C15.8 18.96 14.03 20 12 20z"/></svg>"""
+
 # --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
 @router.get("/avatar/{member_id}")
 def get_avatar(member_id: int, request: Request):
     check_auth(request)
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    
-    if not row or not row[0]:
-        raise HTTPException(status_code=404, detail="Kein Bild vorhanden")
-    
     try:
-        data_str = row[0]
-        if data_str.startswith("data:"):
-            header, encoded = data_str.split(",", 1)
-            mime = header.split(";")[0].split(":")[1]
-            image_bytes = base64.b64decode(encoded)
-            return Response(content=image_bytes, media_type=mime)
-        elif data_str.startswith("/static/") or data_str.startswith("static/"):
-            filepath = data_str.lstrip("/")
-            if not os.path.exists(filepath):
-                raise HTTPException(status_code=404, detail="Bilddatei nicht gefunden")
-            mime = "image/jpeg"
-            if filepath.endswith(".png"): mime = "image/png"
-            elif filepath.endswith(".gif"): mime = "image/gif"
-            with open(filepath, "rb") as f:
-                return Response(content=f.read(), media_type=mime)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT profile_picture FROM personnel WHERE id = %s", (member_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row and row[0]:
+            data_str = row[0].strip()
+            if data_str.startswith("data:"):
+                header, encoded = data_str.split(",", 1)
+                mime = header.split(";")[0].split(":")[1]
+                image_bytes = base64.b64decode(encoded)
+                return Response(content=image_bytes, media_type=mime)
+            elif data_str.startswith("/static/") or data_str.startswith("static/"):
+                filepath = data_str.lstrip("/")
+                if os.path.exists(filepath):
+                    mime = "image/jpeg"
+                    if filepath.endswith(".png"): mime = "image/png"
+                    elif filepath.endswith(".gif"): mime = "image/gif"
+                    with open(filepath, "rb") as f:
+                        return Response(content=f.read(), media_type=mime)
     except Exception:
         pass
-    raise HTTPException(status_code=400, detail="Ungültige Bilddaten")
+    return Response(content=DEFAULT_AVATAR_SVG, media_type="image/svg+xml")
 
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
