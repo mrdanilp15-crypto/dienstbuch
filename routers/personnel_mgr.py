@@ -7,12 +7,7 @@ import base64
 from datetime import date
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
-    )
+from database import get_db_connection
 
 class PersonnelMember(BaseModel):
     name: str

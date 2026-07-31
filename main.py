@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, date
 import uuid
 import shutil
 
@@ -53,11 +53,13 @@ app.include_router(material_mgr.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 def get_db_connection():
+    host = os.getenv("DB_HOST", os.getenv("MYSQL_HOST", "db"))
+    user = os.getenv("DB_USER", os.getenv("MYSQL_USER", "app_user"))
+    password = os.getenv("DB_PASSWORD", os.getenv("DB_PASS", os.getenv("MYSQL_PASSWORD", "")))
+    database = os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "attendance_system"))
+    port = int(os.getenv("DB_PORT", os.getenv("MYSQL_PORT", "3306")))
     return mysql.connector.connect(
-        host="db", 
-        user="app_user", 
-        password=DB_PASSWORD, 
-        database="attendance_system"
+        host=host, user=user, password=password, database=database, port=port
     )
 
 # --- REVISIONS-LOGBUCH HELFER ---

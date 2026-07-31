@@ -6,10 +6,10 @@ services:
     container_name: attendance_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_secure_pass
-      MYSQL_DATABASE: attendance_system
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: app_db_password
+      MYSQL_ROOT_PASSWORD: ${ROOT_PASS:-dein_ganz_geheimes_root_passwort}
+      MYSQL_DATABASE: ${DB_NAME:-attendance_system}
+      MYSQL_USER: ${DB_USER:-app_user}
+      MYSQL_PASSWORD: ${DB_PASS:-dein_app_passwort}
     volumes:
       - db_data:/var/lib/mysql
 
@@ -18,17 +18,22 @@ services:
     container_name: attendance_api
     restart: unless-stopped
     environment:
-      - DB_PASSWORD=app_db_password
-      - TOWN_NAME=Feuerwehr Neustadt
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-app_user}
+      - DB_PASSWORD=${DB_PASS:-dein_app_passwort}
+      - DB_NAME=${DB_NAME:-attendance_system}
+      - ADMIN_PIN=${ADMIN_PIN:-1234}
+      - USER_PIN=${USER_PIN:-5678}
+      - TOWN_NAME=${TOWN_NAME:-Musterstadt}
+      - SECRET_KEY=${SECRET_KEY:-feuerwehr-dienstbuch-geheimschluessel-112}
     ports:
       - "9000:8000"
     volumes:
       - notes_data:/app/data
-      - media_data:/app/media
     depends_on:
       - db
 
 volumes:
   db_data:
   notes_data:
-  media_data:

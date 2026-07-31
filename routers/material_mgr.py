@@ -6,12 +6,7 @@ import os
 from datetime import date
 
 router = APIRouter(prefix="/api/material", tags=["Material"])
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", user="app_user", password=DB_PASSWORD, database="attendance_system"
-    )
+from database import get_db_connection
 
 def check_auth(request: Request, require_admin: bool = False) -> dict:
     from main import get_current_user
