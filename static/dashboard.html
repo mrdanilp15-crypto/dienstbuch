@@ -783,7 +783,13 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzberichte & Einsatzverwaltung</h2>
                             <small class="text-muted">Teilautomatische Dokumentation und Atemschutz-Nachweise</small>
                         </div>
-                        <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill" @click="openNewMissionModal"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                        <div class="d-flex align-items-center gap-2">
+                            <select v-model="missionGroupFilter" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.08);">
+                                <option value="all">Alle Gruppen / Einheiten</option>
+                                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                            </select>
+                            <button v-if="role !== 'mannschaft'" class="btn btn-premium rounded-pill fw-bold" @click="openNewMissionModal"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                        </div>
                     </div>
 
                     <div class="row g-3">
@@ -2393,6 +2399,13 @@
                                             <option value="Freigegeben">Freigegeben (Sperrung)</option>
                                         </select>
                                     </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Zugeordnete Gruppe / Einheit</label>
+                                        <select v-model="activeMission.group_id" class="form-select" :disabled="role === 'mannschaft'">
+                                            <option :value="null">Alle Einheiten / Gesamtwehr</option>
+                                            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                                        </select>
+                                    </div>
                                     <div class="col-md-12 mt-3">
                                         <label class="form-label text-white"><i class="fa fa-paperclip me-2 text-danger"></i>Archiv-Anhänge (Berichte, Fotos, Dokumente)</label>
                                         <div class="d-flex gap-2 mb-2" v-if="role !== 'mannschaft'">
@@ -2425,9 +2438,12 @@
                                                 <option v-for="v in vehicles" :value="v.name">{{v.name}}</option>
                                             </select>
                                             <select v-model="p.is_present" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
-                                                <option value="Nein">Nein</option>
-                                                <option value="Abgerückt">Abgerückt</option>
-                                                <option value="Bereitstellung">Bereitstellung</option>
+                                                <option value="Nein">Nein / Nicht anwesend</option>
+                                                <option value="Abgerückt">Abgerückt (Einsatzfahrt)</option>
+                                                <option value="Bereitstellung">Bereitstellung (Einsatzstelle)</option>
+                                                <option value="Gerätehaus">Wache / Gerätehaus</option>
+                                                <option value="Entschuldigt">Entschuldigt / Abgemeldet</option>
+                                                <option value="Abgebrochen">Einsatzstorno / Abgebrochen</option>
                                             </select>
                                         </div>
                                     </div>
@@ -3237,6 +3253,7 @@
                     
                     // Missions / Einsatzberichte
                     missions: [],
+                    missionGroupFilter: 'all',
                     activeMission: null,
                     newRespi: { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true },
                     
@@ -3423,7 +3440,7 @@
                     });
                 },
                 allIncidents() {
-                    const list = this.missions.map(m => ({
+                    let list = this.missions.map(m => ({
                         id: m.id,
                         isNewMission: true,
                         date: m.date,
@@ -3432,7 +3449,8 @@
                         adresse: m.adresse,
                         meldung: m.meldung,
                         duration: m.duration,
-                        status: m.status
+                        status: m.status,
+                        group_id: m.group_id
                     }));
                     if (this.sessionsList) {
                         const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => ({
@@ -3445,9 +3463,13 @@
                             meldung: s.description || '',
                             duration: s.duration,
                             status: s.leader_signature ? 'Freigegeben' : 'Entwurf',
-                            rawSession: s
+                            rawSession: s,
+                            group_id: s.group_id || (this.selectedGroup ? this.selectedGroup.id : null)
                         }));
                         list.push(...past);
+                    }
+                    if (this.missionGroupFilter !== 'all') {
+                        list = list.filter(m => m.group_id == this.missionGroupFilter || !m.group_id);
                     }
                     return list.sort((a, b) => new Date(b.date) - new Date(a.date));
                 },
@@ -3704,7 +3726,20 @@
                     if(res.ok) this.missions = await res.json();
                 },
                 openNewMissionModal() {
-                    this.activeMission = { id: null, date: new Date().toISOString().split('T')[0], time: '12:00', stichwort: '', adresse: '', meldung: '', description: '', duration: 2.0, status: 'Entwurf', attList: [], respiList: [] };
+                    this.activeMission = { 
+                        id: null, 
+                        date: new Date().toISOString().split('T')[0], 
+                        time: '12:00', 
+                        stichwort: '', 
+                        adresse: '', 
+                        meldung: '', 
+                        description: '', 
+                        duration: 2.0, 
+                        status: 'Entwurf', 
+                        group_id: (this.missionGroupFilter !== 'all' ? parseInt(this.missionGroupFilter) : (this.selectedGroup ? this.selectedGroup.id : null)),
+                        attList: [], 
+                        respiList: [] 
+                    };
                     this.uploadedMissionFiles = [];
                     this.initActiveMissionAttendance();
                     new bootstrap.Modal(document.getElementById('missionModal')).show();
@@ -3739,6 +3774,7 @@
                     const payload = {
                         date: this.activeMission.date, time: this.activeMission.time, stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
                         meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: this.activeMission.status,
+                        group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
                         media_files: JSON.stringify(this.uploadedMissionFiles),
                         attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
                     };

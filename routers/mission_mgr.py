@@ -28,6 +28,7 @@ class MissionCreate(BaseModel):
     duration: Optional[float] = 2.0
     status: Optional[str] = "Entwurf"
     media_files: Optional[str] = ""
+    group_id: Optional[int] = None
 
 class MissionAttendanceEntry(BaseModel):
     personnel_id: int
@@ -44,6 +45,7 @@ class MissionUpdate(BaseModel):
     duration: float
     status: str
     media_files: Optional[str] = ""
+    group_id: Optional[int] = None
     attendance: List[MissionAttendanceEntry]
 
 class RespirationEntry(BaseModel):
@@ -79,7 +81,7 @@ def list_missions(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, date, time, stichwort, adresse, meldung, status, duration FROM missions ORDER BY date DESC, time DESC")
+    cur.execute("SELECT id, date, time, stichwort, adresse, meldung, status, duration, group_id FROM missions ORDER BY date DESC, time DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
@@ -116,9 +118,9 @@ def create_mission(m: MissionCreate, request: Request):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status, media_files)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files))
+        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
     conn.commit()
     new_id = cur.lastrowid
     cur.close(); conn.close()
@@ -147,9 +149,9 @@ def update_mission(mission_id: int, m: MissionUpdate, request: Request):
     # 1. Update Stammdaten
     cur.execute("""
         UPDATE missions 
-        SET date=%s, time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s
+        SET date=%s, time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
         WHERE id=%s
-    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, mission_id))
+    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id, mission_id))
     
     # 2. Update Personnel/Vehicles Attendance
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
