@@ -1416,7 +1416,7 @@ def get_stats(id: int, year: int, request: Request):
                    FROM mission_attendance ma
                    JOIN missions m ON ma.mission_id = m.id
                    JOIN personnel pl ON ma.personnel_id = pl.id
-                   WHERE pl.name = p.name 
+                   WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(p.name)) OR pl.name LIKE CONCAT('%%', p.name, '%%') OR p.name LIKE CONCAT('%%', pl.name, '%%'))
                      AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
                      AND ma.is_present IS NOT NULL
                      AND YEAR(m.date) = %s
@@ -1631,17 +1631,17 @@ def get_my_global_fire_stats(year: int, request: Request):
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_hours,
             COALESCE((
                 SELECT COUNT(DISTINCT m.id) 
                 FROM mission_attendance ma 
                 JOIN missions m ON ma.mission_id = m.id 
                 JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_count
     """
-    cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
+    cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, klarnat_name, year, klarnat_name, klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
     
     total_hours = float(stats["session_hours"] or 0) + float(stats["mission_hours"] or 0)
@@ -1684,8 +1684,8 @@ def get_my_sessions(year: int, request: Request):
             FROM mission_attendance ma
             JOIN missions m ON ma.mission_id = m.id
             JOIN personnel pl ON ma.personnel_id = pl.id
-            WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
-        """, (klarnat_name, year))
+            WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+        """, (klarnat_name, klarnat_name, year))
         m_sessions = cur.fetchall()
         sessions.extend(m_sessions)
     except Exception as e:

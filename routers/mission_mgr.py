@@ -303,13 +303,19 @@ def calculate_compensations(year: int, hourly_rate: float, request: Request):
                    SELECT SUM(s.duration) 
                    FROM attendance a 
                    JOIN sessions s ON a.session_id = s.id 
-                   WHERE a.person_id = p.id AND a.is_present = 1 AND YEAR(s.date) = %s
+                   JOIN persons prs ON a.person_id = prs.id
+                   WHERE (LOWER(TRIM(prs.name)) = LOWER(TRIM(p.name)) OR prs.name LIKE CONCAT('%%', p.name, '%%') OR p.name LIKE CONCAT('%%', prs.name, '%%')) 
+                     AND a.is_present = 1 
+                     AND YEAR(s.date) = %s
                ), 0) as session_hours,
                COALESCE((
                    SELECT SUM(m.duration) 
                    FROM mission_attendance ma 
                    JOIN missions m ON ma.mission_id = m.id 
-                   WHERE ma.personnel_id = p.id AND ma.is_present IN ('Abgerückt', 'Bereitstellung') AND YEAR(m.date) = %s
+                   WHERE (ma.personnel_id = p.id OR LOWER(TRIM((SELECT pl.name FROM personnel pl WHERE pl.id = ma.personnel_id))) = LOWER(TRIM(p.name)))
+                     AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
+                     AND ma.is_present IS NOT NULL 
+                     AND YEAR(m.date) = %s
                ), 0) as mission_hours
         FROM personnel p
         WHERE p.membership_status = 'Aktiv'
