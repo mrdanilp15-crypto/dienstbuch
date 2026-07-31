@@ -52,15 +52,7 @@ app.include_router(mission_mgr.router)
 app.include_router(material_mgr.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
-def get_db_connection():
-    host = os.getenv("DB_HOST", os.getenv("MYSQL_HOST", "db"))
-    user = os.getenv("DB_USER", os.getenv("MYSQL_USER", "app_user"))
-    password = os.getenv("DB_PASSWORD", os.getenv("DB_PASS", os.getenv("MYSQL_PASSWORD", "")))
-    database = os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "attendance_system"))
-    port = int(os.getenv("DB_PORT", os.getenv("MYSQL_PORT", "3306")))
-    return mysql.connector.connect(
-        host=host, user=user, password=password, database=database, port=port
-    )
+from database import get_db_connection
 
 # --- REVISIONS-LOGBUCH HELFER ---
 def log_audit_action(username: str, action: str, details: str):
@@ -595,6 +587,8 @@ def init_db_extensions():
         
         # Startet den Abgleich direkt beim Hochfahren des Containers
         sync_personnel_to_editor_groups()
+        notes_manager.init_notes_db()
+        personnel_mgr.init_personnel_db()
     except Exception as e:
         print(f"init_db_extensions Fehler: {e}")
         print(f"Fehler bei DB-Erweiterung: {e}")
@@ -829,6 +823,129 @@ def list_users(request: Request):
     cur.execute("SELECT id, username, role, is_first_login, personnel_id FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
     return users
+
+@app.put("/api/users/{user_id}/reset-password")
+def admin_reset_user_password(user_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    target_user = cur.fetchone()
+    if not target_user: cur.close(); conn.close(); raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    
+    p_hash = hash_password("admin123")
+    cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "PASSWORT_RESET", f"Passwort für '{target_user['username']}' auf 'admin123' zurückgesetzt.")
+    return {"status": "success", "message": "Passwort auf 'admin123' zurückgesetzt. Erstanmeldung erforderlich."}
+
+# --- DATENBANK SICHERUNG (EXPORT & IMPORT) ---
+@app.get("/api/admin/backup/export")
+def export_database_backup(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+
+    tables_to_export = [
+        "users", "personnel", "groups_table", "persons", "sessions", "attendance",
+        "vehicles", "log_rides", "hvo_checks", "equipment", "inspections",
+        "equipment_defect_reports", "notes", "archive_files", "youth_sessions",
+        "youth_attendance", "settings", "audit_log", "apager_config", "apager_logs",
+        "broadcasts", "schedules"
+    ]
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    backup_tables = {}
+
+    for table in tables_to_export:
+        try:
+            cur.execute(f"SELECT * FROM `{table}`")
+            rows = cur.fetchall()
+            for r in rows:
+                for k, v in r.items():
+                    if isinstance(v, (datetime, date)):
+                        r[k] = str(v)
+                    elif isinstance(v, bytes):
+                        r[k] = v.decode('utf-8', errors='ignore')
+            backup_tables[table] = rows
+        except Exception as e:
+            print(f"Export warning for table {table}: {e}")
+
+    cur.close()
+    conn.close()
+
+    filename = f"dienstbuch_backup_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.json"
+    backup_data = {
+        "app_name": "Dienstbuch",
+        "version": CURRENT_VERSION,
+        "exported_at": datetime.now().isoformat(),
+        "exported_by": user["username"],
+        "tables": backup_tables
+    }
+
+    log_audit_action(user["username"], "DATENBANK-BACKUP", f"Datenbank-Sicherung '{filename}' erstellt.")
+
+    json_str = json.dumps(backup_data, ensure_ascii=False, indent=2)
+    return Response(
+        content=json_str,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.post("/api/admin/backup/import")
+async def import_database_backup(request: Request, file: UploadFile = File(...)):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+
+    try:
+        content = await file.read()
+        backup_data = json.loads(content.decode('utf-8'))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ungültiges JSON-Backup: {e}")
+
+    if not isinstance(backup_data, dict) or "tables" not in backup_data:
+        raise HTTPException(status_code=400, detail="Ungültiges Backup-Format (Schlüssel 'tables' fehlt).")
+
+    tables = backup_data["tables"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    imported_count = 0
+    try:
+        for table_name, rows in tables.items():
+            if not rows or not isinstance(rows, list):
+                continue
+            
+            for row in rows:
+                cols = list(row.keys())
+                placeholders = ", ".join(["%s"] * len(cols))
+                col_names = ", ".join([f"`{c}`" for c in cols])
+                updates = ", ".join([f"`{c}`=VALUES(`{c}`)" for c in cols])
+                
+                query = f"INSERT INTO `{table_name}` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+                vals = [row[c] for c in cols]
+                try:
+                    cur.execute(query, vals)
+                    imported_count += 1
+                except Exception as row_err:
+                    print(f"Import row error in {table_name}: {row_err}")
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Fehler beim Importieren: {e}")
+
+    cur.close()
+    conn.close()
+
+    sync_personnel_to_editor_groups()
+    log_audit_action(user["username"], "DATENBANK-IMPORT", f"Backup-Datei '{file.filename}' erfolgreich importiert ({imported_count} Datensätze).")
+
+    return {"status": "success", "imported_rows": imported_count}
 
 @app.post("/api/users/add")
 def add_user(data: UserCreateRequest, request: Request):

@@ -1288,7 +1288,7 @@
                     <div class="person-grid">
                         <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3" @click="editPersonnel(p)">
                             <div class="avatar-container">
-                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Profilbild">
+                                <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Profilbild">
                             </div>
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between align-items-start">
@@ -1666,6 +1666,38 @@
                                     </div>
                                 </div>
                             </div>
+
+                        <!-- Backup & Import Management Card -->
+                        <div class="card premium-card p-4 mt-4" v-if="isAdmin">
+                            <h5 class="fw-bold text-white mb-2"><i class="fa fa-database text-danger me-2"></i>Datenbank-Sicherung & Wiederherstellung (Backup & Import)</h5>
+                            <p class="text-muted small mb-3">Erstelle vollständige Backups aller Tabellen (Personal, Einsätze, Geräte, Notizen, Fahrzeuge) oder spiele vorhandene Backups ein.</p>
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 rounded-4 bg-black bg-opacity-20 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-download text-success me-2"></i>Datenbank Exportieren (Backup)</h6>
+                                            <small class="text-muted d-block mb-3">Lädt eine vollständige JSON-Sicherung aller Systemdaten herunter.</small>
+                                        </div>
+                                        <a href="/api/admin/backup/export" class="btn btn-success rounded-pill fw-bold text-white w-100" target="_blank">
+                                            <i class="fa fa-file-export me-1"></i> Backup Jetzt Erstellen
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 rounded-4 bg-black bg-opacity-20 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-upload text-warning me-2"></i>Backup Wiederherstellen (Import)</h6>
+                                            <small class="text-muted d-block mb-2">Spielt ein vorhandenes `.json` Backup in die Datenbank ein.</small>
+                                            <input type="file" ref="backupFileInput" class="form-control form-control-sm bg-dark border-secondary text-white mb-2" accept=".json">
+                                        </div>
+                                        <button class="btn btn-warning text-dark rounded-pill fw-bold w-100" @click="uploadBackupFile">
+                                            <i class="fa fa-file-import me-1"></i> Backup Einspielen
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         </div>
 
                         <!-- SUB-TAB: Kalender -->
@@ -3724,6 +3756,7 @@
                     const endpoint = isNew ? '/api/personnel/add' : `/api/personnel/update/${this.activePersonnel.id}`;
                     const res = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
                     if(res.ok) {
+                        this.cacheBuster = Date.now();
                         bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
                         await this.loadPersonnel();
                     }
@@ -4469,6 +4502,37 @@
                 copyWebhookUrl() {
                     const url = `${window.location.protocol}//${this.serverHost}/api/apager/webhook?api_key=${this.apagerConfig.api_key || ''}`;
                     navigator.clipboard.writeText(url).then(() => alert('✅ Webhook-URL in Zwischenablage kopiert!'));
+                },
+                
+                async uploadBackupFile() {
+                    const fileInput = this.$refs.backupFileInput;
+                    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                        alert("Bitte wähle zuerst eine Backup-JSON-Datei aus!");
+                        return;
+                    }
+                    if (!confirm("WARNUNG: Möchtest du diese Datenbank-Sicherung wirklich einspielen? Vorhandene Datensätze werden aktualisiert.")) {
+                        return;
+                    }
+                    const file = fileInput.files[0];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const res = await fetch('/api/admin/backup/import', {
+                            method: 'POST',
+                            credentials: 'include',
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(`✅ Backup erfolgreich importiert (${data.imported_rows} Datensätze aktualisiert)!`);
+                            fileInput.value = '';
+                            location.reload();
+                        } else {
+                            alert("Fehler beim Importieren: " + (data.detail || "Unbekannter Fehler"));
+                        }
+                    } catch (err) {
+                        alert("Verbindung zum Server fehlgeschlagen!");
+                    }
                 },
                 
                 // === USER EDIT METHODS ===

@@ -83,7 +83,7 @@ def get_all_personnel(request: Request):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     sql = """SELECT id, name, rank, membership_status, phone, email, address, 
-                    badge_number, birth_date, entry_date, is_truppmann, is_funk, 
+                    badge_number, birth_date, entry_date, profile_picture, is_truppmann, is_funk, 
                     is_agt, is_maschinist, is_tf, is_gf, lic_b, lic_be, lic_c, lic_ce, 
                     g26_3_date, belastungslauf_date, unterweisung_date,
                     CASE WHEN profile_picture IS NOT NULL AND LENGTH(profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture
