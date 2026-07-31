@@ -7,17 +7,21 @@ import secrets
 import hmac
 import base64
 import json
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import uuid
+import shutil
 
 # --- Externe Berichts- und Verwaltungsmodule laden ---
 from routers import reports
 from routers import notes_manager
 from routers import personnel_mgr
+from routers import mission_mgr
+from routers import material_mgr
 
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "2.50"
@@ -29,22 +33,26 @@ SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112"
 app = FastAPI()
 
 # Statische Ordnerstruktur absichern
+if os.path.exists("/app/data") or os.name != 'nt':
+    UPLOAD_DIR = "/app/data/uploads"
+else:
+    UPLOAD_DIR = os.path.join("static", "uploads")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 if not os.path.exists("static"):
     os.makedirs("static")
+
+app.mount("/static/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Externe Router einbinden
 app.include_router(notes_manager.router)
 app.include_router(personnel_mgr.router)
+app.include_router(mission_mgr.router)
+app.include_router(material_mgr.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
-def get_db_connection():
-    return mysql.connector.connect(
-        host="db", 
-        user="app_user", 
-        password=DB_PASSWORD, 
-        database="attendance_system"
-    )
+from database import get_db_connection
 
 # --- REVISIONS-LOGBUCH HELFER ---
 def log_audit_action(username: str, action: str, details: str):
@@ -156,6 +164,30 @@ def init_db_extensions():
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS station_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                station_name VARCHAR(255) DEFAULT 'Feuerwehr Neustadt',
+                lat FLOAT DEFAULT 50.1109,
+                lng FLOAT DEFAULT 8.6821,
+                zoom INT DEFAULT 14
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("SELECT COUNT(*) FROM station_settings")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES (%s, 50.1109, 8.6821, 14)", (TOWN_NAME,))
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS archive_files (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                url VARCHAR(255) NOT NULL,
+                uploaded_by VARCHAR(255) NOT NULL,
+                is_public BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(255) NOT NULL UNIQUE,
@@ -219,6 +251,327 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_config (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                api_key VARCHAR(255) NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                stichwort VARCHAR(255),
+                adresse VARCHAR(255),
+                meldung TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        # --- NEUE DIENSTBUCH SUITE TABELLEN ---
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS missions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                time VARCHAR(50) NOT NULL,
+                stichwort VARCHAR(255) NOT NULL,
+                adresse VARCHAR(255) NOT NULL,
+                meldung TEXT NOT NULL,
+                description TEXT,
+                duration FLOAT DEFAULT 2.0,
+                status VARCHAR(50) DEFAULT 'Entwurf',
+                leader_signature LONGTEXT,
+                media_files TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mission_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                personnel_id INT,
+                is_present VARCHAR(50) DEFAULT 'Nein',
+                vehicle VARCHAR(255) DEFAULT ''
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS respiration_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                personnel_id INT,
+                druck_start INT,
+                druck_10 INT,
+                druck_20 INT,
+                druck_ende INT,
+                dauer INT,
+                fit_ok BOOLEAN DEFAULT TRUE
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT,
+                date DATE NOT NULL,
+                mileage_start INT,
+                mileage_end INT,
+                driver_name VARCHAR(255),
+                purpose VARCHAR(255)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                barcode VARCHAR(255) UNIQUE NOT NULL,
+                category VARCHAR(255) NOT NULL,
+                image_url TEXT,
+                manual_url TEXT,
+                interval_months INT DEFAULT 12,
+                last_inspection DATE NULL,
+                next_inspection DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("SELECT COUNT(*) FROM equipment")
+        if cur.fetchone()[0] == 0:
+            default_eqs = [
+                ('Atemschutzgerät (Dräger)', 'EQ-AGT-01', 'Atemschutz', 6, '2026-03-12', '2026-09-12'),
+                ('4-teilige Steckleiter (Alu)', 'EQ-LEI-04', 'Leitern', 12, '2025-11-20', '2026-11-20'),
+                ('Kreiselpumpe (FPN 10-2000)', 'EQ-PMP-02', 'Pumpen', 12, '2026-05-02', '2027-05-02'),
+                ('Tragkraftspritze (TS 8/8)', 'EQ-PMP-08', 'Pumpen', 12, '2025-08-10', '2026-08-10'),
+                ('Stromerzeuger (Honda)', 'EQ-AGG-03', 'Aggregate', 6, '2026-01-15', '2026-07-15'),
+                ('HRT 1 (Ausrüstung)', 'EQ-FUNK-01', 'Funkgerät', 0, None, None),
+                ('HRT 2 (Ausrüstung)', 'EQ-FUNK-02', 'Funkgerät', 0, None, None),
+                ('MRT 1 (Fahrzeug)', 'EQ-FUNK-03', 'Funkgerät', 0, None, None)
+            ]
+            for name, barcode, cat, interval, last, next_i in default_eqs:
+                cur.execute("""
+                    INSERT INTO equipment (name, barcode, category, interval_months, last_inspection, next_inspection)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (name, barcode, cat, interval, last, next_i))
+            conn.commit()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment_inspections (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                equipment_id INT,
+                date DATE NOT NULL,
+                inspector VARCHAR(255) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                note TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personal_inventar (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT,
+                item_name VARCHAR(255) NOT NULL,
+                size VARCHAR(50) NOT NULL,
+                issue_date DATE NOT NULL,
+                return_date DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lehrgaenge (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT,
+                course_name VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                certificate_url TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS billing_verursacher (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT,
+                recipient_name VARCHAR(255) NOT NULL,
+                address TEXT NOT NULL,
+                amount FLOAT NOT NULL,
+                details TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                paid_at TIMESTAMP NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hydrants (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                lat FLOAT NOT NULL,
+                lng FLOAT NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                label VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bma (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                object_name VARCHAR(255) NOT NULL,
+                address TEXT NOT NULL,
+                bma_number VARCHAR(100) NOT NULL,
+                key_depot BOOLEAN DEFAULT FALSE,
+                map_url TEXT,
+                lat FLOAT NULL,
+                lng FLOAT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        # Dynamisch lat/lng hinzufügen falls die Tabelle bereits existiert
+        try:
+            cur.execute("SHOW COLUMNS FROM bma LIKE 'lat'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE bma ADD COLUMN lat FLOAT NULL")
+                cur.execute("ALTER TABLE bma ADD COLUMN lng FLOAT NULL")
+        except Exception as alter_err:
+            print("Konnte bma-Tabelle nicht migrieren:", alter_err)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedules (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                time VARCHAR(50) NOT NULL,
+                description TEXT,
+                type VARCHAR(50) NOT NULL,
+                group_id INT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedule_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                schedule_id INT,
+                personnel_id INT,
+                status VARCHAR(50) DEFAULT 'Nein'
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_feedbacks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                apager_log_id INT,
+                personnel_id INT,
+                status VARCHAR(50) NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment_defect_reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                equipment_id INT NOT NULL,
+                reporter_name VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                severity VARCHAR(50) NOT NULL DEFAULT 'Mittel',
+                status VARCHAR(50) NOT NULL DEFAULT 'Offen',
+                resolved_by VARCHAR(255) NULL,
+                resolved_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        # Neue Tabellen für erweiterte Module
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS drone_images (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                url VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS youth_members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                parent_contact VARCHAR(255) NULL,
+                badges VARCHAR(255) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS club_inventory (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_name VARCHAR(255) NOT NULL,
+                quantity INT DEFAULT 1,
+                status VARCHAR(50) DEFAULT 'OK',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS club_donations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                donor VARCHAR(255) NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hvo_protocols (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                patient_name VARCHAR(255) DEFAULT 'Anonymisiert',
+                symptoms TEXT,
+                therapy TEXT,
+                handover VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hvo_equipment_checks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device_name VARCHAR(255) NOT NULL,
+                checked_at DATE NOT NULL,
+                status VARCHAR(50) DEFAULT 'OK',
+                checked_by VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS youth_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                topic VARCHAR(255) NOT NULL,
+                duration DECIMAL(5,2) NOT NULL,
+                instructors VARCHAR(255) NULL,
+                description TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS youth_attendance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id INT NOT NULL,
+                member_id INT NOT NULL,
+                is_present BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (session_id) REFERENCES youth_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (member_id) REFERENCES youth_members(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+
+        # Migration für Mängelberichte (Foto, Zuweisung, Priorität)
+        try:
+            cur.execute("SHOW COLUMNS FROM equipment_defect_reports LIKE 'image_url'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE equipment_defect_reports ADD COLUMN image_url VARCHAR(255) NULL")
+                cur.execute("ALTER TABLE equipment_defect_reports ADD COLUMN assigned_to VARCHAR(255) NULL")
+                cur.execute("ALTER TABLE equipment_defect_reports ADD COLUMN priority VARCHAR(50) NOT NULL DEFAULT 'Mittel'")
+        except Exception as mig_err:
+            print("Fehler bei defect reports Migration:", mig_err)
+
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
             default_admin_hash = hash_password("admin123")
@@ -234,7 +587,10 @@ def init_db_extensions():
         
         # Startet den Abgleich direkt beim Hochfahren des Containers
         sync_personnel_to_editor_groups()
+        notes_manager.init_notes_db()
+        personnel_mgr.init_personnel_db()
     except Exception as e:
+        print(f"init_db_extensions Fehler: {e}")
         print(f"Fehler bei DB-Erweiterung: {e}")
 
 def init_db():
@@ -336,9 +692,19 @@ def get_login(request: Request):
     if user: return FileResponse("static/dashboard.html")
     return FileResponse("static/login.html")
 
+@app.get("/login", response_class=FileResponse)
+def get_login_explicit(request: Request):
+    user = get_current_user(request)
+    if user: return FileResponse("static/dashboard.html")
+    return FileResponse("static/login.html")
+
 @app.get("/dashboard", response_class=FileResponse)
 def get_dash(request: Request):
-    if not get_current_user(request): return FileResponse("static/login.html")
+    if not get_current_user(request):
+        eq_barcode = request.query_params.get("eq_barcode")
+        if eq_barcode:
+            return RedirectResponse(url=f"/login?eq_barcode={eq_barcode}", status_code=302)
+        return FileResponse("static/login.html")
     return FileResponse("static/dashboard.html")
 
 @app.get("/editor", response_class=FileResponse)
@@ -374,6 +740,7 @@ def api_login(data: LoginRequest, response: Response):
         if user["lockout_until"] and datetime.now() < user["lockout_until"]:
             cur.close(); conn.close()
             remaining = (user["lockout_until"] - datetime.now()).seconds // 60 + 1
+            log_audit_action("SYSTEM", "LOGIN_VERSUCH_GESPERRT", f"Anmeldeversuch auf gesperrtes Konto '{username_clean}'.")
             raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
             
         if verify_password(user['password_hash'], data.password):
@@ -389,10 +756,14 @@ def api_login(data: LoginRequest, response: Response):
             lockout = datetime.now() + timedelta(minutes=15) if failed >= 5 else None
             cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (failed, lockout, user["id"],))
             conn.commit(); cur.close(); conn.close()
-            if failed >= 5: raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+            if failed >= 5:
+                log_audit_action("SYSTEM", "KONTO_GESPERRT", f"Konto '{username_clean}' wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+                raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+            log_audit_action("SYSTEM", "LOGIN_FEHLVERSUCH", f"Falsches Passwort für Benutzer '{username_clean}' ({failed}/5).")
             raise HTTPException(status_code=401, detail=f"Passwort falsch! ({failed}/5)")
     else:
         cur.close(); conn.close()
+        log_audit_action("SYSTEM", "LOGIN_BENUTZER_UNBEKANNT", f"Anmeldeversuch mit nicht existierendem Namen '{username_clean}'.")
         raise HTTPException(status_code=401, detail="Benutzername existiert nicht!")
 
 @app.get("/api/auth/me")
@@ -416,7 +787,7 @@ def api_auth_me(request: Request):
 
 @app.post("/api/logout")
 def api_logout(response: Response):
-    response.delete_cookie("session_token")
+    response.delete_cookie("session_token", path="/")
     return {"status": "success"}
 
 @app.put("/api/auth/change-password")
@@ -452,6 +823,158 @@ def list_users(request: Request):
     cur.execute("SELECT id, username, role, is_first_login, personnel_id FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
     return users
+
+@app.put("/api/users/{user_id}/reset-password")
+def admin_reset_user_password(user_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    target_user = cur.fetchone()
+    if not target_user: cur.close(); conn.close(); raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    
+    p_hash = hash_password("admin123")
+    cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "PASSWORT_RESET", f"Passwort für '{target_user['username']}' auf 'admin123' zurückgesetzt.")
+    return {"status": "success", "message": "Passwort auf 'admin123' zurückgesetzt. Erstanmeldung erforderlich."}
+
+# --- DATENBANK SICHERUNG (EXPORT & IMPORT) ---
+@app.get("/api/admin/backup/export")
+def export_database_backup(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+
+    tables_to_export = [
+        "users", "personnel", "groups_table", "persons", "sessions", "attendance",
+        "vehicles", "log_rides", "hvo_checks", "equipment", "inspections",
+        "equipment_defect_reports", "notes", "archive_files", "youth_sessions",
+        "youth_attendance", "settings", "audit_log", "apager_config", "apager_logs",
+        "broadcasts", "schedules"
+    ]
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    backup_tables = {}
+
+    for table in tables_to_export:
+        try:
+            cur.execute(f"SELECT * FROM `{table}`")
+            rows = cur.fetchall()
+            for r in rows:
+                for k, v in r.items():
+                    if isinstance(v, (datetime, date)):
+                        r[k] = str(v)
+                    elif isinstance(v, bytes):
+                        r[k] = v.decode('utf-8', errors='ignore')
+            backup_tables[table] = rows
+        except Exception as e:
+            print(f"Export warning for table {table}: {e}")
+
+    cur.close()
+    conn.close()
+
+    filename = f"dienstbuch_backup_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.json"
+    backup_data = {
+        "app_name": "Dienstbuch",
+        "version": CURRENT_VERSION,
+        "exported_at": datetime.now().isoformat(),
+        "exported_by": user["username"],
+        "tables": backup_tables
+    }
+
+    log_audit_action(user["username"], "DATENBANK-BACKUP", f"Datenbank-Sicherung '{filename}' erstellt.")
+
+    json_str = json.dumps(backup_data, ensure_ascii=False, indent=2)
+    return Response(
+        content=json_str,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.post("/api/admin/backup/import")
+async def import_database_backup(request: Request, file: UploadFile = File(...)):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+
+    content = await file.read()
+
+    # --- FALL 1: ALTE ODER FREMDE SQL-DATEI (.sql) ---
+    if file.filename.lower().endswith(".sql"):
+        try:
+            sql_script = content.decode('utf-8', errors='ignore')
+            conn = get_db_connection()
+            cur = conn.cursor()
+            statements = [s.strip() for s in sql_script.split(';') if s.strip()]
+            executed_count = 0
+            for stmt in statements:
+                if stmt and not stmt.startswith("--") and not stmt.startswith("/*"):
+                    try:
+                        cur.execute(stmt)
+                        executed_count += 1
+                    except Exception as s_err:
+                        print(f"SQL import statement notice: {s_err}")
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            sync_personnel_to_editor_groups()
+            init_db_extensions()
+            log_audit_action(user["username"], "DATENBANK-IMPORT-SQL", f"SQL-Datei '{file.filename}' erfolgreich importiert ({executed_count} Befehle ausgeführt).")
+            return {"status": "success", "imported_rows": executed_count, "message": f"{executed_count} SQL-Befehle erfolgreich ausgeführt."}
+        except Exception as sql_err:
+            raise HTTPException(status_code=500, detail=f"Fehler beim Importieren der SQL-Datei: {sql_err}")
+
+    # --- FALL 2: DIENSTBUCH JSON-BACKUP (.json) ---
+    try:
+        backup_data = json.loads(content.decode('utf-8'))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ungültige Backup-Datei (.json oder .sql erwartet): {e}")
+
+    if not isinstance(backup_data, dict) or "tables" not in backup_data:
+        raise HTTPException(status_code=400, detail="Ungültiges Backup-Format (Schlüssel 'tables' fehlt).")
+
+    tables = backup_data["tables"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    imported_count = 0
+    try:
+        for table_name, rows in tables.items():
+            if not rows or not isinstance(rows, list):
+                continue
+            
+            for row in rows:
+                cols = list(row.keys())
+                placeholders = ", ".join(["%s"] * len(cols))
+                col_names = ", ".join([f"`{c}`" for c in cols])
+                updates = ", ".join([f"`{c}`=VALUES(`{c}`)" for c in cols])
+                
+                query = f"INSERT INTO `{table_name}` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+                vals = [row[c] for c in cols]
+                try:
+                    cur.execute(query, vals)
+                    imported_count += 1
+                except Exception as row_err:
+                    print(f"Import row error in {table_name}: {row_err}")
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Fehler beim Importieren: {e}")
+
+    cur.close()
+    conn.close()
+
+    sync_personnel_to_editor_groups()
+    init_db_extensions()
+    log_audit_action(user["username"], "DATENBANK-IMPORT", f"Backup-Datei '{file.filename}' erfolgreich importiert ({imported_count} Datensätze).")
+
+    return {"status": "success", "imported_rows": imported_count}
 
 @app.post("/api/users/add")
 def add_user(data: UserCreateRequest, request: Request):
@@ -509,6 +1032,135 @@ def delete_user(user_id: int, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- FEUERWACHE STANDORT EINSTELLUNGEN ---
+@app.get("/api/settings/station")
+def get_station_settings():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT station_name, lat, lng, zoom FROM station_settings LIMIT 1")
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row:
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14}
+    return row
+
+@app.put("/api/settings/station")
+def update_station_settings(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    
+    station_name = data.get("station_name", "Feuerwehr").strip()
+    try:
+        lat = float(data.get("lat", 50.1109))
+        lng = float(data.get("lng", 8.6821))
+        zoom = int(data.get("zoom", 14))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Ungültige Koordinaten")
+        
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT id FROM station_settings LIMIT 1")
+    row = cur.fetchone()
+    if row:
+        cur.execute("""
+            UPDATE station_settings 
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s
+            WHERE id = %s
+        """, (station_name, lat, lng, zoom, row[0]))
+    else:
+        cur.execute("""
+            INSERT INTO station_settings (station_name, lat, lng, zoom)
+            VALUES (%s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
+    return {"status": "success"}
+
+# --- DATEI UPLOAD SYSTEM ---
+@app.post("/api/upload")
+async def upload_file(request: Request, file: UploadFile = File(...)):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    with open(filepath, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+        
+    url = f"/static/uploads/{filename}"
+    return {"url": url, "filename": file.filename}
+
+# --- DOCUMENT ARCHIVE SYSTEM ---
+@app.post("/api/archive/upload")
+async def upload_archive_file(request: Request, file: UploadFile = File(...), is_public: bool = False):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    with open(filepath, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+        
+    url = f"/static/uploads/{filename}"
+    
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO archive_files (filename, url, uploaded_by, is_public) VALUES (%s, %s, %s, %s)",
+        (file.filename, url, user["username"], 1 if is_public else 0)
+    )
+    conn.commit(); cur.close(); conn.close()
+    
+    log_audit_action(user["username"], "ARCHIV_DATEI_HOCHGELADEN", f"Datei '{file.filename}' hochgeladen (Öffentlich: {is_public}).")
+    return {"status": "success", "url": url}
+
+@app.get("/api/archive/files")
+def get_archive_files(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    # Everyone only sees public files or files they uploaded themselves!
+    cur.execute("""
+        SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
+        FROM archive_files
+        WHERE is_public = 1 OR uploaded_by = %s
+        ORDER BY id DESC
+    """, (user["username"],))
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.delete("/api/archive/files/{file_id}")
+def delete_archive_file(file_id: int, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT uploaded_by, filename, is_public FROM archive_files WHERE id = %s", (file_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        
+    is_owner = (row["uploaded_by"] == user["username"])
+    is_privileged = (user["role"] in ("admin", "leitung"))
+    
+    if not is_owner and not (is_privileged and row["is_public"]):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=403, detail="Keine Berechtigung zum Löschen dieser Datei")
+        
+    cur.execute("DELETE FROM archive_files WHERE id = %s", (file_id,))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "ARCHIV_DATEI_GELOESCHT", f"Datei '{row['filename']}' gelöscht.")
     return {"status": "success"}
 
 # --- AUDIT-LOG ROUTE (REVISIONS-PROTOKOLL) ---
@@ -576,7 +1228,9 @@ def delete_broadcast(id: int, request: Request):
 
 # --- FAHRZEUG POOL APIS ---
 @app.get("/api/vehicles")
-def get_vehicles():
+def get_vehicles(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service FROM vehicles ORDER BY name")
     r = cur.fetchall(); c.close()
@@ -634,7 +1288,9 @@ def delete_vehicle(id: int, request: Request):
 
 # --- GRUPPEN & DIENST-STRUKTUREN ---
 @app.get("/groups")
-def get_groups():
+def get_groups(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c=get_db_connection(); cur=c.cursor(dictionary=True)
     cur.execute("SELECT * FROM groups_table ORDER BY name")
     r=cur.fetchall(); c.close(); return r
@@ -665,7 +1321,9 @@ def delete_group(id: int, request: Request):
     c.commit(); c.close(); return {"status": "deleted"}
 
 @app.get("/groups/{id}/sessions")
-def get_sessions(id: int):
+def get_sessions(id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC", (id,))
     r = cur.fetchall(); c.close()
@@ -676,7 +1334,9 @@ def get_sessions(id: int):
     return r
 
 @app.get("/groups/{id}/stats")
-def get_stats(id: int, year: int):
+def get_stats(id: int, year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id, year))
     max_s = cur.fetchone()['total'] or 0
@@ -690,7 +1350,9 @@ def get_stats(id: int, year: int):
     return {"persons": p, "total_sessions": max_s}
 
 @app.get("/groups/{group_id}/attendance")
-async def get_attendance(group_id: int, session_id: Optional[int] = None):
+async def get_attendance(group_id: int, request: Request, session_id: Optional[int] = None):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
@@ -738,7 +1400,7 @@ async def get_attendance(group_id: int, session_id: Optional[int] = None):
 @app.post("/attendance")
 async def save_attendance(payload: AttendanceUpload, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         if payload.session_id:
@@ -755,19 +1417,25 @@ async def save_attendance(payload: AttendanceUpload, request: Request):
     finally: cur.close(); conn.close()
 
 @app.get("/groups/{group_id}/topics")
-def get_topics(group_id: int):
+def get_topics(group_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("SELECT DISTINCT description FROM sessions WHERE group_id=%s AND description IS NOT NULL LIMIT 50", (group_id,))
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.get("/groups/{group_id}/instructors")
-def get_instructors(group_id: int):
+def get_instructors(group_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("SELECT DISTINCT instructors FROM sessions WHERE group_id=%s AND instructors IS NOT NULL LIMIT 50", (group_id,))
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.post("/sessions/{session_id}/leader_signature")
-async def save_leader_sig(session_id: int, data: dict):
+async def save_leader_sig(session_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
     c.commit(); c.close(); return {"status": "success"}
@@ -776,7 +1444,7 @@ async def save_leader_sig(session_id: int, data: dict):
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": 
+    if not user or user["role"] in ("mannschaft", "geratewart"): 
         raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
@@ -786,7 +1454,9 @@ def delete_session(session_id: int, request: Request):
 
 # --- BERICHTE & JAHRESBERICHTE SYSTEM ---
 @app.get("/sessions/{session_id}/report", response_class=HTMLResponse)
-def single_report(session_id: int):
+def single_report(session_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.id=%s", (session_id,))
     s = cur.fetchone()
@@ -797,7 +1467,9 @@ def single_report(session_id: int):
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{reports.generate_single_report(s, persons, TOWN_NAME)}</body></html>"
 
 @app.get("/groups/{group_id}/print_view", response_class=HTMLResponse)
-def year_report(group_id: int, year: int):
+def year_report(group_id: int, year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM groups_table WHERE id=%s", (group_id,))
     gname_res = cur.fetchone(); gname = gname_res['name'] if gname_res else "Unbekannt"
@@ -828,12 +1500,26 @@ def get_my_global_fire_stats(year: int, request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT p.name FROM users u JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    cur.execute("SELECT p.name, u.personnel_id FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
     res = cur.fetchone()
-    if not res:
+    
+    klarnat_name = None
+    if res and res["name"]:
+        klarnat_name = res["name"]
+    else:
+        # Fallback: Suche nach Namen, der dem Benutzernamen ähnelt
+        cur.execute("SELECT id, name FROM personnel WHERE LOWER(name) LIKE %s", (f"%{user['username'].lower()}%",))
+        fallback = cur.fetchone()
+        if fallback:
+            # Auto-bind
+            cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], user["username"]))
+            conn.commit()
+            klarnat_name = fallback["name"]
+            
+    if not klarnat_name:
         cur.close(); conn.close()
-        return {"hours": 0, "count": 0}
-    klarnat_name = res["name"]
+        return {"hours": 0, "count": 0, "unlinked": True}
+        
     query = """
         SELECT COALESCE(SUM(s.duration), 0) as total_hours, COUNT(DISTINCT s.id) as present_count
         FROM attendance a JOIN sessions s ON a.session_id = s.id JOIN persons p ON a.person_id = p.id
@@ -841,4 +1527,525 @@ def get_my_global_fire_stats(year: int, request: Request):
     """
     cur.execute(query, (klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
-    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0}
+    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0, "unlinked": False, "name": klarnat_name}
+
+@app.get("/api/users/me/sessions")
+def get_my_sessions(year: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT p.name FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    res = cur.fetchone()
+    if not res or not res["name"]:
+        cur.close(); conn.close()
+        return []
+    
+    query = """
+        SELECT s.date, s.category, s.description, s.duration
+        FROM attendance a 
+        JOIN sessions s ON a.session_id = s.id 
+        JOIN persons p ON a.person_id = p.id
+        WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+        ORDER BY s.date DESC
+    """
+    cur.execute(query, (res["name"], year))
+    sessions = cur.fetchall(); cur.close(); conn.close()
+    for s in sessions:
+        s["date"] = str(s["date"])
+    return sessions
+
+@app.put("/api/users/me/bind-personnel")
+def bind_self_personnel(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    pid = data.get("personnel_id")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (pid, user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- ALARMIERUNG (APAGER PRO WEBHOOK & CONFIG) ---
+import uuid
+
+@app.get("/api/apager/config")
+def get_apager_config(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM apager_config LIMIT 1")
+    row = cur.fetchone()
+    if not row:
+        api_key = uuid.uuid4().hex
+        cur.execute("INSERT INTO apager_config (api_key) VALUES (%s)", (api_key,))
+        conn.commit()
+        cur.close(); conn.close()
+        return {"api_key": api_key, "active": True}
+    cur.close(); conn.close()
+    return {"api_key": row['api_key'], "active": bool(row['active'])}
+
+@app.post("/api/apager/config")
+def regenerate_apager_key(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    new_key = uuid.uuid4().hex
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM apager_config")
+    cur.execute("INSERT INTO apager_config (api_key) VALUES (%s)", (new_key,))
+    conn.commit(); cur.close(); conn.close()
+    return {"api_key": new_key, "active": True}
+
+@app.get("/api/apager/logs")
+def get_apager_logs(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
+    r = cur.fetchall(); cur.close(); conn.close()
+    import datetime
+    now = datetime.datetime.now()
+    for log in r:
+        if isinstance(log.get('created_at'), datetime.datetime):
+            diff_sec = (now - log['created_at']).total_seconds()
+            log['diff_min'] = diff_sec / 60.0
+        else:
+            log['diff_min'] = 999.0
+        log['created_at'] = str(log['created_at'])
+    return r
+
+@app.post("/api/apager/webhook")
+async def apager_webhook(api_key: str, req: Request):
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id FROM apager_config WHERE api_key = %s AND active = 1", (api_key,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=401, detail="Ungültiger API-Key.")
+    
+    try:
+        data = await req.json()
+    except:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Ungültiges JSON.")
+        
+    stichwort = data.get("stichwort", "Alarmierung")
+    adresse = data.get("adresse", "Unbekannter Ort")
+    meldung = data.get("meldung", "Keine weiteren Details.")
+    
+    cur.execute("""
+        INSERT INTO apager_logs (stichwort, adresse, meldung)
+        VALUES (%s, %s, %s)
+    """, (stichwort, adresse, meldung))
+    
+    # --- AUTO-EINSATZERÖFFNUNG & VORBEFÜLLUNG ---
+    today = datetime.now().date().isoformat()
+    now_time = datetime.now().strftime("%H:%M")
+    cur.execute("""
+        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status)
+        VALUES (%s, %s, %s, %s, %s, '', 2.0, 'Entwurf')
+    """, (today, now_time, stichwort, adresse, meldung))
+    
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success", "message": "Alarm erfolgreich verarbeitet und Einsatz angelegt."}
+
+# --- APAGER FEEDBACKS ENDPOINTS ---
+@app.get("/api/apager/feedbacks")
+def get_apager_feedbacks(request: Request):
+    check_user = get_current_user(request)
+    if not check_user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT af.*, p.name, p.is_agt, p.is_maschinist, p.is_gf, p.is_tf
+        FROM apager_feedbacks af
+        JOIN personnel p ON af.personnel_id = p.id
+        ORDER BY af.updated_at DESC LIMIT 50
+    """)
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        row['updated_at'] = str(row['updated_at'])
+    return res
+
+@app.post("/api/apager/feedbacks")
+def submit_apager_feedback(status: str, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone()
+    if not row or not row["personnel_id"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Kein Kamerad mit diesem Login verknüpft.")
+    
+    personnel_id = row["personnel_id"]
+    
+    # Letzten Alarm holen
+    cur.execute("SELECT id FROM apager_logs ORDER BY created_at DESC LIMIT 1")
+    alarm = cur.fetchone()
+    alarm_id = alarm["id"] if alarm else None
+    
+    cur.execute("""
+        INSERT INTO apager_feedbacks (apager_log_id, personnel_id, status)
+        VALUES (%s, %s, %s)
+        ON DUPLICATE KEY UPDATE status = %s
+    """, (alarm_id, personnel_id, status, status))
+    
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- TEST ALARM ---
+@app.post("/api/apager/test-alarm")
+async def send_test_alarm(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Nur Admins/Leitung/Gerätewarte können Test-Alarme senden.")
+    stichwort = "[TEST] " + (data.get("stichwort") or "Probealarm")
+    adresse = data.get("adresse") or "Übungsgelände"
+    meldung = data.get("meldung") or "Dies ist ein Test-Alarm – keine echte Gefahr!"
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO apager_logs (stichwort, adresse, meldung) VALUES (%s, %s, %s)",
+        (stichwort, adresse, meldung)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
+    return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}
+
+# --- MÄNGELMELDER (GERÄTEWART - ERWEITERT) ---
+@app.post("/api/material/defect-reports")
+def create_defect_report(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    eq_id = data.get("equipment_id")
+    desc = data.get("description", "").strip()
+    severity = data.get("severity", "Mittel")
+    image_url = data.get("image_url")
+    assigned_to = data.get("assigned_to")
+    priority = data.get("priority", "Mittel")
+    if not eq_id or not desc:
+        raise HTTPException(status_code=400, detail="Gerät und Beschreibung erforderlich.")
+    reporter = data.get("reporter_name") or user["username"]
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO equipment_defect_reports (equipment_id, reporter_name, description, severity, image_url, assigned_to, priority) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (eq_id, reporter, desc, severity, image_url, assigned_to, priority)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_MELDEN", f"Mangel für Gerät-ID {eq_id} gemeldet: {desc[:60]}")
+    return {"status": "success"}
+
+@app.get("/api/material/defect-reports")
+def get_defect_reports(request: Request, status: str = "Offen"):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    if status == "alle":
+        cur.execute("""
+            SELECT dr.*, e.name as equipment_name, e.barcode
+            FROM equipment_defect_reports dr
+            LEFT JOIN equipment e ON dr.equipment_id = e.id
+            ORDER BY dr.created_at DESC LIMIT 100
+        """)
+    else:
+        cur.execute("""
+            SELECT dr.*, e.name as equipment_name, e.barcode
+            FROM equipment_defect_reports dr
+            LEFT JOIN equipment e ON dr.equipment_id = e.id
+            WHERE dr.status = %s
+            ORDER BY dr.created_at DESC LIMIT 100
+        """, (status,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    for r in rows:
+        for k in ["created_at", "resolved_at"]:
+            if r.get(k): r[k] = str(r[k])
+    return rows
+
+@app.put("/api/material/defect-reports/{report_id}")
+def resolve_defect_report(report_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    new_status = data.get("status", "Erledigt")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "UPDATE equipment_defect_reports SET status = %s, resolved_by = %s, resolved_at = NOW() WHERE id = %s",
+        (new_status, user["username"], report_id)
+    )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_ERLEDIGT", f"Mangel-Meldung ID {report_id} als '{new_status}' markiert.")
+    return {"status": "success"}
+
+@app.delete("/api/material/defect-reports/{report_id}")
+def delete_defect_report(report_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM equipment_defect_reports WHERE id = %s", (report_id,))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MANGEL_GELOESCHT", f"Mangel-Meldung ID {report_id} gelöscht.")
+    return {"status": "success"}
+
+# --- DRONE MAP IMAGES ---
+@app.get("/api/material/drone-images")
+def get_drone_images(request: Request):
+    check_auth = get_current_user(request)
+    if not check_auth: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM drone_images ORDER BY id DESC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/material/drone-images")
+def add_drone_image(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    url = data.get("url")
+    if not url: raise HTTPException(status_code=400, detail="URL erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO drone_images (url) VALUES (%s)", (url,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.delete("/api/material/drone-images/{img_id}")
+def delete_drone_image(img_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM drone_images WHERE id = %s", (img_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- JUGENDFEUERWERKE & VEREIN ---
+@app.get("/api/jugend/members")
+def get_youth_members(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM youth_members ORDER BY name ASC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/jugend/members")
+def add_youth_member(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    name = data.get("name")
+    parent = data.get("parent_contact", "")
+    badges = data.get("badges", "")
+    if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO youth_members (name, parent_contact, badges) VALUES (%s, %s, %s)", (name, parent, badges))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.delete("/api/jugend/members/{m_id}")
+def delete_youth_member(m_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM youth_members WHERE id = %s", (m_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- JUGEND-DIENSTBERICHTE ---
+@app.get("/api/jugend/sessions")
+def get_youth_sessions(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM youth_sessions ORDER BY date DESC, id DESC")
+    sessions = cur.fetchall()
+    for s in sessions:
+        if isinstance(s["date"], date):
+            s["date"] = str(s["date"])
+        cur.execute("""
+            SELECT ya.member_id, ya.is_present, ym.name
+            FROM youth_attendance ya
+            JOIN youth_members ym ON ya.member_id = ym.id
+            WHERE ya.session_id = %s
+        """, (s["id"],))
+        s["attendance"] = cur.fetchall()
+    cur.close(); conn.close()
+    return sessions
+
+@app.post("/api/jugend/sessions")
+def add_youth_session(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    sess_date = data.get("date")
+    topic = data.get("topic")
+    duration = float(data.get("duration", 2.0))
+    instructors = data.get("instructors", "")
+    description = data.get("description", "")
+    attendance = data.get("attendance", {})
+    if not sess_date or not topic:
+        raise HTTPException(status_code=400, detail="Datum und Thema erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO youth_sessions (date, topic, duration, instructors, description)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (sess_date, topic, duration, instructors, description))
+    session_id = cur.lastrowid
+    cur.execute("SELECT id FROM youth_members")
+    member_ids = [row[0] for row in cur.fetchall()]
+    for m_id in member_ids:
+        is_pres = attendance.get(str(m_id)) or attendance.get(m_id) or False
+        cur.execute("""
+            INSERT INTO youth_attendance (session_id, member_id, is_present)
+            VALUES (%s, %s, %s)
+        """, (session_id, m_id, 1 if is_pres else 0))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success", "session_id": session_id}
+
+@app.delete("/api/jugend/sessions/{s_id}")
+def delete_youth_session(s_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM youth_sessions WHERE id = %s", (s_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.get("/api/verein/inventory")
+def get_club_inventory(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM club_inventory ORDER BY item_name ASC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/verein/inventory")
+def add_club_inventory(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    item = data.get("item_name")
+    qty = int(data.get("quantity", 1))
+    status = data.get("status", "OK")
+    if not item: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO club_inventory (item_name, quantity, status) VALUES (%s, %s, %s)", (item, qty, status))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.delete("/api/verein/inventory/{i_id}")
+def delete_club_inventory(i_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM club_inventory WHERE id = %s", (i_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.get("/api/verein/donations")
+def get_donations(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT *, DATE_FORMAT(date, '%d.%m.%Y') as formatted_date FROM club_donations ORDER BY date DESC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/verein/donations")
+def add_donation(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    donor = data.get("donor")
+    amount = float(data.get("amount", 0))
+    date_val = data.get("date")
+    if not donor or not date_val: raise HTTPException(status_code=400, detail="Spender und Datum erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO club_donations (donor, amount, date) VALUES (%s, %s, %s)", (donor, amount, date_val))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- FIRST RESPONDER / HvO ---
+@app.get("/api/hvo/protocols")
+def get_hvo_protocols(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT *, DATE_FORMAT(date, '%d.%m.%Y') as formatted_date FROM hvo_protocols ORDER BY date DESC LIMIT 100")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/hvo/protocols")
+def add_hvo_protocol(data: dict, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    date_val = data.get("date")
+    symptoms = data.get("symptoms", "")
+    therapy = data.get("therapy", "")
+    handover = data.get("handover", "")
+    if not date_val: raise HTTPException(status_code=400, detail="Datum erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO hvo_protocols (date, symptoms, therapy, handover) VALUES (%s, %s, %s, %s)", (date_val, symptoms, therapy, handover))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.get("/api/hvo/checks")
+def get_hvo_checks(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT *, DATE_FORMAT(checked_at, '%d.%m.%Y') as formatted_date FROM hvo_equipment_checks ORDER BY checked_at DESC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@app.post("/api/hvo/checks")
+def add_hvo_check(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    dev = data.get("device_name")
+    status = data.get("status", "OK")
+    if not dev: raise HTTPException(status_code=400, detail="Gerätename erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO hvo_equipment_checks (device_name, checked_at, status, checked_by) VALUES (%s, NOW(), %s, %s)", (dev, status, user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- AI DRAFT SUMMARY GENERATOR ---
+@app.post("/api/missions/ai-draft")
+def get_ai_draft(data: dict, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    stichwort = data.get("stichwort", "Brandeinsatz")
+    adresse = data.get("adresse", "Hauptstraße 12")
+    meldung = data.get("meldung", "Rauchentwicklung")
+    
+    # Generiere einen ansprechenden Entwurf
+    draft = f"Am Einsatzort ({adresse}) wurde nach Erkundung der Lage die Meldung '{meldung}' ({stichwort}) bestätigt. Die Mannschaft ging unter schwerem Atemschutz vor. Der Brand konnte rasch unter Kontrolle gebracht und gelöscht werden. Anschließend Belüftungsmaßnahmen durchgeführt. Übergabe an Eigentümer."
+    return {"draft": draft}
+
+# --- ICAL / central calendar CENTRAL EXPORT ---
+@app.get("/api/calendar/export.ics", response_class=Response)
+def export_calendar_ical():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM schedules")
+    schedules = cur.fetchall(); cur.close(); conn.close()
+    
+    import datetime
+    ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//FF Dienstbuch//Calendar Export//DE\r\n"
+    for s in schedules:
+        d_val = s["date"] # date object
+        t_val = s["time"] # "HH:MM" format
+        try:
+            h, m = map(int, t_val.split(":"))
+            dt = datetime.datetime(d_val.year, d_val.month, d_val.day, h, m)
+        except:
+            dt = datetime.datetime(d_val.year, d_val.month, d_val.day, 19, 0)
+        
+        dt_str = dt.strftime("%Y%m%dT%H%M%S")
+        dt_end_str = (dt + datetime.timedelta(hours=2)).strftime("%Y%m%dT%H%M%S")
+        
+        ics += "BEGIN:VEVENT\r\n"
+        ics += f"UID:SCH{s['id']}@feuerwehr-dienstbuch.de\r\n"
+        ics += f"DTSTAMP:{dt_str}\r\n"
+        ics += f"DTSTART:{dt_str}\r\n"
+        ics += f"DTEND:{dt_end_str}\r\n"
+        ics += f"SUMMARY:{s['title']}\r\n"
+        ics += f"DESCRIPTION:{s['description'] or ''} ({s['type']})\r\n"
+        ics += "END:VEVENT\r\n"
+    ics += "END:VCALENDAR\r\n"
+    
+    return Response(content=ics, media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=feuerwehr_dienstplan.ics"})
