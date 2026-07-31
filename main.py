@@ -562,6 +562,38 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        # Migration für youth_members (Extended Jugend-Akte)
+        youth_cols = [
+            ("birth_date", "DATE NULL"),
+            ("entry_date", "DATE NULL"),
+            ("phone", "VARCHAR(100) NULL"),
+            ("email", "VARCHAR(150) NULL"),
+            ("address", "VARCHAR(255) NULL"),
+            ("notes", "TEXT NULL"),
+            ("skills", "TEXT NULL"),
+            ("lic_am", "TINYINT(1) DEFAULT 0"),
+            ("lic_a1", "TINYINT(1) DEFAULT 0"),
+            ("lic_b", "TINYINT(1) DEFAULT 0"),
+            ("lic_l", "TINYINT(1) DEFAULT 0"),
+            ("lic_t", "TINYINT(1) DEFAULT 0"),
+            ("has_jf1", "TINYINT(1) DEFAULT 0"),
+            ("has_jf2", "TINYINT(1) DEFAULT 0"),
+            ("has_jf3", "TINYINT(1) DEFAULT 0"),
+            ("has_wissentest", "TINYINT(1) DEFAULT 0"),
+            ("has_leistungsspange", "TINYINT(1) DEFAULT 0"),
+            ("has_jugendabzeichen", "TINYINT(1) DEFAULT 0"),
+            ("has_mta_basis", "TINYINT(1) DEFAULT 0"),
+            ("has_erste_hilfe", "TINYINT(1) DEFAULT 0"),
+            ("has_funk", "TINYINT(1) DEFAULT 0")
+        ]
+        for col_name, col_def in youth_cols:
+            try:
+                cur.execute(f"SHOW COLUMNS FROM youth_members LIKE '{col_name}'")
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE youth_members ADD COLUMN {col_name} {col_def}")
+            except Exception as e:
+                print(f"Migration youth_members col {col_name}: {e}")
+
         # Migration für Mängelberichte (Foto, Zuweisung, Priorität)
         try:
             cur.execute("SHOW COLUMNS FROM equipment_defect_reports LIKE 'image_url'")
@@ -1325,13 +1357,40 @@ def get_sessions(id: int, request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
+    
+    # 1. Reguläre Dienste
     cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC", (id,))
-    r = cur.fetchall(); c.close()
-    for x in r: 
+    sessions = cur.fetchall()
+    for x in sessions: 
         x['date'] = str(x['date'])
         x['is_signed'] = bool(x['leader_signature'] and len(str(x['leader_signature'])) > 100)
+        x['is_mission'] = False
         if 'leader_signature' in x: del x['leader_signature']
-    return r
+        
+    # 2. Einsatzberichte mit einbinden
+    try:
+        cur.execute("SELECT id, date, time, stichwort, meldung, adresse, description, duration, leader_signature FROM missions ORDER BY date DESC, id DESC")
+        missions = cur.fetchall()
+        for m in missions:
+            desc = f"{m['stichwort']}: {m['meldung']} ({m['adresse']})"
+            if m.get('description'):
+                desc += f" - {m['description']}"
+            sessions.append({
+                'id': f"m_{m['id']}",
+                'real_mission_id': m['id'],
+                'date': str(m['date']),
+                'category': 'Einsatz',
+                'description': desc,
+                'duration': float(m['duration'] or 2.0),
+                'is_signed': bool(m['leader_signature'] and len(str(m['leader_signature'])) > 100),
+                'is_mission': True
+            })
+    except Exception as e:
+        print(f"Mission fetch warning: {e}")
+        
+    sessions.sort(key=lambda x: str(x['date']), reverse=True)
+    c.close()
+    return sessions
 
 @app.get("/groups/{id}/stats")
 def get_stats(id: int, year: int, request: Request):
@@ -1340,14 +1399,34 @@ def get_stats(id: int, year: int, request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id, year))
     max_s = cur.fetchone()['total'] or 0
-    sql = """SELECT p.id as person_id, p.name, 
-             SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN 1 ELSE 0 END) as present_count, 
-             SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN s.duration ELSE 0 END) as total_hours 
-             FROM persons p LEFT JOIN attendance a ON p.id=a.person_id 
-             LEFT JOIN sessions s ON a.session_id=s.id AND YEAR(s.date)=%s AND s.group_id=%s 
-             WHERE p.group_id=%s GROUP BY p.id, p.name ORDER BY total_hours DESC"""
-    cur.execute(sql, (year, id, id)); p = cur.fetchall(); c.close()
-    return {"persons": p, "total_sessions": max_s}
+    sql = """
+        SELECT p.id as person_id, p.name, 
+               COALESCE(SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN 1 ELSE 0 END), 0) as present_count, 
+               COALESCE(SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN s.duration ELSE 0 END), 0) as session_hours,
+               COALESCE((
+                   SELECT SUM(m.duration)
+                   FROM mission_attendance ma
+                   JOIN missions m ON ma.mission_id = m.id
+                   JOIN personnel pl ON ma.personnel_id = pl.id
+                   WHERE pl.name = p.name AND ma.is_present IN ('Abgerückt', 'Bereitstellung') AND YEAR(m.date) = %s
+               ), 0) as mission_hours
+        FROM persons p 
+        LEFT JOIN attendance a ON p.id = a.person_id 
+        LEFT JOIN sessions s ON a.session_id = s.id AND YEAR(s.date) = %s AND s.group_id = %s 
+        WHERE p.group_id = %s 
+        GROUP BY p.id, p.name
+    """
+    cur.execute(sql, (year, year, id, id))
+    persons = cur.fetchall()
+    c.close()
+
+    for p in persons:
+        s_h = float(p.get("session_hours") or 0.0)
+        m_h = float(p.get("mission_hours") or 0.0)
+        p["total_hours"] = round(s_h + m_h, 1)
+
+    persons.sort(key=lambda x: x["total_hours"], reverse=True)
+    return {"persons": persons, "total_sessions": max_s}
 
 @app.get("/groups/{group_id}/attendance")
 async def get_attendance(group_id: int, request: Request, session_id: Optional[int] = None):
@@ -1521,13 +1600,50 @@ def get_my_global_fire_stats(year: int, request: Request):
         return {"hours": 0, "count": 0, "unlinked": True}
         
     query = """
-        SELECT COALESCE(SUM(s.duration), 0) as total_hours, COUNT(DISTINCT s.id) as present_count
-        FROM attendance a JOIN sessions s ON a.session_id = s.id JOIN persons p ON a.person_id = p.id
-        WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+        SELECT 
+            COALESCE((
+                SELECT SUM(s.duration) 
+                FROM attendance a 
+                JOIN sessions s ON a.session_id = s.id 
+                JOIN persons p ON a.person_id = p.id 
+                WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+            ), 0) as session_hours,
+            COALESCE((
+                SELECT COUNT(DISTINCT s.id) 
+                FROM attendance a 
+                JOIN sessions s ON a.session_id = s.id 
+                JOIN persons p ON a.person_id = p.id 
+                WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+            ), 0) as session_count,
+            COALESCE((
+                SELECT SUM(m.duration) 
+                FROM mission_attendance ma 
+                JOIN missions m ON ma.mission_id = m.id 
+                JOIN personnel pl ON ma.personnel_id = pl.id 
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+            ), 0) as mission_hours,
+            COALESCE((
+                SELECT COUNT(DISTINCT m.id) 
+                FROM mission_attendance ma 
+                JOIN missions m ON ma.mission_id = m.id 
+                JOIN personnel pl ON ma.personnel_id = pl.id 
+                WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+            ), 0) as mission_count
     """
-    cur.execute(query, (klarnat_name, year))
+    cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
-    return {"hours": float(stats["total_hours"]) if stats else 0.0, "count": stats["present_count"] if stats else 0, "unlinked": False, "name": klarnat_name}
+    
+    total_hours = float(stats["session_hours"] or 0) + float(stats["mission_hours"] or 0)
+    total_count = (stats["session_count"] or 0) + (stats["mission_count"] or 0)
+
+    return {
+        "hours": round(total_hours, 1),
+        "count": total_count,
+        "session_hours": float(stats["session_hours"] or 0),
+        "mission_hours": float(stats["mission_hours"] or 0),
+        "unlinked": False,
+        "name": klarnat_name
+    }
 
 @app.get("/api/users/me/sessions")
 def get_my_sessions(year: int, request: Request):
@@ -1540,18 +1656,38 @@ def get_my_sessions(year: int, request: Request):
         cur.close(); conn.close()
         return []
     
+    klarnat_name = res["name"]
     query = """
         SELECT s.date, s.category, s.description, s.duration
         FROM attendance a 
         JOIN sessions s ON a.session_id = s.id 
         JOIN persons p ON a.person_id = p.id
         WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
-        ORDER BY s.date DESC
     """
-    cur.execute(query, (res["name"], year))
-    sessions = cur.fetchall(); cur.close(); conn.close()
+    cur.execute(query, (klarnat_name, year))
+    sessions = cur.fetchall()
+    
+    try:
+        cur.execute("""
+            SELECT m.date, 'Einsatz' as category, CONCAT(m.stichwort, ': ', m.meldung, ' (', m.adresse, ')') as description, m.duration
+            FROM mission_attendance ma
+            JOIN missions m ON ma.mission_id = m.id
+            JOIN personnel pl ON ma.personnel_id = pl.id
+            WHERE pl.name = %s AND YEAR(m.date) = %s AND ma.is_present IN ('Abgerückt', 'Bereitstellung')
+        """, (klarnat_name, year))
+        m_sessions = cur.fetchall()
+        sessions.extend(m_sessions)
+    except Exception as e:
+        print(f"My mission sessions fetch error: {e}")
+        
+    cur.close(); conn.close()
+    
+    from datetime import date
+    sessions.sort(key=lambda x: str(x['date']), reverse=True)
     for s in sessions:
-        s["date"] = str(s["date"])
+        if isinstance(s['date'], date):
+            s['date'] = str(s['date'])
+        s['duration'] = float(s['duration'] or 2.0)
     return sessions
 
 @app.put("/api/users/me/bind-personnel")
@@ -1816,13 +1952,18 @@ def delete_drone_image(img_id: int, request: Request):
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
-# --- JUGENDFEUERWERKE & VEREIN ---
+# --- JUGENDFEUERWEHR & MITGLIEDER ---
 @app.get("/api/jugend/members")
 def get_youth_members(request: Request):
     if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM youth_members ORDER BY name ASC")
     res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        for k in ["birth_date", "entry_date"]:
+            if r.get(k): r[k] = str(r[k])
+        for k in ["lic_am", "lic_a1", "lic_b", "lic_l", "lic_t", "has_jf1", "has_jf2", "has_jf3", "has_wissentest", "has_leistungsspange", "has_jugendabzeichen", "has_mta_basis", "has_erste_hilfe", "has_funk"]:
+            if k in r: r[k] = bool(r[k])
     return res
 
 @app.post("/api/jugend/members")
@@ -1830,13 +1971,93 @@ def add_youth_member(data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    name = data.get("name")
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
+    
     parent = data.get("parent_contact", "")
     badges = data.get("badges", "")
-    if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
+    skills = data.get("skills", "")
+    birth_date = data.get("birth_date") or None
+    entry_date = data.get("entry_date") or None
+    phone = data.get("phone", "")
+    email = data.get("email", "")
+    address = data.get("address", "")
+    notes = data.get("notes", "")
+
+    lic_am = 1 if data.get("lic_am") else 0
+    lic_a1 = 1 if data.get("lic_a1") else 0
+    lic_b = 1 if data.get("lic_b") else 0
+    lic_l = 1 if data.get("lic_l") else 0
+    lic_t = 1 if data.get("lic_t") else 0
+
+    has_jf1 = 1 if data.get("has_jf1") else 0
+    has_jf2 = 1 if data.get("has_jf2") else 0
+    has_jf3 = 1 if data.get("has_jf3") else 0
+    has_wissentest = 1 if data.get("has_wissentest") else 0
+    has_leistungsspange = 1 if data.get("has_leistungsspange") else 0
+    has_jugendabzeichen = 1 if data.get("has_jugendabzeichen") else 0
+    has_mta_basis = 1 if data.get("has_mta_basis") else 0
+    has_erste_hilfe = 1 if data.get("has_erste_hilfe") else 0
+    has_funk = 1 if data.get("has_funk") else 0
+
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("INSERT INTO youth_members (name, parent_contact, badges) VALUES (%s, %s, %s)", (name, parent, badges))
+    cur.execute("""
+        INSERT INTO youth_members 
+        (name, parent_contact, badges, skills, birth_date, entry_date, phone, email, address, notes,
+         lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes,
+          lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk))
     conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "JUGEND_ANLEGEN", f"Jugendmitglied '{name}' neu angelegt.")
+    return {"status": "success"}
+
+@app.put("/api/jugend/members/{m_id}")
+def update_youth_member(m_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
+    
+    parent = data.get("parent_contact", "")
+    badges = data.get("badges", "")
+    skills = data.get("skills", "")
+    birth_date = data.get("birth_date") or None
+    entry_date = data.get("entry_date") or None
+    phone = data.get("phone", "")
+    email = data.get("email", "")
+    address = data.get("address", "")
+    notes = data.get("notes", "")
+
+    lic_am = 1 if data.get("lic_am") else 0
+    lic_a1 = 1 if data.get("lic_a1") else 0
+    lic_b = 1 if data.get("lic_b") else 0
+    lic_l = 1 if data.get("lic_l") else 0
+    lic_t = 1 if data.get("lic_t") else 0
+
+    has_jf1 = 1 if data.get("has_jf1") else 0
+    has_jf2 = 1 if data.get("has_jf2") else 0
+    has_jf3 = 1 if data.get("has_jf3") else 0
+    has_wissentest = 1 if data.get("has_wissentest") else 0
+    has_leistungsspange = 1 if data.get("has_leistungsspange") else 0
+    has_jugendabzeichen = 1 if data.get("has_jugendabzeichen") else 0
+    has_mta_basis = 1 if data.get("has_mta_basis") else 0
+    has_erste_hilfe = 1 if data.get("has_erste_hilfe") else 0
+    has_funk = 1 if data.get("has_funk") else 0
+
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE youth_members 
+        SET name=%s, parent_contact=%s, badges=%s, skills=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, notes=%s,
+            lic_am=%s, lic_a1=%s, lic_b=%s, lic_l=%s, lic_t=%s,
+            has_jf1=%s, has_jf2=%s, has_jf3=%s, has_wissentest=%s, has_leistungsspange=%s, has_jugendabzeichen=%s, has_mta_basis=%s, has_erste_hilfe=%s, has_funk=%s
+        WHERE id=%s
+    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes,
+          lic_am, lic_a1, lic_b, lic_l, lic_t,
+          has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk, m_id))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "JUGEND_BEARBEITEN", f"Jugendmitglied ID {m_id} ('{name}') aktualisiert.")
     return {"status": "success"}
 
 @app.delete("/api/jugend/members/{m_id}")
@@ -1847,6 +2068,7 @@ def delete_youth_member(m_id: int, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM youth_members WHERE id = %s", (m_id,))
     conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "JUGEND_GELOESCHT", f"Jugendmitglied ID {m_id} gelöscht.")
     return {"status": "success"}
 
 # --- JUGEND-DIENSTBERICHTE ---

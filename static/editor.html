@@ -351,19 +351,22 @@
             </div>
             
             <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
-                <div>
-                    <input type="checkbox" class="form-check-input" style="transform: scale(1.3)" 
-                           :checked="p.is_present" @change="togglePresence(p)" :disabled="isReadOnly">
+                <div @click="togglePresence(p)" style="cursor: pointer;">
+                    <input type="checkbox" class="form-check-input" style="transform: scale(1.3); cursor: pointer;" 
+                           v-model="p.is_present" @change="autoSave" @click.stop :disabled="isReadOnly">
                 </div>
 
-                <div>
+                <div @click="togglePresence(p)" style="cursor: pointer;">
                     <div class="editor-avatar">
-                        <img :src="p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Profilbild">
+                        <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Profilbild">
                     </div>
                 </div>
                 
-                <div class="name-area" @click="togglePresence(p)">
-                    <span class="name-text">{{p.name}}</span>
+                <div class="name-area" @click="togglePresence(p)" style="cursor: pointer;">
+                    <span class="name-text d-inline-flex align-items-center gap-2">
+                        {{p.name}}
+                        <i v-if="p.is_present" class="fa fa-circle-check text-success fs-5"></i>
+                    </span>
                     <span v-if="p.g26_expired" class="g26-crit-text"><i class="fa fa-triangle-exclamation me-1"></i> G26.3 abgelaufen! Atemschutzverbot!</span>
                     
                     <div class="d-flex gap-1 mt-2 overflow-auto pb-1" v-if="globalVehicles.length">
@@ -425,12 +428,15 @@
                         <button class="btn btn-outline-light rounded-pill px-3" @click="selectAllPool">Alle an/aus</button>
                     </div>
                     <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto" style="max-height: 380px;">
-                        <div v-for="p in filteredPool" :key="p.id" class="pool-item" @click="p.selected = !p.selected">
-                            <input type="checkbox" class="form-check-input me-3" v-model="p.selected" @click.stop>
-                            <div class="me-3 editor-avatar">
-                                <img :src="p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Avatar">
+                        <div v-for="p in filteredPool" :key="p.id" class="pool-item d-flex justify-content-between align-items-center px-3 py-2" :class="{'bg-success bg-opacity-10 border-success': p.selected}" @click="p.selected = !p.selected" style="cursor: pointer;">
+                            <div class="d-flex align-items-center">
+                                <input type="checkbox" class="form-check-input me-3" style="transform: scale(1.3); cursor: pointer;" v-model="p.selected" @click.stop>
+                                <div class="me-3 editor-avatar">
+                                    <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Avatar">
+                                </div>
+                                <span class="fw-bold text-white fs-5">{{p.name}}</span>
                             </div>
-                            <span class="fw-bold text-white fs-5">{{p.name}}</span>
+                            <span v-if="p.selected" class="badge bg-success rounded-pill px-3 py-2 text-white fw-bold"><i class="fa fa-check me-1"></i> Ausgewählt</span>
                         </div>
                     </div>
                 </div>
