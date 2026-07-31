@@ -353,7 +353,7 @@
             <div v-for="p in filtered" :key="p.id || p.person_id" class="person-row" :class="{absent: !p.is_present, 'g26-expired-alert': p.g26_expired}">
                 <div @click="togglePresence(p)" style="cursor: pointer;">
                     <input type="checkbox" class="form-check-input" style="transform: scale(1.3); cursor: pointer;" 
-                           v-model="p.is_present" @change="autoSave" @click.stop :disabled="isReadOnly">
+                           :checked="!!p.is_present" @change="togglePresence(p)" @click.stop :disabled="isReadOnly">
                 </div>
 
                 <div @click="togglePresence(p)" style="cursor: pointer;">
@@ -569,7 +569,7 @@
                     const res = await fetch(url, { credentials: 'include' });
                     const d = await res.json();
                     
-                    if(d.persons) { this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id })); }
+                    if(d.persons) { this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id, is_present: !!p.is_present })); }
                     if(d.session_id || d.id) {
                         this.sessionId = d.session_id || d.id; 
                         this.category = d.category || 'Übung';
