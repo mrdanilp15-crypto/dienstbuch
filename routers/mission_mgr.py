@@ -81,13 +81,16 @@ def list_missions(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, date, time, stichwort, adresse, meldung, status, duration, group_id FROM missions ORDER BY date DESC, time DESC")
+    cur.execute("SELECT id, date, time, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
+        if row.get("leader_signature"):
+            row["leader_signature"] = safe_decode(row["leader_signature"])
+            row["status"] = "Freigegeben"
     return res
 
 @router.get("/{mission_id}")
@@ -107,36 +110,42 @@ def get_mission(mission_id: int, request: Request):
     
     if isinstance(m["date"], date):
         m["date"] = str(m["date"])
+    if m.get("leader_signature"):
+        m["leader_signature"] = safe_decode(m["leader_signature"])
+        m["status"] = "Freigegeben"
     m["attendance"] = att
     return m
 
 @router.post("")
 def create_mission(m: MissionCreate, request: Request):
     user = check_auth(request)
-    if user["role"] in ("mannschaft", "geratewart"):
+    if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
-    conn.commit()
-    new_id = cur.lastrowid
-    cur.close(); conn.close()
+    mission_id = cur.lastrowid
+    
+    for entry in m.attendance:
+        cur.execute("""
+            INSERT INTO mission_attendance (mission_id, personnel_id, is_present, vehicle)
+            VALUES (%s, %s, %s, %s)
+        """, (mission_id, entry.personnel_id, entry.is_present, entry.vehicle))
+        
+    conn.commit(); cur.close(); conn.close()
     from main import log_audit_action
-    log_audit_action(user["username"], "EINSATZ_ERSTELLT", f"Einsatz ID {new_id} ({m.stichwort}) angelegt.")
-    return {"status": "success", "id": new_id}
+    log_audit_action(user["username"], "EINSATZ_ERSTELLT", f"Einsatz '{m.stichwort}' anlegen.")
+    return {"status": "success", "id": mission_id}
 
 @router.put("/{mission_id}")
-def update_mission(mission_id: int, m: MissionUpdate, request: Request):
+def update_mission(mission_id: int, m: MissionCreate, request: Request):
     user = check_auth(request)
-    if user["role"] in ("mannschaft", "geratewart"):
+    if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    
-    conn = get_db_connection()
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT status FROM missions WHERE id = %s", (mission_id,))
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT status, leader_signature FROM missions WHERE id = %s", (mission_id,))
     existing = cur.fetchone()
     if not existing:
         cur.close(); conn.close()
@@ -146,12 +155,16 @@ def update_mission(mission_id: int, m: MissionUpdate, request: Request):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Freigegebene Einsätze können nur von Admins editiert werden!")
 
+    final_status = m.status
+    if existing.get("leader_signature") and final_status == "Entwurf":
+        final_status = "Freigegeben"
+
     # 1. Update Stammdaten
     cur.execute("""
         UPDATE missions 
         SET date=%s, time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
         WHERE id=%s
-    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id, mission_id))
+    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
     
     # 2. Update Personnel/Vehicles Attendance
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
@@ -164,7 +177,7 @@ def update_mission(mission_id: int, m: MissionUpdate, request: Request):
     conn.commit()
     cur.close(); conn.close()
     from main import log_audit_action
-    log_audit_action(user["username"], "EINSATZ_GEAENDERT", f"Einsatz ID {mission_id} geändert (Status: {m.status}).")
+    log_audit_action(user["username"], "EINSATZ_GEAENDERT", f"Einsatz ID {mission_id} geändert (Status: {final_status}).")
     return {"status": "success"}
 
 @router.delete("/{mission_id}")

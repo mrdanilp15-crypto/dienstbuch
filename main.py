@@ -577,7 +577,8 @@ def init_db_extensions():
             ("has_jugendabzeichen", "TINYINT(1) DEFAULT 0"),
             ("has_mta_basis", "TINYINT(1) DEFAULT 0"),
             ("has_erste_hilfe", "TINYINT(1) DEFAULT 0"),
-            ("has_funk", "TINYINT(1) DEFAULT 0")
+            ("has_funk", "TINYINT(1) DEFAULT 0"),
+            ("profile_picture", "LONGTEXT NULL")
         ]
         for col_name, col_def in youth_cols:
             try:
@@ -1983,6 +1984,8 @@ def get_youth_members(request: Request):
             if r.get(k): r[k] = str(r[k])
         for k in ["lic_am", "lic_a1", "lic_b", "lic_l", "lic_t", "has_jf1", "has_jf2", "has_jf3", "has_wissentest", "has_leistungsspange", "has_jugendabzeichen", "has_mta_basis", "has_erste_hilfe", "has_funk"]:
             if k in r: r[k] = bool(r[k])
+        if r.get("profile_picture"):
+            r["profile_picture"] = safe_decode(r["profile_picture"])
     return res
 
 @app.post("/api/jugend/members")
@@ -2002,6 +2005,7 @@ def add_youth_member(data: dict, request: Request):
     email = data.get("email", "")
     address = data.get("address", "")
     notes = data.get("notes", "")
+    profile_picture = data.get("profile_picture", "")
 
     lic_am = 1 if data.get("lic_am") else 0
     lic_a1 = 1 if data.get("lic_a1") else 0
@@ -2022,10 +2026,10 @@ def add_youth_member(data: dict, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO youth_members 
-        (name, parent_contact, badges, skills, birth_date, entry_date, phone, email, address, notes,
+        (name, parent_contact, badges, skills, birth_date, entry_date, phone, email, address, notes, profile_picture,
          lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes,
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes, profile_picture,
           lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "JUGEND_ANLEGEN", f"Jugendmitglied '{name}' neu angelegt.")
@@ -2048,6 +2052,7 @@ def update_youth_member(m_id: int, data: dict, request: Request):
     email = data.get("email", "")
     address = data.get("address", "")
     notes = data.get("notes", "")
+    profile_picture = data.get("profile_picture", "")
 
     lic_am = 1 if data.get("lic_am") else 0
     lic_a1 = 1 if data.get("lic_a1") else 0
@@ -2068,11 +2073,11 @@ def update_youth_member(m_id: int, data: dict, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         UPDATE youth_members 
-        SET name=%s, parent_contact=%s, badges=%s, skills=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, notes=%s,
+        SET name=%s, parent_contact=%s, badges=%s, skills=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, notes=%s, profile_picture=%s,
             lic_am=%s, lic_a1=%s, lic_b=%s, lic_l=%s, lic_t=%s,
             has_jf1=%s, has_jf2=%s, has_jf3=%s, has_wissentest=%s, has_leistungsspange=%s, has_jugendabzeichen=%s, has_mta_basis=%s, has_erste_hilfe=%s, has_funk=%s
         WHERE id=%s
-    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes,
+    """, (name, parent, badges, skills, birth_date, entry_date, phone, email, address, notes, profile_picture,
           lic_am, lic_a1, lic_b, lic_l, lic_t,
           has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk, m_id))
     conn.commit(); cur.close(); conn.close()
