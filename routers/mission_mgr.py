@@ -98,8 +98,13 @@ def list_missions(request: Request):
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
-        if row.get("leader_signature"):
-            row["leader_signature"] = safe_decode(row["leader_signature"])
+        sig = row.get("leader_signature")
+        if sig:
+            decoded_sig = safe_decode(sig)
+            row["leader_signature"] = decoded_sig
+            if decoded_sig and len(str(decoded_sig).strip()) > 10:
+                row["status"] = "Freigegeben"
+        if row.get("status") == "Freigegeben":
             row["status"] = "Freigegeben"
     return res
 
@@ -120,8 +125,13 @@ def get_mission(mission_id: int, request: Request):
     
     if isinstance(m["date"], date):
         m["date"] = str(m["date"])
-    if m.get("leader_signature"):
-        m["leader_signature"] = safe_decode(m["leader_signature"])
+    sig = m.get("leader_signature")
+    if sig:
+        decoded_sig = safe_decode(sig)
+        m["leader_signature"] = decoded_sig
+        if decoded_sig and len(str(decoded_sig).strip()) > 10:
+            m["status"] = "Freigegeben"
+    if m.get("status") == "Freigegeben":
         m["status"] = "Freigegeben"
     m["attendance"] = att
     return m

@@ -3532,32 +3532,33 @@
                 },
                 availableMissionsForBilling() {
                     let list = [];
+                    const pushMission = (id, stichwort, date, adresse, status) => {
+                        if (!id) return;
+                        const cleanId = typeof id === 'string' && id.startsWith('m_') ? parseInt(id.replace('m_', '')) : parseInt(id);
+                        if (isNaN(cleanId)) return;
+                        const exists = list.find(x => x.id === cleanId);
+                        if (!exists) {
+                            list.push({
+                                id: cleanId,
+                                stichwort: stichwort || 'Einsatz',
+                                date: date || '',
+                                adresse: adresse || 'Siehe Bericht',
+                                status: status === 'Freigegeben' ? 'Freigegeben' : 'Entwurf'
+                            });
+                        }
+                    };
+
                     if (this.missions && this.missions.length > 0) {
                         this.missions.forEach(m => {
                             const isSigned = !!(m.leader_signature || m.status === 'Freigegeben');
-                            list.push({
-                                id: m.id,
-                                stichwort: m.stichwort,
-                                date: m.date,
-                                adresse: m.adresse,
-                                status: isSigned ? 'Freigegeben' : 'Entwurf'
-                            });
+                            pushMission(m.id, m.stichwort, m.date, m.adresse, isSigned ? 'Freigegeben' : 'Entwurf');
                         });
                     }
+
                     if (this.allIncidents && this.allIncidents.length > 0) {
                         this.allIncidents.forEach(inc => {
-                            if (inc.isNewMission) {
-                                const exists = list.find(x => x.id === inc.id);
-                                if (!exists) {
-                                    list.push({
-                                        id: inc.id,
-                                        stichwort: inc.stichwort,
-                                        date: inc.date,
-                                        adresse: inc.adresse,
-                                        status: inc.status
-                                    });
-                                }
-                            }
+                            const realId = inc.real_mission_id || inc.id;
+                            pushMission(realId, inc.stichwort, inc.date, inc.adresse, inc.status);
                         });
                     }
                     return list;
@@ -4140,18 +4141,24 @@
                     ]);
                     if(res.ok) this.bills = await res.json();
                     if(mRes.ok) this.missions = await mRes.json();
-                    const avail = this.availableMissionsForBilling;
-                    if (avail && avail.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
-                        if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
-                        this.newBill.mission_id = avail[0].id;
-                    }
+                    this.$nextTick(() => {
+                        const avail = this.availableMissionsForBilling;
+                        if (avail && avail.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
+                            if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
+                            this.newBill.mission_id = avail[0].id;
+                        }
+                    });
                 },
                 async submitBill() {
-                    if(!this.newBill.mission_id) return alert("Einsatz auswählen!");
+                    if(!this.newBill.mission_id) return alert("Bitte einen Einsatz auswählen!");
                     const res = await fetch(`/api/missions/billing/${this.newBill.mission_id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBill) });
                     if(res.ok) {
+                        alert("Kostenbescheid erfolgreich buchen!");
                         this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
                         await this.loadBills();
+                    } else {
+                        const err = await res.json();
+                        alert("Fehler beim Buchen: " + (err.detail || "Keine Berechtigung"));
                     }
                 },
                 async deleteBill(id) {
