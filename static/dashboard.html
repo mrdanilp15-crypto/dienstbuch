@@ -991,6 +991,7 @@
                                         <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
                                         <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-outline-danger rounded-pill" @click.stop="deleteEquipmentFromSubtab(eq.id)" title="Gerät löschen"><i class="fa fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -2712,7 +2713,11 @@
                                 <canvas id="eqQrCanvas" class="bg-white p-2 rounded mb-2" style="width: 150px; height: 150px; display: inline-block;"></canvas>
                                 <button type="button" class="btn btn-xs btn-outline-light rounded-pill d-block mx-auto mt-2" @click="printQrCode"><i class="fa fa-print me-1"></i>QR-Code drucken</button>
                             </div>
-                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Gerät speichern</button>
+                            <div class="d-flex gap-2" v-if="activeEquipment && activeEquipment.id">
+                                <button type="button" class="btn btn-outline-danger w-50 rounded-pill" @click="deleteEquipmentInModal"><i class="fa fa-trash me-1"></i>Gerät löschen</button>
+                                <button type="submit" class="btn btn-premium w-50 rounded-pill">Gerät speichern</button>
+                            </div>
+                            <button v-else type="submit" class="btn btn-premium w-100 rounded-pill">Gerät speichern</button>
                         </form>
                     </div>
                 </div>
@@ -4681,6 +4686,24 @@
                         const res = await fetch(`/api/material/equipment/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) {
                             await this.loadEquipment();
+                        } else {
+                            const err = await res.json();
+                            alert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
+                        }
+                    }
+                },
+                async deleteEquipmentInModal() {
+                    if (!this.activeEquipment || !this.activeEquipment.id) return;
+                    if (confirm(`Gerät "${this.activeEquipment.name}" wirklich permanent löschen?`)) {
+                        const res = await fetch(`/api/material/equipment/${this.activeEquipment.id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.ok) {
+                            const modalEl = document.getElementById('equipmentModal');
+                            const m = bootstrap.Modal.getInstance(modalEl);
+                            if (m) m.hide();
+                            await this.loadEquipment();
+                        } else {
+                            const err = await res.json();
+                            alert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
                         }
                     }
                 },
