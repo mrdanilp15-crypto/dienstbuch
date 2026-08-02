@@ -1984,7 +1984,8 @@
                         <div class="person-grid">
                             <div v-for="ym in filteredYouthMembers" :key="ym.id" class="member-card d-flex align-items-center gap-3" @click="editYouthMember(ym)" style="cursor: pointer;">
                                 <div class="avatar-container">
-                                    <div class="w-100 h-100 d-flex align-items-center justify-content-center bg-black bg-opacity-40 text-danger fs-3" style="border-radius: 50%;">
+                                    <img v-if="ym.profile_picture" :src="ym.profile_picture" alt="Avatar" class="w-100 h-100 object-fit-cover" style="border-radius: 50%;">
+                                    <div v-else class="w-100 h-100 d-flex align-items-center justify-content-center bg-black bg-opacity-40 text-danger fs-3" style="border-radius: 50%;">
                                         <i class="fa fa-child-reaching"></i>
                                     </div>
                                 </div>
@@ -2996,11 +2997,17 @@
 
                         <!-- TAB 1: Stammdaten & Eltern -->
                         <div v-show="youthModalTab === 'stamm'">
-                            <div class="row g-3">
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label text-white">Name des Jugendlichen *</label>
-                                    <input type="text" v-model="newYouth.name" class="form-control bg-dark border-secondary text-white" placeholder="Vorname Nachname" required>
+                            <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
+                                <div class="modal-avatar-upload" @click="$refs.youthFileInput.click()">
+                                    <img :src="newYouth.profile_picture || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Avatar">
+                                    <input type="file" ref="youthFileInput" class="d-none" accept="image/*" @change="onYouthAvatarChange">
                                 </div>
+                                <div class="flex-grow-1">
+                                    <label class="form-label text-white fw-bold mb-1">Name des Jugendlichen *</label>
+                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;">
+                                </div>
+                            </div>
+                            <div class="row g-3">
                                 <div class="col-6 col-md-3">
                                     <label class="form-label text-white">Geburtsdatum</label>
                                     <input type="date" v-model="newYouth.birth_date" class="form-control bg-dark border-secondary text-white">
@@ -3482,7 +3489,8 @@
                         adresse: m.adresse,
                         meldung: m.meldung,
                         duration: m.duration,
-                        status: m.status,
+                        status: (m.leader_signature || m.status === 'Freigegeben') ? 'Freigegeben' : (m.status || 'Entwurf'),
+                        leader_signature: m.leader_signature,
                         group_id: m.group_id
                     }));
                     if (this.sessionsList) {
@@ -3804,9 +3812,13 @@
                     }
                 },
                 async saveMission() {
+                    let mStatus = this.activeMission.status;
+                    if (this.activeMission.leader_signature && mStatus === 'Entwurf') {
+                        mStatus = 'Freigegeben';
+                    }
                     const payload = {
                         date: this.activeMission.date, time: this.activeMission.time, stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
-                        meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: this.activeMission.status,
+                        meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: mStatus,
                         group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
                         media_files: JSON.stringify(this.uploadedMissionFiles),
                         attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
@@ -4384,6 +4396,7 @@
                         email: ym.email || '',
                         address: ym.address || '',
                         notes: ym.notes || '',
+                        profile_picture: ym.profile_picture || '',
                         lic_am: !!ym.lic_am,
                         lic_a1: !!ym.lic_a1,
                         lic_b: !!ym.lic_b,
@@ -4404,10 +4417,19 @@
                 cancelYouthEdit() {
                     this.editingYouthId = null;
                     this.newYouth = {
-                        name: '', parent_contact: '', badges: '', skills: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', notes: '',
+                        name: '', parent_contact: '', badges: '', skills: '', birth_date: '', entry_date: '', phone: '', email: '', address: '', notes: '', profile_picture: '',
                         lic_am: false, lic_a1: false, lic_b: false, lic_l: false, lic_t: false,
                         has_jf1: false, has_jf2: false, has_jf3: false, has_wissentest: false, has_leistungsspange: false, has_jugendabzeichen: false, has_mta_basis: false, has_erste_hilfe: false, has_funk: false
                     };
+                },
+                onYouthAvatarChange(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        this.newYouth.profile_picture = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
                 },
                 async saveYouthModal() {
                     if (!this.newYouth.name || !this.newYouth.name.trim()) {
