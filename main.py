@@ -1380,18 +1380,22 @@ def get_sessions(id: int, request: Request):
     sessions = cur.fetchall()
     for x in sessions: 
         x['date'] = str(x['date'])
-        x['is_signed'] = bool(x['leader_signature'] and len(str(x['leader_signature'])) > 100)
+        sig = x.get('leader_signature')
+        if sig:
+            x['leader_signature'] = safe_decode(sig)
+        x['is_signed'] = bool(sig and len(str(sig).strip()) > 10)
         x['is_mission'] = False
-        if 'leader_signature' in x: del x['leader_signature']
         
     # 2. Einsatzberichte mit einbinden
     try:
-        cur.execute("SELECT id, date, time, stichwort, meldung, adresse, description, duration, leader_signature FROM missions ORDER BY date DESC, id DESC")
+        cur.execute("SELECT id, date, time, stichwort, meldung, adresse, description, duration, leader_signature, status FROM missions ORDER BY date DESC, id DESC")
         missions = cur.fetchall()
         for m in missions:
             desc = f"{m['stichwort']}: {m['meldung']} ({m['adresse']})"
             if m.get('description'):
                 desc += f" - {m['description']}"
+            sig = m.get('leader_signature')
+            decoded_sig = safe_decode(sig) if sig else None
             sessions.append({
                 'id': f"m_{m['id']}",
                 'real_mission_id': m['id'],
@@ -1399,7 +1403,9 @@ def get_sessions(id: int, request: Request):
                 'category': 'Einsatz',
                 'description': desc,
                 'duration': float(m['duration'] or 2.0),
-                'is_signed': bool(m['leader_signature'] and len(str(m['leader_signature'])) > 100),
+                'leader_signature': decoded_sig,
+                'status': 'Freigegeben' if (decoded_sig or m.get('status') == 'Freigegeben') else 'Entwurf',
+                'is_signed': bool(decoded_sig and len(str(decoded_sig).strip()) > 10),
                 'is_mission': True
             })
     except Exception as e:

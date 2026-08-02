@@ -1437,9 +1437,9 @@
                                         <label class="form-label">Einsatz wählen</label>
                                         <select v-model="newBill.mission_id" class="form-select">
                                             <option :value="null" disabled>-- Bitte Einsatz auswählen --</option>
-                                            <option v-for="m in missions" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}} - {{m.adresse}})</option>
+                                            <option v-for="m in availableMissionsForBilling" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}} - {{m.adresse}}) [{{m.status}}]</option>
                                         </select>
-                                        <div v-if="missions.length === 0" class="text-muted small mt-1"><i class="fa fa-info-circle me-1"></i>Keine Einsätze zum Abrechnen vorhanden. Erfasse zuerst einen Einsatzbericht im Menü "Einsatzberichte".</div>
+                                        <div v-if="availableMissionsForBilling.length === 0" class="text-muted small mt-1"><i class="fa fa-info-circle me-1"></i>Keine Einsätze zum Abrechnen vorhanden. Erfasse zuerst einen Einsatzbericht im Menü "Einsatzberichte".</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Empfänger Name</label>
@@ -3485,39 +3485,77 @@
                     });
                 },
                 allIncidents() {
-                    let list = this.missions.map(m => ({
-                        id: m.id,
-                        isNewMission: true,
-                        date: m.date,
-                        time: m.time,
-                        stichwort: m.stichwort,
-                        adresse: m.adresse,
-                        meldung: m.meldung,
-                        duration: m.duration,
-                        status: (m.leader_signature || m.status === 'Freigegeben') ? 'Freigegeben' : (m.status || 'Entwurf'),
-                        leader_signature: m.leader_signature,
-                        group_id: m.group_id
-                    }));
+                    let list = this.missions.map(m => {
+                        const isSigned = !!(m.leader_signature || m.status === 'Freigegeben');
+                        return {
+                            id: m.id,
+                            isNewMission: true,
+                            date: m.date,
+                            time: m.time,
+                            stichwort: m.stichwort,
+                            adresse: m.adresse,
+                            meldung: m.meldung,
+                            duration: m.duration,
+                            status: isSigned ? 'Freigegeben' : 'Entwurf',
+                            leader_signature: m.leader_signature,
+                            group_id: m.group_id
+                        };
+                    });
                     if (this.sessionsList) {
-                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => ({
-                            id: s.id,
-                            isNewMission: false,
-                            date: s.date,
-                            time: '00:00',
-                            stichwort: s.description || 'Einsatz',
-                            adresse: s.instructors || 'Siehe Bericht',
-                            meldung: s.description || '',
-                            duration: s.duration,
-                            status: s.leader_signature ? 'Freigegeben' : 'Entwurf',
-                            rawSession: s,
-                            group_id: s.group_id || (this.selectedGroup ? this.selectedGroup.id : null)
-                        }));
+                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => {
+                            const isSigned = !!(s.leader_signature || s.is_signed || s.status === 'Freigegeben');
+                            return {
+                                id: s.id,
+                                isNewMission: false,
+                                date: s.date,
+                                time: '00:00',
+                                stichwort: s.description || 'Einsatz',
+                                adresse: s.instructors || 'Siehe Bericht',
+                                meldung: s.description || '',
+                                duration: s.duration,
+                                status: isSigned ? 'Freigegeben' : 'Entwurf',
+                                rawSession: s,
+                                group_id: s.group_id || (this.selectedGroup ? this.selectedGroup.id : null)
+                            };
+                        });
                         list.push(...past);
                     }
                     if (this.missionGroupFilter !== 'all') {
                         list = list.filter(m => m.group_id == this.missionGroupFilter || !m.group_id);
                     }
                     return list.sort((a, b) => new Date(b.date) - new Date(a.date));
+                },
+                availableMissionsForBilling() {
+                    let list = [];
+                    if (this.missions && this.missions.length > 0) {
+                        this.missions.forEach(m => {
+                            const isSigned = !!(m.leader_signature || m.status === 'Freigegeben');
+                            list.push({
+                                id: m.id,
+                                stichwort: m.stichwort,
+                                date: m.date,
+                                adresse: m.adresse,
+                                status: isSigned ? 'Freigegeben' : 'Entwurf'
+                            });
+                        });
+                    }
+                    if (this.allIncidents && this.allIncidents.length > 0) {
+                        this.allIncidents.forEach(inc => {
+                            if (inc.isNewMission) {
+                                const exists = list.find(x => x.id === inc.id);
+                                if (!exists) {
+                                    list.push({
+                                        id: inc.id,
+                                        stichwort: inc.stichwort,
+                                        date: inc.date,
+                                        adresse: inc.adresse,
+                                        status: inc.status
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    return list;
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
                 filteredEquipment() {
