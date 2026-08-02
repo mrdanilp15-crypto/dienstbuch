@@ -126,10 +126,13 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
 
 @router.delete("/equipment/{eq_id}")
 def delete_equipment(eq_id: int, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request)
+    if user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM equipment WHERE id = %s", (eq_id,))
     cur.execute("DELETE FROM equipment_inspections WHERE equipment_id = %s", (eq_id,))
+    cur.execute("DELETE FROM equipment_defect_reports WHERE equipment_id = %s", (eq_id,))
+    cur.execute("DELETE FROM equipment WHERE id = %s", (eq_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

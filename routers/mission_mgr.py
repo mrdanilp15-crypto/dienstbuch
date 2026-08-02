@@ -9,6 +9,16 @@ from datetime import date
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
 
+def safe_decode(val):
+    if val is None:
+        return None
+    if isinstance(val, (bytes, bytearray)):
+        try:
+            return val.decode("utf-8")
+        except Exception:
+            return str(val)
+    return str(val)
+
 def check_auth(request: Request, require_admin: bool = False) -> dict:
     from main import get_current_user
     user = get_current_user(request)
