@@ -439,6 +439,11 @@
             border-radius: 18px;
             border: 1px solid var(--card-border);
         }
+        .custom-div-icon {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
 
         /* Responsive & Hamburger Mobile Sidebar */
         .sidebar-overlay {
@@ -1425,13 +1430,13 @@
                                             <span class="badge" :class="b.paid_at?'bg-success':'bg-warning text-dark'">{{b.paid_at?'Bezahlt':'Ausstehend'}}</span>
                                         </div>
                                         <p class="text-muted small mb-2">{{b.details}} &bull; {{b.amount}} €</p>
-                                        <button v-if="isAdmin && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
-                                        <button v-if="isAdmin" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
+                                        <button v-if="role !== 'mannschaft' && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
+                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
                                     </div>
                                     <div v-if="bills.length === 0" class="text-center py-4 text-muted">Keine Kostenbescheide erfasst.</div>
                                 </div>
 
-                                <div v-if="isAdmin">
+                                <div v-if="role !== 'mannschaft'">
                                     <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neuer Kostenbescheid</h6>
                                     <div class="mb-3">
                                         <label class="form-label">Einsatz wählen</label>
@@ -3284,7 +3289,7 @@
                     isFirstLoginBlock: false,
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
-                    activeTab: 'dienste',
+                    activeTab: localStorage.getItem('activeDashboardTab') || 'dienste',
                     apagerConfig: { api_key: '', active: true },
                     apagerLogs: [],
                     apagerFeedbacks: [],
@@ -3592,6 +3597,13 @@
                     return (this.bmas || []).filter(b => b.object_name.toLowerCase().includes(q) || b.address.toLowerCase().includes(q) || b.bma_number.toLowerCase().includes(q));
                 }
             },
+            watch: {
+                activeTab(newTab) {
+                    if (newTab) {
+                        localStorage.setItem('activeDashboardTab', newTab);
+                    }
+                }
+            },
             async mounted() {
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
@@ -3626,6 +3638,8 @@
                 await this.loadApagerConfig();
                 await this.loadSchedules();
                 await this.loadPersonnel();
+                await this.loadMissions();
+                await this.loadBills();
                 if (this.isAdmin) {
                     await this.loadSystemUsers();
                 }
@@ -4126,9 +4140,10 @@
                     ]);
                     if(res.ok) this.bills = await res.json();
                     if(mRes.ok) this.missions = await mRes.json();
-                    if (this.missions.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
+                    const avail = this.availableMissionsForBilling;
+                    if (avail && avail.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
                         if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
-                        this.newBill.mission_id = this.missions[0].id;
+                        this.newBill.mission_id = avail[0].id;
                     }
                 },
                 async submitBill() {
@@ -4191,44 +4206,50 @@
                     }
                 },
                 initMap() {
-                    setTimeout(() => {
-                        if (map) {
-                            map.invalidateSize();
-                            return;
-                        }
-                        // Start koordinaten (Buxheim / Neustadt)
-                        map = L.map('hydrantMap', { maxZoom: 22 }).setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
-                        
-                        this.loadHydrants();
-                        this.loadDroneImages();
-                        
-                        map.on('click', (e) => {
-                            if(this.role === 'mannschaft') return;
-                            this.clickedLat = e.latlng.lat;
-                            this.clickedLng = e.latlng.lng;
-                            
-                            this.newMapObject = {
-                                category: 'hydrant',
-                                label: '',
-                                hydrantType: 'Unterflurhydrant',
-                                accessType: 'Zufahrt',
-                                bma_name: '',
-                                bma_address: '',
-                                bma_number: '',
-                                bma_fsd: false,
-                                danger_name: '',
-                                danger_level: 'Mittel'
-                            };
-                            
-                            const el = document.getElementById('mapObjectModal');
-                            if (el) {
-                                let m = bootstrap.Modal.getInstance(el);
-                                if (!m) m = new bootstrap.Modal(el);
-                                m.show();
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            if (!map) {
+                                const el = document.getElementById('hydrantMap');
+                                if (!el) return;
+                                map = L.map('hydrantMap', { maxZoom: 22 }).setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
+                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
+                                
+                                this.loadHydrants();
+                                this.loadDroneImages();
+                                
+                                map.on('click', (e) => {
+                                    if (this.role === 'mannschaft') return;
+                                    map.invalidateSize({ animate: false });
+                                    const exactLatLng = map.mouseEventToLatLng(e.originalEvent || e);
+                                    this.clickedLat = exactLatLng.lat;
+                                    this.clickedLng = exactLatLng.lng;
+                                    
+                                    this.newMapObject = {
+                                        category: 'hydrant',
+                                        label: '',
+                                        hydrantType: 'Unterflurhydrant',
+                                        accessType: 'Zufahrt',
+                                        bma_name: '',
+                                        bma_address: '',
+                                        bma_number: '',
+                                        bma_fsd: false,
+                                        danger_name: '',
+                                        danger_level: 'Mittel'
+                                    };
+                                    
+                                    const elModal = document.getElementById('mapObjectModal');
+                                    if (elModal) {
+                                        let m = bootstrap.Modal.getInstance(elModal);
+                                        if (!m) m = new bootstrap.Modal(elModal);
+                                        m.show();
+                                    }
+                                });
+                            } else {
+                                map.invalidateSize();
+                                setTimeout(() => { if (map) map.invalidateSize(); }, 300);
                             }
-                        });
-                    }, 500);
+                        }, 250);
+                    });
                 },
                 async loadHydrants() {
                     if (!map) return;

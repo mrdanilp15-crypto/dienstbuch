@@ -275,7 +275,9 @@ def list_bills(request: Request):
 
 @router.post("/billing/{mission_id}")
 def create_bill(mission_id: int, b: BillingCreate, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request)
+    if user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO billing_verursacher (mission_id, recipient_name, address, amount, details)
@@ -286,7 +288,9 @@ def create_bill(mission_id: int, b: BillingCreate, request: Request):
 
 @router.put("/billing/{bill_id}")
 def update_bill(bill_id: int, b: BillingCreate, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request)
+    if user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         UPDATE billing_verursacher
@@ -298,7 +302,9 @@ def update_bill(bill_id: int, b: BillingCreate, request: Request):
 
 @router.delete("/billing/{bill_id}")
 def delete_bill(bill_id: int, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request)
+    if user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM billing_verursacher WHERE id = %s", (bill_id,))
     conn.commit(); cur.close(); conn.close()
@@ -306,7 +312,9 @@ def delete_bill(bill_id: int, request: Request):
 
 @router.post("/billing/{bill_id}/pay")
 def mark_bill_paid(bill_id: int, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request)
+    if user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE billing_verursacher SET paid_at = CURRENT_TIMESTAMP WHERE id = %s", (bill_id,))
     conn.commit(); cur.close(); conn.close()
