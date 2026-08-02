@@ -268,14 +268,17 @@ def list_bills(request: Request):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
-        SELECT b.*, m.stichwort, m.date 
+        SELECT b.*, 
+               COALESCE(m.stichwort, 'Einsatz') as stichwort, 
+               COALESCE(m.date, DATE(b.sent_at)) as date,
+               COALESCE(m.adresse, '') as adresse
         FROM billing_verursacher b
-        JOIN missions m ON b.mission_id = m.id
+        LEFT JOIN missions m ON b.mission_id = m.id
         ORDER BY b.id DESC
     """)
     res = cur.fetchall(); cur.close(); conn.close()
     for row in res:
-        if isinstance(row["date"], date):
+        if row.get("date") and isinstance(row["date"], date):
             row["date"] = str(row["date"])
         if row["sent_at"]:
             row["sent_at"] = str(row["sent_at"])
