@@ -619,6 +619,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
+                    <a href="/notizen" class="sidebar-btn text-decoration-none" style="display: flex; align-items: center;"><i class="fa fa-sticky-note me-2"></i> Digitales Notizbuch</a>
 
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
@@ -1426,12 +1427,18 @@
                                 <div class="list-group list-group-flush mb-4">
                                     <div v-for="b in bills" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
                                         <div class="d-flex justify-content-between align-items-start mb-1">
-                                            <h6 class="fw-bold text-white mb-0">{{b.recipient_name}}</h6>
+                                            <div>
+                                                <h6 class="fw-bold text-white mb-0">{{b.recipient_name}}</h6>
+                                                <small class="text-danger fw-semibold"><i class="fa fa-fire-extinguisher me-1"></i>{{b.stichwort}} ({{b.date}})</small>
+                                            </div>
                                             <span class="badge" :class="b.paid_at?'bg-success':'bg-warning text-dark'">{{b.paid_at?'Bezahlt':'Ausstehend'}}</span>
                                         </div>
-                                        <p class="text-muted small mb-2">{{b.details}} &bull; {{b.amount}} €</p>
-                                        <button v-if="role !== 'mannschaft' && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
-                                        <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
+                                        <p class="text-muted small mb-2">{{b.details || 'Aufwendungsersatz'}} &bull; <strong class="text-white">{{parseFloat(b.amount).toFixed(2)}} €</strong></p>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <button class="btn btn-xs btn-outline-info rounded-pill" @click="printBill(b)"><i class="fa fa-print me-1"></i>Bescheid / PDF</button>
+                                            <button v-if="role !== 'mannschaft' && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
+                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
+                                        </div>
                                     </div>
                                     <div v-if="bills.length === 0" class="text-center py-4 text-muted">Keine Kostenbescheide erfasst.</div>
                                 </div>
@@ -4170,6 +4177,88 @@
                 async payBill(id) {
                     await fetch(`/api/missions/billing/${id}/pay`, { method: 'POST', credentials: 'include' });
                     await this.loadBills();
+                },
+                printBill(b) {
+                    const printWindow = window.open('', '_blank');
+                    const html = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Kostenbescheid - ${b.recipient_name}</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+                                .header { text-align: center; border-bottom: 2px solid #dc3545; padding-bottom: 15px; margin-bottom: 30px; }
+                                .header h1 { margin: 0; color: #dc3545; font-size: 24px; text-transform: uppercase; }
+                                .header p { margin: 5px 0 0; color: #666; font-size: 13px; }
+                                .meta-table { width: 100%; margin-bottom: 30px; }
+                                .meta-table td { vertical-align: top; padding: 5px 0; }
+                                .box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+                                .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                                .table th, .table td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
+                                .table th { background: #e9ecef; }
+                                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }
+                                .footer { margin-top: 50px; font-size: 12px; color: #777; border-top: 1px solid #ddd; padding-top: 15px; text-align: center; }
+                                @media print { .no-print { display: none; } }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="no-print" style="margin-bottom: 20px;">
+                                <button onclick="window.print()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">🖨️ Kostenbescheid drucken / Als PDF speichern</button>
+                            </div>
+                            <div class="header">
+                                <h1>FEUERWEHR KOSTENBESCHEID</h1>
+                                <p>Bescheid über den Ersatz von Aufwendungen für Einsätze der Feuerwehr</p>
+                            </div>
+                            <table class="meta-table">
+                                <tr>
+                                    <td style="width: 60%;">
+                                        <strong>Empfänger / Verursacher:</strong><br>
+                                        ${b.recipient_name}<br>
+                                        ${(b.address || '').replace(/\n/g, '<br>')}
+                                    </td>
+                                    <td style="width: 40%; text-align: right;">
+                                        <strong>Bescheid-Nr.:</strong> KB-${b.id}<br>
+                                        <strong>Datum:</strong> ${b.sent_at ? b.sent_at.split(' ')[0] : new Date().toLocaleDateString('de-DE')}<br>
+                                        <strong>Status:</strong> ${b.paid_at ? 'BEZAHLT' : 'OFFEN / AUSSTEHEND'}
+                                    </td>
+                                </tr>
+                            </table>
+                            <div class="box">
+                                <strong>Einsatzdaten:</strong><br>
+                                Einsatz-Stichwort: <strong>${b.stichwort || 'Feuerwehreinsatz'}</strong><br>
+                                Einsatzdatum: ${b.date || '-'}<br>
+                                Einsatzort: ${b.adresse || 'Siehe Einsatzbericht'}
+                            </div>
+                            <h3>Kostenaufstellung:</h3>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Leistungsbeschreibung / Grund</th>
+                                        <th style="text-align: right;">Betrag (€)</th>
+                                    </tr>
+                                </thead>
+                                tbody>
+                                    <tr>
+                                        <td>${b.details || 'Aufwendungsersatz für Regeleinsatz gemäß Feuerwehr-Kostenverordnung'}</td>
+                                        <td style="text-align: right;">${parseFloat(b.amount).toFixed(2)} €</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="total">
+                                Gesamtbetrag: ${parseFloat(b.amount).toFixed(2)} €
+                            </div>
+                            <div style="margin-top: 30px;">
+                                <p><strong>Zahlungshinweis:</strong><br>
+                                Bitte überweisen Sie den Gesamtbetrag von <strong>${parseFloat(b.amount).toFixed(2)} €</strong> innerhalb von 14 Tagen unter Angabe der Bescheid-Nummer <strong>KB-${b.id}</strong> auf das Gemeindekonto.</p>
+                            </div>
+                            <div class="footer">
+                                Dies ist ein offizieller Abrechnungsbescheid. Generiert am ${new Date().toLocaleDateString('de-DE')}.
+                            </div>
+                        </body>
+                        </html>
+                    `;
+                    printWindow.document.write(html);
+                    printWindow.document.close();
                 },
                 async calculateCompensations() {
                     const res = await fetch(`/api/missions/billing/compensations/list?year=${this.sepaYear}&hourly_rate=${this.sepaRate}`, { credentials: 'include' });
