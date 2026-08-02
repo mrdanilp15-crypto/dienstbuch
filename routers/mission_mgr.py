@@ -186,7 +186,7 @@ def save_mission_signature(mission_id: int, data: dict, request: Request):
     if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("UPDATE missions SET leader_signature = %s WHERE id = %s", (data.get("signature"), mission_id))
+    cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (data.get("signature"), mission_id))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

@@ -30,7 +30,17 @@ TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
 SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app = FastAPI()
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+@app.middleware("http")
+async def add_cache_control_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    return response
 
 # Statische Ordnerstruktur absichern
 if os.path.exists("/app/data") or os.name != 'nt':
@@ -337,24 +347,7 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
-        cur.execute("SELECT COUNT(*) FROM equipment")
-        if cur.fetchone()[0] == 0:
-            default_eqs = [
-                ('Atemschutzgerät (Dräger)', 'EQ-AGT-01', 'Atemschutz', 6, '2026-03-12', '2026-09-12'),
-                ('4-teilige Steckleiter (Alu)', 'EQ-LEI-04', 'Leitern', 12, '2025-11-20', '2026-11-20'),
-                ('Kreiselpumpe (FPN 10-2000)', 'EQ-PMP-02', 'Pumpen', 12, '2026-05-02', '2027-05-02'),
-                ('Tragkraftspritze (TS 8/8)', 'EQ-PMP-08', 'Pumpen', 12, '2025-08-10', '2026-08-10'),
-                ('Stromerzeuger (Honda)', 'EQ-AGG-03', 'Aggregate', 6, '2026-01-15', '2026-07-15'),
-                ('HRT 1 (Ausrüstung)', 'EQ-FUNK-01', 'Funkgerät', 0, None, None),
-                ('HRT 2 (Ausrüstung)', 'EQ-FUNK-02', 'Funkgerät', 0, None, None),
-                ('MRT 1 (Fahrzeug)', 'EQ-FUNK-03', 'Funkgerät', 0, None, None)
-            ]
-            for name, barcode, cat, interval, last, next_i in default_eqs:
-                cur.execute("""
-                    INSERT INTO equipment (name, barcode, category, interval_months, last_inspection, next_inspection)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (name, barcode, cat, interval, last, next_i))
-            conn.commit()
+
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS equipment_inspections (
@@ -620,6 +613,21 @@ def init_db_extensions():
                 ("admin", default_admin_hash, "admin")
             )
             log_audit_action("SYSTEM", "INITIALISIERUNG", "Standard-Admin 'admin' mit Kennwort 'admin123' angelegt.")
+
+        # Performance SQL Indizes für schnelle Abfragezeiten
+        indexes = [
+            ("persons", "idx_persons_group_name", "(group_id, name)"),
+            ("personnel", "idx_personnel_status_name", "(membership_status, name)"),
+            ("attendance", "idx_attendance_sess_person", "(session_id, person_id)"),
+            ("mission_attendance", "idx_mission_att_m_p", "(mission_id, personnel_id)"),
+            ("sessions", "idx_sessions_g_date", "(group_id, date)"),
+            ("missions", "idx_missions_date", "(date)")
+        ]
+        for tbl, idx_name, cols in indexes:
+            try:
+                cur.execute(f"CREATE INDEX {idx_name} ON {tbl} {cols}")
+            except Exception:
+                pass
 
         conn.commit()
         cur.close()

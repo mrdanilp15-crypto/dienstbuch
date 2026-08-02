@@ -27,11 +27,22 @@
             --misc: #ffc107; 
         }
         
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
         body { 
             background: radial-gradient(circle at 50% 50%, #201414 0%, var(--bg-color) 100%); 
             font-family: 'Outfit', sans-serif; 
             padding-bottom: 120px; 
             color: var(--text-primary);
+            -webkit-overflow-scrolling: touch;
+        }
+        button, a, .btn, .form-check-input, .person-row {
+            touch-action: manipulation;
+        }
+        .main-content, .person-row {
+            -webkit-overflow-scrolling: touch;
+            will-change: transform;
         }
         
         .main-content { 
