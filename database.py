@@ -1,12 +1,33 @@
 import os
 import mysql.connector
+from mysql.connector import pooling
+
+_db_pool = None
+
+def _init_pool(host, user, password, database, port):
+    global _db_pool
+    try:
+        _db_pool = pooling.MySQLConnectionPool(
+            pool_name="feuerwehr_db_pool",
+            pool_size=15,
+            pool_reset_session=True,
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port
+        )
+    except Exception as e:
+        print(f"[DB POOL WARNING] Konnte Pool nicht direkt initialisieren: {e}")
+        _db_pool = None
 
 def get_db_connection():
     """
-    Erstellt eine Verbindung zur MySQL/MariaDB Datenbank.
+    Erstellt oder holt eine Verbindung aus dem MySQL/MariaDB Pool.
     Unterstützt automatische Kennwort-Reparatur über den Root-Zugang,
     falls das Passwort in MariaDB und den API-Umgebungsvariablen abweicht.
     """
+    global _db_pool
     host = os.getenv("DB_HOST", os.getenv("MYSQL_HOST", "db"))
     user = os.getenv("DB_USER", os.getenv("MYSQL_USER", "app_user"))
     password = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or os.getenv("MYSQL_PASSWORD") or "dein_app_passwort"
@@ -14,18 +35,28 @@ def get_db_connection():
     port = int(os.getenv("DB_PORT", os.getenv("MYSQL_PORT", "3306")))
     env_root_pass = os.getenv("ROOT_PASS") or os.getenv("MYSQL_ROOT_PASSWORD") or ""
 
-    # 1. Erster Versuch: Normale Anmeldung als app_user
+    # 1. Versuche Verbindung aus dem Pool zu beziehen
+    if _db_pool is not None:
+        try:
+            return _db_pool.get_connection()
+        except Exception:
+            _db_pool = None
+
+    # 2. Versuch: Einzelverbindung herstellen und Pool aufbauen
     try:
-        return mysql.connector.connect(
+        conn = mysql.connector.connect(
             host=host, user=user, password=password, database=database, port=port
         )
+        if _db_pool is None:
+            _init_pool(host, user, password, database, port)
+        return conn
     except mysql.connector.Error as err:
         if err.errno != 1045: # Falls kein Zugriffsfehler (sondern z.B. Host noch nicht bereit)
             raise err
 
     print(f"[DB AUTO-REPAIR] Zugriffsfehler für '{user}'. Starte automatische Passwort-Synchronisation über Root...")
 
-    # 2. Zweiter Versuch: Passwort-Vergleichsliste für den Root-Zugang
+    # 3. Versuch: Passwort-Vergleichsliste für den Root-Zugang
     root_passwords_to_try = [
         env_root_pass,
         "Dein_ganz_geheimes_root_passwort",
@@ -66,11 +97,13 @@ def get_db_connection():
 
             print(f"[DB AUTO-REPAIR] Passwort für '{user}' in MariaDB erfolgreich auf DB_PASS aktualisiert!")
             
-            # Erfolgreiche Anmeldung als app_user zurückgeben
-            return mysql.connector.connect(
+            # Erfolgreiche Anmeldung als app_user zurückgeben und Pool aufbauen
+            conn = mysql.connector.connect(
                 host=host, user=user, password=password, database=database, port=port
             )
-        except Exception as r_err:
+            _init_pool(host, user, password, database, port)
+            return conn
+        except Exception:
             pass
 
     # Falls alle Root-Versuche fehlschlugen, ursprünglichen Fehler werfen

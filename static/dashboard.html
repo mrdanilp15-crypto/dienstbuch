@@ -32,12 +32,23 @@
             --misc: #ffc107; 
         }
         
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
         body { 
             background: radial-gradient(circle at 50% 50%, #201414 0%, var(--bg-color) 100%); 
             font-family: 'Outfit', sans-serif; 
             height: 100vh; 
             overflow: hidden; 
             color: var(--text-primary);
+            -webkit-overflow-scrolling: touch;
+        }
+        button, a, .btn, .sidebar-btn, .card, .form-check-input {
+            touch-action: manipulation;
+        }
+        .main-content, .list-group, .table-responsive, .modal-body {
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
         }
         
         /* Top Navigation */
@@ -415,10 +426,11 @@
             position: relative; 
             touch-action: none; 
         }
-        #sigCanvas { 
-            width: 100%; 
-            height: 100%; 
+        #sigCanvas, #missionSigCanvas { 
+            width: 100% !important; 
+            height: 100% !important; 
             border-radius: 20px; 
+            touch-action: none !important;
         }
 
         /* Hydrant map container */
@@ -3226,6 +3238,25 @@
         let missionSigPad = null, missionSigModal = null;
         let map = null, hydrantMarkers = [];
 
+        function initResponsiveCanvas(canvasId, padInstance, existingSignatureDataUrl) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                canvas.width = rect.width * ratio;
+                canvas.height = rect.height * ratio;
+                const ctx = canvas.getContext("2d");
+                ctx.scale(ratio, ratio);
+            }
+            if (padInstance) {
+                padInstance.clear();
+                if (existingSignatureDataUrl) {
+                    padInstance.fromDataURL(existingSignatureDataUrl);
+                }
+            }
+        }
+
         const app = createApp({
             data() {
                 return {
@@ -3800,21 +3831,29 @@
                     this.activeS = m;
                     missionSigModal.show();
                     setTimeout(() => {
-                        const canvas = document.getElementById('missionSigCanvas');
-                        canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
-                        missionSigPad.clear();
-                        if(m.leader_signature) missionSigPad.fromDataURL(m.leader_signature);
-                    }, 200);
+                        initResponsiveCanvas('missionSigCanvas', missionSigPad, m.leader_signature);
+                    }, 250);
                 },
                 async saveMissionSig() {
-                    if(missionSigPad.isEmpty()) return alert("Bitte unterschreiben!");
-                    const res = await fetch(`/api/missions/${this.activeS.id}/signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: missionSigPad.toDataURL()}) });
+                    if(!missionSigPad || missionSigPad.isEmpty()) return alert("Bitte unterschreiben!");
+                    const sigData = missionSigPad.toDataURL();
+                    let url = `/api/missions/${this.activeS.id}/signature`;
+                    if (this.activeS.isNewMission === false) {
+                        url = `/sessions/${this.activeS.id}/leader_signature`;
+                    }
+                    const res = await fetch(url, { 
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'}, 
+                        credentials: 'include', 
+                        body: JSON.stringify({signature: sigData}) 
+                    });
                     if(res.ok) {
                         missionSigModal.hide();
                         await this.loadMissions();
+                        await this.loadData();
                     }
                 },
-                clearMissionSig() { missionSigPad.clear(); },
+                clearMissionSig() { if(missionSigPad) missionSigPad.clear(); },
                 
                 // Respiration Atemschutz
                 async submitRespi() {
@@ -4750,7 +4789,13 @@
                 loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
                 openReport(s) { window.open('/sessions/' + s.id + '/report', '_blank'); },
                 
-                openSig(s) { this.activeS = s; if(sigModal) sigModal.show(); },
+                openSig(s) { 
+                    this.activeS = s; 
+                    if(sigModal) sigModal.show(); 
+                    setTimeout(() => {
+                        initResponsiveCanvas('sigCanvas', sigPad, s.leader_signature);
+                    }, 250);
+                },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
                     const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
