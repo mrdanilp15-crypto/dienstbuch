@@ -35,6 +35,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            padding-bottom: 45px;
         }
 
         /* Widescreen Header Banner */
@@ -99,22 +100,21 @@
 
         /* 3-Column Command Center Grid */
         .main-grid {
-            flex-grow: 1;
+            flex: 1;
+            min-height: 0;
             display: grid;
             grid-template-columns: 1.2fr 1fr 1.2fr;
-            gap: 20px;
-            padding: 20px;
+            gap: 16px;
+            padding: 16px;
+            box-sizing: border-box;
             overflow: hidden;
         }
 
         .column-pane {
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            overflow: hidden;
-        }
-
-        .column-pane.scrollable {
+            gap: 16px;
+            min-height: 0;
             overflow-y: auto;
         }
 
@@ -400,7 +400,7 @@
                 <!-- AAO (Alarm- und Ausrückordnung) Recommender -->
                 <div class="command-card">
                     <span class="card-label"><i class="fa fa-route me-1"></i> AAO Taktischer Ausrücke-Leitfaden</span>
-                    <p class="text-white-50 small mb-3">Vorgeschlagene Fahrzeugreihenfolge und Beladungsziele für das Stichwort.</p>
+                    <p class="text-white-50 small mb-2">Vorgeschlagene Fahrzeugreihenfolge und Beladungsziele für das Stichwort.</p>
                     <div class="d-flex flex-column gap-2">
                         <div v-for="(rec, index) in aaoRecommendations" :key="index" class="aao-badge">
                             <span class="badge bg-danger rounded-pill">{{ index + 1 }}</span>
@@ -410,6 +410,8 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
                 <!-- Upcoming Trainings / Dienstplan Card -->
                 <div class="command-card" v-if="upcomingSchedules && upcomingSchedules.length > 0">
                     <span class="card-label"><i class="fa fa-calendar-days me-1 text-warning"></i> Nächste Ausbildungen & Dienste</span>

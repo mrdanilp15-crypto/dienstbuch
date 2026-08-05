@@ -2884,10 +2884,10 @@
                                         </select>
                                     </div>
                                     <div class="col-6">
-                                        <input list="rankList" v-model="activePersonnel.rank" class="form-control" placeholder="Dienstgrad (auswählen oder frei eingeben)...">
-                                        <datalist id="rankList">
-                                            <option v-for="r in ranks" :key="r" :value="r"></option>
-                                        </datalist>
+                                        <select v-model="activePersonnel.rank" class="form-select">
+                                            <option value="">-- Dienstgrad auswählen --</option>
+                                            <option v-for="r in ranks" :key="r" :value="r">{{ r }}</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -3354,10 +3354,28 @@
                     newGear: { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] },
                     newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' },
                     ranks: [
-                        'Feuerwehrmannanwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
-                        'Unterbrandmeister (UBM)', 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)', '1. Hauptlöschmeister (1. HLM)',
-                        'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)', '1. Hauptbrandmeister (1. HBM)',
-                        'Gemeindebrandmeister (GBM)', 'Stadtbrandmeister (SBM)', 'Kreisbrandmeister (KBM)'
+                        'Feuerwehranwärter (FWA)', 'Feuerwehrfrauanwärterin (FWAin)',
+                        'Feuerwehrmann (FM)', 'Feuerwehrfrau (FF)',
+                        'Oberfeuerwehrmann (OFM)', 'Oberfeuerwehrfrau (OFF)',
+                        'Hauptfeuerwehrmann (HFM)', 'Hauptfeuerwehrfrau (HFF)',
+                        'Unterbrandmeister (UBM)', 'Unterbrandmeisterin (UBMin)',
+                        'Löschmeister (LM)', 'Löschmeisterin (LMin)',
+                        'Oberlöschmeister (OLM)', 'Oberlöschmeisterin (OLMin)',
+                        'Hauptlöschmeister (HLM)', 'Hauptlöschmeisterin (HLMin)',
+                        '1. Hauptlöschmeister (1. HLM)', '1. Hauptlöschmeisterin (1. HLMin)',
+                        'Brandmeister (BM)', 'Brandmeisterin (BMin)',
+                        'Oberbrandmeister (OBM)', 'Oberbrandmeisterin (OBMin)',
+                        'Hauptbrandmeister (HBM)', 'Hauptbrandmeisterin (HBMin)',
+                        'Hauptbrandmeister mit Zulage (HBMZ)',
+                        '1. Hauptbrandmeister (1. HBM)', '1. Hauptbrandmeisterin (1. HBMin)',
+                        'Brandinspektor (BI)', 'Brandinspektorin (BIn)',
+                        'Brandoberinspektor (BOI)', 'Brandoberinspektorin (BOIn)',
+                        'Brandamtmann (BAM)', 'Brandamtfrau (BAMf)',
+                        'Brandamtsrat (BAR)', 'Brandamtsrätin (BARin)',
+                        'Branddirektor (BD)', 'Branddirektorin (BDin)',
+                        'Gemeindebrandmeister (GBM)', 'Stadtbrandmeister (SBM)',
+                        'Stellv. Kreisbrandmeister (Stellv. KBM)', 'Kreisbrandmeister (KBM)',
+                        'Landesbranddirektor (LBD)'
                     ],
                     qualifications: [
                         {id: 'is_truppmann', label: 'Truppmann (TM)'}, {id: 'is_funk', label: 'Sprechfunker'},
