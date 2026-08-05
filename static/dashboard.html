@@ -3981,13 +3981,13 @@
                     const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
-                        await this.loadMissions();
+                        await Promise.all([this.loadMissions(), this.loadData()]);
                     }
                 },
                 async deleteMission(id) {
                     if(confirm("Einsatzbericht unwiderruflich löschen?")) {
                         await fetch(`/api/missions/${id}`, { method: 'DELETE', credentials: 'include' });
-                        await this.loadMissions();
+                        await Promise.all([this.loadMissions(), this.loadData()]);
                     }
                 },
                 openMissionSigModal(m) {
@@ -5070,22 +5070,54 @@
                 async addGroup() { const name = prompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async editGroup(g) { const name = prompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
                 async deleteGroup(g) { if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
-                async deleteSession(s) { if(confirm("Eintrag löschen?")) { await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' }); this.loadData(); } },
+                async deleteSession(s) { 
+                    if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
+                        const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
+                        if (confirm("Einsatzbericht unwiderruflich löschen?")) {
+                            await fetch(`/api/missions/${realId}`, { method: 'DELETE', credentials: 'include' });
+                            await Promise.all([this.loadMissions(), this.loadData()]);
+                        }
+                    } else {
+                        if (confirm("Eintrag löschen?")) {
+                            await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' });
+                            await this.loadData();
+                        }
+                    }
+                },
                 createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
-                loadSession(s) { window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`; },
-                openReport(s) { window.open('/sessions/' + s.id + '/report', '_blank'); },
+                loadSession(s) { 
+                    if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
+                        const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
+                        this.editMission({ id: realId });
+                    } else {
+                        window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`;
+                    }
+                },
+                openReport(s) { 
+                    if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
+                        const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
+                        window.open('/api/missions/' + realId + '/report', '_blank');
+                    } else {
+                        window.open('/sessions/' + s.id + '/report', '_blank');
+                    }
+                },
                 
                 openSig(s) { 
-                    this.activeS = s; 
-                    if(sigModal) sigModal.show(); 
-                    setTimeout(() => {
-                        initResponsiveCanvas('sigCanvas', sigPad, s.leader_signature);
-                    }, 250);
+                    if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
+                        const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
+                        this.openMissionSigModal({ id: realId, isNewMission: true, leader_signature: s.leader_signature });
+                    } else {
+                        this.activeS = s; 
+                        if(sigModal) sigModal.show(); 
+                        setTimeout(() => {
+                            initResponsiveCanvas('sigCanvas', sigPad, s.leader_signature);
+                        }, 250);
+                    }
                 },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
                     const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
-                    if (r.ok) { sigModal.hide(); this.loadData(); }
+                    if (r.ok) { sigModal.hide(); await this.loadData(); }
                 },
                 clearSig() { if(sigPad) sigPad.clear(); },
                 
