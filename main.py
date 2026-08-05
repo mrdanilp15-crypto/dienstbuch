@@ -179,12 +179,20 @@ def init_db_extensions():
                 station_name VARCHAR(255) DEFAULT 'Feuerwehr Neustadt',
                 lat FLOAT DEFAULT 50.1109,
                 lng FLOAT DEFAULT 8.6821,
-                zoom INT DEFAULT 14
+                zoom INT DEFAULT 14,
+                ticker_text TEXT NULL
             ) ENGINE=InnoDB;
         """)
+        try:
+            cur.execute("SHOW COLUMNS FROM station_settings LIKE 'ticker_text'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+        except Exception as alter_err:
+            print("Konnte ticker_text Spalte nicht migrieren:", alter_err)
+
         cur.execute("SELECT COUNT(*) FROM station_settings")
         if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom) VALUES (%s, 50.1109, 8.6821, 14)", (TOWN_NAME,))
+            cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text) VALUES (%s, 50.1109, 8.6821, 14, %s)", (TOWN_NAME, "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"))
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS archive_files (
@@ -1087,7 +1095,15 @@ def delete_user(user_id: int, request: Request):
 @app.get("/api/settings/station")
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
+    try:
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
+    except Exception:
+        try:
+            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+            conn.commit()
+        except Exception:
+            pass
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
         return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"}
@@ -1111,6 +1127,14 @@ def update_station_settings(data: dict, request: Request):
         raise HTTPException(status_code=400, detail="Ungültige Koordinaten")
         
     conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("SHOW COLUMNS FROM station_settings LIKE 'ticker_text'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+            conn.commit()
+    except Exception:
+        pass
+
     cur.execute("SELECT id FROM station_settings LIMIT 1")
     row = cur.fetchone()
     if row:
