@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime, timedelta, date
 import uuid
 import shutil
@@ -733,7 +733,7 @@ class EntryDto(BaseModel):
     person_id: int; is_present: bool; note: Optional[str] = ""; 
     vehicle: Optional[str] = ""; signature: Optional[str] = None
 class AttendanceUpload(BaseModel): 
-    session_id: Optional[int] = None; date: str; time: Optional[str] = ""; end_time: Optional[str] = ""; group_id: int; category: str = "Übung"; 
+    session_id: Optional[Union[int, str]] = None; date: str; time: Optional[str] = ""; end_time: Optional[str] = ""; group_id: int; category: str = "Übung"; 
     duration: float = 0.0; description: str; instructors: Optional[str] = ""; 
     leader_signature: Optional[str] = None; entries: List[EntryDto]
 class GroupData(BaseModel): name: str
@@ -1498,51 +1498,96 @@ def get_stats(id: int, year: int, request: Request):
     return {"persons": persons, "total_sessions": max_s}
 
 @app.get("/groups/{group_id}/attendance")
-async def get_attendance(group_id: int, request: Request, session_id: Optional[int] = None):
+async def get_attendance(group_id: int, request: Request, session_id: Optional[str] = None):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         session_data = {"session_id": session_id, "description": "", "duration": 2.0, "time": "", "end_time": "", "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
+        is_mission_session = False
+        real_m_id = None
         if session_id:
-            cur.execute("SELECT id as session_id, description, duration, date, time, end_time, category, leader_signature, instructors FROM sessions WHERE id = %s", (session_id,))
-            row = cur.fetchone()
-            if row:
-                session_data = row
-                session_data['date'] = str(session_data['date'])
-                session_data['time'] = str(session_data.get('time') or '')
-                session_data['end_time'] = str(session_data.get('end_time') or '')
-                if session_data.get('leader_signature'): session_data['leader_signature'] = safe_decode(session_data['leader_signature'])
+            s_str = str(session_id).strip()
+            if s_str.startswith("m_"):
+                is_mission_session = True
+                real_m_id = int(s_str.replace("m_", ""))
+                cur.execute("SELECT id as session_id, stichwort, meldung, adresse, description, duration, date, time, end_time, leader_signature FROM missions WHERE id = %s", (real_m_id,))
+                mrow = cur.fetchone()
+                if mrow:
+                    session_data['session_id'] = session_id
+                    session_data['category'] = 'Einsatz'
+                    desc = f"{mrow['stichwort']}: {mrow['meldung']} ({mrow['adresse']})"
+                    if mrow.get('description'): desc += f" - {mrow['description']}"
+                    session_data['description'] = desc
+                    session_data['duration'] = float(mrow.get('duration') or 2.0)
+                    session_data['date'] = str(mrow['date'])
+                    session_data['time'] = str(mrow.get('time') or '')
+                    session_data['end_time'] = str(mrow.get('end_time') or '')
+                    if mrow.get('leader_signature'): session_data['leader_signature'] = safe_decode(mrow['leader_signature'])
+            else:
+                cur.execute("SELECT id as session_id, description, duration, date, time, end_time, category, leader_signature, instructors FROM sessions WHERE id = %s", (int(session_id),))
+                row = cur.fetchone()
+                if row:
+                    session_data = row
+                    session_data['date'] = str(session_data['date'])
+                    session_data['time'] = str(session_data.get('time') or '')
+                    session_data['end_time'] = str(session_data.get('end_time') or '')
+                    if session_data.get('leader_signature'): session_data['leader_signature'] = safe_decode(session_data['leader_signature'])
 
         cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'int_g26'")
         g26_row = cur.fetchone()
         g26_allowed_months = g26_row['setting_value'] if g26_row else 36
 
-        query = """SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, COALESCE(a.note, '') as note, 
-                          COALESCE(a.vehicle, '') as vehicle, a.signature, pl.id AS personnel_id, 
-                          CASE WHEN pl.profile_picture IS NOT NULL AND LENGTH(pl.profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture,
-                          pl.g26_3_date, pl.is_agt
-                   FROM persons p 
-                   LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s 
-                   LEFT JOIN personnel pl ON p.name = pl.name 
-                   WHERE p.group_id = %s ORDER BY p.name"""
-        cur.execute(query, (session_id, group_id))
-        persons = cur.fetchall()
-        
-        for p in persons:
-            p['signature'] = safe_decode(p['signature'])
-            p['is_present'] = bool(p['is_present'])
-            p['has_picture'] = bool(p.get('has_picture', 0))
+        if is_mission_session and real_m_id:
+            query = """SELECT p.id, p.name, COALESCE(ma.is_present, 'Nein') as is_present_str, COALESCE(ma.vehicle, '') as vehicle, 
+                              pl.id AS personnel_id, 
+                              CASE WHEN pl.profile_picture IS NOT NULL AND LENGTH(pl.profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture,
+                              pl.g26_3_date, pl.is_agt
+                       FROM persons p 
+                       LEFT JOIN personnel pl ON p.name = pl.name 
+                       LEFT JOIN mission_attendance ma ON pl.id = ma.personnel_id AND ma.mission_id = %s 
+                       WHERE p.group_id = %s ORDER BY p.name"""
+            cur.execute(query, (real_m_id, group_id))
+            persons = cur.fetchall()
+            for p in persons:
+                p['signature'] = None
+                p['note'] = ""
+                p['is_present'] = bool(p.get('is_present_str') and p['is_present_str'] != 'Nein')
+                p['has_picture'] = bool(p.get('has_picture', 0))
+                p['g26_expired'] = False
+                if p.get('is_agt') and p.get('g26_3_date'):
+                    g26_date = p['g26_3_date']
+                    if g26_date:
+                        diff_days = (datetime.now().date() - g26_date).days
+                        if diff_days > (g26_allowed_months * 30.44):
+                            p['g26_expired'] = True
+                if p.get('g26_3_date'):
+                    p['g26_3_date'] = str(p['g26_3_date'])
+        else:
+            query = """SELECT p.id, p.name, COALESCE(a.is_present, 0) as is_present, COALESCE(a.note, '') as note, 
+                              COALESCE(a.vehicle, '') as vehicle, a.signature, pl.id AS personnel_id, 
+                              CASE WHEN pl.profile_picture IS NOT NULL AND LENGTH(pl.profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture,
+                              pl.g26_3_date, pl.is_agt
+                       FROM persons p 
+                       LEFT JOIN attendance a ON p.id = a.person_id AND a.session_id = %s 
+                       LEFT JOIN personnel pl ON p.name = pl.name 
+                       WHERE p.group_id = %s ORDER BY p.name"""
+            cur.execute(query, (int(session_id) if (session_id and str(session_id).isdigit()) else 0, group_id))
+            persons = cur.fetchall()
             
-            p['g26_expired'] = False
-            if p.get('is_agt') and p.get('g26_3_date'):
-                g26_date = p['g26_3_date']
-                if g26_date:
-                    diff_days = (datetime.now().date() - g26_date).days
-                    if diff_days > (g26_allowed_months * 30.44):
-                        p['g26_expired'] = True
-            if p.get('g26_3_date'):
-                p['g26_3_date'] = str(p['g26_3_date'])
+            for p in persons:
+                p['signature'] = safe_decode(p['signature'])
+                p['is_present'] = bool(p['is_present'])
+                p['has_picture'] = bool(p.get('has_picture', 0))
+                p['g26_expired'] = False
+                if p.get('is_agt') and p.get('g26_3_date'):
+                    g26_date = p['g26_3_date']
+                    if g26_date:
+                        diff_days = (datetime.now().date() - g26_date).days
+                        if diff_days > (g26_allowed_months * 30.44):
+                            p['g26_expired'] = True
+                if p.get('g26_3_date'):
+                    p['g26_3_date'] = str(p['g26_3_date'])
 
         return {**session_data, "persons": persons}
     finally: cur.close(); conn.close()
@@ -1554,14 +1599,25 @@ async def save_attendance(payload: AttendanceUpload, request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         if payload.session_id:
-            cur.execute("""UPDATE sessions SET date=%s, time=%s, end_time=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s WHERE id=%s""",(payload.date, payload.time or "", payload.end_time or "", payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature, payload.session_id))
-            session_id = payload.session_id
+            s_str = str(payload.session_id).strip()
+            if s_str.startswith("m_"):
+                real_m_id = int(s_str.replace("m_", ""))
+                cur.execute("""UPDATE missions SET date=%s, time=%s, end_time=%s, duration=%s, leader_signature=%s WHERE id=%s""",
+                            (payload.date, payload.time or "", payload.end_time or "", payload.duration, payload.leader_signature, real_m_id))
+                session_id = payload.session_id
+            else:
+                s_int = int(payload.session_id)
+                cur.execute("""UPDATE sessions SET date=%s, time=%s, end_time=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s WHERE id=%s""",(payload.date, payload.time or "", payload.end_time or "", payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature, s_int))
+                session_id = s_int
+                cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
+                for entry in payload.entries:
+                    cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",(session_id, entry.person_id, 1 if entry.is_present else 0, entry.note or "", entry.vehicle or "", entry.signature))
         else:
             cur.execute("""INSERT INTO sessions (group_id, date, time, end_time, description, duration, category, instructors, leader_signature) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",(payload.group_id, payload.date, payload.time or "", payload.end_time or "", payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature))
             session_id = cur.lastrowid
-        cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
-        for entry in payload.entries:
-            cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",(session_id, entry.person_id, 1 if entry.is_present else 0, entry.note or "", entry.vehicle or "", entry.signature))
+            cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
+            for entry in payload.entries:
+                cur.execute("INSERT INTO attendance (session_id, person_id, is_present, note, vehicle, signature) VALUES (%s, %s, %s, %s, %s, %s)",(session_id, entry.person_id, 1 if entry.is_present else 0, entry.note or "", entry.vehicle or "", entry.signature))
         conn.commit(); return {"status": "success", "session_id": session_id}
     except Exception as e: conn.rollback(); raise HTTPException(status_code=500, detail=str(e))
     finally: cur.close(); conn.close()
