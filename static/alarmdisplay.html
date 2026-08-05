@@ -102,20 +102,31 @@
         .main-grid {
             flex: 1;
             min-height: 0;
-            display: grid;
-            grid-template-columns: 1.2fr 1fr 1.2fr;
-            gap: 16px;
-            padding: 16px;
-            box-sizing: border-box;
-            overflow: hidden;
+            display: grid !important;
+            grid-template-columns: 1.2fr 1fr 1.2fr !important;
+            gap: 16px !important;
+            padding: 16px !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+        }
+
+        @media (max-width: 991px) {
+            .main-grid {
+                grid-template-columns: 1fr !important;
+                overflow-y: auto !important;
+            }
         }
 
         .column-pane {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            min-height: 0;
-            overflow-y: auto;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 16px !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+            box-sizing: border-box !important;
         }
 
         /* Card panels */
