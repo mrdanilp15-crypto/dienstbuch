@@ -1345,11 +1345,17 @@
                         <!-- Schnittstellen-Daten -->
                         <div class="col-12 col-md-5">
                             <div class="card premium-card p-4 mb-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-cog text-danger me-2"></i>Schnittstellen-Daten</h5>
-                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-4 border border-secondary border-opacity-10">
-                                    <div class="text-muted small mb-2"><strong>Webhook-URL für aPagerPro:</strong></div>
-                                    <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/apager/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
-                                    <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>Kopieren</button>
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-plug text-danger me-2"></i>Alarmierungs-Schnittstellen (Webhooks)</h5>
+                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10">
+                                    <div class="text-muted small mb-1"><strong>Offene Webhook-URL (AlarmDispatcher, aPager, GroupAlarm, Divera, cURL):</strong></div>
+                                    <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
+                                    <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                </div>
+                                <div class="small text-muted mb-3 bg-black bg-opacity-30 p-3 rounded border border-secondary border-opacity-10">
+                                    <strong class="text-white d-block mb-1"><i class="fa fa-code me-1 text-warning"></i>Unterstützte Datenfelder (JSON/Form/GET):</strong>
+                                    <code>stichwort</code> / <code>title</code> / <code>keyword</code><br>
+                                    <code>adresse</code> / <code>address</code> / <code>location</code><br>
+                                    <code>meldung</code> / <code>description</code> / <code>text</code>
                                 </div>
                                 <button v-if="isAdmin" class="btn btn-premium w-100 rounded-pill" @click="generateApiKey"><i class="fa fa-key me-2"></i>Neuen API-Key generieren</button>
                             </div>
@@ -1399,15 +1405,28 @@
 
                             <!-- Protokoll -->
                             <div class="card premium-card p-4">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                                     <h5 class="fw-bold text-white mb-0"><i class="fa fa-list-check text-danger me-2"></i>Alarmierungsprotokoll</h5>
-                                    <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadApagerConfig"><i class="fa fa-refresh me-1"></i>Aktualisieren</button>
+                                    <div class="d-flex gap-2">
+                                        <button v-if="isAdmin || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill" @click="clearApagerLogs"><i class="fa fa-trash me-1"></i>Protokoll leeren</button>
+                                        <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadApagerConfig"><i class="fa fa-refresh me-1"></i>Aktualisieren</button>
+                                    </div>
                                 </div>
                                 <div class="list-group list-group-flush">
                                     <div v-for="log in apagerLogs" :key="log.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <span class="badge" :class="log.stichwort && log.stichwort.startsWith('[TEST]') ? 'bg-warning text-dark' : 'bg-danger'">{{log.stichwort && log.stichwort.startsWith('[TEST]') ? 'TEST' : 'ALARM'}}</span>
-                                            <small class="text-muted">{{log.created_at}}</small>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge" :class="log.stichwort && log.stichwort.startsWith('[TEST]') ? 'bg-warning text-dark' : 'bg-danger'">{{log.stichwort && log.stichwort.startsWith('[TEST]') ? 'TEST' : 'ALARM'}}</span>
+                                                <small class="text-muted">{{log.created_at}}</small>
+                                            </div>
+                                            <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                                <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                    <i class="fa fa-edit text-primary"></i>
+                                                </button>
+                                                <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="deleteApagerLog(log.id)" title="Eintrag löschen" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                    <i class="fa fa-trash-alt text-danger"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                         <h6 class="fw-bold text-white mb-1">{{log.stichwort}} &bull; {{log.adresse}}</h6>
                                         <p class="text-muted mb-0 small">{{log.meldung}}</p>
@@ -1791,6 +1810,10 @@
                                         <div class="mb-3">
                                             <label class="form-label text-white">Standard Zoomstufe (Map Zoom)</label>
                                             <input type="number" v-model.number="stationConfig.zoom" class="form-control bg-dark border-secondary text-white" min="1" max="20">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white"><i class="fa fa-bullhorn text-warning me-2"></i>Hallendisplay Lauftext / Wach-Ticker</label>
+                                            <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
                                         </div>
                                         <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
                                     </div>
@@ -2861,10 +2884,10 @@
                                         </select>
                                     </div>
                                     <div class="col-6">
-                                        <select v-model="activePersonnel.rank" class="form-select">
-                                            <option value="">-- Dienstgrad wählen --</option>
-                                            <option v-for="r in ranks" :value="r">{{ r }}</option>
-                                        </select>
+                                        <input list="rankList" v-model="activePersonnel.rank" class="form-control" placeholder="Dienstgrad (auswählen oder frei eingeben)...">
+                                        <datalist id="rankList">
+                                            <option v-for="r in ranks" :key="r" :value="r"></option>
+                                        </datalist>
                                     </div>
                                 </div>
                             </div>
@@ -3331,9 +3354,10 @@
                     newGear: { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] },
                     newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' },
                     ranks: [
-                        'Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
-                        'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)',
-                        'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)'
+                        'Feuerwehrmannanwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
+                        'Unterbrandmeister (UBM)', 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)', '1. Hauptlöschmeister (1. HLM)',
+                        'Brandmeister (BM)', 'Oberbrandmeister (OBM)', 'Hauptbrandmeister (HBM)', '1. Hauptbrandmeister (1. HBM)',
+                        'Gemeindebrandmeister (GBM)', 'Stadtbrandmeister (SBM)', 'Kreisbrandmeister (KBM)'
                     ],
                     qualifications: [
                         {id: 'is_truppmann', label: 'Truppmann (TM)'}, {id: 'is_funk', label: 'Sprechfunker'},
@@ -3785,6 +3809,33 @@
                         alert("Rückmeldung erfolgreich gesendet!");
                         await this.loadApagerConfig();
                     }
+                },
+                async deleteApagerLog(id) {
+                    if (confirm("Alarmierungseintrag wirklich löschen?")) {
+                        const res = await fetch(`/api/apager/logs/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) await this.loadApagerConfig();
+                    }
+                },
+                async clearApagerLogs() {
+                    if (confirm("Ganzes Alarmierungsprotokoll wirklich unwiderruflich leeren?")) {
+                        const res = await fetch('/api/apager/logs', { method: 'DELETE', credentials: 'include' });
+                        if(res.ok) await this.loadApagerConfig();
+                    }
+                },
+                async editApagerLog(log) {
+                    const stichwort = prompt("Stichwort anpassen:", log.stichwort);
+                    if (stichwort === null) return;
+                    const adresse = prompt("Einsatzort anpassen:", log.adresse);
+                    if (adresse === null) return;
+                    const meldung = prompt("Meldung anpassen:", log.meldung);
+                    if (meldung === null) return;
+                    const res = await fetch(`/api/apager/logs/${log.id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify({ stichwort, adresse, meldung })
+                    });
+                    if(res.ok) await this.loadApagerConfig();
                 },
 
                 // Vehicles & Logs

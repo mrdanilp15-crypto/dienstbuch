@@ -1087,10 +1087,12 @@ def delete_user(user_id: int, request: Request):
 @app.get("/api/settings/station")
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT station_name, lat, lng, zoom FROM station_settings LIMIT 1")
+    cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"}
+    if not row.get("ticker_text"):
+        row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
     return row
 
 @app.put("/api/settings/station")
@@ -1100,6 +1102,7 @@ def update_station_settings(data: dict, request: Request):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     
     station_name = data.get("station_name", "Feuerwehr").strip()
+    ticker_text = data.get("ticker_text", "").strip()
     try:
         lat = float(data.get("lat", 50.1109))
         lng = float(data.get("lng", 8.6821))
@@ -1113,14 +1116,14 @@ def update_station_settings(data: dict, request: Request):
     if row:
         cur.execute("""
             UPDATE station_settings 
-            SET station_name = %s, lat = %s, lng = %s, zoom = %s
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s
             WHERE id = %s
-        """, (station_name, lat, lng, zoom, row[0]))
+        """, (station_name, lat, lng, zoom, ticker_text, row[0]))
     else:
         cur.execute("""
-            INSERT INTO station_settings (station_name, lat, lng, zoom)
-            VALUES (%s, %s, %s, %s)
-        """, (station_name, lat, lng, zoom))
+            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom, ticker_text))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
     return {"status": "success"}
@@ -1538,23 +1541,38 @@ def get_instructors(group_id: int, request: Request):
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.post("/sessions/{session_id}/leader_signature")
-async def save_leader_sig(session_id: int, data: dict, request: Request):
+async def save_leader_sig(session_id: str, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
-    cur.execute("UPDATE sessions SET leader_signature=%s WHERE id=%s", (data.get("signature"), session_id))
+    sid_str = str(session_id)
+    sig = data.get("signature")
+    if sid_str.startswith("m_"):
+        real_id = int(sid_str.replace("m_", ""))
+        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (sig, real_id))
+    else:
+        real_id = int(sid_str)
+        cur.execute("UPDATE sessions SET leader_signature = %s WHERE id = %s", (sig, real_id))
     c.commit(); c.close(); return {"status": "success"}
 
 # --- EINTRÄGE / DIENSTE PERMANENT LÖSCHEN ---
 @app.delete("/sessions/{session_id}")
-def delete_session(session_id: int, request: Request):
+def delete_session(session_id: str, request: Request):
     user = get_current_user(request)
     if not user or user["role"] in ("mannschaft", "geratewart"): 
         raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
+    sid_str = str(session_id)
+    if sid_str.startswith("m_"):
+        real_id = int(sid_str.replace("m_", ""))
+        cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (real_id,))
+        cur.execute("DELETE FROM missions WHERE id = %s", (real_id,))
+    else:
+        real_id = int(sid_str)
+        cur.execute("DELETE FROM attendance WHERE session_id = %s", (real_id,))
+        cur.execute("DELETE FROM sessions WHERE id = %s", (real_id,))
     conn.commit(); cur.close(); conn.close()
-    log_audit_action(user["username"], "EINTRAG_LOESCHEN", f"Diensteintrag ID {session_id} wurde unwiderruflich gelöscht.")
+    log_audit_action(user["username"], "EINTRAG_LOESCHEN", f"Diensteintrag / Einsatz ID {session_id} wurde unwiderruflich gelöscht.")
     return {"status": "success"}
 
 # --- BERICHTE & JAHRESBERICHTE SYSTEM ---
@@ -1774,31 +1792,116 @@ def get_apager_logs(request: Request):
         log['created_at'] = str(log['created_at'])
     return r
 
-@app.post("/api/apager/webhook")
-async def apager_webhook(api_key: str, req: Request):
+@app.delete("/api/apager/logs/{log_id}")
+def delete_apager_log(log_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM apager_feedbacks WHERE apager_log_id = %s", (log_id,))
+    cur.execute("DELETE FROM apager_logs WHERE id = %s", (log_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.delete("/api/apager/logs")
+def clear_apager_logs(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM apager_feedbacks")
+    cur.execute("DELETE FROM apager_logs")
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@app.put("/api/apager/logs/{log_id}")
+def update_apager_log(log_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    stichwort = data.get("stichwort", "").strip()
+    adresse = data.get("adresse", "").strip()
+    meldung = data.get("meldung", "").strip()
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE apager_logs SET stichwort=%s, adresse=%s, meldung=%s WHERE id=%s", (stichwort, adresse, meldung, log_id))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id FROM apager_config WHERE api_key = %s AND active = 1", (api_key,))
+    body_dict = {}
+    try:
+        body_dict = await req.json()
+    except Exception:
+        try:
+            form = await req.form()
+            body_dict = dict(form)
+        except Exception:
+            body_dict = {}
+
+    query_params = dict(req.query_params)
+    
+    key = ""
+    for k in ["api_key", "apiKey", "token", "key"]:
+        if query_params.get(k):
+            key = query_params.get(k).strip()
+            break
+        if body_dict.get(k):
+            key = str(body_dict.get(k)).strip()
+            break
+    if not key and api_key:
+        key = api_key.strip()
+    if not key:
+        hdr_auth = req.headers.get("Authorization", "")
+        if hdr_auth.startswith("Bearer "):
+            key = hdr_auth.replace("Bearer ", "").strip()
+        elif req.headers.get("X-API-Key"):
+            key = req.headers.get("X-API-Key").strip()
+            
+    cur.execute("SELECT id FROM apager_config WHERE api_key = %s AND active = 1", (key,))
     row = cur.fetchone()
     if not row:
         cur.close(); conn.close()
         raise HTTPException(status_code=401, detail="Ungültiger API-Key.")
-    
-    try:
-        data = await req.json()
-    except:
-        cur.close(); conn.close()
-        raise HTTPException(status_code=400, detail="Ungültiges JSON.")
-        
-    stichwort = data.get("stichwort", "Alarmierung")
-    adresse = data.get("adresse", "Unbekannter Ort")
-    meldung = data.get("meldung", "Keine weiteren Details.")
-    
+
+    stichwort = None
+    for k in ["stichwort", "keyword", "title", "headline", "trigger", "alarm_keyword", "subject"]:
+        if body_dict.get(k):
+            stichwort = str(body_dict.get(k)).strip()
+            break
+        if query_params.get(k):
+            stichwort = str(query_params.get(k)).strip()
+            break
+    if not stichwort:
+        stichwort = "Alarmierung"
+
+    adresse = None
+    for k in ["adresse", "address", "location", "place", "einsatzort", "ort"]:
+        if body_dict.get(k):
+            adresse = str(body_dict.get(k)).strip()
+            break
+        if query_params.get(k):
+            adresse = str(query_params.get(k)).strip()
+            break
+    if not adresse:
+        adresse = "Siehe Einsatzbericht"
+
+    meldung = None
+    for k in ["meldung", "description", "content", "body", "text", "message", "details", "info"]:
+        if body_dict.get(k):
+            meldung = str(body_dict.get(k)).strip()
+            break
+        if query_params.get(k):
+            meldung = str(query_params.get(k)).strip()
+            break
+    if not meldung:
+        meldung = "Keine weiteren Details"
+
     cur.execute("""
         INSERT INTO apager_logs (stichwort, adresse, meldung)
         VALUES (%s, %s, %s)
     """, (stichwort, adresse, meldung))
     
-    # --- AUTO-EINSATZERÖFFNUNG & VORBEFÜLLUNG ---
     today = datetime.now().date().isoformat()
     now_time = datetime.now().strftime("%H:%M")
     cur.execute("""
@@ -1808,6 +1911,14 @@ async def apager_webhook(api_key: str, req: Request):
     
     conn.commit(); cur.close(); conn.close()
     return {"status": "success", "message": "Alarm erfolgreich verarbeitet und Einsatz angelegt."}
+
+@app.api_route("/api/apager/webhook", methods=["GET", "POST"])
+async def apager_webhook(req: Request, api_key: Optional[str] = None):
+    return await process_alarm_webhook(req, api_key)
+
+@app.api_route("/api/alarm/webhook", methods=["GET", "POST"])
+async def generic_alarm_webhook(req: Request, api_key: Optional[str] = None):
+    return await process_alarm_webhook(req, api_key)
 
 # --- APAGER FEEDBACKS ENDPOINTS ---
 @app.get("/api/apager/feedbacks")
