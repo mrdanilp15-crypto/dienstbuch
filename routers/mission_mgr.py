@@ -28,9 +28,15 @@ def check_auth(request: Request, require_admin: bool = False) -> dict:
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
     return user
 
+class MissionAttendanceEntry(BaseModel):
+    personnel_id: int
+    is_present: str # 'Abgerückt', 'Bereitstellung', 'Nein'
+    vehicle: Optional[str] = ""
+
 class MissionCreate(BaseModel):
     date: str
     time: str
+    end_time: Optional[str] = ""
     stichwort: str
     adresse: str
     meldung: str
@@ -39,15 +45,12 @@ class MissionCreate(BaseModel):
     status: Optional[str] = "Entwurf"
     media_files: Optional[str] = ""
     group_id: Optional[int] = None
-
-class MissionAttendanceEntry(BaseModel):
-    personnel_id: int
-    is_present: str # 'Abgerückt', 'Bereitstellung', 'Nein'
-    vehicle: Optional[str] = ""
+    attendance: Optional[List[MissionAttendanceEntry]] = []
 
 class MissionUpdate(BaseModel):
     date: str
     time: str
+    end_time: Optional[str] = ""
     stichwort: str
     adresse: str
     meldung: str
@@ -91,7 +94,7 @@ def list_missions(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, date, time, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
+    cur.execute("SELECT id, date, time, end_time, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
@@ -143,16 +146,17 @@ def create_mission(m: MissionCreate, request: Request):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
-        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
+        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (m.date, m.time, m.end_time or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
     mission_id = cur.lastrowid
     
-    for entry in m.attendance:
-        cur.execute("""
-            INSERT INTO mission_attendance (mission_id, personnel_id, is_present, vehicle)
-            VALUES (%s, %s, %s, %s)
-        """, (mission_id, entry.personnel_id, entry.is_present, entry.vehicle))
+    if m.attendance:
+        for entry in m.attendance:
+            cur.execute("""
+                INSERT INTO mission_attendance (mission_id, personnel_id, is_present, vehicle)
+                VALUES (%s, %s, %s, %s)
+            """, (mission_id, entry.personnel_id, entry.is_present, entry.vehicle))
         
     conn.commit(); cur.close(); conn.close()
     from main import log_audit_action
@@ -182,9 +186,9 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request):
     # 1. Update Stammdaten
     cur.execute("""
         UPDATE missions 
-        SET date=%s, time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
+        SET date=%s, time=%s, end_time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
         WHERE id=%s
-    """, (m.date, m.time, m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
+    """, (m.date, m.time, m.end_time or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
     
     # 2. Update Personnel/Vehicles Attendance
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))

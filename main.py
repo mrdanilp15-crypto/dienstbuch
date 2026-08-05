@@ -606,13 +606,25 @@ def init_db_extensions():
         except Exception as mig_err:
             print("Fehler bei defect reports Migration:", mig_err)
 
-        # Migration für Einsatzberichte (Gruppe / Einheit)
+        # Migration für Einsatzberichte (Gruppe / Einheit & Start-/Endzeit)
         try:
             cur.execute("SHOW COLUMNS FROM missions LIKE 'group_id'")
             if not cur.fetchone():
                 cur.execute("ALTER TABLE missions ADD COLUMN group_id INT NULL")
         except Exception as m_err:
             print("Fehler bei missions group_id Migration:", m_err)
+
+        for tbl, col_name, col_def in [
+            ("missions", "end_time", "VARCHAR(50) DEFAULT ''"),
+            ("sessions", "time", "VARCHAR(50) DEFAULT ''"),
+            ("sessions", "end_time", "VARCHAR(50) DEFAULT ''")
+        ]:
+            try:
+                cur.execute(f"SHOW COLUMNS FROM {tbl} LIKE '{col_name}'")
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_def}")
+            except Exception as mig_err:
+                print(f"Fehler bei {tbl} {col_name} Migration:", mig_err)
 
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cur.fetchone()[0] == 0:
@@ -721,7 +733,7 @@ class EntryDto(BaseModel):
     person_id: int; is_present: bool; note: Optional[str] = ""; 
     vehicle: Optional[str] = ""; signature: Optional[str] = None
 class AttendanceUpload(BaseModel): 
-    session_id: Optional[int] = None; date: str; group_id: int; category: str = "Übung"; 
+    session_id: Optional[int] = None; date: str; time: Optional[str] = ""; end_time: Optional[str] = ""; group_id: int; category: str = "Übung"; 
     duration: float = 0.0; description: str; instructors: Optional[str] = ""; 
     leader_signature: Optional[str] = None; entries: List[EntryDto]
 class GroupData(BaseModel): name: str
@@ -1403,10 +1415,12 @@ def get_sessions(id: int, request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     
     # 1. Reguläre Dienste
-    cur.execute("SELECT id, date, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC", (id,))
+    cur.execute("SELECT id, date, time, end_time, category, description, duration, leader_signature FROM sessions WHERE group_id=%s ORDER BY date DESC, id DESC", (id,))
     sessions = cur.fetchall()
     for x in sessions: 
         x['date'] = str(x['date'])
+        x['time'] = str(x.get('time') or '')
+        x['end_time'] = str(x.get('end_time') or '')
         sig = x.get('leader_signature')
         if sig:
             x['leader_signature'] = safe_decode(sig)
@@ -1415,7 +1429,7 @@ def get_sessions(id: int, request: Request):
         
     # 2. Einsatzberichte mit einbinden
     try:
-        cur.execute("SELECT id, date, time, stichwort, meldung, adresse, description, duration, leader_signature, status FROM missions ORDER BY date DESC, id DESC")
+        cur.execute("SELECT id, date, time, end_time, stichwort, meldung, adresse, description, duration, leader_signature, status FROM missions ORDER BY date DESC, id DESC")
         missions = cur.fetchall()
         for m in missions:
             desc = f"{m['stichwort']}: {m['meldung']} ({m['adresse']})"
@@ -1427,6 +1441,8 @@ def get_sessions(id: int, request: Request):
                 'id': f"m_{m['id']}",
                 'real_mission_id': m['id'],
                 'date': str(m['date']),
+                'time': str(m.get('time') or ''),
+                'end_time': str(m.get('end_time') or ''),
                 'category': 'Einsatz',
                 'description': desc,
                 'duration': float(m['duration'] or 2.0),
@@ -1487,13 +1503,15 @@ async def get_attendance(group_id: int, request: Request, session_id: Optional[i
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        session_data = {"session_id": session_id, "description": "", "duration": 2.0, "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
+        session_data = {"session_id": session_id, "description": "", "duration": 2.0, "time": "", "end_time": "", "category": "Übung", "date": datetime.now().strftime("%Y-%m-%d"), "leader_signature": None, "instructors": ""}
         if session_id:
-            cur.execute("SELECT id as session_id, description, duration, date, category, leader_signature, instructors FROM sessions WHERE id = %s", (session_id,))
+            cur.execute("SELECT id as session_id, description, duration, date, time, end_time, category, leader_signature, instructors FROM sessions WHERE id = %s", (session_id,))
             row = cur.fetchone()
             if row:
                 session_data = row
                 session_data['date'] = str(session_data['date'])
+                session_data['time'] = str(session_data.get('time') or '')
+                session_data['end_time'] = str(session_data.get('end_time') or '')
                 if session_data.get('leader_signature'): session_data['leader_signature'] = safe_decode(session_data['leader_signature'])
 
         cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'int_g26'")
@@ -1536,10 +1554,10 @@ async def save_attendance(payload: AttendanceUpload, request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         if payload.session_id:
-            cur.execute("""UPDATE sessions SET date=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s WHERE id=%s""",(payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature, payload.session_id))
+            cur.execute("""UPDATE sessions SET date=%s, time=%s, end_time=%s, description=%s, duration=%s, category=%s, instructors=%s, leader_signature=%s WHERE id=%s""",(payload.date, payload.time or "", payload.end_time or "", payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature, payload.session_id))
             session_id = payload.session_id
         else:
-            cur.execute("""INSERT INTO sessions (group_id, date, description, duration, category, instructors, leader_signature) VALUES (%s, %s, %s, %s, %s, %s, %s)""",(payload.group_id, payload.date, payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature))
+            cur.execute("""INSERT INTO sessions (group_id, date, time, end_time, description, duration, category, instructors, leader_signature) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",(payload.group_id, payload.date, payload.time or "", payload.end_time or "", payload.description, payload.duration, payload.category, payload.instructors, payload.leader_signature))
             session_id = cur.lastrowid
         cur.execute("DELETE FROM attendance WHERE session_id = %s", (session_id,))
         for entry in payload.entries:
@@ -1805,15 +1823,25 @@ def get_apager_logs(request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
     r = cur.fetchall(); cur.close(); conn.close()
-    import datetime
-    now = datetime.datetime.now()
+    now = datetime.now()
     for log in r:
-        if isinstance(log.get('created_at'), datetime.datetime):
-            diff_sec = (now - log['created_at']).total_seconds()
-            log['diff_min'] = diff_sec / 60.0
+        ca = log.get('created_at')
+        if isinstance(ca, datetime):
+            diff_sec = (now - ca.replace(tzinfo=None)).total_seconds()
+            log['diff_min'] = max(0.0, diff_sec / 60.0)
+            log['created_at'] = ca.strftime("%Y-%m-%d %H:%M:%S")
+        elif isinstance(ca, str):
+            try:
+                dt_obj = datetime.strptime(ca, "%Y-%m-%d %H:%M:%S")
+                diff_sec = (now - dt_obj).total_seconds()
+                log['diff_min'] = max(0.0, diff_sec / 60.0)
+                log['created_at'] = ca
+            except Exception:
+                log['diff_min'] = 999.0
+                log['created_at'] = ca
         else:
             log['diff_min'] = 999.0
-        log['created_at'] = str(log['created_at'])
+            log['created_at'] = str(ca or '')
     return r
 
 @app.delete("/api/apager/logs/{log_id}")
@@ -1921,16 +1949,19 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     if not meldung:
         meldung = "Keine weiteren Details"
 
+    now_dt = datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+
     cur.execute("""
-        INSERT INTO apager_logs (stichwort, adresse, meldung)
-        VALUES (%s, %s, %s)
-    """, (stichwort, adresse, meldung))
+        INSERT INTO apager_logs (stichwort, adresse, meldung, created_at)
+        VALUES (%s, %s, %s, %s)
+    """, (stichwort, adresse, meldung, now_str))
     
-    today = datetime.now().date().isoformat()
-    now_time = datetime.now().strftime("%H:%M")
+    today = now_dt.date().isoformat()
+    now_time = now_dt.strftime("%H:%M")
     cur.execute("""
-        INSERT INTO missions (date, time, stichwort, adresse, meldung, description, duration, status)
-        VALUES (%s, %s, %s, %s, %s, '', 2.0, 'Entwurf')
+        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
+        VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf')
     """, (today, now_time, stichwort, adresse, meldung))
     
     conn.commit(); cur.close(); conn.close()
@@ -1997,11 +2028,19 @@ async def send_test_alarm(data: dict, request: Request):
     stichwort = "[TEST] " + (data.get("stichwort") or "Probealarm")
     adresse = data.get("adresse") or "Übungsgelände"
     meldung = data.get("meldung") or "Dies ist ein Test-Alarm – keine echte Gefahr!"
+    now_dt = datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute(
-        "INSERT INTO apager_logs (stichwort, adresse, meldung) VALUES (%s, %s, %s)",
-        (stichwort, adresse, meldung)
+        "INSERT INTO apager_logs (stichwort, adresse, meldung, created_at) VALUES (%s, %s, %s, %s)",
+        (stichwort, adresse, meldung, now_str)
     )
+    today = now_dt.date().isoformat()
+    now_time = now_dt.strftime("%H:%M")
+    cur.execute("""
+        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
+        VALUES (%s, %s, '', %s, %s, %s, 'Probealarm / Test-Alarmierung', 1.0, 'Entwurf')
+    """, (today, now_time, stichwort, adresse, meldung))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
     return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}

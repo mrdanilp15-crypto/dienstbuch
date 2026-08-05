@@ -23,7 +23,7 @@
             --card-zinc: #141416;
             --border-zinc: #27272a;
             --text-light: #ffffff;
-            --text-muted: #a1a1aa;
+            --text-muted: #e4e4e7;
         }
 
         body {
@@ -358,12 +358,12 @@
                     <i class="fa fa-2x" :class="weather.iconClass" style="color: #ffd700;"></i>
                     <div>
                         <div class="weather-temp">{{ weather.temp.toFixed(1) }} °C</div>
-                        <div class="text-white-50" style="font-size:0.7rem;">
+                        <div class="text-light" style="font-size:0.75rem; color: #e4e4e7;">
                             {{ weather.description }} &bull; Wind: {{ weather.windspeed }} km/h ({{ weather.windDirection }}°)
                         </div>
                     </div>
                 </div>
-                <div class="weather-banner text-muted small" v-else>
+                <div class="weather-banner text-white small" v-else>
                     <i class="fa fa-spinner fa-spin me-1"></i> Wetter laden...
                 </div>
                 
@@ -399,8 +399,8 @@
                     <span class="card-label">Alarmierungszeit & Dauer</span>
                     <div class="d-flex align-items-center justify-content-between mt-2">
                         <div>
-                            <div class="text-white small">Ausgelöst um:</div>
-                            <div class="fw-bold text-white-50 fs-5">{{ formattedAlarmTime }} Uhr</div>
+                            <div class="text-white small fw-semibold">Ausgelöst um:</div>
+                            <div class="fw-bold text-white fs-4">{{ formattedAlarmTime }} Uhr</div>
                         </div>
                         <div class="timer-badge">
                             <i class="fa fa-stopwatch fa-spin me-1"></i> {{ alarmElapsedMinutes }}:{{ alarmElapsedSeconds }}
@@ -411,13 +411,13 @@
                 <!-- AAO (Alarm- und Ausrückordnung) Recommender -->
                 <div class="command-card">
                     <span class="card-label"><i class="fa fa-route me-1"></i> AAO Taktischer Ausrücke-Leitfaden</span>
-                    <p class="text-white-50 small mb-2">Vorgeschlagene Fahrzeugreihenfolge und Beladungsziele für das Stichwort.</p>
+                    <p class="text-light small mb-2" style="color: #e4e4e7;">Vorgeschlagene Fahrzeugreihenfolge und Beladungsziele für das Stichwort.</p>
                     <div class="d-flex flex-column gap-2">
                         <div v-for="(rec, index) in aaoRecommendations" :key="index" class="aao-badge">
-                            <span class="badge bg-danger rounded-pill">{{ index + 1 }}</span>
+                            <span class="badge bg-danger rounded-pill fs-6">{{ index + 1 }}</span>
                             <div>
-                                <div class="text-white fw-bold">{{ rec.vehicle }}</div>
-                                <div class="text-white-50 small" style="font-size:0.7rem;">{{ rec.role }}</div>
+                                <div class="text-white fw-bold fs-6">{{ rec.vehicle }}</div>
+                                <div class="small fw-semibold" style="color: #cbd5e1; font-size:0.8rem;">{{ rec.role }}</div>
                             </div>
                         </div>
                     </div>
@@ -430,7 +430,7 @@
                         <div v-for="s in upcomingSchedules.slice(0, 3)" :key="s.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="text-white fw-bold small">{{ s.title }}</div>
-                                <div class="text-white-50" style="font-size:0.75rem;"><i class="fa-regular fa-clock me-1 text-danger"></i>{{ s.date }} &bull; {{ s.time }} Uhr</div>
+                                <div class="text-light" style="color: #e4e4e7; font-size:0.75rem;"><i class="fa-regular fa-clock me-1 text-danger"></i>{{ s.date }} &bull; {{ s.time }} Uhr</div>
                             </div>
                             <span class="badge bg-danger rounded-pill px-2 py-1 small">{{ s.type }}</span>
                         </div>
@@ -450,32 +450,32 @@
                     <div class="quali-dashboard">
                         <div class="quali-stat-box">
                             <div class="quali-stat-num" :class="{low: agtCount === 0}">{{ agtCount }}</div>
-                            <div class="quali-stat-label">Atemschutz</div>
+                            <div class="quali-stat-label" style="color: #ffffff; font-weight: 700;">Atemschutz</div>
                         </div>
                         <div class="quali-stat-box">
                             <div class="quali-stat-num" :class="{low: maschinistCount === 0}">{{ maschinistCount }}</div>
-                            <div class="quali-stat-label">Maschinist</div>
+                            <div class="quali-stat-label" style="color: #ffffff; font-weight: 700;">Maschinist</div>
                         </div>
                         <div class="quali-stat-box">
                             <div class="quali-stat-num" :class="{low: leadershipCount === 0}">{{ leadershipCount }}</div>
-                            <div class="quali-stat-label">Führungskr.</div>
+                            <div class="quali-stat-label" style="color: #ffffff; font-weight: 700;">Führungskr.</div>
                         </div>
                     </div>
 
                     <!-- Responders Feed List -->
                     <div class="feedback-list">
                         <div v-for="f in feedbacks" :key="f.id" class="feedback-item" :class="f.status === 'Komme' ? 'status-komme' : 'status-nein'">
-                            <span class="feedback-name text-white">
+                            <span class="feedback-name text-white fw-semibold">
                                 {{ f.name }}
-                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_agt">AGT</span>
-                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_maschinist">MASCH</span>
-                                <span class="badge bg-dark text-white-50 small ms-1" style="font-size:0.55rem;" v-if="f.is_gf || f.is_tf">FÜHRUNG</span>
+                                <span class="badge bg-secondary text-white fw-bold small ms-1" style="font-size:0.6rem;" v-if="f.is_agt">AGT</span>
+                                <span class="badge bg-secondary text-white fw-bold small ms-1" style="font-size:0.6rem;" v-if="f.is_maschinist">MASCH</span>
+                                <span class="badge bg-secondary text-white fw-bold small ms-1" style="font-size:0.6rem;" v-if="f.is_gf || f.is_tf">FÜHRUNG</span>
                             </span>
-                            <span class="feedback-status" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
+                            <span class="feedback-status fw-bold" :class="f.status === 'Komme' ? 'text-success' : 'text-danger'">
                                 {{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}
                             </span>
                         </div>
-                        <div v-if="feedbacks.length === 0" class="text-center py-5 text-muted small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
+                        <div v-if="feedbacks.length === 0" class="text-center py-5 text-white fw-semibold small">Warte auf Rückmeldungen der Einsatzkräfte...</div>
                     </div>
                 </div>
             </div>
@@ -492,7 +492,7 @@
                         <div v-for="v in vehicles" :key="v.id" class="vehicle-status-item">
                             <div>
                                 <div class="fw-bold text-white small">{{ v.name }}</div>
-                                <div class="text-muted" style="font-size:0.7rem;">{{ v.radio_name }}</div>
+                                <div class="text-light" style="color: #cbd5e1; font-size:0.75rem;">{{ v.radio_name }}</div>
                             </div>
                             <div class="status-badge" :class="'fms-' + v.status">
                                 {{ v.status }}
@@ -742,7 +742,7 @@
                                 const last = logs[0];
                                 const diffMin = last.diff_min !== undefined ? last.diff_min : 999.0;
                                 
-                                if(diffMin < 30) {
+                                if(diffMin < 60) {
                                     this.isAlarmActive = true;
                                     
                                     // Start the elapsed timer
@@ -786,16 +786,23 @@
                 },
                 startAlarmTimer(alarmTimeStr) {
                     clearInterval(this.timerInterval);
-                    const alarmTime = new Date(alarmTimeStr);
+                    if (!alarmTimeStr) return;
+                    const isoStr = alarmTimeStr.includes('T') ? alarmTimeStr : alarmTimeStr.replace(' ', 'T');
+                    const alarmTime = new Date(isoStr);
                     
                     // Format output triggered time
-                    this.formattedAlarmTime = alarmTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    if (!isNaN(alarmTime.getTime())) {
+                        this.formattedAlarmTime = alarmTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        this.formattedAlarmTime = '--:--';
+                    }
                     
                     this.timerInterval = setInterval(() => {
+                        if (isNaN(alarmTime.getTime())) return;
                         const diffMs = Date.now() - alarmTime.getTime();
-                        if (diffMs < 0) return;
-                        const mins = Math.floor(diffMs / 60000);
-                        const secs = Math.floor((diffMs % 60000) / 1000);
+                        const effectiveMs = Math.max(0, diffMs);
+                        const mins = Math.floor(effectiveMs / 60000);
+                        const secs = Math.floor((effectiveMs % 60000) / 1000);
                         this.alarmElapsedMinutes = mins < 10 ? '0' + mins : mins;
                         this.alarmElapsedSeconds = secs < 10 ? '0' + secs : secs;
                     }, 1000);
