@@ -780,7 +780,7 @@
                                         <div>
                                             <span class="badge rounded-pill mb-1 shadow-sm small" :class="s.category==='Einsatz'?'bg-danger':(s.category==='Sonstiges'?'bg-warning text-dark':'bg-primary')">{{ s.category }}</span>
                                             <div class="fw-bold text-white fs-5">{{ s.description }}</div>
-                                            <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1"></i>{{ s.duration }}h &bull; <span v-if="s.is_signed" class="text-success"><i class="fa fa-signature me-1"></i>Freigegeben</span><span v-else class="text-muted"><i class="fa-regular fa-circle me-1"></i>Entwurf</span></small>
+                                            <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1"></i><span v-if="s.time">{{ s.time }}<span v-if="s.end_time"> - {{ s.end_time }}</span> Uhr &bull; </span>{{ s.duration }}h &bull; <span v-if="s.is_signed" class="text-success"><i class="fa fa-signature me-1"></i>Freigegeben</span><span v-else class="text-muted"><i class="fa-regular fa-circle me-1"></i>Entwurf</span></small>
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2">
@@ -823,7 +823,7 @@
                                             <span class="badge bg-danger text-uppercase px-2 rounded-pill mb-1">Einsatz</span>
                                             <div class="fw-bold text-white fs-5">{{m.stichwort}} &bull; {{m.adresse}}</div>
                                             <small class="text-muted fw-bold d-block mt-1">
-                                                <i class="fa fa-clock me-1"></i>{{m.time}} Uhr &bull; {{m.duration}} Std &bull; 
+                                                <i class="fa fa-clock me-1"></i>{{m.time}}<span v-if="m.end_time"> - {{m.end_time}}</span> Uhr &bull; {{m.duration}} Std &bull; 
                                                 <span :class="m.status === 'Freigegeben' ? 'text-success' : 'text-warning'">{{m.status}}</span>
                                             </small>
                                         </div>
@@ -2432,8 +2432,9 @@
                                     <div class="col-md-6"><label class="form-label">Einsatzstichwort</label><input type="text" v-model="activeMission.stichwort" class="form-control" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-6"><label class="form-label">Einsatzort / Adresse</label><input type="text" v-model="activeMission.adresse" class="form-control" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-6"><label class="form-label">Einsatzdatum</label><input type="date" v-model="activeMission.date" class="form-control" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-3"><label class="form-label">Uhrzeit</label><input type="time" v-model="activeMission.time" class="form-control" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-3"><label class="form-label">Dauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-3"><label class="form-label">Alarm/Beginn (Uhrzeit)</label><input type="time" v-model="activeMission.time" class="form-control" @input="calcMissionDuration" required :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-3"><label class="form-label">Ende (Uhrzeit)</label><input type="time" v-model="activeMission.end_time" class="form-control" @input="calcMissionDuration" :disabled="role === 'mannschaft'"></div>
+                                    <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
                                     <div class="col-md-12">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -3901,10 +3902,14 @@
                     if(res.ok) this.missions = await res.json();
                 },
                 openNewMissionModal() {
+                    const now = new Date();
+                    const nowStr = now.toTimeString().slice(0, 5);
+                    const laterStr = new Date(now.getTime() + 2 * 3600 * 1000).toTimeString().slice(0, 5);
                     this.activeMission = { 
                         id: null, 
                         date: new Date().toISOString().split('T')[0], 
-                        time: '12:00', 
+                        time: nowStr, 
+                        end_time: laterStr,
                         stichwort: '', 
                         adresse: '', 
                         meldung: '', 
@@ -3918,6 +3923,17 @@
                     this.uploadedMissionFiles = [];
                     this.initActiveMissionAttendance();
                     new bootstrap.Modal(document.getElementById('missionModal')).show();
+                },
+                calcMissionDuration() {
+                    if (this.activeMission && this.activeMission.time && this.activeMission.end_time) {
+                        const [h1, m1] = this.activeMission.time.split(':').map(Number);
+                        const [h2, m2] = this.activeMission.end_time.split(':').map(Number);
+                        let diffMins = (h2 * 60 + m2) - (h1 * 60 + m1);
+                        if (diffMins < 0) diffMins += 24 * 60;
+                        if (!isNaN(diffMins) && diffMins > 0) {
+                            this.activeMission.duration = Math.round((diffMins / 60) * 10) / 10;
+                        }
+                    }
                 },
                 async initActiveMissionAttendance() {
                     const res = await fetch('/api/personnel/list', { credentials: 'include' });
@@ -3940,6 +3956,7 @@
                         // Load respiration
                         const rRes = await fetch(`/api/missions/${m.id}/respiration`, { credentials: 'include' });
                         detail.respiList = rRes.ok ? await rRes.json() : [];
+                        detail.end_time = detail.end_time || '';
                         
                         this.activeMission = detail;
                         new bootstrap.Modal(document.getElementById('missionModal')).show();
@@ -3951,7 +3968,7 @@
                         mStatus = 'Freigegeben';
                     }
                     const payload = {
-                        date: this.activeMission.date, time: this.activeMission.time, stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
+                        date: this.activeMission.date, time: this.activeMission.time, end_time: this.activeMission.end_time || '', stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
                         meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: mStatus,
                         group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
                         media_files: JSON.stringify(this.uploadedMissionFiles),
