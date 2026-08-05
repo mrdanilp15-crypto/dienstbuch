@@ -410,6 +410,18 @@
                             </div>
                         </div>
                     </div>
+                <!-- Upcoming Trainings / Dienstplan Card -->
+                <div class="command-card" v-if="upcomingSchedules && upcomingSchedules.length > 0">
+                    <span class="card-label"><i class="fa fa-calendar-days me-1 text-warning"></i> Nächste Ausbildungen & Dienste</span>
+                    <div class="d-flex flex-column gap-2 mt-2">
+                        <div v-for="s in upcomingSchedules.slice(0, 3)" :key="s.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="text-white fw-bold small">{{ s.title }}</div>
+                                <div class="text-white-50" style="font-size:0.75rem;"><i class="fa-regular fa-clock me-1 text-danger"></i>{{ s.date }} &bull; {{ s.time }} Uhr</div>
+                            </div>
+                            <span class="badge bg-danger rounded-pill px-2 py-1 small">{{ s.type }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -477,6 +489,11 @@
                 </div>
             </div>
         </div>
+        <!-- Bottom Ticker Bar -->
+        <div class="w-100 bg-black bg-opacity-80 py-2 px-3 border-top border-secondary border-opacity-25 d-flex align-items-center overflow-hidden" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;">
+            <span class="badge bg-danger me-3 px-2 py-1 flex-shrink-0"><i class="fa fa-bullhorn me-1"></i>WACH-TICKER</span>
+            <marquee class="text-white fw-semibold small m-0" scrollamount="4">{{ stationTickerText || 'Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten' }}</marquee>
+        </div>
     </div>
 
     <script>
@@ -501,6 +518,8 @@
                     stationLng: 8.6821,
                     stationZoom: 15,
                     stationName: 'Feuerwehrgerätehaus',
+                    stationTickerText: 'Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten',
+                    upcomingSchedules: [],
 
                     // Weather widget state
                     weather: {
@@ -564,8 +583,12 @@
                         this.stationLng = sData.lng;
                         this.stationZoom = sData.zoom;
                         this.stationName = sData.station_name;
+                        if (sData.ticker_text) this.stationTickerText = sData.ticker_text;
                     }
                 } catch(e) { console.error("Error loading station settings", e); }
+
+                this.fetchSchedules();
+                setInterval(this.fetchSchedules, 60000); // refresh schedules every 1 min
 
                 this.pollData();
                 setInterval(this.pollData, 5000); // 5 sec poll
@@ -575,6 +598,16 @@
                 setInterval(this.fetchWeather, 300000); // Update weather every 5 mins
             },
             methods: {
+                async fetchSchedules() {
+                    try {
+                        const res = await fetch('/api/missions/schedules/list');
+                        if (res.ok) {
+                            const list = await res.json();
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            this.upcomingSchedules = list.filter(s => s.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date));
+                        }
+                    } catch(e) {}
+                },
                 updateClock() {
                     const now = new Date();
                     this.timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
