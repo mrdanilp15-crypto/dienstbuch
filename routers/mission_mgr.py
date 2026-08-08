@@ -28,11 +28,6 @@ def check_auth(request: Request, require_admin: bool = False) -> dict:
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
     return user
 
-class MissionAttendanceEntry(BaseModel):
-    personnel_id: int
-    is_present: str # 'Abgerückt', 'Bereitstellung', 'Nein'
-    vehicle: Optional[str] = ""
-
 class MissionCreate(BaseModel):
     date: str
     time: str
@@ -46,6 +41,11 @@ class MissionCreate(BaseModel):
     media_files: Optional[str] = ""
     group_id: Optional[int] = None
     attendance: Optional[List[MissionAttendanceEntry]] = []
+
+class MissionAttendanceEntry(BaseModel):
+    personnel_id: int
+    is_present: str # 'Abgerückt', 'Bereitstellung', 'Nein'
+    vehicle: Optional[str] = ""
 
 class MissionUpdate(BaseModel):
     date: str

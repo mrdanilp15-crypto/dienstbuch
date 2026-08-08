@@ -1498,7 +1498,7 @@ def get_stats(id: int, year: int, request: Request):
     return {"persons": persons, "total_sessions": max_s}
 
 @app.get("/groups/{group_id}/attendance")
-async def get_attendance(group_id: int, request: Request, session_id: Optional[str] = None):
+def get_attendance(group_id: int, request: Request, session_id: Optional[str] = None):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -1593,7 +1593,7 @@ async def get_attendance(group_id: int, request: Request, session_id: Optional[s
     finally: cur.close(); conn.close()
 
 @app.post("/attendance")
-async def save_attendance(payload: AttendanceUpload, request: Request):
+def save_attendance(payload: AttendanceUpload, request: Request):
     user = get_current_user(request)
     if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -1639,7 +1639,7 @@ def get_instructors(group_id: int, request: Request):
     r = [row[0] for row in cur.fetchall()]; c.close(); return r
 
 @app.post("/sessions/{session_id}/leader_signature")
-async def save_leader_sig(session_id: str, data: dict, request: Request):
+def save_leader_sig(session_id: str, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] in ("mannschaft", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
@@ -1885,13 +1885,13 @@ def get_apager_logs(request: Request):
         if isinstance(ca, datetime):
             diff_sec = (now - ca.replace(tzinfo=None)).total_seconds()
             log['diff_min'] = max(0.0, diff_sec / 60.0)
-            log['created_at'] = ca.strftime("%Y-%m-%d %H:%M:%S")
+            log['created_at'] = ca.astimezone().isoformat()
         elif isinstance(ca, str):
             try:
                 dt_obj = datetime.strptime(ca, "%Y-%m-%d %H:%M:%S")
                 diff_sec = (now - dt_obj).total_seconds()
                 log['diff_min'] = max(0.0, diff_sec / 60.0)
-                log['created_at'] = ca
+                log['created_at'] = dt_obj.astimezone().isoformat()
             except Exception:
                 log['diff_min'] = 999.0
                 log['created_at'] = ca
@@ -2077,7 +2077,7 @@ def submit_apager_feedback(status: str, request: Request):
 
 # --- TEST ALARM ---
 @app.post("/api/apager/test-alarm")
-async def send_test_alarm(data: dict, request: Request):
+def send_test_alarm(data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Nur Admins/Leitung/Gerätewarte können Test-Alarme senden.")
