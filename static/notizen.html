@@ -187,12 +187,12 @@
                     <form @submit.prevent="saveNote">
                         <div class="mb-3">
                             <label class="form-label">Betreff / Titel</label>
-                            <input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. Defekt an HLF Geräteraum 3" required>
+                            <input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. Übergabe Dienstbekleidung / Schicht-Notiz" required>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Details / Beschreibung</label>
-                            <textarea v-model="newNote.content" class="form-control" rows="5" placeholder="Beschreibe die Notiz oder den Defekt so genau wie möglich..." required></textarea>
+                            <textarea v-model="newNote.content" class="form-control" rows="5" placeholder="Schreibe deine Notiz oder Information hier..." required></textarea>
                         </div>
 
                         <div class="mb-4">
@@ -208,21 +208,14 @@
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="radio" id="r-public" value="public" v-model="newNote.visibility">
                                 <label class="form-check-label small fw-bold text-secondary" for="r-public">
-                                    <i class="fa fa-users me-2 text-success"></i>Öffentlich (Für alle)
+                                    <i class="fa fa-users me-2 text-success"></i>Öffentlich (Pinnwand)
                                 </label>
                             </div>
 
-                            <div class="form-check mb-2" v-if="currentUser.role === 'admin'">
+                            <div class="form-check mb-0" v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'">
                                 <input class="form-check-input" type="radio" id="r-admin" value="admin" v-model="newNote.visibility">
                                 <label class="form-check-label small fw-bold text-danger" for="r-admin">
-                                    <i class="fa fa-user-shield me-2"></i>Admin Intern
-                                </label>
-                            </div>
-
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="radio" id="r-gw" value="geratewart" v-model="newNote.visibility">
-                                <label class="form-check-label small fw-bold text-warning" for="r-gw">
-                                    <i class="fa fa-wrench me-2"></i>Defekt an Gerätewart melden
+                                    <i class="fa fa-user-shield me-2"></i>Führung / Admin Intern
                                 </label>
                             </div>
                         </div>
@@ -236,6 +229,10 @@
                             </button>
                         </div>
                     </form>
+
+                    <div class="card premium-card p-3 mt-4 border border-warning border-opacity-25 bg-black bg-opacity-20">
+                        <small class="text-muted"><i class="fa fa-circle-info text-warning me-1"></i><strong>Hinweis:</strong> Mängelmeldungen für Geräte & Fahrzeuge bitte direkt im Modul <a href="/dashboard" class="text-danger fw-bold text-decoration-none">Geräte & Material</a> erfassen.</small>
+                    </div>
                 </div>
             </div>
 
@@ -245,8 +242,7 @@
                     <button class="filter-pill" :class="{active: activeFilter === 'all'}" @click="activeFilter = 'all'">Alle Notizen</button>
                     <button class="filter-pill" :class="{active: activeFilter === 'private'}" @click="activeFilter = 'private'"><i class="fa fa-lock me-1"></i>Meine Privaten</button>
                     <button class="filter-pill" :class="{active: activeFilter === 'public'}" @click="activeFilter = 'public'"><i class="fa fa-users me-1"></i>Öffentliche Pinnwand</button>
-                    <button class="filter-pill" :class="{active: activeFilter === 'geratewart'}" @click="activeFilter = 'geratewart'"><i class="fa fa-wrench me-1"></i>Gerätewart-Meldungen</button>
-                    <button v-if="currentUser.role === 'admin'" class="filter-pill text-danger" :class="{active: activeFilter === 'admin'}" @click="activeFilter = 'admin'"><i class="fa fa-user-shield me-1"></i>Admin Intern</button>
+                    <button v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'" class="filter-pill text-danger" :class="{active: activeFilter === 'admin'}" @click="activeFilter = 'admin'"><i class="fa fa-user-shield me-1"></i>Führung Intern</button>
                 </div>
 
                 <div class="row g-3">
@@ -366,10 +362,10 @@
                 }
             },
             getVisLabel(vis) {
-                if (vis === 'public') return 'Öffentlich';
+                if (vis === 'public') return 'Pinnwand (Öffentlich)';
                 if (vis === 'private') return 'Privat';
-                if (vis === 'admin') return 'Admin Intern';
-                if (vis === 'geratewart') return '⚠️ Defekt an Gerätewart';
+                if (vis === 'admin') return 'Führung Intern';
+                if (vis === 'geratewart') return 'Gerätewart Notiz';
                 return vis;
             }
         }

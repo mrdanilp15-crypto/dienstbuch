@@ -21,6 +21,26 @@ def _init_pool(host, user, password, database, port):
         print(f"[DB POOL WARNING] Konnte Pool nicht direkt initialisieren: {e}")
         _db_pool = None
 
+class AutoClosingConnection:
+    """Wrapper that automatically closes the DB connection when garbage collected."""
+    def __init__(self, conn):
+        self._conn = conn
+        self._closed = False
+        
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+        
+    def close(self):
+        if not self._closed:
+            self._conn.close()
+            self._closed = True
+            
+    def __del__(self):
+        self.close()
+
+    def cursor(self, *args, **kwargs):
+        return self._conn.cursor(*args, **kwargs)
+
 def get_db_connection():
     """
     Erstellt oder holt eine Verbindung aus dem MySQL/MariaDB Pool.
@@ -38,7 +58,7 @@ def get_db_connection():
     # 1. Versuche Verbindung aus dem Pool zu beziehen
     if _db_pool is not None:
         try:
-            return _db_pool.get_connection()
+            return AutoClosingConnection(_db_pool.get_connection())
         except Exception:
             _db_pool = None
 
@@ -49,7 +69,7 @@ def get_db_connection():
         )
         if _db_pool is None:
             _init_pool(host, user, password, database, port)
-        return conn
+        return AutoClosingConnection(conn)
     except mysql.connector.Error as err:
         if err.errno != 1045: # Falls kein Zugriffsfehler (sondern z.B. Host noch nicht bereit)
             raise err
@@ -102,7 +122,7 @@ def get_db_connection():
                 host=host, user=user, password=password, database=database, port=port
             )
             _init_pool(host, user, password, database, port)
-            return conn
+            return AutoClosingConnection(conn)
         except Exception:
             pass
 
