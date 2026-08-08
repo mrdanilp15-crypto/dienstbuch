@@ -10,14 +10,20 @@ router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
 
 def safe_decode(val):
-    if val is None:
-        return None
+    if not val: return None
     if isinstance(val, (bytes, bytearray)):
-        try:
-            return val.decode("utf-8")
-        except Exception:
-            return str(val)
+        return val.decode('utf-8', errors='ignore')
     return str(val)
+
+def format_time_val(t_val):
+    if not t_val: return ""
+    if hasattr(t_val, "total_seconds"):
+        h, r = divmod(t_val.seconds, 3600)
+        m, _ = divmod(r, 60)
+        return f"{h:02d}:{m:02d}"
+    if isinstance(t_val, str):
+        return t_val[:5] if len(t_val) >= 5 else t_val
+    return str(t_val)[:5]
 
 def check_auth(request: Request, require_admin: bool = False) -> dict:
     from main import get_current_user
@@ -101,6 +107,10 @@ def list_missions(request: Request):
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
+        if "time" in row:
+            row["time"] = format_time_val(row["time"])
+        if "end_time" in row:
+            row["end_time"] = format_time_val(row["end_time"])
         sig = row.get("leader_signature")
         if sig:
             decoded_sig = safe_decode(sig)
@@ -128,6 +138,10 @@ def get_mission(mission_id: int, request: Request):
     
     if isinstance(m["date"], date):
         m["date"] = str(m["date"])
+    if "time" in m:
+        m["time"] = format_time_val(m["time"])
+    if "end_time" in m:
+        m["end_time"] = format_time_val(m["end_time"])
     sig = m.get("leader_signature")
     if sig:
         decoded_sig = safe_decode(sig)
@@ -480,6 +494,8 @@ def list_schedules(request: Request):
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
+        if "time" in row:
+            row["time"] = format_time_val(row["time"])
     return res
 
 @router.post("/schedules")
