@@ -3559,11 +3559,15 @@
                     if (this.sessionsList) {
                         const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => {
                             const isSigned = !!(s.leader_signature || s.is_signed || s.status === 'Freigegeben');
+                            let sTime = '00:00';
+                            if (s.time && s.time !== 'None' && s.time.trim() !== '') {
+                                sTime = s.time.length > 5 ? s.time.substring(0, 5) : s.time;
+                            }
                             return {
                                 id: s.id,
                                 isNewMission: false,
                                 date: s.date,
-                                time: '00:00',
+                                time: sTime,
                                 stichwort: s.description || 'Einsatz',
                                 adresse: s.instructors || 'Siehe Bericht',
                                 meldung: s.description || '',
