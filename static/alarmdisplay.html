@@ -619,7 +619,6 @@
                         try {
                             const data = JSON.parse(event.data);
                             if (data.type === 'new_mission' || data.type === 'update_mission') {
-                                this.playAlarmSound();
                                 await this.pollData();
                                 if (data.type === 'update_mission' && this.lastAlarm && this.lastAlarm.id) {
                                     this.triggerAlarmSound(this.lastAlarm, true);
@@ -771,10 +770,11 @@
                 },
                 async pollData() {
                     try {
+                        const cacheBuster = `?_=${new Date().getTime()}`;
                         const [aRes, fRes, vRes] = await Promise.all([
-                            fetch('/api/apager/logs'),
-                            fetch('/api/apager/feedbacks'),
-                            fetch('/api/vehicles')
+                            fetch('/api/apager/logs' + cacheBuster),
+                            fetch('/api/apager/feedbacks' + cacheBuster),
+                            fetch('/api/vehicles' + cacheBuster)
                         ]);
                         
                         if(aRes.ok) {
@@ -918,8 +918,9 @@
                         setTimeout(() => {
                             window.speechSynthesis.cancel(); // Abort previous speech if any
                             
-                            // Prevent postcode being read as a huge number (e.g., 87740 -> 8 7 7 4 0)
-                            const ttsAdresse = (alarm.adresse || 'Unbekannt').replace(/\b\d{5}\b/g, m => m.split('').join(' '));
+                            // Force TTS to read postcodes as individual words (e.g. 87740 -> Acht Sieben Sieben Vier Null)
+                            const digitWords = {'0':'Null', '1':'Eins', '2':'Zwei', '3':'Drei', '4':'Vier', '5':'Fünf', '6':'Sechs', '7':'Sieben', '8':'Acht', '9':'Neun'};
+                            const ttsAdresse = (alarm.adresse || 'Unbekannt').replace(/\b\d{5}\b/g, m => m.split('').map(d => digitWords[d]).join(' '));
                             
                             const text = reminderMinutes > 0 ? 
                                 `Einsatz-Erinnerung! Der Alarm läuft seit ${reminderMinutes} Minuten. Stichwort: ${alarm.stichwort}. Ort: ${ttsAdresse}.` :

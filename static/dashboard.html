@@ -4106,10 +4106,11 @@
                 // aPager Webhook Log / Config
                 async loadApagerConfig() {
                     try {
+                        const cacheBuster = `?_=${new Date().getTime()}`;
                         const [cRes, lRes, fRes] = await Promise.all([
-                            fetch('/api/apager/config', { credentials: 'include' }),
-                            fetch('/api/apager/logs', { credentials: 'include' }),
-                            fetch('/api/apager/feedbacks', { credentials: 'include' })
+                            fetch('/api/apager/config' + cacheBuster, { credentials: 'include' }),
+                            fetch('/api/apager/logs' + cacheBuster, { credentials: 'include' }),
+                            fetch('/api/apager/feedbacks' + cacheBuster, { credentials: 'include' })
                         ]);
                         if(cRes.ok) this.apagerConfig = await cRes.json();
                         if(lRes.ok) this.apagerLogs = await lRes.json();
