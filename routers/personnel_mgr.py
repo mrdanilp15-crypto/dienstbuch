@@ -323,6 +323,94 @@ def init_personnel_db():
                 cur.execute(f"ALTER TABLE personnel ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
+                if err.errno == 1060: pass
+
+        # Start Youth Migration
+        try:
+            cur.execute("SHOW TABLES LIKE 'youth_members'")
+            if cur.fetchone():
+                print("youth_members table found. Starting migration to personnel...")
+                youth_cols = [
+                    ("skills", "TEXT NULL"), ("parent_contact", "VARCHAR(255) NULL"),
+                    ("lic_am", "TINYINT(1) DEFAULT 0"), ("lic_a1", "TINYINT(1) DEFAULT 0"), ("lic_b", "TINYINT(1) DEFAULT 0"),
+                    ("lic_l", "TINYINT(1) DEFAULT 0"), ("lic_t", "TINYINT(1) DEFAULT 0"),
+                    ("has_jf1", "TINYINT(1) DEFAULT 0"), ("has_jf2", "TINYINT(1) DEFAULT 0"), ("has_jf3", "TINYINT(1) DEFAULT 0"),
+                    ("has_wissentest", "TINYINT(1) DEFAULT 0"), ("has_leistungsspange", "TINYINT(1) DEFAULT 0"),
+                    ("has_jugendabzeichen", "TINYINT(1) DEFAULT 0"), ("has_mta_basis", "TINYINT(1) DEFAULT 0"),
+                    ("has_erste_hilfe", "TINYINT(1) DEFAULT 0"), ("has_funk", "TINYINT(1) DEFAULT 0")
+                ]
+                for c_name, c_type in youth_cols:
+                    try:
+                        cur.execute(f"SHOW COLUMNS FROM personnel LIKE '{c_name}'")
+                        if not cur.fetchone():
+                            cur.execute(f"ALTER TABLE personnel ADD COLUMN {c_name} {c_type}")
+                    except: pass
+                
+                cur.execute("SELECT * FROM youth_members")
+                youths = cur.fetchall()
+                id_map = {}
+                for y in youths:
+                    cur.execute("SELECT id FROM personnel WHERE name = %s", (y["name"],))
+                    p = cur.fetchone()
+                    if p:
+                        new_id = p["id"]
+                        cur.execute("""
+                            UPDATE personnel SET
+                            parent_contact = %s, skills = %s, membership_status = 'Jugend',
+                            lic_am = %s, lic_a1 = %s, lic_b = %s, lic_l = %s, lic_t = %s,
+                            has_jf1 = %s, has_jf2 = %s, has_jf3 = %s, has_wissentest = %s,
+                            has_leistungsspange = %s, has_jugendabzeichen = %s, has_mta_basis = %s,
+                            has_erste_hilfe = %s, has_funk = %s
+                            WHERE id = %s
+                        """, (
+                            y.get("parent_contact"), y.get("skills"),
+                            y.get("lic_am", 0), y.get("lic_a1", 0), y.get("lic_b", 0), y.get("lic_l", 0), y.get("lic_t", 0),
+                            y.get("has_jf1", 0), y.get("has_jf2", 0), y.get("has_jf3", 0), y.get("has_wissentest", 0),
+                            y.get("has_leistungsspange", 0), y.get("has_jugendabzeichen", 0), y.get("has_mta_basis", 0),
+                            y.get("has_erste_hilfe", 0), y.get("has_funk", 0), new_id
+                        ))
+                    else:
+                        cur.execute("""
+                            INSERT INTO personnel (
+                                name, membership_status, phone, email, address, notes, birth_date, entry_date,
+                                parent_contact, skills, lic_am, lic_a1, lic_b, lic_l, lic_t,
+                                has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen,
+                                has_mta_basis, has_erste_hilfe, has_funk
+                            ) VALUES (
+                                %s, 'Jugend', %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s
+                            )
+                        """, (
+                            y["name"], y.get("phone"), y.get("email"), y.get("address"), y.get("notes"), y.get("birth_date"), y.get("entry_date"),
+                            y.get("parent_contact"), y.get("skills"), y.get("lic_am", 0), y.get("lic_a1", 0), y.get("lic_b", 0), y.get("lic_l", 0), y.get("lic_t", 0),
+                            y.get("has_jf1", 0), y.get("has_jf2", 0), y.get("has_jf3", 0), y.get("has_wissentest", 0), y.get("has_leistungsspange", 0), y.get("has_jugendabzeichen", 0),
+                            y.get("has_mta_basis", 0), y.get("has_erste_hilfe", 0), y.get("has_funk", 0)
+                        ))
+                        new_id = cur.lastrowid
+                    id_map[y["id"]] = new_id
+
+                try:
+                    cur.execute("""
+                        SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE 
+                        WHERE TABLE_NAME = 'youth_attendance' AND COLUMN_NAME = 'member_id' AND TABLE_SCHEMA = DATABASE()
+                    """)
+                    fk = cur.fetchone()
+                    if fk: cur.execute(f"ALTER TABLE youth_attendance DROP FOREIGN KEY {fk['CONSTRAINT_NAME']}")
+                except: pass
+
+                for old_id, new_id in id_map.items():
+                    cur.execute("UPDATE youth_attendance SET member_id = %s WHERE member_id = %s", (-new_id, old_id))
+                cur.execute("UPDATE youth_attendance SET member_id = -member_id WHERE member_id < 0")
+                
+                try: cur.execute("ALTER TABLE youth_attendance ADD CONSTRAINT fk_ya_personnel FOREIGN KEY (member_id) REFERENCES personnel(id) ON DELETE CASCADE")
+                except: pass
+                
+                cur.execute("DROP TABLE IF EXISTS youth_members")
+        except Exception as e:
+            print(f"Error during youth migration: {e}")
+        # End Youth Migration
 
         conn.commit()
         cur.close()

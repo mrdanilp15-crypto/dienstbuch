@@ -189,6 +189,18 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     """, (today, now_time, stichwort, adresse, meldung))
     
     conn.commit(); cur.close(); conn.close()
+    
+    # Push-Nachricht senden
+    try:
+        from routers.push_api import send_push_to_all
+        send_push_to_all({
+            "title": f"Neuer Alarm: {stichwort}",
+            "body": f"Ort: {adresse}\nMeldung: {meldung}",
+            "icon": "/static/img/icon-192x192.png",
+            "url": "/dashboard"
+        })
+    except Exception as e:
+        print("Push error:", e)
     return {"status": "success", "message": "Alarm erfolgreich verarbeitet und Einsatz angelegt."}
 
 @router.api_route("/api/apager/webhook", methods=["GET", "POST"])
@@ -266,4 +278,16 @@ async def send_test_alarm(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
     await ws_mgr.manager.broadcast_json({"type": "new_mission"})
+    
+    # Push-Nachricht senden
+    try:
+        from routers.push_api import send_push_to_all
+        send_push_to_all({
+            "title": f"Test-Alarm: {stichwort}",
+            "body": f"Ort: {adresse}",
+            "icon": "/static/img/icon-192x192.png",
+            "url": "/dashboard"
+        })
+    except Exception as e:
+        pass
     return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}

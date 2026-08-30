@@ -20,6 +20,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
@@ -45,6 +46,7 @@
                     </button>
                     <a href="/static/alarmdisplay.html" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill"><i class="fa fa-desktop me-1"></i>Hallen-Display</a>
                     <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span>
+                    <button class="btn btn-outline-info btn-sm rounded-pill px-3 fw-bold me-2" @click="requestPushPermission"><i class="fa fa-bell me-1"></i>Push-Alarm</button>
                     <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i>Logout</button>
                 </div>
             </div>
@@ -52,6 +54,9 @@
 
         <div class="sidebar-overlay" :class="{'mobile-open': showMobileSidebar}" @click="showMobileSidebar = false"></div>
 
+        <div v-if="!isOnline" class="bg-danger text-white text-center p-2 fw-bold" style="z-index: 9999; position: sticky; top: 0;">
+            <i class="fa fa-wifi-slash me-2"></i> Du bist offline! Änderungen werden lokal gespeichert und später synchronisiert.
+        </div>
         <div class="app-container">
             <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
                 <div class="d-flex justify-content-between align-items-center p-3 d-lg-none border-bottom border-secondary border-opacity-10 bg-black bg-opacity-20">
@@ -79,6 +84,7 @@
 
                     <div class="sidebar-section-header">System</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; loadStats(); showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
                 </div>
 
 
@@ -229,6 +235,7 @@
                                     </div>
                                     <div class="d-flex gap-2">
                                         <button class="btn btn-sm btn-outline-light rounded-pill px-3" @click.stop="openReport(s)">Bericht</button>
+                                        <button v-if="s.category === 'Einsatz' || s.is_mission" class="btn btn-sm btn-outline-danger rounded-pill px-3" @click.stop="downloadMissionPdf(s)"><i class="fa fa-file-pdf me-1"></i>PDF</button>
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill px-3" @click.stop="openSig(s)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
                                         <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="deleteSession(s)" style="width:34px; height:34px; display:flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
@@ -273,6 +280,7 @@
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3" @click.stop="downloadMissionPdf(m)"><i class="fa fa-file-pdf me-1"></i>PDF Download</button>
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
                                         <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
@@ -391,6 +399,9 @@
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" :class="materialSubTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'verein'; loadClubData()"><i class="fa fa-building-columns me-1"></i>Vereinskasse & Inventar</button>
+                        </li>
+                        <li class="nav-item ms-auto">
+                            <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
                         </li>
                     </ul>
 
@@ -1296,6 +1307,32 @@
                         </div>
                     </div>
 
+                <!-- TAB: STATISTIKEN -->
+                <div v-show="activeTab === 'stats'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-chart-bar text-danger me-2"></i>Statistiken</h2>
+                            <small class="text-muted">Übersicht der Einsatzstatistiken</small>
+                        </div>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-8">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Einsätze pro Wochentag</h5>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="card premium-card p-4 text-center">
+                                <h5 class="fw-bold text-white mb-3">Gesamteinsätze</h5>
+                                <h1 class="display-1 fw-bold text-danger m-0">{{ statsTotalMissions }}</h1>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB 9: DOCUMENT ARCHIVE -->
                 <div v-show="activeTab === 'archiv'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -1466,9 +1503,7 @@
                                 <h5 class="fw-bold text-white mb-0"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr-Mitglieder</h5>
                                 <small class="text-muted">Übersicht der Jugendgruppe & Akten</small>
                             </div>
-                            <button v-if="role !== 'mannschaft'" class="btn btn-premium btn-sm rounded-pill px-3" @click="openNewYouthModal">
-                                <i class="fa fa-user-plus me-1"></i>Jugendlichen anlegen
-                            </button>
+                            <div class="text-muted small"><i class="fa fa-info-circle me-1"></i>Mitglieder werden in der Personalverwaltung hinzugefügt.</div>
                         </div>
 
                         <div class="row g-3 mb-4">
@@ -2300,6 +2335,22 @@
             </div>
         </div>
 
+        <!-- MODAL: QR SCANNER -->
+        <div class="modal fade" id="qrScannerModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 bg-dark-layer">
+                    <div class="modal-header border-secondary border-opacity-25">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-barcode me-2 text-primary"></i>Gerät scannen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" @click="stopQrScanner"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #000;"></div>
+                        <p class="text-muted mt-3 small">Halte den Kamera-Sucher über den Barcode oder QR-Code des Geräts.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: ADD INSPECTION -->
         <div class="modal fade" id="addInspectionModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -2585,7 +2636,7 @@
                                 </div>
                                 <div class="flex-grow-1">
                                     <label class="form-label text-white fw-bold mb-1">Name des Jugendlichen *</label>
-                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;">
+                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;" readonly title="Name kann nur in der Personalverwaltung geändert werden.">
                                 </div>
                             </div>
                             <div class="row g-3">
@@ -2719,9 +2770,6 @@
                     </div>
                     <div class="modal-footer border-secondary border-opacity-10 d-flex justify-content-between">
                         <div>
-                            <button v-if="editingYouthId && role !== 'mannschaft'" type="button" class="btn btn-outline-danger rounded-pill" @click="deleteYouthMemberInModal">
-                                <i class="fa fa-trash me-1"></i> Mitglied löschen
-                            </button>
                         </div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>

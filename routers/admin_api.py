@@ -262,3 +262,33 @@ def get_audit_logs(request: Request):
     cur.execute("SELECT id, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted, username, action, details FROM audit_log ORDER BY id DESC LIMIT 150")
     logs = cur.fetchall(); cur.close(); conn.close()
     return logs
+@router.get("/api/admin/stats")
+def get_admin_stats(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    cur.execute("SELECT DAYNAME(date) as day, COUNT(*) as count FROM missions GROUP BY DAYNAME(date)")
+    missions_by_day_raw = cur.fetchall()
+    
+    # Optional: Fill missing days and sort properly
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    missions_dict = {d: 0 for d in days}
+    for row in missions_by_day_raw:
+        if row["day"] in missions_dict:
+            missions_dict[row["day"]] = row["count"]
+            
+    missions_by_day = [{"day": d, "count": missions_dict[d]} for d in days]
+    
+    cur.execute("SELECT COUNT(*) as count FROM missions")
+    total_missions = cur.fetchone()["count"]
+    
+    cur.close()
+    conn.close()
+    
+    return {
+        "missions_by_day": missions_by_day,
+        "missions_total": total_missions
+    }
