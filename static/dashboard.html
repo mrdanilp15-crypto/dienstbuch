@@ -103,12 +103,18 @@
             background-color: var(--card-bg) !important;
             border-color: var(--border-color) !important;
         }
-        [data-theme="light"] input.bg-dark,
-        [data-theme="light"] textarea.bg-dark,
-        [data-theme="light"] select.bg-dark {
+        [data-theme="light"] .form-control,
+        [data-theme="light"] .form-select,
+        [data-theme="light"] input,
+        [data-theme="light"] textarea,
+        [data-theme="light"] select {
             background-color: var(--input-bg) !important;
             color: var(--input-text) !important;
             border-color: var(--border-color) !important;
+        }
+        [data-theme="light"] input::placeholder,
+        [data-theme="light"] textarea::placeholder {
+            color: #6c757d !important;
         }
         [data-theme="light"] .border-secondary,
         [data-theme="light"] .border-light,
@@ -119,6 +125,20 @@
         [data-theme="light"] .top-nav {
             background: rgba(255, 255, 255, 0.95) !important;
             border-bottom: 1px solid rgba(0,0,0,0.1) !important;
+        }
+        [data-theme="light"] .sidebar {
+            background: var(--sidebar-bg) !important;
+            border-right: 1px solid rgba(0,0,0,0.1) !important;
+        }
+        [data-theme="light"] .sidebar-section-header {
+            color: rgba(0, 0, 0, 0.5) !important;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+        }
+        [data-theme="light"] .sidebar-btn:hover {
+            background: rgba(0,0,0,0.05) !important;
+        }
+        [data-theme="light"] .profile-trigger .text-white {
+            color: var(--text-color) !important;
         }
         
         * {
@@ -1894,16 +1914,7 @@
                                                 <button type="button" class="btn btn-outline-warning text-nowrap fw-bold" @click="lookupStationCoordinates"><i class="fa fa-search-location me-1"></i> Suchen</button>
                                             </div>
                                         </div>
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-6">
-                                                <label class="form-label text-white">IBAN (für Abrechnungen)</label>
-                                                <input type="text" v-model="stationConfig.iban" class="form-control bg-dark border-secondary text-white" placeholder="DE12 3456 7890 1234 5678 90">
-                                            </div>
-                                            <div class="col-md-6">
-                                                <label class="form-label text-white">BIC</label>
-                                                <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
-                                            </div>
-                                        </div>
+
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
                                                 <label class="form-label text-white">Breitengrad (Latitude)</label>
@@ -1937,6 +1948,20 @@
                                             <tr><td>Längengrad (Lng):</td><td class="text-white">{{ stationConfig.lng }}</td></tr>
                                             <tr><td>Zoom:</td><td class="text-white">{{ stationConfig.zoom }}</td></tr>
                                         </table>
+                                    </div>
+                                    
+                                    <div class="card premium-card p-4 mt-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-university text-danger me-2"></i>Bankverbindung / Abrechnungsdaten</h5>
+                                        <p class="text-muted small">Diese Daten werden automatisch auf Kostenbescheiden und Rechnungen angedruckt.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">IBAN</label>
+                                            <input type="text" v-model="stationConfig.iban" class="form-control bg-dark border-secondary text-white" placeholder="DE12 3456 7890 1234 5678 90">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">BIC</label>
+                                            <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
+                                        </div>
+                                        <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
                                     </div>
                                 </div>
                             </div>

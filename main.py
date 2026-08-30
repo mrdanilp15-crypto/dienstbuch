@@ -1130,7 +1130,12 @@ def get_station_settings():
         cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
     except Exception:
         try:
-            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL, ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
+            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            cur.execute("ALTER TABLE station_settings ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
             conn.commit()
         except Exception:
             pass
@@ -1165,10 +1170,13 @@ def update_station_settings(data: dict, request: Request):
         
     conn = get_db_connection(); cur = conn.cursor()
     try:
-        cur.execute("SHOW COLUMNS FROM station_settings LIKE 'iban'")
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL, ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
-            conn.commit()
+        cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        cur.execute("ALTER TABLE station_settings ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
+        conn.commit()
     except Exception:
         pass
 
