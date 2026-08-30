@@ -1,0 +1,21 @@
+{
+  "name": "Antigravity Feuerwehr",
+  "short_name": "FW App",
+  "description": "Antigravity Feuerwehr Einsatzverwaltung",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121010",
+  "theme_color": "#b71c1c",
+  "icons": [
+    {
+      "src": "/static/img/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

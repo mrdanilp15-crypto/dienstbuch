@@ -604,13 +604,30 @@
                 setInterval(this.fetchSchedules, 60000); // refresh schedules every 1 min
 
                 this.pollData();
-                setInterval(this.pollData, 5000); // 5 sec poll
+                this.initWebSocket();
                 
                 this.initDisplayMap();
                 this.fetchWeather();
                 setInterval(this.fetchWeather, 300000); // Update weather every 5 mins
             },
             methods: {
+                initWebSocket() {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+                    ws.onmessage = async (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.type === 'new_mission' || data.type === 'update_mission') {
+                                this.pollData();
+                            }
+                        } catch(e) {}
+                    };
+                    ws.onclose = () => {
+                        // fallback to polling if WS disconnects, and try reconnecting
+                        setTimeout(() => this.initWebSocket(), 5000);
+                        this.pollData(); 
+                    };
+                },
                 async fetchSchedules() {
                     try {
                         const res = await fetch('/api/missions/schedules/list');

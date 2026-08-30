@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response, Request
+from fastapi import APIRouter, HTTPException, Response, Request, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
@@ -75,10 +75,10 @@ def check_auth(request: Request, require_admin: bool = False) -> dict:
 
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
 @router.get("/list")
-def get_all_personnel(request: Request):
+def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
     check_auth(request)
-    # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren
-    internal_sync_personnel_to_groups()
+    # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren (im Hintergrund!)
+    background_tasks.add_task(internal_sync_personnel_to_groups)
     
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)

@@ -550,24 +550,31 @@
             this.groupId = p.get('group_id');
             this.sessionId = p.get('session_id');
             
-            try {
-                const vRes = await fetch('/api/vehicles', { credentials: 'include' }); 
-                this.globalVehicles = await vRes.json();
-            } catch(e) {}
-            
-            try {
-                const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
-                const pData = await pRes.json();
-                this.pool = pData.map(m => ({...m, selected: false}));
-            } catch(e) {}
+            const promises = [this.load()];
+            promises.push((async () => {
+                try {
+                    const vRes = await fetch('/api/vehicles', { credentials: 'include' }); 
+                    this.globalVehicles = await vRes.json();
+                } catch(e) {}
+            })());
+            promises.push((async () => {
+                try {
+                    const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
+                    const pData = await pRes.json();
+                    this.pool = pData.map(m => ({...m, selected: false}));
+                } catch(e) {}
+            })());
+            promises.push((async () => {
+                try {
+                    const topics = await fetch(`/groups/${this.groupId}/topics`, { credentials: 'include' }); 
+                    this.topicOptions = await topics.json();
+                    const instrs = await fetch(`/groups/${this.groupId}/instructors`, { credentials: 'include' }); 
+                    this.instrOptions = await instrs.json();
+                } catch(e) {}
+            })());
 
-            await this.load();
-            this.isLoading = false; 
-            
-            try {
-                const topics = await fetch(`/groups/${this.groupId}/topics`, { credentials: 'include' }); this.topicOptions = await topics.json();
-                const instrs = await fetch(`/groups/${this.groupId}/instructors`, { credentials: 'include' }); this.instrOptions = await instrs.json();
-            } catch(e) {}
+            await Promise.all(promises);
+            this.isLoading = false;
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
             

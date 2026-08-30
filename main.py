@@ -704,6 +704,11 @@ def init_db():
                     FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB;
             """)
+            try:
+                cur.execute("CREATE INDEX idx_persons_group_name ON persons (group_id, name);")
+            except Exception:
+                pass
+            
             conn.commit()
             cur.close()
             conn.close()
