@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login - Dienstbuch</title>
+    <link rel="manifest" href="/manifest.json">
     
     <meta name="theme-color" content="#b71c1c">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -193,7 +194,7 @@
             <i class="fa fa-exclamation-circle me-1"></i> Passwort nicht korrekt!
         </div>
 
-        <form id="loginForm" onsubmit="handleLogin(event)">
+        <form id="loginForm">
             <div class="mb-3 text-start">
                 <label class="form-label">Benutzername</label>
                 <div class="input-group">
@@ -292,6 +293,8 @@
                 spinner.style.display = 'none';
             }
         }
+        
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
 
         function togglePasswordVisibility() {
             const input = document.getElementById('passwordInput');

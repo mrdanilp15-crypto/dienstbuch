@@ -917,11 +917,15 @@
                     if ('speechSynthesis' in window) {
                         setTimeout(() => {
                             window.speechSynthesis.cancel(); // Abort previous speech if any
+                            
+                            // Prevent postcode being read as a huge number (e.g., 87740 -> 8 7 7 4 0)
+                            const ttsAdresse = (alarm.adresse || 'Unbekannt').replace(/\b\d{5}\b/g, m => m.split('').join(' '));
+                            
                             const text = reminderMinutes > 0 ? 
-                                `Einsatz-Erinnerung! Der Alarm läuft seit ${reminderMinutes} Minuten. Stichwort: ${alarm.stichwort}. Ort: ${alarm.adresse || 'Unbekannt'}.` :
+                                `Einsatz-Erinnerung! Der Alarm läuft seit ${reminderMinutes} Minuten. Stichwort: ${alarm.stichwort}. Ort: ${ttsAdresse}.` :
                                 (isUpdate ? 
-                                `Achtung, Einsatz-Update! Stichwort: ${alarm.stichwort}. Ort: ${alarm.adresse || 'Unbekannt'}.` :
-                                `Achtung! Alarm für die Feuerwehr. Einsatzstichwort: ${alarm.stichwort}. Einsatzort: ${alarm.adresse || 'Unbekannt'}.`);
+                                `Achtung, Einsatz-Update! Stichwort: ${alarm.stichwort}. Ort: ${ttsAdresse}.` :
+                                `Achtung! Alarm für die Feuerwehr. Einsatzstichwort: ${alarm.stichwort}. Einsatzort: ${ttsAdresse}.`);
                             
                             const repeats = reminderMinutes > 0 ? 1 : (isUpdate ? 2 : 3);
                             for (let i = 0; i < repeats; i++) {
