@@ -67,24 +67,58 @@
             color: var(--text-secondary) !important;
         }
         
-        [data-theme="light"] .text-white:not(.btn) {
+        [data-theme="light"] {
+            background: var(--bg-color) !important;
+        }
+        
+        [data-theme="light"] .text-white:not(.btn),
+        [data-theme="light"] .text-light:not(.btn) {
             color: var(--text-color) !important;
+        }
+        [data-theme="light"] .text-muted {
+            color: #6c757d !important;
         }
         [data-theme="light"] .bg-black,
         [data-theme="light"] .bg-dark {
             background-color: var(--card-bg) !important;
         }
         [data-theme="light"] .glass-card,
-        [data-theme="light"] .glass-panel {
-            background: rgba(255, 255, 255, 0.8) !important;
-            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+        [data-theme="light"] .glass-panel,
+        [data-theme="light"] .premium-card {
+            background: var(--card-bg) !important;
+            border: 1px solid var(--card-border) !important;
+            color: var(--text-color) !important;
         }
-        [data-theme="light"] .modal-content {
-            background: var(--card-bg);
-            color: var(--text-color);
+        [data-theme="light"] .modal-content,
+        [data-theme="light"] .modal-header,
+        [data-theme="light"] .modal-body,
+        [data-theme="light"] .modal-footer {
+            background: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border-color: var(--border-color) !important;
         }
-        [data-theme="light"] .table {
-            color: var(--text-color);
+        [data-theme="light"] .table,
+        [data-theme="light"] .list-group-item {
+            color: var(--text-color) !important;
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="light"] input.bg-dark,
+        [data-theme="light"] textarea.bg-dark,
+        [data-theme="light"] select.bg-dark {
+            background-color: var(--input-bg) !important;
+            color: var(--input-text) !important;
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="light"] .border-secondary,
+        [data-theme="light"] .border-light,
+        [data-theme="light"] .border-opacity-10,
+        [data-theme="light"] .border-opacity-25 {
+            border-color: rgba(0,0,0,0.1) !important;
+        }
+        [data-theme="light"] .top-nav {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border-bottom: 1px solid rgba(0,0,0,0.1) !important;
         }
         
         * {
@@ -1862,6 +1896,16 @@
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
+                                                <label class="form-label text-white">IBAN (für Abrechnungen)</label>
+                                                <input type="text" v-model="stationConfig.iban" class="form-control bg-dark border-secondary text-white" placeholder="DE12 3456 7890 1234 5678 90">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label text-white">BIC</label>
+                                                <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label text-white">Breitengrad (Latitude)</label>
                                                 <input type="number" step="any" v-model.number="stationConfig.lat" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 50.1109">
                                             </div>
@@ -2131,7 +2175,10 @@
                                                     </span>
                                                 </div>
                                             </div>
-                                            <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0 mt-2" @click="deleteYouthSession(s.id)"><i class="fa fa-trash me-1"></i>Dienstbericht löschen</button>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-warning rounded-pill px-2 border-0" @click="editYouthSession(s)"><i class="fa fa-edit me-1"></i>Dienst bearbeiten</button>
+                                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteYouthSession(s.id)"><i class="fa fa-trash me-1"></i>Dienstbericht löschen</button>
+                                            </div>
                                         </div>
                                         <div v-if="youthSessions.length === 0" class="text-center py-4 text-muted">Keine Dienstberichte erfasst.</div>
                                     </div>
@@ -2164,17 +2211,22 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label text-white fw-bold d-block mb-2">Anwesenheit der Jugendlichen</label>
-                                        <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10" style="max-height: 200px; overflow-y: auto;">
-                                            <div v-for="ym in youthMembers" :key="ym.id" class="form-check mb-2">
-                                                <input class="form-check-input" type="checkbox" :id="'ym-att-' + ym.id" v-model="newYouthSession.attendance[ym.id]">
-                                                <label class="form-check-label text-white small" :for="'ym-att-' + ym.id">
-                                                    {{ ym.name }}
-                                                </label>
+                                        <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10" style="max-height: 300px; overflow-y: auto;">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <div v-for="ym in youthMembers" :key="ym.id" class="form-check m-0 p-2 border border-secondary border-opacity-25 rounded" style="background: rgba(255,255,255,0.02); min-width: 140px; flex: 1 1 auto; cursor: pointer;" @click="newYouthSession.attendance[ym.id] = !newYouthSession.attendance[ym.id]">
+                                                    <input class="form-check-input ms-0 me-2 mt-1" type="checkbox" :id="'ym-att-' + ym.id" v-model="newYouthSession.attendance[ym.id]" @click.stop>
+                                                    <label class="form-check-label text-white small" style="cursor:pointer;" :for="'ym-att-' + ym.id" @click.stop>
+                                                        {{ ym.name }}
+                                                    </label>
+                                                </div>
                                             </div>
                                             <div v-if="youthMembers.length === 0" class="text-muted small text-center">Keine Jugendmitglieder vorhanden.</div>
                                         </div>
                                     </div>
-                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitYouthSession"><i class="fa fa-save me-2"></i>Dienstbericht speichern</button>
+                                    <div class="d-flex gap-2">
+                                        <button v-if="editingYouthSessionId" class="btn btn-outline-secondary w-50 rounded-pill py-2" @click="cancelYouthSessionEdit">Abbrechen</button>
+                                        <button class="btn btn-premium rounded-pill py-2" :class="editingYouthSessionId ? 'w-50' : 'w-100'" @click="submitYouthSession"><i class="fa fa-save me-2"></i>Dienstbericht speichern</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3591,6 +3643,7 @@
                     },
                     youthSessions: [],
                     newYouthSession: { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} },
+                    editingYouthSessionId: null,
                     
                     clubTab: 'inventory',
                     clubInventory: [],
@@ -4557,7 +4610,11 @@
                             </div>
                             <div style="margin-top: 30px;">
                                 <p><strong>Zahlungshinweis:</strong><br>
-                                Bitte überweisen Sie den Gesamtbetrag von <strong>${parseFloat(b.amount).toFixed(2)} €</strong> innerhalb von 14 Tagen unter Angabe der Bescheid-Nummer <strong>KB-${b.id}</strong> auf das unten genannte Gemeindekonto.</p>
+                                Bitte überweisen Sie den Gesamtbetrag von <strong>${parseFloat(b.amount).toFixed(2)} €</strong> innerhalb von 14 Tagen unter Angabe der Bescheid-Nummer <strong>KB-${b.id}</strong> auf folgendes Gemeindekonto:</p>
+                                <p style="margin-left: 20px; font-family: monospace;">
+                                    <strong>IBAN:</strong> ${this.stationConfig?.iban || 'IBAN noch nicht in den Einstellungen hinterlegt'}<br>
+                                    <strong>BIC:</strong> ${this.stationConfig?.bic || '-'}
+                                </p>
                             </div>
                             <div style="margin-top: 30px; font-size: 11px; color: #555; background: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
                                 <h4 style="margin-top: 0; color: #333;">Rechtsbehelfsbelehrung</h4>
@@ -4578,8 +4635,8 @@
                     if(res.ok) this.compensations = await res.json();
                 },
                 downloadSepa() {
-                    const iban = prompt("Sender IBAN eingeben:");
-                    const bic = prompt("Sender BIC eingeben:");
+                    const iban = prompt("Sender IBAN eingeben:", this.stationConfig?.iban || '');
+                    const bic = prompt("Sender BIC eingeben:", this.stationConfig?.bic || '');
                     if(iban && bic) {
                         window.open(`/api/missions/billing/export/sepa?year=${this.sepaYear}&hourly_rate=${this.sepaRate}&sender_iban=${iban}&sender_bic=${bic}`, '_blank');
                     }
@@ -4954,6 +5011,26 @@
                         }
                     }
                 },
+                editYouthSession(session) {
+                    this.editingYouthSessionId = session.id;
+                    const attObj = {};
+                    if(session.attendance) {
+                        session.attendance.forEach(a => { attObj[a.member_id] = a.is_present === 1; });
+                    }
+                    this.newYouthSession = {
+                        date: session.date,
+                        topic: session.topic,
+                        duration: session.duration,
+                        instructors: session.instructors,
+                        description: session.description,
+                        attendance: attObj
+                    };
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                },
+                cancelYouthSessionEdit() {
+                    this.editingYouthSessionId = null;
+                    this.newYouthSession = { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
+                },
                 async submitYouthSession() {
                     const payload = {
                         date: this.newYouthSession.date,
@@ -4963,14 +5040,16 @@
                         description: this.newYouthSession.description,
                         attendance: this.newYouthSession.attendance
                     };
-                    const res = await fetch('/api/jugend/sessions', {
-                        method: 'POST',
+                    const url = this.editingYouthSessionId ? `/api/jugend/sessions/${this.editingYouthSessionId}` : '/api/jugend/sessions';
+                    const method = this.editingYouthSessionId ? 'PUT' : 'POST';
+                    const res = await fetch(url, {
+                        method: method,
                         headers: {'Content-Type':'application/json'},
                         credentials: 'include',
                         body: JSON.stringify(payload)
                     });
                     if(res.ok) {
-                        this.newYouthSession = { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
+                        this.cancelYouthSessionEdit();
                         await this.loadJugendData();
                         alert("Dienstbericht erfolgreich gespeichert!");
                     } else {

@@ -1127,19 +1127,23 @@ def delete_user(user_id: int, request: Request):
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
     except Exception:
         try:
-            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL, ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": ""}
     if not row.get("ticker_text"):
         row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
+    if not row.get("iban"):
+        row["iban"] = ""
+    if not row.get("bic"):
+        row["bic"] = ""
     return row
 
 @app.put("/api/settings/station")
@@ -1150,6 +1154,8 @@ def update_station_settings(data: dict, request: Request):
     
     station_name = data.get("station_name", "Feuerwehr").strip()
     ticker_text = data.get("ticker_text", "").strip()
+    iban = data.get("iban", "").strip()
+    bic = data.get("bic", "").strip()
     try:
         lat = float(data.get("lat", 50.1109))
         lng = float(data.get("lng", 8.6821))
@@ -1159,9 +1165,9 @@ def update_station_settings(data: dict, request: Request):
         
     conn = get_db_connection(); cur = conn.cursor()
     try:
-        cur.execute("SHOW COLUMNS FROM station_settings LIKE 'ticker_text'")
+        cur.execute("SHOW COLUMNS FROM station_settings LIKE 'iban'")
         if not cur.fetchone():
-            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
+            cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL, ADD COLUMN iban VARCHAR(100) NULL, ADD COLUMN bic VARCHAR(100) NULL")
             conn.commit()
     except Exception:
         pass
@@ -1171,14 +1177,14 @@ def update_station_settings(data: dict, request: Request):
     if row:
         cur.execute("""
             UPDATE station_settings 
-            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s
             WHERE id = %s
-        """, (station_name, lat, lng, zoom, ticker_text, row[0]))
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, row[0]))
     else:
         cur.execute("""
-            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (station_name, lat, lng, zoom, ticker_text))
+            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
     return {"status": "success"}
@@ -2096,7 +2102,7 @@ def submit_apager_feedback(status: str, request: Request):
 
 # --- TEST ALARM ---
 @app.post("/api/apager/test-alarm")
-def send_test_alarm(data: dict, request: Request):
+async def send_test_alarm(data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Nur Admins/Leitung/Gerätewarte können Test-Alarme senden.")
@@ -2118,6 +2124,7 @@ def send_test_alarm(data: dict, request: Request):
     """, (today, now_time, stichwort, adresse, meldung))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
+    await ws_mgr.manager.broadcast_json({"type": "new_mission"})
     return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}
 
 # --- MÄNGELMELDER (GERÄTEWART - ERWEITERT) ---
@@ -2399,6 +2406,40 @@ def add_youth_session(data: dict, request: Request):
         """, (session_id, m_id, 1 if is_pres else 0))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success", "session_id": session_id}
+
+@app.put("/api/jugend/sessions/{s_id}")
+def update_youth_session(s_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    sess_date = data.get("date")
+    topic = data.get("topic")
+    duration = float(data.get("duration", 2.0))
+    instructors = data.get("instructors", "")
+    description = data.get("description", "")
+    attendance = data.get("attendance", {})
+    if not sess_date or not topic:
+        raise HTTPException(status_code=400, detail="Datum und Thema erforderlich")
+    
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE youth_sessions
+        SET date = %s, topic = %s, duration = %s, instructors = %s, description = %s
+        WHERE id = %s
+    """, (sess_date, topic, duration, instructors, description, s_id))
+    
+    cur.execute("DELETE FROM youth_attendance WHERE session_id = %s", (s_id,))
+    cur.execute("SELECT id FROM youth_members")
+    member_ids = [row[0] for row in cur.fetchall()]
+    for m_id in member_ids:
+        is_pres = attendance.get(str(m_id)) or attendance.get(m_id) or False
+        cur.execute("""
+            INSERT INTO youth_attendance (session_id, member_id, is_present)
+            VALUES (%s, %s, %s)
+        """, (s_id, m_id, 1 if is_pres else 0))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
 
 @app.delete("/api/jugend/sessions/{s_id}")
 def delete_youth_session(s_id: int, request: Request):
