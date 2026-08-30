@@ -1965,7 +1965,7 @@ def clear_apager_logs(request: Request):
     return {"status": "success"}
 
 @app.put("/api/apager/logs/{log_id}")
-def update_apager_log(log_id: int, data: dict, request: Request):
+async def update_apager_log(log_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
@@ -1975,6 +1975,10 @@ def update_apager_log(log_id: int, data: dict, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE apager_logs SET stichwort=%s, adresse=%s, meldung=%s WHERE id=%s", (stichwort, adresse, meldung, log_id))
     conn.commit(); cur.close(); conn.close()
+    
+    # Broadcast update to connected clients (like alarmdisplay)
+    await ws_mgr.manager.broadcast_json({"type": "update_mission"})
+    
     return {"status": "success"}
 
 async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
