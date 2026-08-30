@@ -71,6 +71,13 @@ class VehicleLogCreate(BaseModel):
     driver_name: str
     purpose: str
 
+class VehicleCheckCreate(BaseModel):
+    date: str
+    checker_name: str
+    status: str
+    items_checked: dict
+    notes: str = ""
+
 # --- 🔧 GERÄTE & MATERIAL ENDPUNKTE ---
 @router.get("/equipment")
 def list_equipment(request: Request):
@@ -369,5 +376,32 @@ def add_vehicle_log(veh_id: int, log: VehicleLogCreate, request: Request):
     # Automatisch Kilometerstand des Fahrzeugs aktualisieren
     cur.execute("UPDATE vehicles SET milage = %s WHERE id = %s", (log.mileage_end, veh_id))
     
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.get("/vehicles/{veh_id}/checks")
+def list_vehicle_checks(veh_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM vehicle_checks WHERE vehicle_id = %s ORDER BY date DESC, id DESC", (veh_id,))
+    res = cur.fetchall()
+    cur.close(); conn.close()
+    import json
+    for r in res:
+        if r["items_checked"] and isinstance(r["items_checked"], str):
+            r["items_checked"] = json.loads(r["items_checked"])
+    return res
+
+@router.post("/vehicles/{veh_id}/checks")
+def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
+    user = check_auth(request)
+    if user["role"] == "mannschaft":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    import json
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO vehicle_checks (vehicle_id, date, checker_name, status, items_checked, notes)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (veh_id, check.date, check.checker_name, check.status, json.dumps(check.items_checked), check.notes))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}

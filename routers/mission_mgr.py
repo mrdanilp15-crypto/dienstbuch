@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
@@ -154,7 +154,7 @@ def get_mission(mission_id: int, request: Request):
     return m
 
 @router.post("")
-def create_mission(m: MissionCreate, request: Request):
+def create_mission(m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
     if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
@@ -175,10 +175,13 @@ def create_mission(m: MissionCreate, request: Request):
     conn.commit(); cur.close(); conn.close()
     from main import log_audit_action
     log_audit_action(user["username"], "EINSATZ_ERSTELLT", f"Einsatz '{m.stichwort}' anlegen.")
+    
+    from routers import ws_mgr
+    background_tasks.add_task(ws_mgr.manager.broadcast_json, {"type": "mission_created", "mission_id": mission_id})
     return {"status": "success", "id": mission_id}
 
 @router.put("/{mission_id}")
-def update_mission(mission_id: int, m: MissionCreate, request: Request):
+def update_mission(mission_id: int, m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
     if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
@@ -216,6 +219,9 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request):
     cur.close(); conn.close()
     from main import log_audit_action
     log_audit_action(user["username"], "EINSATZ_GEAENDERT", f"Einsatz ID {mission_id} geändert (Status: {final_status}).")
+    
+    from routers import ws_mgr
+    background_tasks.add_task(ws_mgr.manager.broadcast_json, {"type": "mission_updated", "mission_id": mission_id})
     return {"status": "success"}
 
 @router.delete("/{mission_id}")

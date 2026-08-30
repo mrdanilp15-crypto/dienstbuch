@@ -26,7 +26,8 @@
             --primary: #b71c1c; 
             --bg-color: #121010; 
             --text-color: #f1f1f1;
-            --card-bg: #1e1c1c;
+            --card-bg: rgba(30, 24, 24, 0.85);
+            --card-border: rgba(255, 255, 255, 0.12);
             --border-color: #333;
             --input-bg: #2a2828;
             --input-text: #fff;
@@ -34,12 +35,18 @@
             --sidebar-bg: #1a1818;
             --danger: #ff4d4d;
             --success: #00e676;
+            --text-primary: #ffffff;
+            --text-secondary: #e0d8d8;
+            --exercise: #0d6efd; 
+            --incident: #dc3545; 
+            --misc: #ffc107; 
         }
 
         [data-theme="light"] {
             --bg-color: #f8f9fa;
             --text-color: #212529;
             --card-bg: #ffffff;
+            --card-border: rgba(0, 0, 0, 0.12);
             --border-color: #dee2e6;
             --input-bg: #ffffff;
             --input-text: #495057;
@@ -48,14 +55,36 @@
             --primary: #d32f2f;
             --danger: #dc3545;
             --success: #28a745;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
         }
-            --card-bg: rgba(30, 24, 24, 0.85);
-            --card-border: rgba(255, 255, 255, 0.12);
-            --text-primary: #ffffff;
-            --text-secondary: #e0d8d8;
-            --exercise: #0d6efd; 
-            --incident: #dc3545; 
-            --misc: #ffc107; 
+        
+        /* Theme overrides for Bootstrap classes */
+        :root .text-muted {
+            color: #adb5bd !important; /* Lighter grey for better readability on black */
+        }
+        :root .text-secondary {
+            color: var(--text-secondary) !important;
+        }
+        
+        [data-theme="light"] .text-white:not(.btn) {
+            color: var(--text-color) !important;
+        }
+        [data-theme="light"] .bg-black,
+        [data-theme="light"] .bg-dark {
+            background-color: var(--card-bg) !important;
+        }
+        [data-theme="light"] .glass-card,
+        [data-theme="light"] .glass-panel {
+            background: rgba(255, 255, 255, 0.8) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+        [data-theme="light"] .modal-content {
+            background: var(--card-bg);
+            color: var(--text-color);
+        }
+        [data-theme="light"] .table {
+            color: var(--text-color);
         }
         
         * {
@@ -614,6 +643,10 @@
 </head>
 <body>
     <div id="app" v-cloak v-show="ready">
+        <!-- Offline Banner -->
+        <div v-if="!isOnline" class="bg-warning text-dark text-center fw-bold py-1 w-100" style="position: fixed; top: 0; z-index: 9999; left: 0;">
+            <i class="fa fa-wifi-slash me-2"></i> Offline-Modus aktiv. Eingeschränkte Funktionen verfügbar.
+        </div>
         <!-- Top Nav -->
         <nav class="top-nav shadow">
             <div class="container-fluid d-flex align-items-center justify-content-between px-4 py-2 flex-wrap gap-2">
@@ -2709,6 +2742,62 @@
             </div>
         </div>
 
+        <!-- MODAL: VEHICLE CHECKLIST -->
+        <div class="modal fade" id="vehicleCheckModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-clipboard-check text-info me-2"></i>Fahrzeug-Check: {{activeVehicleForCheck?.name}}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="mb-3 row">
+                            <div class="col-md-6">
+                                <label class="form-label">Prüfer / Maschinist</label>
+                                <input type="text" v-model="currentChecklist.checker_name" class="form-control" placeholder="Dein Name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Datum</label>
+                                <input type="date" v-model="currentChecklist.date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <h6 class="fw-bold mb-3 text-info">Prüfpunkte</h6>
+                            <div class="list-group">
+                                <div v-for="(val, key) in currentChecklist.items_checked" :key="key" class="list-group-item bg-transparent border-secondary text-white d-flex justify-content-between align-items-center">
+                                    {{key}}
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" v-model="currentChecklist.items_checked[key]">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mängel / Bemerkungen</label>
+                            <textarea v-model="currentChecklist.notes" class="form-control" rows="3" placeholder="Gefundene Mängel hier eintragen..."></textarea>
+                        </div>
+                        <button class="btn btn-info w-100 rounded-pill fw-bold text-dark" @click="submitChecklist">Checkliste abspeichern</button>
+                    </div>
+                    
+                    <div class="modal-header border-secondary border-opacity-10 mt-3 border-top">
+                        <h6 class="modal-title text-muted">Bisherige Checks für dieses Fahrzeug</h6>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="list-group list-group-flush">
+                            <div v-for="chk in vehicleCheckHistory" :key="chk.id" class="list-group-item bg-transparent text-white border-secondary">
+                                <div class="d-flex justify-content-between">
+                                    <strong>{{chk.date}} - {{chk.checker_name}}</strong>
+                                    <span :class="chk.status === 'Mängel' ? 'text-danger fw-bold' : 'text-success'">{{chk.status}}</span>
+                                </div>
+                                <small class="text-muted d-block mt-1" v-if="chk.notes">{{chk.notes}}</small>
+                            </div>
+                            <div v-if="!vehicleCheckHistory.length" class="p-3 text-muted text-center small">Noch keine Checks vorhanden.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: VEHICLE LOG RIDE -->
         <div class="modal fade" id="logRideModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -3354,6 +3443,7 @@
         const app = createApp({
             data() {
                 return {
+                    isOnline: navigator.onLine,
                     qrScanner: null,
                     isDarkMode: true,
                     ready: false, isAdmin: false, username: '', role: '',
@@ -3361,6 +3451,8 @@
                     sessionsList: [], selectedYear: new Date().getFullYear(),
                     ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
                     vehicles: [], activeVehicleForLog: null, vehicleLogs: [],
+                    activeVehicleForCheck: null, vehicleCheckHistory: [],
+                    currentChecklist: { date: new Date().toISOString().split('T')[0], checker_name: '', status: 'OK', notes: '', items_checked: {'Ölstand': false, 'Beleuchtung': false, 'Funkgeräte (HRT)': false, 'Reifendruck': false} },
                     newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' },
                     selfPwData: { old_password: '', new_password: '', confirm_password: '' },
                     activeBroadcasts: [],
@@ -3708,6 +3800,8 @@
                 }
             },
             async mounted() {
+                window.addEventListener('online', () => this.isOnline = true);
+                window.addEventListener('offline', () => this.isOnline = false);
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
                     if (!authRes.ok) {
@@ -3734,18 +3828,21 @@
                     return;
                 }
                 
-                await this.loadStationSettings();
-                await this.loadGroups();
-                await this.loadVehicles();
-                await this.loadBroadcasts();
-                await this.loadApagerConfig();
-                await this.loadSchedules();
-                await this.loadPersonnel();
-                await this.loadMissions();
-                await this.loadBills();
+                const loadTasks = [
+                    this.loadStationSettings(),
+                    this.loadGroups(),
+                    this.loadVehicles(),
+                    this.loadBroadcasts(),
+                    this.loadApagerConfig(),
+                    this.loadSchedules(),
+                    this.loadPersonnel(),
+                    this.loadMissions(),
+                    this.loadBills()
+                ];
                 if (this.isAdmin) {
-                    await this.loadSystemUsers();
+                    loadTasks.push(this.loadSystemUsers());
                 }
+                await Promise.all(loadTasks);
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
@@ -4448,7 +4545,7 @@
                                         <th style="text-align: right;">Betrag (€)</th>
                                     </tr>
                                 </thead>
-                                tbody>
+                                <tbody>
                                     <tr>
                                         <td>${b.details || 'Aufwendungsersatz für Regeleinsatz gemäß Feuerwehr-Kostenverordnung'}</td>
                                         <td style="text-align: right;">${parseFloat(b.amount).toFixed(2)} €</td>
@@ -4460,10 +4557,15 @@
                             </div>
                             <div style="margin-top: 30px;">
                                 <p><strong>Zahlungshinweis:</strong><br>
-                                Bitte überweisen Sie den Gesamtbetrag von <strong>${parseFloat(b.amount).toFixed(2)} €</strong> innerhalb von 14 Tagen unter Angabe der Bescheid-Nummer <strong>KB-${b.id}</strong> auf das Gemeindekonto.</p>
+                                Bitte überweisen Sie den Gesamtbetrag von <strong>${parseFloat(b.amount).toFixed(2)} €</strong> innerhalb von 14 Tagen unter Angabe der Bescheid-Nummer <strong>KB-${b.id}</strong> auf das unten genannte Gemeindekonto.</p>
+                            </div>
+                            <div style="margin-top: 30px; font-size: 11px; color: #555; background: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
+                                <h4 style="margin-top: 0; color: #333;">Rechtsbehelfsbelehrung</h4>
+                                <p style="margin-bottom: 5px;">Gegen diesen Bescheid kann innerhalb eines Monats nach Bekanntgabe Widerspruch erhoben werden. Der Widerspruch ist schriftlich oder zur Niederschrift bei der ausstellenden Behörde / Gemeindeverwaltung einzulegen.</p>
+                                <p style="margin-bottom: 0;"><strong>Hinweis:</strong> Die Einlegung eines Rechtsbehelfs hat keine aufschiebende Wirkung (§ 80 Abs. 2 Nr. 1 VwGO). Der Rechnungsbetrag ist ungeachtet eines etwaigen Widerspruchs fristgerecht zu zahlen.</p>
                             </div>
                             <div class="footer">
-                                Dies ist ein offizieller Abrechnungsbescheid. Generiert am ${new Date().toLocaleDateString('de-DE')}.
+                                Dies ist ein maschinell erstellter Bescheid und ohne Unterschrift gültig. Generiert am ${new Date().toLocaleDateString('de-DE')} über Antigravity Dienstbuch.
                             </div>
                         </body>
                         </html>
@@ -5150,6 +5252,37 @@
                 },
 
                 // Vehicles Form Actions
+                async openChecklist(veh) {
+                    this.activeVehicleForCheck = veh;
+                    this.currentChecklist = { date: new Date().toISOString().split('T')[0], checker_name: this.username, status: 'OK', notes: '', items_checked: {'Ölstand (Motor)': false, 'Reifendruck': false, 'Beleuchtung / Blaulicht': false, 'Funkgeräte (HRT/MRT)': false, 'Erste-Hilfe-Rucksack': false, 'Atemschutzgeräte': false} };
+                    await this.loadCheckHistory(veh.id);
+                    new bootstrap.Modal(document.getElementById('vehicleCheckModal')).show();
+                },
+                async loadCheckHistory(vehId) {
+                    try {
+                        const res = await fetch(`/api/vehicles/${vehId}/checks`, { credentials: 'include' });
+                        if(res.ok) this.vehicleCheckHistory = await res.json();
+                    } catch(e) { console.error(e); }
+                },
+                async submitChecklist() {
+                    // Check if any items are unchecked
+                    const allChecked = Object.values(this.currentChecklist.items_checked).every(v => v);
+                    this.currentChecklist.status = allChecked ? 'OK' : 'Mängel';
+                    if (!allChecked && !this.currentChecklist.notes) {
+                        alert("Da nicht alle Punkte abgehakt wurden, trage bitte die gefundenen Mängel in die Bemerkungen ein!");
+                        return;
+                    }
+                    try {
+                        const res = await fetch(`/api/vehicles/${this.activeVehicleForCheck.id}/checks`, {
+                            method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.currentChecklist)
+                        });
+                        if (res.ok) {
+                            bootstrap.Modal.getInstance(document.getElementById('vehicleCheckModal')).hide();
+                            alert("Fahrzeug-Check erfolgreich gespeichert!");
+                            await this.loadVehicles(); // update status if needed
+                        }
+                    } catch(e) { alert("Verbindung fehlgeschlagen."); }
+                },
                 openVehicleFormModal(veh) {
                     if (veh) {
                         this.activeVehicle = { ...veh };

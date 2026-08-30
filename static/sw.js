@@ -7,7 +7,9 @@ const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://unpkg.com/vue@3/dist/vue.global.js'
+  'https://unpkg.com/vue@3/dist/vue.global.js',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
 self.addEventListener('install', event => {
@@ -25,23 +27,27 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) {
-          return response; // Cache hit
+        // ALWAYS fetch API first (Network First Strategy for API)
+        if (event.request.url.includes('/api/')) {
+          return fetch(event.request).then(res => {
+            const resClone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));
+            return res;
+          }).catch(() => {
+            return response; // fallback to cache if offline
+          });
         }
+        
+        // Cache First for static assets
+        if (response) return response;
+        
         return fetch(event.request).then(
           function(response) {
-            // Check if valid response
-            if(!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
+            if(!response || response.status !== 200 || response.type !== 'basic') return response;
             var responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then(function(cache) {
-                // Don't cache API calls aggressively
-                if(!event.request.url.includes('/api/')) {
-                  cache.put(event.request, responseToCache);
-                }
-              });
+            caches.open(CACHE_NAME).then(function(cache) {
+                cache.put(event.request, responseToCache);
+            });
             return response;
           }
         );

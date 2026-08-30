@@ -16,12 +16,12 @@ from datetime import datetime, timedelta, date
 import uuid
 import shutil
 
-# --- Externe Berichts- und Verwaltungsmodule laden ---
 from routers import reports
 from routers import notes_manager
 from routers import personnel_mgr
 from routers import mission_mgr
 from routers import material_mgr
+from routers import ws_mgr
 
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "2.50"
@@ -60,6 +60,7 @@ app.include_router(notes_manager.router)
 app.include_router(personnel_mgr.router)
 app.include_router(mission_mgr.router)
 app.include_router(material_mgr.router)
+app.include_router(ws_mgr.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
@@ -560,6 +561,19 @@ def init_db_extensions():
                 is_present BOOLEAN DEFAULT TRUE,
                 FOREIGN KEY (session_id) REFERENCES youth_sessions(id) ON DELETE CASCADE,
                 FOREIGN KEY (member_id) REFERENCES youth_members(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_checks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT NOT NULL,
+                date DATE NOT NULL,
+                checker_name VARCHAR(255) NOT NULL,
+                status VARCHAR(50) DEFAULT 'OK',
+                items_checked JSON,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         """)
 
@@ -2505,7 +2519,7 @@ def get_ai_draft(data: dict, request: Request):
     return {"draft": draft}
 
 # --- ICAL / central calendar CENTRAL EXPORT ---
-@app.get("/api/calendar/export.ics", response_class=Response)
+@app.get("/api/calendar/feed.ics", response_class=Response)
 def export_calendar_ical():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM schedules")
@@ -2536,3 +2550,46 @@ def export_calendar_ical():
     ics += "END:VCALENDAR\r\n"
     
     return Response(content=ics, media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=feuerwehr_dienstplan.ics"})
+
+# --- AUTOMATED BACKUP ---
+@app.post("/api/admin/backup/auto")
+def auto_backup(request: Request):
+    user = get_current_user(request)
+    if not user or user.get("role") not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Nicht berechtigt")
+    
+    import datetime, shutil, subprocess
+    
+    backup_dir = os.path.join(os.getcwd(), "auto_backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    db_dump_path = os.path.join(backup_dir, f"db_backup_{ts}.sql")
+    
+    db_host = os.getenv("DB_HOST", os.getenv("MYSQL_HOST", "db"))
+    db_user = os.getenv("DB_USER", os.getenv("MYSQL_USER", "app_user"))
+    db_pass = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or os.getenv("MYSQL_PASSWORD") or "dein_app_passwort"
+    db_name = os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "attendance_system"))
+    
+    try:
+        if os.name == 'nt':
+            mysqldump_cmd = f"mysqldump -h {db_host} -u {db_user} -p{db_pass} {db_name} > {db_dump_path}"
+            subprocess.run(["powershell", "-Command", mysqldump_cmd], check=True)
+        else:
+            mysqldump_cmd = ["mysqldump", "-h", db_host, "-u", db_user, f"-p{db_pass}", db_name]
+            with open(db_dump_path, "w") as f:
+                subprocess.run(mysqldump_cmd, stdout=f, check=True)
+    except Exception as e:
+        print(f"Error during mysqldump: {e}")
+        pass # If mysqldump fails, just proceed to zip the uploads
+        
+    zip_filename = f"backup_{ts}"
+    zip_path = os.path.join(backup_dir, zip_filename)
+    shutil.make_archive(zip_path, 'zip', "static/uploads")
+    
+    return {"status": "success", "backup_file": f"{zip_path}.zip", "sql_dump": db_dump_path}
+
+
+# Trigger reload
+
+# Trigger reload 2
