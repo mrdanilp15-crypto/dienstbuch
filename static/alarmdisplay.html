@@ -518,6 +518,7 @@
             data() {
                 return {
                     lastAlarm: { id: null, stichwort: '', adresse: '', meldung: '', created_at: '' },
+                    lastSpokenMinute: -1,
                     feedbacks: [],
                     vehicles: [],
                     timeStr: '00:00:00',
@@ -618,9 +619,10 @@
                         try {
                             const data = JSON.parse(event.data);
                             if (data.type === 'new_mission' || data.type === 'update_mission') {
-                                this.pollData();
-                                if (data.type === 'new_mission') {
-                                    this.playAlarmSound();
+                                this.playAlarmSound();
+                                await this.pollData();
+                                if (data.type === 'update_mission' && this.missions.length > 0) {
+                                    this.triggerAlarmSound(this.missions[0], true);
                                 }
                             }
                         } catch(e) {}
@@ -784,6 +786,7 @@
                                     
                                     // Start the elapsed timer
                                     if(last.id !== this.lastAlarm.id) {
+                                        this.lastSpokenMinute = -1;
                                         this.triggerAlarmSound(last);
                                         this.startAlarmTimer(last.created_at);
                                     }
@@ -842,6 +845,12 @@
                         const secs = Math.floor((effectiveMs % 60000) / 1000);
                         this.alarmElapsedMinutes = mins < 10 ? '0' + mins : mins;
                         this.alarmElapsedSeconds = secs < 10 ? '0' + secs : secs;
+                        
+                        // Repeat TTS at 2, 4, and 6 minutes
+                        if ((mins === 2 || mins === 4 || mins === 6) && this.lastSpokenMinute !== mins) {
+                            this.lastSpokenMinute = mins;
+                            this.triggerAlarmSound(this.lastAlarm, false, mins);
+                        }
                     }, 1000);
                 },
                 async geocodeAddress(addr) {
@@ -880,7 +889,7 @@
                         console.error("Geocoding failed", e);
                     }
                 },
-                triggerAlarmSound(alarm) {
+                triggerAlarmSound(alarm, isUpdate = false, reminderMinutes = 0) {
                     // Play synthesizer siren tones
                     try {
                         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -905,11 +914,20 @@
                     // Synthesize spoken alert
                     if ('speechSynthesis' in window) {
                         setTimeout(() => {
-                            const text = `Achtung! Alarm für die Feuerwehr. Einsatzstichwort: ${alarm.stichwort}. Einsatzort: ${alarm.adresse || 'Unbekannt'}.`;
-                            const utterance = new SpeechSynthesisUtterance(text);
-                            utterance.lang = 'de-DE';
-                            utterance.rate = 0.95;
-                            window.speechSynthesis.speak(utterance);
+                            window.speechSynthesis.cancel(); // Abort previous speech if any
+                            const text = reminderMinutes > 0 ? 
+                                `Einsatz-Erinnerung! Der Alarm läuft seit ${reminderMinutes} Minuten. Stichwort: ${alarm.stichwort}. Ort: ${alarm.adresse || 'Unbekannt'}.` :
+                                (isUpdate ? 
+                                `Achtung, Einsatz-Update! Stichwort: ${alarm.stichwort}. Ort: ${alarm.adresse || 'Unbekannt'}.` :
+                                `Achtung! Alarm für die Feuerwehr. Einsatzstichwort: ${alarm.stichwort}. Einsatzort: ${alarm.adresse || 'Unbekannt'}.`);
+                            
+                            const repeats = reminderMinutes > 0 ? 1 : (isUpdate ? 2 : 3);
+                            for (let i = 0; i < repeats; i++) {
+                                const utterance = new SpeechSynthesisUtterance(text);
+                                utterance.lang = 'de-DE';
+                                utterance.rate = 0.95;
+                                window.speechSynthesis.speak(utterance);
+                            }
                         }, 1200);
                     }
                 }

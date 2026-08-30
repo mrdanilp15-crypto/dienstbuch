@@ -816,12 +816,21 @@ def get_personnel_page(request: Request):
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)
 
+@app.get("/sw.js", response_class=FileResponse, include_in_schema=False)
+def get_service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript")
+
+@app.get("/manifest.json", response_class=FileResponse, include_in_schema=False)
+def get_manifest():
+    return FileResponse("static/manifest.json", media_type="application/manifest+json")
+
 # --- AUTHENTIFIZIERUNG UND LOGIN SPERREN ---
 @app.post("/api/login")
 def api_login(data: LoginRequest, response: Response):
     username_clean = data.username.strip()
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM users WHERE username = %s", (username_clean,))
+    # Use LOWER() to ensure case-insensitive login matching regardless of database collation
+    cur.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(%s)", (username_clean,))
     user = cur.fetchone()
     
     if user:
