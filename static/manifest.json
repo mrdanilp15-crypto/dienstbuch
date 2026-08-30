@@ -1,6 +1,6 @@
 {
   "name": "Feuerwehrverwaltung",
-  "short_name": "FW App",
+  "short_name": "Dienstbuch",
   "description": "Feuerwehr Einsatzverwaltung",
   "start_url": "/",
   "display": "standalone",

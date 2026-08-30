@@ -153,6 +153,70 @@ def get_mission(mission_id: int, request: Request):
     m["attendance"] = att
     return m
 
+@router.get("/{mission_id}/pdf")
+def get_mission_pdf(mission_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM missions WHERE id = %s", (mission_id,))
+    m = cur.fetchone()
+    if not m:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+    
+    cur.execute("""
+        SELECT ma.is_present, ma.vehicle, p.name, p.signature 
+        FROM mission_attendance ma 
+        JOIN personnel p ON ma.personnel_id = p.id 
+        WHERE ma.mission_id = %s
+    """, (mission_id,))
+    att = cur.fetchall()
+    cur.close(); conn.close()
+    
+    if isinstance(m["date"], date):
+        m["date"] = str(m["date"])
+    
+    # We need to adapt `m` to fit `generate_single_report` which expects specific keys
+    m['gname'] = "Feuerwehr"
+    m['instructors'] = "Einsatzleiter"
+    m['category'] = "Einsatz"
+    if not m.get('description'):
+        m['description'] = m.get('stichwort', 'Einsatz') + " - " + m.get('meldung', '')
+    
+    sig = m.get("leader_signature")
+    if sig:
+        m["leader_signature"] = safe_decode(sig)
+    
+    # Adapt persons
+    persons = []
+    for a in att:
+        is_p = 1 if a['is_present'] in ('Abgerückt', 'Bereitstellung') else 0
+        persons.append({
+            'name': a['name'],
+            'is_present': is_p,
+            'vehicle': a['vehicle'],
+            'signature': safe_decode(a['signature'])
+        })
+    
+    town_name = os.getenv("TOWN_NAME", "Deine Feuerwehr")
+    
+    from routers.reports import generate_single_report, get_report_styles
+    html_content = generate_single_report(m, persons, town_name)
+    
+    full_html = f"<html><head><meta charset='utf-8'><style>{get_report_styles()}</style></head><body>{html_content}</body></html>"
+    
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(full_html, dest=pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=Einsatzbericht_{mission_id}.pdf"}
+    )
+
 @router.post("")
 def create_mission(m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
@@ -229,9 +293,9 @@ def delete_mission(mission_id: int, request: Request):
     user = check_auth(request, require_admin=True)
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM missions WHERE id = %s", (mission_id,))
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
     cur.execute("DELETE FROM respiration_log WHERE mission_id = %s", (mission_id,))
+    cur.execute("DELETE FROM missions WHERE id = %s", (mission_id,))
     conn.commit(); cur.close(); conn.close()
     from main import log_audit_action
     log_audit_action(user["username"], "EINSATZ_GELOESCHT", f"Einsatz ID {mission_id} unwiderruflich gelöscht.")

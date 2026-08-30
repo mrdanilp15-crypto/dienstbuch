@@ -34,6 +34,7 @@ from routers import verein_api
 from routers import hvo_api
 from routers import missions_api
 from routers import calendar_api
+from routers import push_api
 
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "2.50"
@@ -85,6 +86,7 @@ app.include_router(verein_api.router)
 app.include_router(hvo_api.router)
 app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
+app.include_router(push_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
@@ -462,6 +464,17 @@ def init_db_extensions():
             CREATE TABLE IF NOT EXISTS drone_images (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 url VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                endpoint TEXT NOT NULL,
+                p256dh VARCHAR(255) NOT NULL,
+                auth VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)

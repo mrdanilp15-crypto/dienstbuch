@@ -189,7 +189,10 @@ const { createApp } = Vue;
                     
                     werkstattTab: 'pruefungen',
                     qrScanInput: '',
-                    scannedQrObject: null
+                    scannedQrObject: null,
+                    
+                    statsTotalMissions: 0,
+                    statsChartInstance: null
                 }
             },
             computed: {
@@ -385,6 +388,7 @@ const { createApp } = Vue;
             async mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
+                this.setupPushNotifications();
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
                     if (!authRes.ok) {
@@ -426,6 +430,10 @@ const { createApp } = Vue;
                     loadTasks.push(this.loadSystemUsers());
                 }
                 await Promise.all(loadTasks);
+                
+                if (this.activeTab === 'stats') {
+                    this.loadStats();
+                }
                 
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
@@ -482,6 +490,76 @@ const { createApp } = Vue;
                 }
             },
             methods: {
+                startQrScanner() {
+                    if (typeof Html5Qrcode === 'undefined') { alert('Scanner-Bibliothek nicht geladen'); return; }
+                    this.html5Qrcode = new Html5Qrcode("qr-reader");
+                    const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
+                    modal.show();
+                    this.html5Qrcode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, qrbox: { width: 250, height: 250 } },
+                        (decodedText, decodedResult) => {
+                            const eq = this.equipment.find(e => e.barcode === decodedText || String(e.id) === decodedText);
+                            this.stopQrScanner();
+                            const modalEl = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
+                            if (modalEl) modalEl.hide();
+                            if (eq) {
+                                this.addInspection(eq);
+                            } else {
+                                alert("Kein Gerät mit Barcode '" + decodedText + "' gefunden.");
+                            }
+                        },
+                        (err) => { /* ignore */ }
+                    ).catch(err => {
+                        console.error(err);
+                        alert("Kamera-Zugriff fehlgeschlagen. Ist HTTPS aktiv?");
+                    });
+                },
+                stopQrScanner() {
+                    if (this.html5Qrcode) {
+                        try {
+                            this.html5Qrcode.stop().then(() => this.html5Qrcode.clear()).catch(e => console.error(e));
+                        } catch(e) {}
+                    }
+                },
+                async requestPushPermission() {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        await this.setupPushNotifications();
+                        alert("Push-Benachrichtigungen aktiviert!");
+                    } else {
+                        alert("Berechtigung verweigert.");
+                    }
+                },
+                async setupPushNotifications() {
+                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+                    try {
+                        const reg = await navigator.serviceWorker.ready;
+                        let sub = await reg.pushManager.getSubscription();
+                        if (!sub) {
+                            const res = await fetch('/api/push/public-key');
+                            const { public_key } = await res.json();
+                            const convertedVapidKey = this.urlBase64ToUint8Array(public_key);
+                            sub = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: convertedVapidKey
+                            });
+                        }
+                        await fetch('/api/push/subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(sub)
+                        });
+                    } catch(err) { console.error('Push setup failed:', err); }
+                },
+                urlBase64ToUint8Array(base64String) {
+                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                    const rawData = window.atob(base64);
+                    const outputArray = new Uint8Array(rawData.length);
+                    for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+                    return outputArray;
+                },
                 initWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
@@ -1942,8 +2020,12 @@ const { createApp } = Vue;
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
                         const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
                         if (confirm("Einsatzbericht unwiderruflich löschen?")) {
-                            await fetch(`/api/missions/${realId}`, { method: 'DELETE', credentials: 'include' });
-                            await Promise.all([this.loadMissions(), this.loadData()]);
+                            const res = await fetch(`/api/missions/${realId}`, { method: 'DELETE', credentials: 'include' });
+                            if (res.ok) {
+                                await Promise.all([this.loadMissions(), this.loadData()]);
+                            } else {
+                                alert("Fehler: Einsatzbericht konnte nicht gelöscht werden (Fehlende Rechte?).");
+                            }
                         }
                     } else {
                         if (confirm("Eintrag löschen?")) {
@@ -1959,6 +2041,14 @@ const { createApp } = Vue;
                         this.editMission({ id: realId });
                     } else {
                         window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`;
+                    }
+                },
+                downloadMissionPdf(m) {
+                    const realId = m.isNewMission ? m.id : (m.rawSession ? (m.rawSession.real_mission_id || parseInt(String(m.rawSession.id).replace('m_', ''))) : null);
+                    if (realId) {
+                        window.open('/api/missions/' + realId + '/pdf', '_blank');
+                    } else if (m.id) {
+                        window.open('/api/missions/' + m.id + '/pdf', '_blank');
                     }
                 },
                 openReport(s) { 
@@ -2258,6 +2348,51 @@ const { createApp } = Vue;
                     } catch(e) {
                         console.error(e);
                         alert("Verbindung fehlgeschlagen.");
+                    }
+                },
+                async loadStats() {
+                    try {
+                        const res = await fetch('/api/admin/stats', { credentials: 'include' });
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.statsTotalMissions = data.missions_total;
+                            
+                            const labels = data.missions_by_day.map(d => d.day);
+                            const counts = data.missions_by_day.map(d => d.count);
+                            
+                            const ctx = document.getElementById('statsChart');
+                            if (!ctx) return;
+                            
+                            if (this.statsChartInstance) {
+                                this.statsChartInstance.destroy();
+                            }
+                            
+                            this.statsChartInstance = new Chart(ctx, {
+                                type: 'bar',
+                                data: {
+                                    labels: labels,
+                                    datasets: [{
+                                        label: 'Einsätze',
+                                        data: counts,
+                                        backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                                        borderColor: 'rgba(220, 53, 69, 1)',
+                                        borderWidth: 1
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            ticks: { stepSize: 1 }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    } catch(err) {
+                        console.error('Error loading stats:', err);
                     }
                 }
             }
