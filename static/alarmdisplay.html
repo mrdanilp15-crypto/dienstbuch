@@ -621,8 +621,8 @@
                             if (data.type === 'new_mission' || data.type === 'update_mission') {
                                 this.playAlarmSound();
                                 await this.pollData();
-                                if (data.type === 'update_mission' && this.missions.length > 0) {
-                                    this.triggerAlarmSound(this.missions[0], true);
+                                if (data.type === 'update_mission' && this.lastAlarm && this.lastAlarm.id) {
+                                    this.triggerAlarmSound(this.lastAlarm, true);
                                 }
                             }
                         } catch(e) {}
@@ -630,6 +630,8 @@
                     ws.onclose = () => {
                         // fallback to polling if WS disconnects, and try reconnecting
                         setTimeout(() => this.initWebSocket(), 5000);
+                    };
+                },
                 playAlarmSound() {
                     try {
                         const AudioContext = window.AudioContext || window.webkitAudioContext;
