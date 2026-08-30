@@ -1,7 +1,7 @@
 {
-  "name": "Antigravity Feuerwehr",
+  "name": "Feuerwehrverwaltung",
   "short_name": "FW App",
-  "description": "Antigravity Feuerwehr Einsatzverwaltung",
+  "description": "Feuerwehr Einsatzverwaltung",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#121010",

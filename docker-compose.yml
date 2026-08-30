@@ -6,33 +6,49 @@ services:
     container_name: attendance_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${ROOT_PASS:-dein_ganz_geheimes_root_passwort}
-      MYSQL_DATABASE: ${DB_NAME:-attendance_system}
-      MYSQL_USER: ${DB_USER:-app_user}
-      MYSQL_PASSWORD: ${DB_PASS:-dein_app_passwort}
+      - MYSQL_ROOT_PASSWORD=${ROOT_PASS}
+      - MYSQL_DATABASE=${DB_NAME:-attendance_system}
+      - MYSQL_USER=${DB_USER:-app_user}
+      - MYSQL_PASSWORD=${DB_PASS}
     volumes:
-      - db_data:/var/lib/mysql
+      # Pfad für die MariaDB Daten
+      - ${STAPEL_PFAD}/attendance_db:/var/lib/mysql
+    networks:
+      - default
 
   api:
     image: ghcr.io/mrdanilp15-crypto/dienstbuch:main
     container_name: attendance_api
     restart: unless-stopped
     environment:
-      - DB_HOST=${DB_HOST:-db}
-      - DB_PORT=${DB_PORT:-3306}
+      - DB_HOST=db
+      - DB_PORT=3306
       - DB_USER=${DB_USER:-app_user}
-      - DB_PASSWORD=${DB_PASS:-dein_app_passwort}
+      - DB_PASS=${DB_PASS}
+      - DB_PASSWORD=${DB_PASS}
       - DB_NAME=${DB_NAME:-attendance_system}
-      - TOWN_NAME=${TOWN_NAME:-Musterstadt}
-      - SECRET_KEY=${SECRET_KEY:-feuerwehr-dienstbuch-geheimschluessel-112}
-      - UPDATE_BASE_URL=${UPDATE_BASE_URL:-https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/}
-    ports:
-      - "9000:8000"
+      - ROOT_PASS=${ROOT_PASS}
+      - TOWN_NAME=${TOWN_NAME}
+      - SECRET_KEY=${SECRET_KEY}
+      - UPDATE_BASE_URL=${UPDATE_BASE_URL}
+      - DATABASE_URL=mysql+pymysql://${DB_USER:-app_user}:${DB_PASS}@db/${DB_NAME:-attendance_system}
+      # Pfad für die SQLite Notizen-Datenbank
+      - SQLITE_DB_PATH=/app/data/notes.db
     volumes:
+      # Benanntes Volume für die Notizen
       - notes_data:/app/data
     depends_on:
       - db
+    networks:
+      default:
+      npm_macvlan_new:
+        ipv4_address: 192.168.178.214
 
 volumes:
-  db_data:
   notes_data:
+
+networks:
+  default:
+    driver: bridge
+  npm_macvlan_new:
+    external: true
