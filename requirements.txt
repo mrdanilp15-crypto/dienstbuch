@@ -5,4 +5,5 @@ uvicorn
 mysql-connector-python
 pydantic
 python-multipart
+websockets
 # falls du weitere Pakete nutzt (z.B. für PDF), hier ergänzen
