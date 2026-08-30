@@ -27,8 +27,8 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        // ALWAYS fetch API first (Network First Strategy for API)
-        if (event.request.url.includes('/api/')) {
+        // ALWAYS fetch API and HTML pages first (Network First Strategy)
+        if (event.request.url.includes('/api/') || event.request.mode === 'navigate') {
           return fetch(event.request).then(res => {
             const resClone = res.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));
