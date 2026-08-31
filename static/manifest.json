@@ -1,21 +1,16 @@
 {
-  "name": "Feuerwehrverwaltung",
-  "short_name": "Dienstbuch",
-  "description": "Feuerwehr Einsatzverwaltung",
+  "name": "Digitales Dienstbuch",
+  "short_name": "Digitales Dienstbuch",
+  "description": "Digitales Dienstbuch für Feuerwehren",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#121010",
   "theme_color": "#b71c1c",
   "icons": [
     {
-      "src": "/static/img/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/static/img/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
   ]
 }

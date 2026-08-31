@@ -601,8 +601,8 @@ def delete_schedule(sch_id: int, request: Request):
     if user["role"] == "mannschaft":
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM schedules WHERE id = %s", (sch_id,))
     cur.execute("DELETE FROM schedule_attendance WHERE schedule_id = %s", (sch_id,))
+    cur.execute("DELETE FROM schedules WHERE id = %s", (sch_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

@@ -315,7 +315,23 @@ def init_personnel_db():
             ("lic_ce", "BOOLEAN DEFAULT FALSE"),
             ("g26_3_date", "DATE NULL"),
             ("belastungslauf_date", "DATE NULL"),
-            ("unterweisung_date", "DATE NULL")
+            ("unterweisung_date", "DATE NULL"),
+            ("notes", "TEXT NULL"),
+            ("skills", "TEXT NULL"),
+            ("parent_contact", "VARCHAR(255) NULL"),
+            ("lic_am", "BOOLEAN DEFAULT FALSE"),
+            ("lic_a1", "BOOLEAN DEFAULT FALSE"),
+            ("lic_l", "BOOLEAN DEFAULT FALSE"),
+            ("lic_t", "BOOLEAN DEFAULT FALSE"),
+            ("has_jf1", "BOOLEAN DEFAULT FALSE"),
+            ("has_jf2", "BOOLEAN DEFAULT FALSE"),
+            ("has_jf3", "BOOLEAN DEFAULT FALSE"),
+            ("has_wissentest", "BOOLEAN DEFAULT FALSE"),
+            ("has_leistungsspange", "BOOLEAN DEFAULT FALSE"),
+            ("has_jugendabzeichen", "BOOLEAN DEFAULT FALSE"),
+            ("has_mta_basis", "BOOLEAN DEFAULT FALSE"),
+            ("has_erste_hilfe", "BOOLEAN DEFAULT FALSE"),
+            ("has_funk", "BOOLEAN DEFAULT FALSE")
         ]
 
         for col_name, col_type in extended_columns:
@@ -331,7 +347,7 @@ def init_personnel_db():
             if cur.fetchone():
                 print("youth_members table found. Starting migration to personnel...")
                 youth_cols = [
-                    ("skills", "TEXT NULL"), ("parent_contact", "VARCHAR(255) NULL"),
+                    ("skills", "TEXT NULL"), ("parent_contact", "VARCHAR(255) NULL"), ("notes", "TEXT NULL"),
                     ("lic_am", "TINYINT(1) DEFAULT 0"), ("lic_a1", "TINYINT(1) DEFAULT 0"), ("lic_b", "TINYINT(1) DEFAULT 0"),
                     ("lic_l", "TINYINT(1) DEFAULT 0"), ("lic_t", "TINYINT(1) DEFAULT 0"),
                     ("has_jf1", "TINYINT(1) DEFAULT 0"), ("has_jf2", "TINYINT(1) DEFAULT 0"), ("has_jf3", "TINYINT(1) DEFAULT 0"),

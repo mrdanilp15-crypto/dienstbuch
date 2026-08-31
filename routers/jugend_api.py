@@ -216,6 +216,7 @@ def delete_youth_session(s_id: int, request: Request):
     if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM youth_attendance WHERE session_id = %s", (s_id,))
     cur.execute("DELETE FROM youth_sessions WHERE id = %s", (s_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}

@@ -78,7 +78,8 @@ self.addEventListener('push', event => {
     body: data.body || 'Bitte Dashboard öffnen.',
     icon: '/static/img/icon-192x192.png',
     badge: '/static/img/icon-192x192.png',
-    vibrate: [200, 100, 200, 100, 200, 100, 200]
+    vibrate: [200, 100, 200, 100, 200, 100, 200],
+    data: { url: data.url || '/' }
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -87,6 +88,16 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
-    clients.openWindow('/')
+    clients.matchAll({ type: 'window' }).then(windowClients => {
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.includes('/') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url || '/');
+      }
+    })
   );
 });

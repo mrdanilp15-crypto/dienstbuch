@@ -303,6 +303,7 @@ def delete_session(session_id: str, request: Request):
     if sid_str.startswith("m_"):
         real_id = int(sid_str.replace("m_", ""))
         cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (real_id,))
+        cur.execute("DELETE FROM respiration_log WHERE mission_id = %s", (real_id,))
         cur.execute("DELETE FROM missions WHERE id = %s", (real_id,))
     else:
         real_id = int(sid_str)
