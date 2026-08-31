@@ -383,6 +383,9 @@ const { createApp } = Vue;
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
                     }
+                    if (newTab === 'stats') {
+                        this.loadStats();
+                    }
                 }
             },
             async mounted() {
@@ -1665,10 +1668,14 @@ const { createApp } = Vue;
                     this.newYouthSession = { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
                 },
                 async submitYouthSession() {
+                    if (!this.newYouthSession.date || !this.newYouthSession.topic || this.newYouthSession.topic.trim() === '') {
+                        alert("Bitte Datum und Thema angeben!");
+                        return;
+                    }
                     const payload = {
                         date: this.newYouthSession.date,
                         topic: this.newYouthSession.topic,
-                        duration: parseFloat(this.newYouthSession.duration),
+                        duration: parseFloat(this.newYouthSession.duration) || 0,
                         instructors: this.newYouthSession.instructors,
                         description: this.newYouthSession.description,
                         attendance: this.newYouthSession.attendance
@@ -2069,10 +2076,15 @@ const { createApp } = Vue;
                 },
                 downloadMissionPdf(m) {
                     const realId = m.isNewMission ? m.id : (m.rawSession ? (m.rawSession.real_mission_id || parseInt(String(m.rawSession.id).replace('m_', ''))) : null);
-                    if (realId) {
+                    if (realId && !isNaN(realId)) {
                         window.open('/api/missions/' + realId + '/pdf', '_blank');
-                    } else if (m.id) {
-                        window.open('/api/missions/' + m.id + '/pdf', '_blank');
+                    } else if (typeof m.id === 'string' && m.id.startsWith('hvo_')) {
+                        window.open('/api/missions/' + m.id.replace('hvo_', '') + '/pdf', '_blank');
+                    } else if (m.is_mission || (typeof m.id === 'string' && m.id.startsWith('m_'))) {
+                        const mId = m.real_mission_id || parseInt(String(m.id).replace('m_', ''));
+                        window.open('/api/missions/' + mId + '/pdf', '_blank');
+                    } else {
+                        alert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion.");
                     }
                 },
                 openReport(s) { 
