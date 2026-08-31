@@ -66,9 +66,8 @@ self.addEventListener('push', event => {
   const title = data.title || 'Neuer Alarm!';
   const options = {
     body: data.body || 'Bitte Dashboard öffnen.',
-    icon: '/static/favicon.svg',
-    badge: '/static/favicon.svg',
-    vibrate: [200, 100, 200, 100, 200, 100, 200],
+    vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500],
+    requireInteraction: true,
     data: { url: data.url || '/' }
   };
 

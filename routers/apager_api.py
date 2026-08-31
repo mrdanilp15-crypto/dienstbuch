@@ -190,6 +190,11 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     
     conn.commit(); cur.close(); conn.close()
     
+    await ws_mgr.manager.broadcast_json({
+        "type": "new_mission", 
+        "mission": {"stichwort": stichwort, "adresse": adresse, "meldung": meldung}
+    })
+    
     # Push-Nachricht senden
     try:
         from routers.push_api import send_push_to_all
@@ -277,7 +282,10 @@ async def send_test_alarm(data: dict, request: Request):
     """, (today, now_time, stichwort, adresse, meldung))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
-    await ws_mgr.manager.broadcast_json({"type": "new_mission"})
+    await ws_mgr.manager.broadcast_json({
+        "type": "new_mission",
+        "mission": {"stichwort": stichwort, "adresse": adresse, "meldung": meldung}
+    })
     
     # Push-Nachricht senden
     try:

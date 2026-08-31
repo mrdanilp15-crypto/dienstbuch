@@ -26,7 +26,7 @@ def format_time_val(t_val):
     return str(t_val)[:5]
 
 def check_auth(request: Request, require_admin: bool = False) -> dict:
-    from main import get_current_user
+    from core.utils import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
@@ -237,7 +237,7 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
             """, (mission_id, entry.personnel_id, entry.is_present, entry.vehicle))
         
     conn.commit(); cur.close(); conn.close()
-    from main import log_audit_action
+    from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_ERSTELLT", f"Einsatz '{m.stichwort}' anlegen.")
     
     from routers import ws_mgr
@@ -281,7 +281,7 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
         
     conn.commit()
     cur.close(); conn.close()
-    from main import log_audit_action
+    from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_GEAENDERT", f"Einsatz ID {mission_id} geändert (Status: {final_status}).")
     
     from routers import ws_mgr
@@ -297,7 +297,7 @@ def delete_mission(mission_id: int, request: Request):
     cur.execute("DELETE FROM respiration_log WHERE mission_id = %s", (mission_id,))
     cur.execute("DELETE FROM missions WHERE id = %s", (mission_id,))
     conn.commit(); cur.close(); conn.close()
-    from main import log_audit_action
+    from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_GELOESCHT", f"Einsatz ID {mission_id} unwiderruflich gelöscht.")
     return {"status": "success"}
 
