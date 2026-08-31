@@ -265,7 +265,7 @@ def get_audit_logs(request: Request):
 @router.get("/api/admin/stats")
 def get_admin_stats(request: Request):
     user = get_current_user(request)
-    if not user or user["role"] != "admin":
+    if not user or user["role"] not in ["admin", "leitung"]:
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)

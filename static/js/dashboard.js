@@ -569,6 +569,10 @@ const { createApp } = Vue;
                             if (data.type === 'new_mission' || data.type === 'update_mission') {
                                 // Live update the dashboard when a mission arrives or updates
                                 await this.loadMissions();
+                                if (data.type === 'new_mission') {
+                                    this.playAlarmSound();
+                                    this.activeTab = 'einsaetze'; // switch to missions
+                                }
                             }
                         } catch(e) {}
                     };
@@ -576,6 +580,26 @@ const { createApp } = Vue;
                         // Reconnect after 5 seconds if connection lost
                         setTimeout(() => this.initWebSocket(), 5000);
                     };
+                },
+                playAlarmSound() {
+                    try {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!AudioContext) return;
+                        const ctx = new AudioContext();
+                        for (let i = 0; i < 5; i++) {
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.type = 'square';
+                            osc.frequency.value = 1000;
+                            gain.gain.setValueAtTime(0, ctx.currentTime + (i * 0.6));
+                            gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + (i * 0.6) + 0.1);
+                            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + (i * 0.6) + 0.5);
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.start(ctx.currentTime + (i * 0.6));
+                            osc.stop(ctx.currentTime + (i * 0.6) + 0.5);
+                        }
+                    } catch(e) { console.error("Audio failed", e); }
                 },
                 toggleTheme() {
                     this.isDarkMode = !this.isDarkMode;
@@ -2351,6 +2375,7 @@ const { createApp } = Vue;
                     }
                 },
                 async loadStats() {
+                    this.$nextTick(async () => {
                     try {
                         const res = await fetch('/api/admin/stats', { credentials: 'include' });
                         if (res.ok) {
@@ -2394,6 +2419,7 @@ const { createApp } = Vue;
                     } catch(err) {
                         console.error('Error loading stats:', err);
                     }
+                    });
                 }
             }
         });

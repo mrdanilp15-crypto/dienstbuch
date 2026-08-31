@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-title" content="Dienstbuch">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/img/icon-192x192.png">
+    <link rel="icon" type="image/png" href="/static/img/icon-192x192.png">
     <link rel="manifest" href="/manifest.json">
-    <title>Dienstbuch</title>
+    <title>Digitales Dienstbuch</title>
     
     <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +19,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
@@ -1129,7 +1133,7 @@
                                         </div>
                                         <div class="mb-3" v-if="!editingUserId">
                                             <label class="form-label">Passwort</label>
-                                            <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 4 Zeichen">
+                                            <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 4 Zeichen" autocomplete="new-password">
                                         </div>
 
                                         <!-- Info banner in edit mode -->
@@ -2849,15 +2853,15 @@
                         <form @submit.prevent="submitSelfPassword">
                             <div class="mb-3">
                                 <label class="form-label">Aktuelles Passwort</label>
-                                <input type="password" v-model="selfPwData.old_password" class="form-control" required>
+                                <input type="password" v-model="selfPwData.old_password" class="form-control" required autocomplete="current-password">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort</label>
-                                <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 4 Zeichen" required>
+                                <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 4 Zeichen" required autocomplete="new-password">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort bestätigen</label>
-                                <input type="password" v-model="selfPwData.confirm_password" class="form-control" required>
+                                <input type="password" v-model="selfPwData.confirm_password" class="form-control" required autocomplete="new-password">
                             </div>
                             <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-2">Speichern</button>
                         </form>
