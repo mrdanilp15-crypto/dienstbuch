@@ -550,9 +550,19 @@ def init_db_extensions():
                 member_id INT NOT NULL,
                 is_present BOOLEAN DEFAULT TRUE,
                 FOREIGN KEY (session_id) REFERENCES youth_sessions(id) ON DELETE CASCADE,
-                FOREIGN KEY (member_id) REFERENCES youth_members(id) ON DELETE CASCADE
+                FOREIGN KEY (member_id) REFERENCES personnel(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         """)
+
+        # Drop the old youth_members foreign key if it exists, to fix youth_attendance insert errors
+        try:
+            cur.execute("ALTER TABLE youth_attendance DROP FOREIGN KEY youth_attendance_ibfk_2")
+        except:
+            pass
+        try:
+            cur.execute("ALTER TABLE youth_attendance ADD CONSTRAINT youth_attendance_ibfk_personnel FOREIGN KEY (member_id) REFERENCES personnel(id) ON DELETE CASCADE")
+        except:
+            pass
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vehicle_checks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
