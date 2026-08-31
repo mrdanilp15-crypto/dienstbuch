@@ -234,7 +234,7 @@
                                         <div>
                                             <span class="badge rounded-pill mb-1 shadow-sm small" :class="s.category==='Einsatz'?'bg-danger':(s.category==='Sonstiges'?'bg-warning text-dark':'bg-primary')">{{ s.category }}</span>
                                             <div class="fw-bold text-white fs-5">{{ s.description }}</div>
-                                            <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1"></i><span v-if="s.time">{{ s.time }}<span v-if="s.end_time"> - {{ s.end_time }}</span> Uhr &bull; </span>{{ s.duration }}h &bull; <span v-if="s.is_signed" class="text-success"><i class="fa fa-signature me-1"></i>Freigegeben</span><span v-else class="text-muted"><i class="fa-regular fa-circle me-1"></i>Entwurf</span></small>
+                                            <small class="text-muted fw-bold d-block mt-1"><i class="fa fa-clock me-1"></i><span v-if="s.time">{{ s.time }}<span v-if="s.end_time"> - {{ s.end_time }}</span> Uhr &bull; </span>{{ s.duration }}h &bull; <span v-if="s.is_signed || s.leader_signature || s.status === 'Freigegeben'" class="text-success"><i class="fa fa-signature me-1"></i>Freigegeben</span><span v-else class="text-muted"><i class="fa-regular fa-circle me-1"></i>Entwurf</span></small>
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2">
