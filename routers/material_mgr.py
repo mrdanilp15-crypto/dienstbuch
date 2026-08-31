@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
 
 def check_auth(request: Request, require_admin: bool = False) -> dict:
-    from main import get_current_user
+    from core.utils import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")

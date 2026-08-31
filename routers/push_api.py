@@ -70,7 +70,9 @@ def send_push_to_all(payload_dict: dict):
                 subscription_info=sub_info,
                 data=payload,
                 vapid_private_key=private_key_path,
-                vapid_claims={"sub": "mailto:admin@feuerwehr.local"}
+                vapid_claims={"sub": "mailto:admin@feuerwehr.local"},
+                ttl=3600,
+                headers={"Urgency": "high"}
             )
             success_count += 1
         except WebPushException as ex:

@@ -575,6 +575,16 @@ const { createApp } = Vue;
                                 if (data.type === 'new_mission') {
                                     this.playAlarmSound();
                                     this.activeTab = 'einsaetze'; // switch to missions
+                                    
+                                    // Speak the alarm details
+                                    setTimeout(() => {
+                                        if (data.mission && data.mission.stichwort) {
+                                            const msg = new SpeechSynthesisUtterance(`Alarm! ${data.mission.stichwort}. ${data.mission.adresse || ''}`);
+                                            msg.lang = 'de-DE';
+                                            msg.rate = 0.9;
+                                            window.speechSynthesis.speak(msg);
+                                        }
+                                    }, 2000);
                                 }
                             }
                         } catch(e) {}
