@@ -395,9 +395,9 @@ const { createApp } = Vue;
                         const params = new URLSearchParams(window.location.search);
                         const eqBarcode = params.get('eq_barcode');
                         if (eqBarcode) {
-                            window.location.href = '/?eq_barcode=' + eqBarcode;
+                            window.location.href = '/login?eq_barcode=' + eqBarcode;
                         } else {
-                            window.location.href = '/';
+                            window.location.href = '/login';
                         }
                         return;
                     }
@@ -408,9 +408,9 @@ const { createApp } = Vue;
                     const params = new URLSearchParams(window.location.search);
                     const eqBarcode = params.get('eq_barcode');
                     if (eqBarcode) {
-                        window.location.href = '/?eq_barcode=' + eqBarcode;
+                        window.location.href = '/login?eq_barcode=' + eqBarcode;
                     } else {
-                        window.location.href = '/';
+                        window.location.href = '/login';
                     }
                     return;
                 }
@@ -638,7 +638,7 @@ const { createApp } = Vue;
                     const m = bootstrap.Modal.getInstance(document.getElementById('scannerModal'));
                     if(m) m.hide();
                 },
-                async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/'; },
+                async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/login'; },
                 
                 // Group management
                 async loadGroups() {
