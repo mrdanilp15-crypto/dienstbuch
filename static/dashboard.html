@@ -1515,9 +1515,9 @@
 
                                 <!-- Filter Buttons -->
                                 <div class="d-flex gap-2 mb-3">
-                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'all' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'all'">Alle</button>
-                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'public' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'public'">Öffentlich</button>
-                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'private' ? 'btn-danger text-white' : 'btn-outline-light text-white'" @click="archiveFilter = 'private'">Privat</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'all' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'all'">Alle</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'public' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'public'">Öffentlich</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'private' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'private'">Privat</button>
                                 </div>
 
                                 <div class="list-group list-group-flush" style="max-height: 480px; overflow-y: auto;">
@@ -1531,7 +1531,7 @@
                                             </small>
                                         </div>
                                         <div class="d-flex gap-2">
-                                            <a :href="f.url" target="_blank" class="btn btn-xs btn-outline-light rounded-pill px-3 py-1 text-white" style="font-size:0.7rem;"><i class="fa fa-download me-1"></i>Öffnen</a>
+                                            <a :href="f.url" target="_blank" class="btn btn-xs btn-outline-light rounded-pill px-3 py-1" style="font-size:0.7rem;"><i class="fa fa-download me-1"></i>Öffnen</a>
                                             <button v-if="f.uploaded_by === username || ((isAdmin || role === 'leitung') && f.is_public)" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteArchiveFile(f.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
                                         </div>
                                     </div>
@@ -1566,9 +1566,9 @@
                                 <input type="text" v-model="mapSearchQuery" class="form-control form-control-sm mb-3 bg-dark border-secondary text-white" placeholder="Objekt suchen...">
                                 
                                 <div class="btn-group btn-group-sm mb-3 w-100" role="group">
-                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'all'}" @click="mapFilterCategory = 'all'">Alle</button>
-                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'hydrant'}" @click="mapFilterCategory = 'hydrant'">Hydranten</button>
-                                    <button class="btn btn-outline-light py-1 text-white border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'bma'}" @click="mapFilterCategory = 'bma'">BMAs</button>
+                                    <button class="btn btn-outline-light py-1 border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'all'}" @click="mapFilterCategory = 'all'">Alle</button>
+                                    <button class="btn btn-outline-light py-1 border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'hydrant'}" @click="mapFilterCategory = 'hydrant'">Hydranten</button>
+                                    <button class="btn btn-outline-light py-1 border-secondary border-opacity-20" :class="{active: mapFilterCategory === 'bma'}" @click="mapFilterCategory = 'bma'">BMAs</button>
                                 </div>
 
                                 <div class="list-group list-group-flush flex-grow-1 overflow-auto pe-1" style="max-height: 320px;">

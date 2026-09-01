@@ -601,18 +601,24 @@ const { createApp } = Vue;
                 async requestPushPermission() {
                     const permission = await Notification.requestPermission();
                     if (permission === 'granted') {
-                        await this.setupPushNotifications();
+                        try {
+                            const reg = await navigator.serviceWorker.ready;
+                            let sub = await reg.pushManager.getSubscription();
+                            if (sub) await sub.unsubscribe();
+                        } catch(e) {}
+                        await this.setupPushNotifications(true);
                         alert("Push-Benachrichtigungen aktiviert!");
                     } else {
                         alert("Berechtigung verweigert.");
                     }
                 },
-                async setupPushNotifications() {
+                async setupPushNotifications(forceReset = false) {
                     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
                     try {
                         const reg = await navigator.serviceWorker.ready;
                         let sub = await reg.pushManager.getSubscription();
-                        if (!sub) {
+                        if (!sub || forceReset) {
+                            if (sub) await sub.unsubscribe();
                             const res = await fetch('/api/push/public-key');
                             const { public_key } = await res.json();
                             const convertedVapidKey = this.urlBase64ToUint8Array(public_key);

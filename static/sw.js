@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v4';
+const CACHE_NAME = 'fw-app-cache-v6';
 const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
@@ -74,12 +74,11 @@ self.addEventListener('push', event => {
   const title = data.title || 'Neuer Einsatz!';
   
   // Resolve absolute URL for icons to prevent Android dropping it
-  const iconUrl = new URL(data.icon || '/static/favicon.png', self.location.origin).href;
+  const iconUrl = new URL(data.icon || '/static/favicon.svg', self.location.origin).href;
   
   const options = {
     body: data.body || 'Bitte Dashboard öffnen.',
     icon: iconUrl,
-    badge: iconUrl,
     vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500, 250, 500],
     requireInteraction: true,
     data: { url: data.url || '/' },
