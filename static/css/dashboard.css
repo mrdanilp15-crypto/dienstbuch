@@ -729,8 +729,26 @@
 
 /* Light Mode Fixes for Global Overrides */
 [data-theme='light'] label,
-[data-theme='light'] .form-label {
+[data-theme='light'] .form-label,
+[data-theme='light'] .text-white {
     color: var(--text-color) !important;
+}
+[data-theme='light'] .table-dark {
+    --bs-table-bg: #f8f9fa;
+    --bs-table-striped-bg: #e9ecef;
+    --bs-table-striped-color: #212529;
+    --bs-table-color: #212529;
+    --bs-table-hover-bg: #e2e6ea;
+    --bs-table-hover-color: #212529;
+    --bs-table-border-color: rgba(0,0,0,0.1);
+    color: #212529 !important;
+    background-color: #f8f9fa !important;
+    border-color: rgba(0,0,0,0.1) !important;
+}
+[data-theme='light'] .table-dark th,
+[data-theme='light'] .table-dark td {
+    border-color: inherit;
+    color: #212529 !important;
 }
 [data-theme='light'] option {
     background: #ffffff !important;

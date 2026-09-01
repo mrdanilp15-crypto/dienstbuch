@@ -185,10 +185,30 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     
     today = now_dt.date().isoformat()
     now_time = now_dt.strftime("%H:%M")
+    
+    # Deduplication: Check if there's already an auto-created mission (Entwurf) in the last 30 mins
     cur.execute("""
-        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
-        VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf')
-    """, (today, now_time, stichwort, adresse, meldung))
+        SELECT id FROM missions 
+        WHERE date = %s 
+        AND status = 'Entwurf' 
+        AND created_at >= NOW() - INTERVAL 30 MINUTE
+        ORDER BY id DESC LIMIT 1
+    """, (today,))
+    existing = cur.fetchone()
+    
+    if existing:
+        # Update existing instead of duplicating
+        cur.execute("""
+            UPDATE missions 
+            SET stichwort = %s, adresse = %s, meldung = %s
+            WHERE id = %s
+        """, (stichwort, adresse, meldung, existing['id']))
+    else:
+        # Insert new
+        cur.execute("""
+            INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
+            VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf')
+        """, (today, now_time, stichwort, adresse, meldung))
     
     conn.commit(); cur.close(); conn.close()
     

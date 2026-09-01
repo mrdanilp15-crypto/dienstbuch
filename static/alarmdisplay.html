@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Einsatz-Alarmdisplay - Command Center</title>
     
     <!-- Premium Fonts & Icons -->
@@ -374,14 +374,14 @@
     <div id="app" v-cloak style="display:flex; flex-direction:column; height:100vh;">
         <!-- Alarm Header Banner -->
         <header class="alarm-header" :class="{'no-alarm': !isAlarmActive}">
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center justify-content-center flex-wrap gap-3">
                 <i v-if="isAlarmActive" class="fa fa-triangle-exclamation fa-spin fa-2x text-white"></i>
                 <i v-else class="fa fa-desktop fa-2x text-muted"></i>
                 <h1 class="alarm-title">{{ isAlarmActive ? '🚨 EINSATZALARM' : 'STATIONSMONITOR' }}</h1>
             </div>
             
             <!-- Live Weather & Clock Widget -->
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center justify-content-center flex-wrap gap-3">
                 <!-- Weather info widget -->
                 <div class="weather-banner" v-if="weather.loaded">
                     <i class="fa fa-2x" :class="weather.iconClass" style="color: #ffd700;"></i>

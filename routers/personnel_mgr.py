@@ -240,6 +240,10 @@ def delete_member(member_id: int, request: Request):
     cur.execute("SELECT name FROM personnel WHERE id = %s", (member_id,))
     name_row = cur.fetchone()
     
+    cur.execute("DELETE FROM mission_attendance WHERE personnel_id = %s", (member_id,))
+    cur.execute("DELETE FROM respiration_log WHERE personnel_id = %s", (member_id,))
+    cur.execute("DELETE FROM schedule_attendance WHERE personnel_id = %s", (member_id,))
+    
     cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
     if name_row:
         cur.execute("DELETE FROM persons WHERE name = %s", (name_row[0],))
@@ -362,14 +366,16 @@ def init_personnel_db():
                             cur.execute(f"ALTER TABLE personnel ADD COLUMN {c_name} {c_type}")
                     except: pass
                 
-                cur.execute("SELECT * FROM youth_members")
-                youths = cur.fetchall()
+                # Fetch as dict to prevent tuple index error
+                dict_cur = conn.cursor(dictionary=True)
+                dict_cur.execute("SELECT * FROM youth_members")
+                youths = dict_cur.fetchall()
                 id_map = {}
                 for y in youths:
                     cur.execute("SELECT id FROM personnel WHERE name = %s", (y["name"],))
                     p = cur.fetchone()
                     if p:
-                        new_id = p["id"]
+                        new_id = p[0] # tuple index
                         cur.execute("""
                             UPDATE personnel SET
                             parent_contact = %s, skills = %s, membership_status = 'Jugend',

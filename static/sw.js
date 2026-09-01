@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v7';
+const CACHE_NAME = 'fw-app-cache-v8';
 const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',

@@ -60,6 +60,7 @@ const { createApp } = Vue;
                     activeScheduleForAttendance: null,
                     
                     // Missions / Einsatzberichte
+                    isSaving: false,
                     missions: [],
                     missionGroupFilter: 'all',
                     activeMission: null,
@@ -617,15 +618,18 @@ const { createApp } = Vue;
                     try {
                         const reg = await navigator.serviceWorker.ready;
                         let sub = await reg.pushManager.getSubscription();
-                        if (!sub || forceReset) {
+                        const res = await fetch('/api/push/public-key');
+                        const { public_key } = await res.json();
+                        const lastVapid = localStorage.getItem('last_vapid_key');
+                        
+                        if (!sub || forceReset || lastVapid !== public_key) {
                             if (sub) await sub.unsubscribe();
-                            const res = await fetch('/api/push/public-key');
-                            const { public_key } = await res.json();
                             const convertedVapidKey = this.urlBase64ToUint8Array(public_key);
                             sub = await reg.pushManager.subscribe({
                                 userVisibleOnly: true,
                                 applicationServerKey: convertedVapidKey
                             });
+                            localStorage.setItem('last_vapid_key', public_key);
                         }
                         await fetch('/api/push/subscribe', {
                             method: 'POST',
@@ -963,25 +967,31 @@ const { createApp } = Vue;
                     }
                 },
                 async saveMission() {
-                    let mStatus = this.activeMission.status;
-                    if (this.activeMission.leader_signature && mStatus === 'Entwurf') {
-                        mStatus = 'Freigegeben';
-                    }
-                    const payload = {
-                        date: this.activeMission.date, time: this.activeMission.time, end_time: this.activeMission.end_time || '', stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
-                        meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: mStatus,
-                        group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
-                        media_files: JSON.stringify(this.uploadedMissionFiles),
-                        attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
-                    };
-                    const isEdit = this.activeMission.id !== null;
-                    const url = isEdit ? `/api/missions/${this.activeMission.id}` : '/api/missions';
-                    const method = isEdit ? 'PUT' : 'POST';
-                    
-                    const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
-                    if(res.ok) {
-                        bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
-                        await Promise.all([this.loadMissions(), this.loadData()]);
+                    if (this.isSaving) return;
+                    this.isSaving = true;
+                    try {
+                        let mStatus = this.activeMission.status;
+                        if (this.activeMission.leader_signature && mStatus === 'Entwurf') {
+                            mStatus = 'Freigegeben';
+                        }
+                        const payload = {
+                            date: this.activeMission.date, time: this.activeMission.time, end_time: this.activeMission.end_time || '', stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
+                            meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: mStatus,
+                            group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
+                            media_files: JSON.stringify(this.uploadedMissionFiles),
+                            attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
+                        };
+                        const isEdit = this.activeMission.id !== null;
+                        const url = isEdit ? `/api/missions/${this.activeMission.id}` : '/api/missions';
+                        const method = isEdit ? 'PUT' : 'POST';
+                        
+                        const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
+                        if(res.ok) {
+                            bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
+                            await Promise.all([this.loadMissions(), this.loadData()]);
+                        }
+                    } finally {
+                        this.isSaving = false;
                     }
                 },
                 async deleteMission(id) {

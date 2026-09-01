@@ -281,7 +281,8 @@ def init_db_extensions():
                 duration FLOAT DEFAULT 2.0,
                 status VARCHAR(50) DEFAULT 'Entwurf',
                 leader_signature LONGTEXT,
-                media_files TEXT
+                media_files TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
 
@@ -294,6 +295,13 @@ def init_db_extensions():
                 vehicle VARCHAR(255) DEFAULT ''
             ) ENGINE=InnoDB;
         """)
+        
+        # Migration for mission_attendance foreign keys
+        try:
+            cur.execute("ALTER TABLE mission_attendance ADD CONSTRAINT fk_ma_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE")
+            cur.execute("ALTER TABLE mission_attendance ADD CONSTRAINT fk_ma_personnel FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE CASCADE")
+        except:
+            pass
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS respiration_log (
@@ -308,6 +316,12 @@ def init_db_extensions():
                 fit_ok BOOLEAN DEFAULT TRUE
             ) ENGINE=InnoDB;
         """)
+        
+        try:
+            cur.execute("ALTER TABLE respiration_log ADD CONSTRAINT fk_rl_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE")
+            cur.execute("ALTER TABLE respiration_log ADD CONSTRAINT fk_rl_personnel FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE CASCADE")
+        except:
+            pass
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vehicle_log (
