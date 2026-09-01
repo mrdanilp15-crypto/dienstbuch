@@ -18,7 +18,7 @@
             --misc: #ffc107; 
         }
 
-        [data-theme="light"] {
+        [data-theme="light"] body, [data-theme="light"] {
             --bg-color: #f8f9fa;
             --text-color: #212529;
             --card-bg: #ffffff;
@@ -43,7 +43,7 @@
             color: var(--text-secondary) !important;
         }
         
-        [data-theme="light"] {
+        [data-theme="light"] body, [data-theme="light"] {
             background: var(--bg-color) !important;
         }
         

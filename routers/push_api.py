@@ -88,7 +88,7 @@ async def test_push(request: Request):
     sent = send_push_to_all({
         "title": "Dienstbuch Test-Alarm",
         "body": "Dies ist ein Test der Push-Benachrichtigungen!",
-        "icon": "/static/favicon.svg",
+        "icon": "/static/favicon.png",
         "url": "/dashboard"
     })
     
