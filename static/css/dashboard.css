@@ -74,7 +74,15 @@
             border-color: var(--border-color) !important;
         }
         [data-theme="light"] .table,
+        [data-theme="light"] .table-dark,
+        [data-theme="light"] .table-striped,
         [data-theme="light"] .list-group-item {
+            --bs-table-bg: var(--card-bg) !important;
+            --bs-table-striped-bg: rgba(0,0,0,0.03) !important;
+            --bs-table-striped-color: var(--text-color) !important;
+            --bs-table-hover-bg: rgba(0,0,0,0.05) !important;
+            --bs-table-hover-color: var(--text-color) !important;
+            --bs-table-color: var(--text-color) !important;
             color: var(--text-color) !important;
             background-color: var(--card-bg) !important;
             border-color: var(--border-color) !important;
