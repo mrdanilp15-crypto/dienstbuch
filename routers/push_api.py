@@ -6,8 +6,32 @@ import os
 
 router = APIRouter(prefix="/api/push", tags=["Push"])
 
-# Der öffentliche Schlüssel, der ins Frontend geschickt wird
-VAPID_PUBLIC_KEY = "BEQ-r48uFcsqFr7fHSmWWaP9CPgg52tOU9OiPuWd4iexmdjB6p2tJsiZVRUVpjhFVVaJMZjPPlPV9VdLE_hQOiY"
+import subprocess
+
+# Auto-Generierung der VAPID Keys falls sie fehlen
+VAPID_PUBLIC_KEY = ""
+private_key_path = os.path.join(os.getcwd(), "private_key.pem")
+public_key_txt_path = os.path.join(os.getcwd(), "public_key.txt")
+
+if not os.path.exists(private_key_path) or not os.path.exists(public_key_txt_path):
+    print("VAPID Keys fehlen. Generiere automatisch neue Schlüssel für diesen Server...")
+    try:
+        subprocess.run(["vapid", "--gen"], check=True)
+        result = subprocess.run(["vapid", "--applicationServerKey"], capture_output=True, text=True)
+        out = result.stdout.strip()
+        if "Application Server Key =" in out:
+            base64_key = out.split("=")[1].strip()
+            with open(public_key_txt_path, "w") as fw:
+                fw.write(base64_key)
+        print("VAPID Keys erfolgreich generiert.")
+    except Exception as e:
+        print("Fehler bei der automatischen Generierung der VAPID Keys:", e)
+
+if os.path.exists(public_key_txt_path):
+    with open(public_key_txt_path, "r") as fw:
+        VAPID_PUBLIC_KEY = fw.read().strip()
+else:
+    print("WARNUNG: public_key.txt fehlt weiterhin! Push wird nicht funktionieren.")
 
 @router.get("/public-key")
 def get_public_key():
