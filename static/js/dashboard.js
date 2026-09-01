@@ -43,6 +43,11 @@ const { createApp } = Vue;
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
                     activeTab: localStorage.getItem('activeDashboardTab') || 'dienste',
+                    notes: [],
+                    notesActiveFilter: 'all',
+                    noteEditingId: null,
+                    newNote: { title: '', content: '', visibility: 'private' },
+
                     apagerConfig: { api_key: '', active: true },
                     apagerLogs: [],
                     apagerFeedbacks: [],
@@ -196,6 +201,11 @@ const { createApp } = Vue;
                 }
             },
             computed: {
+                filteredNotes() {
+                    if (this.notesActiveFilter === 'all') return this.notes;
+                    return this.notes.filter(n => n.visibility === this.notesActiveFilter);
+                },
+
                 filteredYouthMembers() {
                     if (!this.youthSearch) return this.youthMembers;
                     const q = this.youthSearch.toLowerCase();
@@ -493,6 +503,69 @@ const { createApp } = Vue;
                 }
             },
             methods: {
+                async loadNotes() {
+                    try {
+                        const res = await fetch('/api/notes', { credentials: 'include' });
+                        if (res.ok) { this.notes = await res.json(); }
+                    } catch (e) { console.error("Fehler beim Laden", e); }
+                },
+                async saveNote() {
+                    try {
+                        const isEdit = this.noteEditingId !== null;
+                        const url = isEdit ? `/api/notes/${this.noteEditingId}` : '/api/notes';
+                        const method = isEdit ? 'PUT' : 'POST';
+    
+                        const res = await fetch(url, {
+                            method: method,
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify(this.newNote)
+                        });
+    
+                        if (res.ok) {
+                            this.newNote.title = '';
+                            this.newNote.content = '';
+                            this.noteEditingId = null;
+                            await this.loadNotes();
+                        } else {
+                            alert("Eintrag konnte nicht gespeichert werden.");
+                        }
+                    } catch (e) { alert("Serverfehler beim Senden."); }
+                },
+                startNoteEdit(note) {
+                    this.noteEditingId = note.id;
+                    this.newNote.title = note.title;
+                    this.newNote.content = note.content;
+                    this.newNote.visibility = note.visibility;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                },
+                cancelNoteEdit() {
+                    this.noteEditingId = null;
+                    this.newNote.title = '';
+                    this.newNote.content = '';
+                    this.newNote.visibility = 'private';
+                },
+                async deleteNote(id) {
+                    if (confirm("Möchtest du diesen Eintrag permanent löschen?")) {
+                        try {
+                            const res = await fetch(`/api/notes/${id}`, { method: 'DELETE', credentials: 'include' });
+                            if (res.ok) { 
+                                if (this.noteEditingId === id) this.cancelNoteEdit();
+                                await this.loadNotes(); 
+                            } else { 
+                                alert("Löschen fehlgeschlagen."); 
+                            }
+                        } catch (e) { alert("Verbindungsfehler."); }
+                    }
+                },
+                getVisLabel(vis) {
+                    if (vis === 'public') return 'Pinnwand (Öffentlich)';
+                    if (vis === 'private') return 'Privat';
+                    if (vis === 'admin') return 'Führung Intern';
+                    if (vis === 'geratewart') return 'Gerätewart Notiz';
+                    return vis;
+                },
+
                 startQrScanner() {
                     if (typeof Html5Qrcode === 'undefined') { alert('Scanner-Bibliothek nicht geladen'); return; }
                     this.html5Qrcode = new Html5Qrcode("qr-reader");
