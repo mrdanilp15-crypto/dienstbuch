@@ -203,7 +203,7 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
         send_push_to_all({
             "title": f"Neuer Alarm: {stichwort}",
             "body": f"Ort: {adresse}\nMeldung: {meldung}",
-            "icon": "/static/favicon.svg",
+            "icon": "/static/favicon.png",
             "url": "/dashboard"
         })
     except Exception as e:
@@ -295,7 +295,7 @@ async def send_test_alarm(data: dict, request: Request):
         send_push_to_all({
             "title": f"Test-Alarm: {stichwort}",
             "body": f"Ort: {adresse}",
-            "icon": "/static/favicon.svg",
+            "icon": "/static/favicon.png",
             "url": "/dashboard"
         })
     except Exception as e:
