@@ -113,9 +113,38 @@
         }
 
         @media (max-width: 991px) {
+            body {
+                overflow-y: auto !important;
+                height: auto !important;
+                padding-bottom: 20px;
+            }
+            #app {
+                height: auto !important;
+                overflow-y: visible !important;
+            }
             .main-grid {
                 grid-template-columns: 1fr !important;
-                overflow-y: auto !important;
+                overflow-y: visible !important;
+            }
+            .alarm-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            .alarm-title {
+                font-size: 1.5rem;
+            }
+            .weather-banner {
+                margin: 0 auto;
+            }
+            .main-alarm-card .stichwort-val {
+                font-size: 2.5rem;
+            }
+            .main-alarm-card .adresse-val {
+                font-size: 1.5rem;
+            }
+            #displayMap {
+                height: 350px !important;
             }
         }
 

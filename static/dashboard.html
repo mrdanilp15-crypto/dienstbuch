@@ -72,7 +72,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
-                    <a href="/notizen" class="sidebar-btn text-decoration-none" style="display: flex; align-items: center;"><i class="fa fa-sticky-note me-2"></i> Digitales Notizbuch</a>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; loadNotes(); showMobileSidebar = false"><i class="fa fa-sticky-note me-2"></i> Digitales Notizbuch</button>
 
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
@@ -254,6 +254,119 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                
+                <!-- TAB: NOTIZEN -->
+                <div v-show="activeTab === 'notizen'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-sticky-note text-danger me-2"></i>Digitales Notizbuch</h2>
+                            <small class="text-muted">Mängelmeldungen, Funkraum-Notizen und Whiteboard</small>
+                        </div>
+                    </div>
+                    <div class="container mt-4">
+        <div class="row g-4">
+            
+            <!-- LEFT PANEL: CREATE/EDIT FORM -->
+            <div class="col-lg-4">
+                <div class="card premium-card p-4 sticky-top" style="top: 85px; z-index: 10;">
+                    <h5 class="fw-bold mb-4 text-white">
+                        <i class="fa-regular fa-pen-to-square text-danger me-2"></i>
+                        {{ noteEditingId ? 'Notiz bearbeiten' : 'Notiz verfassen' }}
+                    </h5>
+                    
+                    <form @submit.prevent="saveNote">
+                        <div class="mb-3">
+                            <label class="form-label">Betreff / Titel</label>
+                            <input type="text" v-model="newNote.title" class="form-control" placeholder="z. B. Übergabe Dienstbekleidung / Schicht-Notiz" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Details / Beschreibung</label>
+                            <textarea v-model="newNote.content" class="form-control" rows="5" placeholder="Schreibe deine Notiz oder Information hier..." required></textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label mb-2 d-block">Sichtbarkeitsstufe</label>
+                            
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" id="r-private" value="private" v-model="newNote.visibility">
+                                <label class="form-check-label small fw-bold text-secondary" for="r-private">
+                                    <i class="fa fa-lock me-2 text-primary"></i>Privat (Nur für mich)
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" id="r-public" value="public" v-model="newNote.visibility">
+                                <label class="form-check-label small fw-bold text-secondary" for="r-public">
+                                    <i class="fa fa-users me-2 text-success"></i>Öffentlich (Pinnwand)
+                                </label>
+                            </div>
+
+                            <div class="form-check mb-0" v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'">
+                                <input class="form-check-input" type="radio" id="r-admin" value="admin" v-model="newNote.visibility">
+                                <label class="form-check-label small fw-bold text-danger" for="r-admin">
+                                    <i class="fa fa-user-shield me-2"></i>Führung / Admin Intern
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button v-if="noteEditingId" type="button" class="btn btn-outline-light rounded-pill fw-bold flex-fill" @click="cancelNoteEdit">
+                                Abbrechen
+                            </button>
+                            <button type="submit" class="btn btn-premium rounded-pill flex-fill py-2">
+                                <i class="fa fa-save me-2"></i>{{ noteEditingId ? 'Speichern' : 'Senden' }}
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="card premium-card p-3 mt-4 border border-warning border-opacity-25 bg-black bg-opacity-20">
+                        <small class="text-muted"><i class="fa fa-circle-info text-warning me-1"></i><strong>Hinweis:</strong> Mängelmeldungen für Geräte & Fahrzeuge bitte direkt im Modul <a href="/dashboard" class="text-danger fw-bold text-decoration-none">Geräte & Material</a> erfassen.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: LIST & FILTER -->
+            <div class="col-lg-8">
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    <button class="filter-pill" :class="{active: notesActiveFilter === 'all'}" @click="notesActiveFilter = 'all'">Alle Notizen</button>
+                    <button class="filter-pill" :class="{active: notesActiveFilter === 'private'}" @click="notesActiveFilter = 'private'"><i class="fa fa-lock me-1"></i>Meine Privaten</button>
+                    <button class="filter-pill" :class="{active: notesActiveFilter === 'public'}" @click="notesActiveFilter = 'public'"><i class="fa fa-users me-1"></i>Öffentliche Pinnwand</button>
+                    <button v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'" class="filter-pill text-danger" :class="{active: notesActiveFilter === 'admin'}" @click="notesActiveFilter = 'admin'"><i class="fa fa-user-shield me-1"></i>Führung Intern</button>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12" v-for="n in filteredNotes" :key="n.id">
+                        <div class="note-card" :style="noteEditingId === n.id ? 'border-color: var(--primary); background-color: rgba(183, 28, 28, 0.05);' : ''">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span :class="['badge-vis', 'vis-' + n.visibility]">{{ getVisLabel(n.visibility) }}</span>
+                                    <small class="text-muted"><i class="fa-regular fa-clock me-1"></i>{{ n.date_formatted }} Uhr &bull; <i class="fa-regular fa-circle-user me-1 text-danger"></i><b>{{ n.username }}</b></small>
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <button v-if="n.username === currentUser.username" class="btn btn-sm btn-outline-light border-0 rounded-circle" @click="startNoteEdit(n)" title="Bearbeiten" style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;">
+                                        <i class="fa fa-edit text-primary"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-light border-0 rounded-circle" @click="deleteNote(n.id)" title="Löschen" style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;">
+                                        <i class="fa fa-trash-alt text-danger"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <h5 class="fw-bold text-white mb-2">{{ n.title }}</h5>
+                            <p class="text-secondary m-0" style="white-space: pre-wrap; line-height: 1.5;">{{ n.content }}</p>
+                        </div>
+                    </div>
+
+                    <div v-if="filteredNotes.length === 0" class="col-12 text-center text-muted py-5 premium-card">
+                        <i class="fa fa-folder-open h1 d-block mb-3 opacity-25 text-danger"></i>
+                        Keine Notizen in dieser Kategorie vorhanden.
+                    </div>
+                </div>
+            </div>
+        </div>
+    
                 </div>
 
                 <!-- TAB 2: EINSATZBERICHTE -->
@@ -1302,13 +1415,10 @@
                                             <tr><td>Zoom:</td><td class="text-white">{{ stationConfig.zoom }}</td></tr>
                                         </table>
                                     </div>
-                                    
-                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                
                         <!-- SUB-TAB: Bankdaten -->
                         <div v-show="verwaltungTab === 'bankdaten'">
                             <div class="row g-4">
@@ -1362,11 +1472,8 @@
                                 </div>
                             </div>
                         </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
-
                 <!-- TAB 9: DOCUMENT ARCHIVE -->
                 <div v-show="activeTab === 'archiv'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -2902,6 +3009,8 @@
 
     </div>
 
+    </div>
+    </div>
     <script src="/static/js/dashboard.js"></script>
 </body>
 </html>
