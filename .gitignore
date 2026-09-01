@@ -8,3 +8,6 @@ __pycache__/
 # Lokale Konfigurationen
 .env
 .DS_Store
+
+# Push Notification Keys
+*.pem
