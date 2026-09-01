@@ -304,7 +304,7 @@
                                 </label>
                             </div>
 
-                            <div class="form-check mb-0" v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'">
+                            <div class="form-check mb-0" v-if="role === 'admin' || role === 'leitung'">
                                 <input class="form-check-input" type="radio" id="r-admin" value="admin" v-model="newNote.visibility">
                                 <label class="form-check-label small fw-bold text-danger" for="r-admin">
                                     <i class="fa fa-user-shield me-2"></i>Führung / Admin Intern
@@ -334,7 +334,7 @@
                     <button class="filter-pill" :class="{active: notesActiveFilter === 'all'}" @click="notesActiveFilter = 'all'">Alle Notizen</button>
                     <button class="filter-pill" :class="{active: notesActiveFilter === 'private'}" @click="notesActiveFilter = 'private'"><i class="fa fa-lock me-1"></i>Meine Privaten</button>
                     <button class="filter-pill" :class="{active: notesActiveFilter === 'public'}" @click="notesActiveFilter = 'public'"><i class="fa fa-users me-1"></i>Öffentliche Pinnwand</button>
-                    <button v-if="currentUser.role === 'admin' || currentUser.role === 'leitung'" class="filter-pill text-danger" :class="{active: notesActiveFilter === 'admin'}" @click="notesActiveFilter = 'admin'"><i class="fa fa-user-shield me-1"></i>Führung Intern</button>
+                    <button v-if="role === 'admin' || role === 'leitung'" class="filter-pill text-danger" :class="{active: notesActiveFilter === 'admin'}" @click="notesActiveFilter = 'admin'"><i class="fa fa-user-shield me-1"></i>Führung Intern</button>
                 </div>
 
                 <div class="row g-3">
@@ -346,7 +346,7 @@
                                     <small class="text-muted"><i class="fa-regular fa-clock me-1"></i>{{ n.date_formatted }} Uhr &bull; <i class="fa-regular fa-circle-user me-1 text-danger"></i><b>{{ n.username }}</b></small>
                                 </div>
                                 <div class="d-flex gap-1">
-                                    <button v-if="n.username === currentUser.username" class="btn btn-sm btn-outline-light border-0 rounded-circle" @click="startNoteEdit(n)" title="Bearbeiten" style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;">
+                                    <button v-if="n.username === username" class="btn btn-sm btn-outline-light border-0 rounded-circle" @click="startNoteEdit(n)" title="Bearbeiten" style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;">
                                         <i class="fa fa-edit text-primary"></i>
                                     </button>
                                     <button class="btn btn-sm btn-outline-light border-0 rounded-circle" @click="deleteNote(n.id)" title="Löschen" style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;">
