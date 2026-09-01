@@ -682,6 +682,22 @@ def init_db():
         try:
             conn = get_db_connection()
             cur = conn.cursor()
+            try:
+                cur.execute("""
+                    SELECT CONSTRAINT_NAME 
+                    FROM information_schema.KEY_COLUMN_USAGE 
+                    WHERE TABLE_NAME = 'youth_attendance' 
+                    AND TABLE_SCHEMA = DATABASE() 
+                    AND REFERENCED_TABLE_NAME = 'youth_members'
+                """)
+                row = cur.fetchone()
+                if row:
+                    cur.execute(f"ALTER TABLE youth_attendance DROP FOREIGN KEY {row[0]}")
+                    cur.execute("ALTER TABLE youth_attendance ADD CONSTRAINT fk_youth_attendance_personnel FOREIGN KEY (member_id) REFERENCES personnel(id) ON DELETE CASCADE")
+                    conn.commit()
+            except Exception as e:
+                print('Error fixing youth_attendance FK:', e)
+
             cur.execute("CREATE TABLE IF NOT EXISTS groups_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL) ENGINE=InnoDB;")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS persons (
@@ -768,10 +784,11 @@ def get_edit(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
     return FileResponse("static/editor.html")
 
-@app.get("/notizen", response_class=FileResponse)
+from fastapi.responses import RedirectResponse
+@app.get("/notizen")
 def get_notes_page(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
-    return FileResponse("static/notizen.html")
+    return RedirectResponse(url="/")
 
 @app.get("/personal", response_class=FileResponse)
 def get_personnel_page(request: Request):

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v3';
+const CACHE_NAME = 'fw-app-cache-v4';
 const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
@@ -62,15 +62,29 @@ self.addEventListener('activate', event => {
 
 // Basic Push Notification Event Listener
 self.addEventListener('push', event => {
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Neuer Alarm!';
+  let data = {};
+  try {
+    if (event.data) {
+      data = event.data.json();
+    }
+  } catch(e) {
+    console.error('Push payload parse error', e);
+  }
+  
+  const title = data.title || 'Neuer Einsatz!';
+  
+  // Resolve absolute URL for icons to prevent Android dropping it
+  const iconUrl = new URL(data.icon || '/static/favicon.png', self.location.origin).href;
+  
   const options = {
     body: data.body || 'Bitte Dashboard öffnen.',
-    icon: data.icon || '/static/favicon.png',
-    badge: data.icon || '/static/favicon.png',
-    vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500],
+    icon: iconUrl,
+    badge: iconUrl,
+    vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500, 250, 500],
     requireInteraction: true,
-    data: { url: data.url || '/' }
+    data: { url: data.url || '/' },
+    tag: 'alarm-' + Date.now(),
+    renotify: true
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
