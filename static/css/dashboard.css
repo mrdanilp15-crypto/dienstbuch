@@ -677,3 +677,71 @@
                 padding-right: 6px !important;
             }
         }
+
+/* NOTIZEN STYLES */
+.filter-pill { 
+    font-weight: 600; 
+    font-size: 0.85rem; 
+    border-radius: 20px; 
+    padding: 8px 18px; 
+    border: 1px solid var(--card-border); 
+    background: rgba(255,255,255,0.05); 
+    color: var(--text-secondary); 
+    transition: all 0.2s ease; 
+}
+[data-theme='light'] .filter-pill {
+    background: rgba(0,0,0,0.05);
+}
+.filter-pill:hover, .filter-pill.active { 
+    background: rgba(183, 28, 28, 0.15) !important; 
+    color: var(--text-color) !important; 
+    border-color: var(--primary); 
+    box-shadow: 0 0 10px rgba(183, 28, 28, 0.3);
+}
+
+.note-card { 
+    background: var(--card-bg); 
+    border-radius: 20px; 
+    border: 1px solid var(--card-border); 
+    padding: 20px; 
+    transition: all 0.3s ease; 
+    position: relative; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+}
+.note-card:hover { 
+    box-shadow: 0 15px 35px rgba(183, 28, 28, 0.15); 
+    transform: translateY(-2px); 
+    border-color: rgba(183, 28, 28, 0.3);
+}
+
+.badge-vis { 
+    font-size: 0.65rem; 
+    font-weight: 800; 
+    text-transform: uppercase; 
+    padding: 4px 12px; 
+    border-radius: 50px; 
+    letter-spacing: 0.5px;
+}
+.vis-public { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
+.vis-private { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
+.vis-admin { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
+.vis-geratewart { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.25); }
+
+/* Light Mode Fixes for Global Overrides */
+[data-theme='light'] label,
+[data-theme='light'] .form-label {
+    color: var(--text-color) !important;
+}
+[data-theme='light'] option {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+[data-theme='light'] .text-muted {
+    color: #6c757d !important;
+}
+
+[data-theme='light'] .bg-black,
+[data-theme='light'] .bg-dark {
+    background-color: #e9ecef !important;
+    --bs-bg-opacity: 1 !important;
+}
