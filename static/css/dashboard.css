@@ -745,3 +745,14 @@
     background-color: #e9ecef !important;
     --bs-bg-opacity: 1 !important;
 }
+
+[data-theme='light'] .btn-outline-light {
+    color: var(--text-color) !important;
+    border-color: rgba(0,0,0,0.2) !important;
+}
+[data-theme='light'] .btn-outline-light:hover,
+[data-theme='light'] .btn-outline-light.active {
+    background-color: rgba(0,0,0,0.1) !important;
+    color: var(--text-color) !important;
+    border-color: rgba(0,0,0,0.3) !important;
+}

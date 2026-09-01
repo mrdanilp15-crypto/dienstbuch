@@ -65,7 +65,7 @@ def get_apager_logs(request: Request):
     return r
 
 @router.delete("/api/apager/logs/{log_id}")
-def delete_apager_log(log_id: int, request: Request):
+async def delete_apager_log(log_id: int, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
@@ -73,10 +73,11 @@ def delete_apager_log(log_id: int, request: Request):
     cur.execute("DELETE FROM apager_feedbacks WHERE apager_log_id = %s", (log_id,))
     cur.execute("DELETE FROM apager_logs WHERE id = %s", (log_id,))
     conn.commit(); cur.close(); conn.close()
+    await ws_mgr.manager.broadcast_json({"type": "update_mission"})
     return {"status": "success"}
 
 @router.delete("/api/apager/logs")
-def clear_apager_logs(request: Request):
+async def clear_apager_logs(request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
@@ -84,6 +85,7 @@ def clear_apager_logs(request: Request):
     cur.execute("DELETE FROM apager_feedbacks")
     cur.execute("DELETE FROM apager_logs")
     conn.commit(); cur.close(); conn.close()
+    await ws_mgr.manager.broadcast_json({"type": "update_mission"})
     return {"status": "success"}
 
 @router.put("/api/apager/logs/{log_id}")
@@ -201,7 +203,7 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
         send_push_to_all({
             "title": f"Neuer Alarm: {stichwort}",
             "body": f"Ort: {adresse}\nMeldung: {meldung}",
-            "icon": "/static/favicon.png",
+            "icon": "/static/favicon.svg",
             "url": "/dashboard"
         })
     except Exception as e:
@@ -293,7 +295,7 @@ async def send_test_alarm(data: dict, request: Request):
         send_push_to_all({
             "title": f"Test-Alarm: {stichwort}",
             "body": f"Ort: {adresse}",
-            "icon": "/static/favicon.png",
+            "icon": "/static/favicon.svg",
             "url": "/dashboard"
         })
     except Exception as e:
