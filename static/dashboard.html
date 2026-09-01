@@ -44,7 +44,7 @@
                     <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
                 </div>
                 <!-- aPager Live-Status -->
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-none d-lg-flex align-items-center gap-3">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @click="toggleTheme" title="Hell/Dunkel Modus">
                         <i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i>
                     </button>
@@ -85,6 +85,13 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
+
+                    
+                    <div class="sidebar-section-header d-lg-none">Aktionen</div>
+                    <button class="sidebar-btn d-lg-none" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i> Theme wechseln</button>
+                    <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop me-2"></i> Hallen-Display</a>
+                    <button class="sidebar-btn d-lg-none text-info" @click="requestPushPermission"><i class="fa fa-bell"></i> Push-Alarm Test</button>
+                    <button class="sidebar-btn d-lg-none text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i> Logout</button>
 
                     <div class="sidebar-section-header">System</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
@@ -1011,8 +1018,11 @@
                         <li class="nav-item" v-if="isAdmin">
                             <button class="nav-link" :class="verwaltungTab === 'logins' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'logins'; loadSystemUsers()"><i class="fa fa-key me-1"></i>System-Logins</button>
                         </li>
-                        <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
+                                                <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
                             <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
+                        </li>
+                        <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
+                            <button class="nav-link" :class="verwaltungTab === 'bankdaten' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'bankdaten'"><i class="fa fa-university me-1"></i>Bankdaten</button>
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
@@ -1293,7 +1303,17 @@
                                         </table>
                                     </div>
                                     
-                                    <div class="card premium-card p-4 mt-4">
+                                    </div>
+                            </div>
+                        </div>
+                    </div>
+
+                
+                        <!-- SUB-TAB: Bankdaten -->
+                        <div v-show="verwaltungTab === 'bankdaten'">
+                            <div class="row g-4">
+                                <div class="col-12 col-lg-6">
+                                    <div class="card premium-card p-4 ">
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-university text-danger me-2"></i>Bankverbindung / Abrechnungsdaten</h5>
                                         <p class="text-muted small">Diese Daten werden automatisch auf Kostenbescheiden und Rechnungen angedruckt.</p>
                                         <div class="mb-3">
@@ -1306,10 +1326,10 @@
                                         </div>
                                         <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
                                     </div>
+                                
                                 </div>
                             </div>
                         </div>
-                    </div>
 
                 <!-- TAB: STATISTIKEN -->
                 <div v-show="activeTab === 'stats'">
@@ -1320,7 +1340,13 @@
                         </div>
                     </div>
                     <div class="row g-4">
-                        <div class="col-12 col-lg-8">
+                        <div class="col-12">
+                            <div class="card premium-card p-4 text-center">
+                                <h5 class="fw-bold text-white mb-3">Gesamteinsätze</h5>
+                                <h1 class="display-1 fw-bold text-danger m-0">{{ statsTotalMissions }}</h1>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
                             <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-3">Einsätze pro Wochentag</h5>
                                 <div style="height: 400px; position: relative;">
@@ -1328,10 +1354,14 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-12 col-lg-4">
-                            <div class="card premium-card p-4 text-center">
-                                <h5 class="fw-bold text-white mb-3">Gesamteinsätze</h5>
-                                <h1 class="display-1 fw-bold text-danger m-0">{{ statsTotalMissions }}</h1>
+                        <div class="col-12 col-lg-6">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Einsätze pro Monat</h5>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChartMonth"></canvas>
+                                </div>
+                            </div>
+                        </div>
                             </div>
                         </div>
                     </div>

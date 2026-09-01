@@ -290,10 +290,25 @@ def get_admin_stats(request: Request):
     cur.execute("SELECT COUNT(*) as total FROM missions")
     total_missions = cur.fetchone()["total"]
     
+    cur.execute("SELECT MONTHNAME(date) as month, COUNT(*) as count FROM missions GROUP BY MONTHNAME(date)")
+    missions_by_month_raw = cur.fetchall()
+    
+    months_order = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    months_german = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+    
+    month_dict = {row["month"]: row["count"] for row in missions_by_month_raw if row["month"]}
+    missions_by_month = []
+    for i, m in enumerate(months_order):
+        missions_by_month.append({
+            "month": months_german[i],
+            "count": month_dict.get(m, 0)
+        })
+    
     cur.close()
     conn.close()
     
     return {
         "missions_by_day": missions_by_day,
-        "missions_total": total_missions
+        "missions_by_month": missions_by_month,
+        "total_missions": total_missions
     }

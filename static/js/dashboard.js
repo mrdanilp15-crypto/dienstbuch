@@ -192,7 +192,7 @@ const { createApp } = Vue;
                     scannedQrObject: null,
                     
                     statsTotalMissions: 0,
-                    statsChartInstance: null
+                    statsChartInstance: null, statsChartMonthInstance: null
                 }
             },
             computed: {
@@ -2085,16 +2085,15 @@ const { createApp } = Vue;
                     }
                 },
                 downloadMissionPdf(m) {
-                    const realId = m.isNewMission ? m.id : (m.rawSession ? (m.rawSession.real_mission_id || parseInt(String(m.rawSession.id).replace('m_', ''))) : null);
-                    if (realId && !isNaN(realId)) {
-                        window.open('/api/missions/' + realId + '/pdf', '_blank');
-                    } else if (typeof m.id === 'string' && m.id.startsWith('hvo_')) {
-                        window.open('/api/missions/' + m.id.replace('hvo_', '') + '/pdf', '_blank');
-                    } else if (m.is_mission || (typeof m.id === 'string' && m.id.startsWith('m_'))) {
-                        const mId = m.real_mission_id || parseInt(String(m.id).replace('m_', ''));
+                    if (m.isNewMission) {
+                        window.open('/api/missions/' + m.id + '/pdf', '_blank');
+                    } else if (typeof m.id === 'string' && String(m.id).startsWith('hvo_')) {
+                        window.open('/api/missions/' + String(m.id).replace('hvo_', '') + '/pdf', '_blank');
+                    } else if (m.rawSession && typeof m.rawSession.id === 'string' && String(m.rawSession.id).startsWith('m_')) {
+                        const mId = parseInt(String(m.rawSession.id).replace('m_', ''));
                         window.open('/api/missions/' + mId + '/pdf', '_blank');
                     } else {
-                        alert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion.");
+                        alert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
                     }
                 },
                 openReport(s) { 
@@ -2402,41 +2401,46 @@ const { createApp } = Vue;
                         const res = await fetch('/api/admin/stats', { credentials: 'include' });
                         if (res.ok) {
                             const data = await res.json();
-                            this.statsTotalMissions = data.missions_total;
+                            this.statsTotalMissions = data.total_missions;
                             
-                            const labels = data.missions_by_day.map(d => d.day);
-                            const counts = data.missions_by_day.map(d => d.count);
-                            
-                            const ctx = document.getElementById('statsChart');
-                            if (!ctx) return;
-                            
-                            if (this.statsChartInstance) {
-                                this.statsChartInstance.destroy();
+                                                        const ctx = document.getElementById('statsChart');
+                            if (ctx) {
+                                if (this.statsChartInstance) this.statsChartInstance.destroy();
+                                this.statsChartInstance = new Chart(ctx, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: data.missions_by_day.map(d => d.day),
+                                        datasets: [{
+                                            label: 'Einsätze',
+                                            data: data.missions_by_day.map(d => d.count),
+                                            backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                                            borderColor: 'rgba(220, 53, 69, 1)',
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                                });
                             }
                             
-                            this.statsChartInstance = new Chart(ctx, {
-                                type: 'bar',
-                                data: {
-                                    labels: labels,
-                                    datasets: [{
-                                        label: 'Einsätze',
-                                        data: counts,
-                                        backgroundColor: 'rgba(220, 53, 69, 0.5)',
-                                        borderColor: 'rgba(220, 53, 69, 1)',
-                                        borderWidth: 1
-                                    }]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    scales: {
-                                        y: {
-                                            beginAtZero: true,
-                                            ticks: { stepSize: 1 }
-                                        }
-                                    }
-                                }
-                            });
+                            const ctxMonth = document.getElementById('statsChartMonth');
+                            if (ctxMonth) {
+                                if (this.statsChartMonthInstance) this.statsChartMonthInstance.destroy();
+                                this.statsChartMonthInstance = new Chart(ctxMonth, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: data.missions_by_month.map(d => d.month),
+                                        datasets: [{
+                                            label: 'Einsätze',
+                                            data: data.missions_by_month.map(d => d.count),
+                                            backgroundColor: 'rgba(13, 110, 253, 0.5)',
+                                            borderColor: 'rgba(13, 110, 253, 1)',
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                                });
+                            }
+
                         }
                     } catch(err) {
                         console.error('Error loading stats:', err);
