@@ -4,7 +4,13 @@ from database import get_db_connection
 from core.utils import get_current_user
 import os
 import traceback
-from pywebpush import webpush, WebPushException
+
+try:
+    from pywebpush import webpush, WebPushException
+    PYWEBPUSH_INSTALLED = True
+except ImportError:
+    PYWEBPUSH_INSTALLED = False
+    print("FEHLER: pywebpush ist nicht installiert! Push-Nachrichten werden nicht funktionieren.")
 
 router = APIRouter(prefix="/api/push", tags=["Push"])
 
@@ -103,6 +109,9 @@ def send_push_to_all(payload_dict: dict):
             }
         }
         try:
+            if not PYWEBPUSH_INSTALLED:
+                print("Push übersprungen: pywebpush nicht installiert.")
+                continue
             webpush(
                 subscription_info=sub_info,
                 data=payload,
