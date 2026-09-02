@@ -662,9 +662,16 @@ const { createApp } = Vue;
                                     // Speak the alarm details
                                     setTimeout(() => {
                                         if (data.mission && data.mission.stichwort) {
-                                            const msg = new SpeechSynthesisUtterance(`Alarm! ${data.mission.stichwort}. ${data.mission.adresse || ''}`);
+                                            window.speechSynthesis.cancel();
+                                            const digitWords = {'0':'Null', '1':'Eins', '2':'Zwei', '3':'Drei', '4':'Vier', '5':'Fünf', '6':'Sechs', '7':'Sieben', '8':'Acht', '9':'Neun'};
+                                            const transformTTS = (str) => (str || '').replace(/\d{5}/g, m => m.split('').map(d => digitWords[d]).join(' '));
+                                            
+                                            const ttsStichwort = transformTTS(data.mission.stichwort);
+                                            const ttsAdresse = transformTTS(data.mission.adresse);
+                                            
+                                            const msg = new SpeechSynthesisUtterance(`Alarm! ${ttsStichwort}. ${ttsAdresse}`);
                                             msg.lang = 'de-DE';
-                                            msg.rate = 0.9;
+                                            msg.rate = 0.95;
                                             window.speechSynthesis.speak(msg);
                                         }
                                     }, 2000);

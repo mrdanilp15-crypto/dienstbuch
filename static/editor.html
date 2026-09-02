@@ -320,6 +320,7 @@
                     <label class="small text-muted fw-bold mb-2 d-block">DIENSTKATEGORIE</label>
                     <div class="btn-group w-100 rounded-3 overflow-hidden border border-secondary border-opacity-20">
                         <button class="btn btn-cat" :class="{'active-ubung': category==='Übung'}" @click="!isReadOnly && setCat('Übung')" :disabled="isReadOnly">Übung</button>
+                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && setCat('Einsatz')" :disabled="isReadOnly">Einsatz</button>
                         <button class="btn btn-cat" :class="{'active-sonstiges': category==='Sonstiges'}" @click="!isReadOnly && setCat('Sonstiges')" :disabled="isReadOnly">Sonstiges</button>
                     </div>
                 </div>

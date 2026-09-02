@@ -366,10 +366,12 @@ def init_personnel_db():
                             cur.execute(f"ALTER TABLE personnel ADD COLUMN {c_name} {c_type}")
                     except: pass
                 
-                # Fetch as dict to prevent tuple index error
-                dict_cur = conn.cursor(dictionary=True)
-                dict_cur.execute("SELECT * FROM youth_members")
-                youths = dict_cur.fetchall()
+                # Fetch as dict manually to prevent tuple index error
+                cur.execute("SELECT * FROM youth_members")
+                columns = [col[0] for col in cur.description]
+                youths_tuples = cur.fetchall()
+                youths = [dict(zip(columns, row)) for row in youths_tuples]
+                
                 id_map = {}
                 for y in youths:
                     cur.execute("SELECT id FROM personnel WHERE name = %s", (y["name"],))
