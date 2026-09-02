@@ -294,7 +294,7 @@ const { createApp } = Vue;
                         };
                     });
                     if (this.sessionsList) {
-                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && new Date(s.date).getFullYear() === this.selectedYear).map(s => {
+                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && !s.is_mission && new Date(s.date).getFullYear() === this.selectedYear).map(s => {
                             const isSigned = !!(s.leader_signature || s.is_signed || s.status === 'Freigegeben');
                             let sTime = '00:00';
                             if (s.time && s.time !== 'None' && s.time.trim() !== '') {

@@ -420,9 +420,11 @@ def init_personnel_db():
                         SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE 
                         WHERE TABLE_NAME = 'youth_attendance' AND COLUMN_NAME = 'member_id' AND TABLE_SCHEMA = DATABASE()
                     """)
-                    fk = cur.fetchone()
-                    if fk: cur.execute(f"ALTER TABLE youth_attendance DROP FOREIGN KEY {fk['CONSTRAINT_NAME']}")
-                except: pass
+                    fks = cur.fetchall()
+                    for fk in fks:
+                        cur.execute(f"ALTER TABLE youth_attendance DROP FOREIGN KEY {fk[0]}")
+                except Exception as e: 
+                    print("Error dropping FK:", e)
 
                 for old_id, new_id in id_map.items():
                     cur.execute("UPDATE youth_attendance SET member_id = %s WHERE member_id = %s", (-new_id, old_id))
@@ -431,7 +433,8 @@ def init_personnel_db():
                 try: cur.execute("ALTER TABLE youth_attendance ADD CONSTRAINT fk_ya_personnel FOREIGN KEY (member_id) REFERENCES personnel(id) ON DELETE CASCADE")
                 except: pass
                 
-                cur.execute("DROP TABLE IF EXISTS youth_members")
+                try: cur.execute("DROP TABLE youth_members")
+                except: pass
         except Exception as e:
             print(f"Error during youth migration: {e}")
         # End Youth Migration
