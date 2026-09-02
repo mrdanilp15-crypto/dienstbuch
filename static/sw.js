@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v8';
+const CACHE_NAME = 'fw-app-cache-v9';
 const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
@@ -22,7 +22,12 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   
   // Do not cache API or HTML navigation requests to prevent login/logout loops
-  if (event.request.url.includes('/api/') || event.request.mode === 'navigate') {
+  const isDynamic = event.request.url.includes('/api/') || 
+                    event.request.url.includes('/groups/') || 
+                    event.request.url.includes('/sessions/') || 
+                    event.request.url.includes('/users/');
+                    
+  if (isDynamic || event.request.mode === 'navigate') {
       event.respondWith(fetch(event.request));
       return;
   }
