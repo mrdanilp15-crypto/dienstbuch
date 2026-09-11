@@ -168,7 +168,7 @@ def _prepare_mission_report_data(mission_id: int):
         raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
 
     cur.execute("""
-        SELECT ma.is_present, ma.vehicle, p.name, p.signature
+        SELECT ma.is_present, ma.vehicle, p.name
         FROM mission_attendance ma
         JOIN personnel p ON ma.personnel_id = p.id
         WHERE ma.mission_id = %s
@@ -190,7 +190,9 @@ def _prepare_mission_report_data(mission_id: int):
     if sig:
         m["leader_signature"] = safe_decode(sig)
 
-    # Adapt persons
+    # Adapt persons - Einsatz-Teilnehmer haben (anders als normale Dienste) keine
+    # eigene Unterschrift pro Person in der DB, nur der Einsatzleiter unterschreibt
+    # (missions.leader_signature oben).
     persons = []
     for a in att:
         is_p = 1 if a['is_present'] in ('Abgerückt', 'Bereitstellung') else 0
@@ -198,7 +200,7 @@ def _prepare_mission_report_data(mission_id: int):
             'name': a['name'],
             'is_present': is_p,
             'vehicle': a['vehicle'],
-            'signature': safe_decode(a['signature'])
+            'signature': None
         })
 
     from core.utils import get_station_name
