@@ -453,8 +453,15 @@ const { createApp } = Vue;
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
                 filteredEquipment() {
+                    // eq &&/optional chaining: ein einzelner unerwartet unvollständiger
+                    // Datensatz (z.B. name/barcode fehlt) durfte diesen ganzen computed vorher
+                    // mit einem Fehler abbrechen lassen - dann rendert Vue die Liste gar nicht,
+                    // was wie "alle Geräte sind verschwunden" wirkt statt nur den einen Eintrag.
                     return this.equipment.filter(eq => {
-                        const mSearch = eq.name.toLowerCase().includes(this.eqSearch.toLowerCase()) || eq.barcode.toLowerCase().includes(this.eqSearch.toLowerCase());
+                        if (!eq) return false;
+                        const name = eq.name || '';
+                        const barcode = eq.barcode || '';
+                        const mSearch = name.toLowerCase().includes(this.eqSearch.toLowerCase()) || barcode.toLowerCase().includes(this.eqSearch.toLowerCase());
                         const mCat = !this.eqCategory || eq.category === this.eqCategory;
                         const mDefect = !this.filterDefectiveOnly || eq.current_status === 'Mangel' || eq.current_status === 'Defekt';
                         return mSearch && mCat && mDefect;
@@ -1178,8 +1185,22 @@ const { createApp } = Vue;
 
                 // Equipment
                 async loadEquipment() {
+                    // Reihenfolge-Schutz: loadEquipment() wird von vielen Stellen aus aufgerufen
+                    // (Sidebar-Klick, nach Speichern/Löschen, nach Sammelprüfung, ...). Wird es
+                    // zweimal kurz hintereinander aufgerufen (z.B. Doppelklick auf den
+                    // Sidebar-Button), kann die Antwort des ERSTEN (älteren) Aufrufs durch
+                    // Netzwerk-Schwankungen NACH der Antwort des zweiten (neueren) ankommen und
+                    // die frisch geladene Liste mit veralteten Daten überschreiben - dadurch
+                    // wirkten gerade erst gespeicherte Geräte "verschwunden", bis man neu lud.
+                    // Nur die Antwort des zuletzt gestarteten Aufrufs wird übernommen.
+                    const requestSeq = (this._equipmentLoadSeq = (this._equipmentLoadSeq || 0) + 1);
                     const res = await fetch('/api/material/equipment', { credentials: 'include' });
-                    if(res.ok) this.equipment = await res.json();
+                    if(res.ok) {
+                        const data = await res.json();
+                        if (requestSeq === this._equipmentLoadSeq) {
+                            this.equipment = data;
+                        }
+                    }
                     await this.loadDefectReports();
                     await this.loadClubData();
                 },
