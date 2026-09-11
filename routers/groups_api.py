@@ -44,6 +44,21 @@ def delete_group(id: int, request: Request):
     cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
 
+@router.get("/groups/{group_id}/persons")
+def get_group_persons(group_id: int, request: Request):
+    # Liefert die Gruppen-Dienstliste (persons.id, NICHT personnel.id!) - wird vom
+    # Dienst-Editor benutzt, um neu über den "Kameraden hinzufügen"-Dialog ausgewählte
+    # Personen mit der korrekten persons.id zu verknüpfen, bevor sie gespeichert werden.
+    # attendance.person_id referenziert per Fremdschlüssel persons.id, nicht personnel.id -
+    # ohne diese Zuordnung würde die Anwesenheit beim Speichern fälschlich der personnel.id
+    # zugeordnet, was auf eine komplett andere (oder gar keine) persons-Zeile zeigen kann.
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, name FROM persons WHERE group_id = %s", (group_id,))
+    r = cur.fetchall(); c.close()
+    return r
+
 @router.get("/groups/{id}/sessions")
 def get_sessions(id: int, request: Request):
     user = get_current_user(request)

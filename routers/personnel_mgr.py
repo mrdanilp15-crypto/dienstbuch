@@ -92,10 +92,25 @@ def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
              FROM personnel ORDER BY name ASC"""
     cur.execute(sql)
     res = cur.fetchall()
+
+    # G26.3-Ablauf berechnen (wie in groups_api.py get_attendance()) - dieser Endpunkt ist die
+    # gemeinsame Datenquelle für den Kameraden-Pool in editor.html UND für die Teilnehmerliste
+    # im Einsatzbericht-Editor (dashboard.js initActiveMissionAttendance/editMission). Ohne
+    # g26_expired hier zeigt die "G26 abgelaufen"-Sicherheitswarnung im Einsatz-Editor nie an.
+    cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'int_g26'")
+    g26_row = cur.fetchone()
+    g26_allowed_months = g26_row['setting_value'] if g26_row else 36
     cur.close()
     conn.close()
-    
+
     for row in res:
+        row["g26_expired"] = False
+        if row.get("is_agt") and row.get("g26_3_date"):
+            g26_date = row["g26_3_date"]
+            if isinstance(g26_date, date):
+                diff_days = (date.today() - g26_date).days
+                if diff_days > (g26_allowed_months * 30.44):
+                    row["g26_expired"] = True
         for key, value in row.items():
             if isinstance(value, date):
                 row[key] = str(value)

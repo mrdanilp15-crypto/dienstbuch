@@ -121,6 +121,7 @@ const { createApp } = Vue;
                 return {
                     isOnline: navigator.onLine,
                     qrScanner: null,
+                    html5Qrcode: null,
                     isDarkMode: true,
                     ready: false, isAdmin: false, username: '', role: '',
                     groups: [], selectedGroup: null, mobileSelectedId: null,
@@ -569,7 +570,18 @@ const { createApp } = Vue;
                 const mCanvas = document.getElementById('missionSigCanvas');
                 if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
                 missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
-                
+
+                // Kamera zuverlässig stoppen, egal wie der Scanner-Dialog geschlossen wird
+                // (X-Button, Klick auf den Hintergrund, Escape-Taste) - nur der X-Button rief
+                // bisher stopScanner()/stopQrScanner() auf. Bei Hintergrund-Klick/Escape blieb
+                // die Kamera im Hintergrund aktiv; öffnete man danach den jeweils anderen der
+                // beiden Scanner (beide teilten sich zudem dieselbe DOM-ID "qr-reader"), liefen
+                // zwei Kamera-Streams gleichzeitig - ein plausibler Grund für einen Browser-Absturz.
+                const scannerModalEl = document.getElementById('scannerModal');
+                if (scannerModalEl) scannerModalEl.addEventListener('hidden.bs.modal', () => this.stopScanner());
+                const qrScannerModalEl = document.getElementById('qrScannerModal');
+                if (qrScannerModalEl) qrScannerModalEl.addEventListener('hidden.bs.modal', () => this.stopQrScanner());
+
                 // QR-Code Barcode scanner query param
                 const params = new URLSearchParams(window.location.search);
                 const eqBarcode = params.get('eq_barcode');
@@ -681,6 +693,10 @@ const { createApp } = Vue;
 
                 async startQrScanner() {
                     if (typeof Html5Qrcode === 'undefined') { await appAlert('Scanner-Bibliothek nicht geladen'); return; }
+                    // Sicherstellen, dass nicht gleichzeitig der andere Scanner (Scan (Kamera))
+                    // noch eine Kamera offen hält - zwei parallele Kamera-Streams waren ein
+                    // plausibler Auslöser für Browser-Abstürze in diesem Bereich.
+                    this.stopScanner();
                     this.html5Qrcode = new Html5Qrcode("qr-reader");
                     const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
                     modal.show();
@@ -706,9 +722,11 @@ const { createApp } = Vue;
                 },
                 stopQrScanner() {
                     if (this.html5Qrcode) {
+                        const instance = this.html5Qrcode;
                         try {
-                            this.html5Qrcode.stop().then(() => this.html5Qrcode.clear()).catch(e => console.error(e));
+                            instance.stop().then(() => instance.clear()).catch(e => console.error(e));
                         } catch(e) {}
+                        this.html5Qrcode = null;
                     }
                 },
                 async requestPushPermission() {
@@ -830,18 +848,21 @@ const { createApp } = Vue;
                     localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
                 },
                 async startScanner() {
+                    // Sicherstellen, dass nicht gleichzeitig der andere Scanner (Barcode
+                    // Scannen) noch eine Kamera offen hält.
+                    this.stopQrScanner();
+
                     const modal = new bootstrap.Modal(document.getElementById('scannerModal'));
                     modal.show();
-                    
+
                     if (this.qrScanner) {
-                        this.qrScanner.clear();
+                        try { this.qrScanner.clear(); } catch(e) {}
                     }
-                    
-                    this.qrScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 }, false);
+
+                    this.qrScanner = new Html5QrcodeScanner("qr-reader-scan", { fps: 10, qrbox: 250 }, false);
                     this.qrScanner.render(async (decodedText, decodedResult) => {
-                        this.qrScanner.clear();
-                        bootstrap.Modal.getInstance(document.getElementById('scannerModal')).hide();
-                        
+                        this.stopScanner();
+
                         // Try to find equipment with this barcode/QR
                         const eq = this.equipment.find(e => e.id == decodedText || e.name.includes(decodedText));
                         if(eq) {
@@ -856,7 +877,12 @@ const { createApp } = Vue;
                 },
                 stopScanner() {
                     if (this.qrScanner) {
-                        this.qrScanner.clear();
+                        // try/catch: clear() erneut auf einer bereits geräumten Instanz
+                        // aufzurufen (z.B. wenn sowohl der X-Button als auch der
+                        // hidden.bs.modal-Listener feuern) darf nicht mit einem unbehandelten
+                        // Fehler abbrechen.
+                        try { this.qrScanner.clear(); } catch(e) {}
+                        this.qrScanner = null;
                     }
                     const m = bootstrap.Modal.getInstance(document.getElementById('scannerModal'));
                     if(m) m.hide();
@@ -1134,6 +1160,9 @@ const { createApp } = Vue;
                         if(res.ok) {
                             bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
                             await Promise.all([this.loadMissions(), this.loadData()]);
+                        } else {
+                            const err = await res.json().catch(() => ({}));
+                            await appAlert("Speichern fehlgeschlagen: " + (err.detail || "Unbekannter Fehler."));
                         }
                     } finally {
                         this.isSaving = false;
@@ -1141,7 +1170,12 @@ const { createApp } = Vue;
                 },
                 async deleteMission(id) {
                     if(await appConfirm("Einsatzbericht unwiderruflich löschen?")) {
-                        await fetch(`/api/missions/${id}`, { method: 'DELETE', credentials: 'include' });
+                        const res = await fetch(`/api/missions/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            await appAlert("Löschen fehlgeschlagen: " + (err.detail || "Unbekannter Fehler."));
+                            return;
+                        }
                         await Promise.all([this.loadMissions(), this.loadData()]);
                     }
                 },
@@ -1159,28 +1193,35 @@ const { createApp } = Vue;
                     if (this.activeS.isNewMission === false) {
                         url = `/sessions/${this.activeS.id}/leader_signature`;
                     }
-                    const res = await fetch(url, { 
-                        method: 'POST', 
-                        headers: {'Content-Type': 'application/json'}, 
-                        credentials: 'include', 
-                        body: JSON.stringify({signature: sigData}) 
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify({signature: sigData})
                     });
                     if(res.ok) {
                         missionSigModal.hide();
                         await this.loadMissions();
                         await this.loadData();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert("Freigabe fehlgeschlagen: " + (err.detail || "Unbekannter Fehler."));
                     }
                 },
                 clearMissionSig() { if(missionSigPad) missionSigPad.clear(); },
-                
+
                 // Respiration Atemschutz
                 async submitRespi() {
+                    if(!this.activeMission || !this.activeMission.id) return await appAlert("Speichere den Einsatz zuerst, bevor du Atemschutz-Einträge hinzufügen kannst.");
                     if(!this.newRespi.personnel_id) return await appAlert("Träger wählen!");
                     const res = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newRespi) });
                     if(res.ok) {
                         this.newRespi = { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true };
                         const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
                         this.activeMission.respiList = await rRes.json();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert("Eintrag konnte nicht gespeichert werden: " + (err.detail || "Unbekannter Fehler."));
                     }
                 },
                 async deleteRespi(id) {
@@ -1188,6 +1229,8 @@ const { createApp } = Vue;
                     if(res.ok) {
                         const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
                         this.activeMission.respiList = await rRes.json();
+                    } else {
+                        await appAlert("Eintrag konnte nicht gelöscht werden.");
                     }
                 },
 
@@ -2370,7 +2413,12 @@ const { createApp } = Vue;
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { await appAlert("Bitte unterschreiben!"); return; }
                     const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
-                    if (r.ok) { sigModal.hide(); await this.loadData(); }
+                    if (r.ok) {
+                        sigModal.hide();
+                        await this.loadData();
+                    } else {
+                        await appAlert("Freigabe fehlgeschlagen. Bitte erneut versuchen.");
+                    }
                 },
                 clearSig() { if(sigPad) sigPad.clear(); },
                 

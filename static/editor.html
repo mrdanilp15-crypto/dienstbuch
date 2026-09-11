@@ -498,7 +498,16 @@
 
 <script>
     const { createApp } = Vue;
-    let sigPad = null, sigModal = null, saveTimer = null;
+    let sigPad = null, sigModal = null, saveTimer = null, savingPromise = null;
+
+    // new Date().toISOString() liefert das UTC-Datum, nicht das lokale - zwischen Mitternacht
+    // und ca. 1-2 Uhr deutscher Zeit würde ein neuer Diensteintrag sonst noch das Datum des
+    // Vortags als Standardwert bekommen.
+    function localDateToday() {
+        const d = new Date();
+        const off = d.getTimezoneOffset();
+        return new Date(d.getTime() - off * 60000).toISOString().split('T')[0];
+    }
 
     // In-App-Ersatz für window.alert()/confirm(): statt des nativen Browser-Dialogs
     // (zeigt Host-Adresse, wirkt wie Systembenachrichtigung) ein normales Bootstrap-Modal.
@@ -565,12 +574,12 @@
                 isReadOnly: false, 
                 groupId: null, 
                 sessionId: null,
-                globalVehicles: [], persons: [], pool: [],
+                globalVehicles: [], persons: [], pool: [], groupPersons: [],
                 topicOptions: [], instrOptions: [],
                 q: '', poolSearch: '', category: 'Übung', duration: 2.0,
                 time: '', endTime: '',
                 description: '', instructors: '', leaderSignature: null,
-                currentDate: new Date().toISOString().split('T')[0],
+                currentDate: localDateToday(),
                 saveState: 'idle', activeSigner: null,
                 isLoading: true,
                 cacheBuster: Date.now()
@@ -613,7 +622,7 @@
             const promises = [this.load()];
             promises.push((async () => {
                 try {
-                    const vRes = await fetch('/api/vehicles', { credentials: 'include' }); 
+                    const vRes = await fetch('/api/vehicles', { credentials: 'include' });
                     this.globalVehicles = await vRes.json();
                 } catch(e) {}
             })());
@@ -626,10 +635,18 @@
             })());
             promises.push((async () => {
                 try {
-                    const topics = await fetch(`/groups/${this.groupId}/topics`, { credentials: 'include' }); 
+                    const topics = await fetch(`/groups/${this.groupId}/topics`, { credentials: 'include' });
                     this.topicOptions = await topics.json();
-                    const instrs = await fetch(`/groups/${this.groupId}/instructors`, { credentials: 'include' }); 
+                    const instrs = await fetch(`/groups/${this.groupId}/instructors`, { credentials: 'include' });
                     this.instrOptions = await instrs.json();
+                } catch(e) {}
+            })());
+            promises.push((async () => {
+                try {
+                    // persons.id (nicht personnel.id!) dieser Gruppe laden - wird beim
+                    // Hinzufügen aus dem Kameraden-Pool gebraucht, siehe addSelectedFromPool().
+                    const gpRes = await fetch(`/groups/${this.groupId}/persons`, { credentials: 'include' });
+                    this.groupPersons = await gpRes.json();
                 } catch(e) {}
             })());
 
@@ -637,23 +654,34 @@
             this.isLoading = false;
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-            
+
             const canvas = document.getElementById('sigCanvas');
             if (canvas) {
                 sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
             }
-            
-            const resizeCanvas = () => {
-                if(!canvas || !sigPad) return;
+
+            // Resize + vorhandene Unterschrift laden in EINER Funktion, ausgelöst genau einmal
+            // durch "shown.bs.modal": vorher liefen ein Resize-Timer (der die Fläche leerte)
+            // und der fromDataURL-Ladevorgang in openSig() als zwei unabhängige Timer
+            // gegeneinander - der Resize kam meist zuletzt und löschte die gerade geladene
+            // Unterschrift wieder, sodass sie bei jedem Öffnen kurz aufblitzte und verschwand.
+            const resizeAndLoadCanvas = () => {
+                if (!canvas || !sigPad) return;
                 const ratio = Math.max(window.devicePixelRatio || 1, 1);
                 canvas.width = canvas.offsetWidth * ratio;
                 canvas.height = canvas.offsetHeight * ratio;
                 canvas.getContext("2d").scale(ratio, ratio);
-                sigPad.clear(); 
+                sigPad.clear();
+                const t = this.activeSigner;
+                if (t === 'LEADER' && this.leaderSignature) {
+                    sigPad.fromDataURL(this.leaderSignature);
+                } else if (t && t !== 'LEADER' && t.signature) {
+                    sigPad.fromDataURL(t.signature);
+                }
             };
             const sigEl = document.getElementById('sigModal');
             if(sigEl) {
-                sigEl.addEventListener('shown.bs.modal', () => setTimeout(resizeCanvas, 200));
+                sigEl.addEventListener('shown.bs.modal', () => setTimeout(resizeAndLoadCanvas, 50));
             }
         },
         methods: {
@@ -699,6 +727,24 @@
             },
             async performSave() {
                 if(!this.groupId || this.isLoading || this.isReadOnly) return;
+                if (savingPromise) {
+                    // Ein Speichervorgang läuft noch (z.B. langsame Verbindung beim allerersten
+                    // Anlegen) - nicht parallel einen zweiten schicken (Gefahr doppelt
+                    // angelegter Diensteinträge, solange noch keine sessionId feststeht),
+                    // sondern warten und danach mit dem aktuellsten Stand erneut speichern.
+                    // saveAndExit() wartet auf dieses Promise, bevor es navigiert.
+                    await savingPromise;
+                    return this.performSave();
+                }
+                const savePromise = this._doSave();
+                savingPromise = savePromise;
+                try {
+                    await savePromise;
+                } finally {
+                    if (savingPromise === savePromise) savingPromise = null;
+                }
+            },
+            async _doSave() {
                 const data = {
                     session_id: this.sessionId ? parseInt(this.sessionId) : null,
                     date: this.currentDate,
@@ -743,26 +789,42 @@
             async addSelectedFromPool() {
                 if(this.isReadOnly) return;
                 const selected = this.pool.filter(p => p.selected);
+                if (selected.length === 0) return;
+
+                // WICHTIG: sp.id ist die globale personnel.id, attendance.person_id
+                // referenziert aber persons.id (pro Gruppe eine eigene Zeile) - deshalb hier
+                // frisch die korrekte persons.id über den Namen auflösen, statt sp.id direkt
+                // zu übernehmen. Sonst landet beim Speichern die falsche ID in der Anwesenheit
+                // (Fehler oder, schlimmer, stille Zuordnung zu einer anderen Person).
+                try {
+                    const gpRes = await fetch(`/groups/${this.groupId}/persons`, { credentials: 'include' });
+                    this.groupPersons = await gpRes.json();
+                } catch(e) {}
+
+                const missing = [];
                 selected.forEach(sp => {
                     const exists = this.persons.find(x => String(x.id || x.person_id) === String(sp.id) || x.name === sp.name);
-                    if(!exists) {
-                        this.persons.push({ id: sp.id, name: sp.name, is_present: true, vehicle: '', signature: null, personnel_id: sp.id, has_picture: sp.has_picture, g26_expired: sp.g26_expired });
-                    }
+                    if(exists) return;
+                    const groupPerson = this.groupPersons.find(gp => gp.name === sp.name);
+                    if(!groupPerson) { missing.push(sp.name); return; }
+                    this.persons.push({ id: groupPerson.id, name: sp.name, is_present: true, vehicle: '', signature: null, personnel_id: sp.id, has_picture: sp.has_picture, g26_expired: sp.g26_expired });
                 });
                 this.pool.forEach(p => p.selected = false);
                 bootstrap.Modal.getInstance(document.getElementById('poolModal')).hide();
+                if (missing.length > 0) {
+                    await appAlert(`${missing.join(', ')} konnte(n) noch nicht hinzugefügt werden (Synchronisation läuft noch). Bitte Seite neu laden und erneut versuchen.`);
+                }
                 this.autoSave();
             },
             togglePresence(p) { if(this.isReadOnly) return; p.is_present = !p.is_present; this.autoSave(); },
             setVehicle(p,v) { if(this.isReadOnly) return; p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
             setCat(c) { if(this.isReadOnly) return; this.category = c; this.autoSave(); },
-            openSig(t) { 
+            openSig(t) {
+                // Laden der vorhandenen Unterschrift passiert zentral in resizeAndLoadCanvas()
+                // (ausgelöst durch das "shown.bs.modal"-Event) - hier NICHT nochmal per eigenem
+                // Timer laden, sonst ist man wieder beim alten Race-Bug (siehe mounted()).
                 if(this.isReadOnly) return;
-                this.activeSigner = t; sigModal.show(); 
-                setTimeout(() => {
-                    if(t !== 'LEADER' && t.signature) { sigPad.fromDataURL(t.signature); } 
-                    else if (t === 'LEADER' && this.leaderSignature) { sigPad.fromDataURL(this.leaderSignature); }
-                }, 200); 
+                this.activeSigner = t; sigModal.show();
             },
             saveSig() {
                 if(this.isReadOnly) return;
