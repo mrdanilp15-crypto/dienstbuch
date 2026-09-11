@@ -124,7 +124,21 @@ def init_db_extensions():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
+        # WICHTIG: personnel muss als Erstes existieren - mission_attendance,
+        # respiration_log und youth_attendance legen weiter unten Fremdschlüssel
+        # darauf an. Auf einer frischen Datenbank gab es personnel sonst noch nicht,
+        # wodurch "CREATE TABLE youth_attendance" mit Errno 150 abstürzte und alles
+        # danach - inklusive der Admin-Kontoanlage - nie ausgeführt wurde.
+        # Die volle Spalten-/Jugendfeuerwehr-Migration läuft weiterhin in
+        # personnel_mgr.init_personnel_db() weiter unten, hier nur die Basistabelle.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personnel (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE
+            ) ENGINE=InnoDB;
+        """)
+
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
