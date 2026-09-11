@@ -4,6 +4,17 @@ const { createApp } = Vue;
         let map = null, hydrantMarkers = [];
         let globalSearchTimer = null;
 
+// Chart.js rendert per Default für helle Seiten (dunkelgraue Achsenbeschriftung, fast
+// unsichtbare Gitterlinien) - auf dem dunklen App-Hintergrund waren Diagramme dadurch
+// praktisch leer/unlesbar (nur die farbigen Balken selbst waren zu erahnen). Einmalig
+// global auf helle Schrift/Gitterlinien umstellen, statt das in jedem einzelnen Chart
+// separat zu wiederholen.
+if (window.Chart) {
+    Chart.defaults.color = 'rgba(255, 255, 255, 0.75)';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.15)';
+    Chart.defaults.plugins.legend.labels.color = 'rgba(255, 255, 255, 0.85)';
+}
+
         function initResponsiveCanvas(canvasId, padInstance, existingSignatureDataUrl) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
@@ -261,7 +272,7 @@ const { createApp } = Vue;
                     editUserRole: 'mannschaft',
                     editUserPersonnelId: null,
                     showMobileSidebar: false,
-                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14, dwd_warncell_id: '' },
+                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14, dwd_warncell_id: '', default_hourly_rate: 15.0, impressum_text: '', datenschutz_text: '' },
                     uploadedMissionFiles: [],
                     archiveFiles: [],
                     newArchiveFile: { is_public: false },
@@ -312,6 +323,8 @@ const { createApp } = Vue;
                     consumables: [],
                     newConsumable: { name: '', unit: 'Stk', current_stock: 0, min_stock: 0, note: '' },
                     scheduleRsvpMap: {},
+                    lehrgangTypes: [],
+                    newLehrgangType: '',
                     
                     werkstattTab: 'pruefungen',
 
@@ -582,6 +595,18 @@ const { createApp } = Vue;
             async mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
+                // Die kleinen (i)-Hilfe-Icons setzen bisher nur das native title-Attribut -
+                // das zeigt einen Tooltip ausschließlich bei Maus-Hover, auf Touch-Geräten
+                // (und beim Klick generell) passiert nichts. Ein einziger delegierter
+                // Klick-Listener fängt jeden Klick auf so ein Icon ab (auch später von Vue
+                // neu gerenderte) und zeigt den title-Text stattdessen in einem normalen,
+                // klick-/touch-freundlichen Hinweis-Dialog an.
+                document.addEventListener('click', (e) => {
+                    const el = e.target.closest('.fa-question-circle[title]');
+                    if (el && el.getAttribute('title')) {
+                        appAlert(el.getAttribute('title'));
+                    }
+                });
                 this.setupPushNotifications();
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
@@ -609,63 +634,80 @@ const { createApp } = Vue;
                     return;
                 }
                 
-                const loadTasks = [
-                    this.loadStationSettings(),
-                    this.loadGroups(),
-                    this.loadVehicles(),
-                    this.loadBroadcasts(),
-                    this.loadApagerConfig(),
-                    this.loadSchedules(),
-                    this.loadPersonnel(),
-                    this.loadMissions(),
-                    this.loadBills()
-                ];
-                if (this.isAdmin) {
-                    loadTasks.push(this.loadSystemUsers());
-                }
-                await Promise.all(loadTasks);
-                
-                if (this.activeTab === 'stats') {
-                    this.loadStats();
-                }
-                
-                if (window.location.hash === '#new_mission') {
-                    this.activeTab = 'einsaetze';
-                    this.openNewMissionModal();
-                    window.location.hash = ''; // clear it
-                }
-                
-                const canvas = document.getElementById('sigCanvas');
-                if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
-                sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
-                selfPasswordModal = new bootstrap.Modal(document.getElementById('selfPasswordModal'));
-                
-                const mCanvas = document.getElementById('missionSigCanvas');
-                if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
-                missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
+                // WICHTIG: alles ab hier steht in einem try/finally, das ready=true GARANTIERT
+                // setzt, egal was schiefgeht. #app ist per v-cloak + v-show="ready" bis dahin
+                // komplett unsichtbar (nur der dunkle body-Hintergrund ist zu sehen) - vorher
+                // hing ready=true ganz am Ende dieser Funktion OHNE Absicherung: warf z.B. auch
+                // nur einer der neun parallelen Promise.all-Ladeaufrufe (Netzwerk-Hänger,
+                // Server-Neustart mitten in der Anfrage) oder ein DOM-Setup-Schritt danach einen
+                // Fehler, brach die ganze mounted()-Funktion sofort ab und ready blieb für immer
+                // false - die Seite zeigte dann dauerhaft nur einen leeren dunklen Bildschirm,
+                // ganz ohne Fehlermeldung. Zusätzlich Promise.allSettled() statt Promise.all():
+                // ein einzelner fehlgeschlagener Ladeaufruf (z.B. loadBills() wegen fehlender
+                // Berechtigung) soll nicht die anderen acht mit abbrechen.
+                try {
+                    const loadTasks = [
+                        this.loadStationSettings(),
+                        this.loadGroups(),
+                        this.loadVehicles(),
+                        this.loadBroadcasts(),
+                        this.loadApagerConfig(),
+                        this.loadSchedules(),
+                        this.loadPersonnel(),
+                        this.loadMissions(),
+                        this.loadBills(),
+                        this.loadLehrgangTypes()
+                    ];
+                    if (this.isAdmin) {
+                        loadTasks.push(this.loadSystemUsers());
+                    }
+                    const results = await Promise.allSettled(loadTasks);
+                    results.forEach((r, i) => { if (r.status === 'rejected') console.error('Fehler beim initialen Laden (Task ' + i + '):', r.reason); });
 
-                // Kamera zuverlässig stoppen, egal wie der Scanner-Dialog geschlossen wird
-                // (X-Button, Klick auf den Hintergrund, Escape-Taste) - nur der X-Button rief
-                // bisher stopQrScanner() auf, bei Hintergrund-Klick/Escape blieb die Kamera im
-                // Hintergrund aktiv.
-                const qrScannerModalEl = document.getElementById('qrScannerModal');
-                if (qrScannerModalEl) qrScannerModalEl.addEventListener('hidden.bs.modal', () => this.stopQrScanner());
+                    if (this.activeTab === 'stats') {
+                        this.loadStats();
+                    }
 
-                // QR-Code Barcode scanner query param
-                const params = new URLSearchParams(window.location.search);
-                const eqBarcode = params.get('eq_barcode');
-                if (eqBarcode) {
-                    this.activeTab = 'material';
-                    setTimeout(async () => {
-                        await this.loadEquipment();
-                        const match = this.equipment.find(e => e.barcode === eqBarcode);
-                        if (match) {
-                            this.editEquipment(match);
-                        }
-                    }, 800);
+                    if (window.location.hash === '#new_mission') {
+                        this.activeTab = 'einsaetze';
+                        this.openNewMissionModal();
+                        window.location.hash = ''; // clear it
+                    }
+
+                    const canvas = document.getElementById('sigCanvas');
+                    if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
+                    sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
+                    selfPasswordModal = new bootstrap.Modal(document.getElementById('selfPasswordModal'));
+
+                    const mCanvas = document.getElementById('missionSigCanvas');
+                    if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
+                    missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
+
+                    // Kamera zuverlässig stoppen, egal wie der Scanner-Dialog geschlossen wird
+                    // (X-Button, Klick auf den Hintergrund, Escape-Taste) - nur der X-Button rief
+                    // bisher stopQrScanner() auf, bei Hintergrund-Klick/Escape blieb die Kamera im
+                    // Hintergrund aktiv.
+                    const qrScannerModalEl = document.getElementById('qrScannerModal');
+                    if (qrScannerModalEl) qrScannerModalEl.addEventListener('hidden.bs.modal', () => this.stopQrScanner());
+
+                    // QR-Code Barcode scanner query param
+                    const params = new URLSearchParams(window.location.search);
+                    const eqBarcode = params.get('eq_barcode');
+                    if (eqBarcode) {
+                        this.activeTab = 'material';
+                        setTimeout(async () => {
+                            await this.loadEquipment();
+                            const match = this.equipment.find(e => e.barcode === eqBarcode);
+                            if (match) {
+                                this.editEquipment(match);
+                            }
+                        }, 800);
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Initialisieren des Dashboards:', e);
+                } finally {
+                    this.ready = true;
                 }
-
-                this.ready = true;
                 if (this.isFirstLoginBlock) {
                     setTimeout(() => {
                         const el = document.getElementById('selfPasswordModal');
@@ -940,9 +982,11 @@ const { createApp } = Vue;
                 
                 // Schedules / Dienstplanung
                 async loadSchedules() {
-                    const res = await fetch('/api/missions/schedules/list', { credentials: 'include' });
-                    if(res.ok) this.schedules = await res.json();
-                    await this.loadScheduleRsvps();
+                    try {
+                        const res = await fetch('/api/missions/schedules/list', { credentials: 'include' });
+                        if(res.ok) this.schedules = await res.json();
+                        await this.loadScheduleRsvps();
+                    } catch(e) { console.error("Error loading schedules", e); }
                 },
                 async loadScheduleRsvps() {
                     const todayStr = new Date().toISOString().split('T')[0];
@@ -978,6 +1022,7 @@ const { createApp } = Vue;
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
                         await this.loadSchedules();
+                        if (this.activeTab === 'kalender') await this.loadCalendar();
                     }
                 },
                 async deleteSchedule(id) {
@@ -1075,7 +1120,12 @@ const { createApp } = Vue;
                 },
 
                 // Vehicles & Logs
-                async loadVehicles() { const res = await fetch('/api/vehicles', { credentials: 'include' }); this.vehicles = await res.json(); },
+                async loadVehicles() {
+                    try {
+                        const res = await fetch('/api/vehicles', { credentials: 'include' });
+                        if (res.ok) this.vehicles = await res.json();
+                    } catch(e) { console.error("Error loading vehicles", e); }
+                },
                 async quickStatusChange(v) { await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) }); },
                 async loadVehicleLogs() {
                     if(!this.activeVehicleForLog) return;
@@ -1159,8 +1209,10 @@ const { createApp } = Vue;
 
                 // Broadcasts
                 async loadBroadcasts() {
-                    const res = await fetch('/api/broadcasts/active', { credentials: 'include' });
-                    if(res.ok) this.activeBroadcasts = await res.json();
+                    try {
+                        const res = await fetch('/api/broadcasts/active', { credentials: 'include' });
+                        if(res.ok) this.activeBroadcasts = await res.json();
+                    } catch(e) { console.error("Error loading broadcasts", e); }
                 },
                 async markBroadcastAsRead(b) {
                     const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
@@ -1185,8 +1237,10 @@ const { createApp } = Vue;
                 },
                 // Missions
                 async loadMissions() {
-                    const res = await fetch('/api/missions', { credentials: 'include' });
-                    if(res.ok) this.missions = await res.json();
+                    try {
+                        const res = await fetch('/api/missions', { credentials: 'include' });
+                        if(res.ok) this.missions = await res.json();
+                    } catch(e) { console.error("Error loading missions", e); }
                 },
                 openNewMissionModal() {
                     const now = new Date();
@@ -1494,8 +1548,10 @@ const { createApp } = Vue;
 
                 // Personal
                 async loadPersonnel() {
-                    const res = await fetch('/api/personnel/list', { credentials: 'include' });
-                    if(res.ok) this.personnel = await res.json();
+                    try {
+                        const res = await fetch('/api/personnel/list', { credentials: 'include' });
+                        if(res.ok) this.personnel = await res.json();
+                    } catch(e) { console.error("Error loading personnel", e); }
                 },
                 openPersonnelModal() {
                     this.activePersonnel = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: null, entry_date: null, honors: '', profile_picture: '', has_picture: false, courses: [], gearList: [], emergency_contact_name: '', emergency_contact_phone: '' };
@@ -1616,22 +1672,48 @@ const { createApp } = Vue;
                         this.activePersonnel.courses = await cRes.json();
                     }
                 },
+                async loadLehrgangTypes() {
+                    try {
+                        const res = await fetch('/api/material/lehrgang-types', { credentials: 'include' });
+                        this.lehrgangTypes = res.ok ? await res.json() : [];
+                    } catch(e) { this.lehrgangTypes = []; }
+                },
+                async addLehrgangType() {
+                    if (!this.newLehrgangType.trim()) return;
+                    const res = await fetch('/api/material/lehrgang-types', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ name: this.newLehrgangType.trim() })
+                    });
+                    if (res.ok) {
+                        this.newLehrgangType = '';
+                        await this.loadLehrgangTypes();
+                    } else {
+                        const d = await res.json().catch(() => ({}));
+                        await appAlert(d.detail || "Konnte nicht hinzugefügt werden.");
+                    }
+                },
+                async deleteLehrgangType(id) {
+                    await fetch(`/api/material/lehrgang-types/${id}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadLehrgangTypes();
+                },
 
                 // Billing / Abrechnung
                 async loadBills() {
-                    const [res, mRes] = await Promise.all([
-                        fetch('/api/missions/billing/list', { credentials: 'include' }),
-                        fetch('/api/missions', { credentials: 'include' })
-                    ]);
-                    if(res.ok) this.bills = await res.json();
-                    if(mRes.ok) this.missions = await mRes.json();
-                    this.$nextTick(() => {
-                        const avail = this.availableMissionsForBilling;
-                        if (avail && avail.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
-                            if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
-                            this.newBill.mission_id = avail[0].id;
-                        }
-                    });
+                    try {
+                        const [res, mRes] = await Promise.all([
+                            fetch('/api/missions/billing/list', { credentials: 'include' }),
+                            fetch('/api/missions', { credentials: 'include' })
+                        ]);
+                        if(res.ok) this.bills = await res.json();
+                        if(mRes.ok) this.missions = await mRes.json();
+                        this.$nextTick(() => {
+                            const avail = this.availableMissionsForBilling;
+                            if (avail && avail.length > 0 && (!this.newBill || !this.newBill.mission_id)) {
+                                if (!this.newBill) this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
+                                this.newBill.mission_id = avail[0].id;
+                            }
+                        });
+                    } catch(e) { console.error("Error loading bills", e); }
                 },
                 async submitBill() {
                     if(!this.newBill.mission_id) return await appAlert("Bitte einen Einsatz auswählen!");
@@ -2570,9 +2652,15 @@ const { createApp } = Vue;
                     if (full) this.startBmaEdit(full);
                 },
                 exportAttendanceStatsCsv() {
+                    // Semikolon als Trennzeichen UND Komma statt Punkt als Dezimaltrennzeichen -
+                    // beides entspricht dem deutschen Excel-Gebietsschema. Nur eines von beidem
+                    // anzupassen reicht nicht: mit Punkt-Dezimalzahlen erkennt ein deutsches
+                    // Excel die Stundenwerte nicht als Zahl, sondern als Text (keine Summen-/
+                    // Sortierfunktion, linksbündig statt rechtsbündig).
+                    const num = n => String(n).replace('.', ',');
                     const rows = [['Name', 'Dienststunden', 'Einsatzstunden', 'Gesamtstunden']];
                     for (const p of this.statsAttendanceTop) {
-                        rows.push([p.name, p.session_hours, p.mission_hours, p.total_hours]);
+                        rows.push([p.name, num(p.session_hours), num(p.mission_hours), num(p.total_hours)]);
                     }
                     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
                     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -2596,6 +2684,10 @@ const { createApp } = Vue;
                     if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
                     this.calendarMonth = m; this.calendarYear = y;
                     this.loadCalendar();
+                },
+                openCalendarDayModal(dateStr) {
+                    this.newSchedule = { title: '', date: dateStr, time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id || null };
+                    new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async loadVehicleDocuments(vehicleId) {
                     try {
@@ -2736,9 +2828,6 @@ const { createApp } = Vue;
                         this.isLoadingAnniversaries = false;
                     }
                 },
-                printAnniversaries() {
-                    window.print();
-                },
                 openReport(s) { 
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
                         const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
@@ -2871,15 +2960,17 @@ const { createApp } = Vue;
                 
                 // === USER EDIT METHODS ===
                 async loadSystemUsers() {
-                    const res = await fetch('/api/users/list', { credentials: 'include' });
-                    if (res.ok) {
-                        const users = await res.json();
-                        // Enrich with personnel name lookup
-                        this.systemUsers = users.map(u => ({
-                            ...u,
-                            personnel_name: u.personnel_id ? (this.personnel.find(p => p.id === u.personnel_id)?.name || `ID ${u.personnel_id}`) : null
-                        }));
-                    }
+                    try {
+                        const res = await fetch('/api/users/list', { credentials: 'include' });
+                        if (res.ok) {
+                            const users = await res.json();
+                            // Enrich with personnel name lookup
+                            this.systemUsers = users.map(u => ({
+                                ...u,
+                                personnel_name: u.personnel_id ? (this.personnel.find(p => p.id === u.personnel_id)?.name || `ID ${u.personnel_id}`) : null
+                            }));
+                        }
+                    } catch(e) { console.error("Error loading system users", e); }
                 },
                 startUserEdit(usr) {
                     this.editingUserId = usr.id;
@@ -2916,6 +3007,7 @@ const { createApp } = Vue;
                         const res = await fetch('/api/settings/station', { credentials: 'include' });
                         if (res.ok) {
                             this.stationConfig = await res.json();
+                            if (this.stationConfig.default_hourly_rate) this.sepaRate = this.stationConfig.default_hourly_rate;
                         }
                     } catch(e) { console.error("Error loading station settings", e); }
                 },
@@ -3046,7 +3138,12 @@ const { createApp } = Vue;
                     }
                 },
                 async loadStats() {
-                    this.$nextTick(async () => {
+                    // $nextTick allein reicht nicht zuverlässig: der Statistik-Tab wird per
+                    // v-show ein-/ausgeblendet, und direkt im selben Frame gemessene
+                    // Canvas-Maße können noch 0x0 sein (Chart.js zeichnet dann nichts,
+                    // obwohl die Daten da sind - Diagramme wirkten komplett leer).
+                    // requestAnimationFrame wartet zusätzlich auf den nächsten Paint-Zyklus.
+                    await new Promise(resolve => this.$nextTick(() => requestAnimationFrame(resolve)));
                     try {
                         const res = await fetch('/api/admin/stats', { credentials: 'include' });
                         if (res.ok) {
@@ -3125,7 +3222,6 @@ const { createApp } = Vue;
                             console.error('Error loading attendance stats:', err);
                         }
                     }
-                    });
                 }
             }
         });

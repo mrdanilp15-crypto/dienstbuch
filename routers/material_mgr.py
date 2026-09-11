@@ -156,16 +156,22 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
         raise HTTPException(status_code=500, detail=str(err))
     finally:
         cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "GERAET_BEARBEITEN", f"Gerät ID {eq_id} ('{eq.name.strip()}') aktualisiert.")
     return {"status": "success"}
 
 @router.delete("/equipment/{eq_id}")
 def delete_equipment(eq_id: int, request: Request):
     user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
-    conn = get_db_connection(); cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT name FROM equipment WHERE id = %s", (eq_id,))
+    row = cur.fetchone()
     cur.execute("DELETE FROM equipment_inspections WHERE equipment_id = %s", (eq_id,))
     cur.execute("DELETE FROM equipment_defect_reports WHERE equipment_id = %s", (eq_id,))
     cur.execute("DELETE FROM equipment WHERE id = %s", (eq_id,))
     conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "GERAET_LOESCHEN", f"Gerät ID {eq_id} ('{row['name'] if row else '?'}') gelöscht.")
     return {"status": "success"}
 
 @router.get("/equipment/{eq_id}/loans")
@@ -388,6 +394,40 @@ def delete_inventar_item(item_id: int, request: Request):
     user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM personal_inventar WHERE id = %s", (item_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- LEHRGANGSARTEN (verwaltbare Vorschlagsliste statt freiem Text) ---
+@router.get("/lehrgang-types")
+def list_lehrgang_types(request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM lehrgang_types ORDER BY name ASC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@router.post("/lehrgang-types")
+def add_lehrgang_type(data: dict, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO lehrgang_types (name) VALUES (%s)", (name,))
+        conn.commit()
+    except mysql.connector.Error as err:
+        if err.errno == 1062:
+            raise HTTPException(status_code=400, detail=f"'{name}' ist bereits in der Liste.")
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/lehrgang-types/{type_id}")
+def delete_lehrgang_type(type_id: int, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM lehrgang_types WHERE id = %s", (type_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

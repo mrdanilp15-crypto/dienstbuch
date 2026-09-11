@@ -208,6 +208,15 @@
             color: #ffffff !important;
             border-radius: 12px;
         }
+        /* Einheitliche Feldhöhe über Feldtypen hinweg (Datum-Inputs bringen browserseitig
+           eigenes Icon-UI mit und rendern sonst höher als Text-Felder daneben). */
+        input.form-control, select.form-select {
+            line-height: 1.5;
+            min-height: calc(1.5em + 0.75rem + 2px);
+        }
+        input[type="date"] {
+            color-scheme: dark;
+        }
         .form-select option {
             background-color: #1a1515 !important;
             color: #ffffff !important;
@@ -301,7 +310,7 @@
                 <button class="nav-link shadow-sm" id="users-tab" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" @click="loadUsers">System-Zugriffe (Logins)</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link shadow-sm text-danger" id="logs-tab" data-bs-toggle="tab" data-bs-target="#pane-logs" type="button" role="tab" @click="loadAuditLogs"><i class="fa fa-history me-1"></i>Sicherheits-Logbuch</button>
+                <button class="nav-link shadow-sm" id="settings-tab" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" @click="loadSettings"><i class="fa fa-sliders me-1"></i>Systemeinstellungen</button>
             </li>
         </ul>
 
@@ -433,22 +442,41 @@
                 </div>
             </div>
 
-            <!-- TAB 3: AUDIT LOGS -->
-            <div class="tab-pane fade" id="pane-logs" role="tabpanel">
-                <div class="card premium-card p-4">
-                    <h5 class="fw-bold mb-3 text-white"><i class="fa fa-history text-danger me-2"></i>System-Protokoll (Revisionssicher)</h5>
-                    <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
-                        <table class="table table-dark table-hover align-middle mb-0">
-                            <thead><tr><th>ZEITSTEMPEL</th><th>NUTZER</th><th>AKTION</th><th>DETAILS</th></tr></thead>
-                            <tbody>
-                                <tr v-for="l in auditLogs" :key="l.id">
-                                    <td class="text-muted font-monospace" style="font-size:0.8rem;">{{ l.date_formatted }}</td>
-                                    <td><span class="badge bg-secondary">{{ l.username }}</span></td>
-                                    <td class="fw-bold text-danger text-uppercase" style="font-size: 0.75rem;">{{ l.action }}</td>
-                                    <td class="text-muted small">{{ l.details }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+            <!-- TAB 4: SYSTEMEINSTELLUNGEN -->
+            <div class="tab-pane fade" id="pane-settings" role="tabpanel">
+                <div class="row g-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card premium-card p-4">
+                            <h5 class="fw-bold mb-3 text-white"><i class="fa fa-user-doctor text-danger me-2"></i>Prüf-/Unterweisungsintervalle</h5>
+                            <p class="text-muted small">Bestimmt, wann G26.3, Belastungsübung und Unterweisung als "fällig" gelten (Statusfarbe bei den Kameraden).</p>
+                            <div class="mb-3">
+                                <label class="form-label">G26.3 Atemschutzuntersuchung (Monate)</label>
+                                <input type="number" v-model.number="intervals.g26" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Jährlicher Belastungslauf (Monate)</label>
+                                <input type="number" v-model.number="intervals.belastung" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">UVV Sicherheitsunterweisung (Monate)</label>
+                                <input type="number" v-model.number="intervals.unterweisung" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card premium-card p-4">
+                            <h5 class="fw-bold mb-3 text-white"><i class="fa fa-bell text-danger me-2"></i>Erinnerungen & Sitzung</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Erinnerungs-Vorlaufzeit (Tage) <i class="fa fa-question-circle text-muted" title="Wie viele Tage im Voraus vor Prüf-/Fälligkeitsfristen (Geräte, TÜV/SP, G26, Lehrgänge, Fahrzeugkontrolle...) gewarnt wird."></i></label>
+                                <input type="number" v-model.number="intervals.reminder_window_days" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Sitzungsdauer / Auto-Logout (Tage) <i class="fa fa-question-circle text-muted" title="Wie lange ein Login gültig bleibt, bevor sich die Person neu anmelden muss."></i></label>
+                                <input type="number" v-model.number="intervals.session_max_days" class="form-control">
+                            </div>
+                            <button class="btn btn-premium w-100 fw-bold py-2 mt-3" @click="saveGlobalSettings"><i class="fa fa-save me-1"></i>Einstellungen speichern</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -682,7 +710,7 @@ createApp({
     data() {
         return {
             personnel: [], search: '', filterStatus: '', activePerson: null, modalInstance: null, cacheBuster: Date.now(),
-            intervals: { g26: 36, belastung: 12, unterweisung: 12 }, auditLogs: [],
+            intervals: { g26: 36, belastung: 12, unterweisung: 12, reminder_window_days: 14, session_max_days: 30 },
             ranks: [
                 'Feuerwehranwärter (FWA)', 'Feuerwehrmann (FM)', 'Oberfeuerwehrmann (OFM)', 'Hauptfeuerwehrmann (HFM)',
                 'Löschmeister (LM)', 'Oberlöschmeister (OLM)', 'Hauptlöschmeister (HLM)',
@@ -716,9 +744,21 @@ createApp({
         async loadSettings() {
             const r = await fetch('/api/personnel/settings', { credentials: 'include' }); const d = await r.json();
             if(d.int_g26) this.intervals.g26 = d.int_g26; if(d.int_belastung) this.intervals.belastung = d.int_belastung; if(d.int_unterweisung) this.intervals.unterweisung = d.int_unterweisung;
+            if(d.reminder_window_days) this.intervals.reminder_window_days = d.reminder_window_days;
+            if(d.session_max_days) this.intervals.session_max_days = d.session_max_days;
+        },
+        async saveGlobalSettings() {
+            const res = await fetch('/api/personnel/settings', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                body: JSON.stringify({
+                    int_g26: this.intervals.g26, int_belastung: this.intervals.belastung, int_unterweisung: this.intervals.unterweisung,
+                    reminder_window_days: this.intervals.reminder_window_days, session_max_days: this.intervals.session_max_days
+                })
+            });
+            if (res.ok) await appAlert("Einstellungen gespeichert!");
+            else await appAlert("Speichern fehlgeschlagen (keine Berechtigung?).");
         },
         async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
-        async loadAuditLogs() { const res = await fetch('/api/audit/logs', { credentials: 'include' }); if (res.ok) this.auditLogs = await res.json(); },
         getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
         getHealthStatus(dateStr, field) {
             if(!dateStr) return '';

@@ -107,7 +107,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; loadNotes(); showMobileSidebar = false"><i class="fa fa-sticky-note me-2"></i> Digitales Notizbuch</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; loadNotes(); showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; loadCalendar(); showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
 
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
@@ -125,7 +125,7 @@
                     
                     <div class="sidebar-section-header d-lg-none">Aktionen</div>
                     <button class="sidebar-btn d-lg-none" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i> Theme wechseln</button>
-                    <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop me-2"></i> Hallen-Display</a>
+                    <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop"></i> Hallen-Display</a>
                     <button class="sidebar-btn d-lg-none text-info" @click="requestPushPermission"><i class="fa fa-bell"></i> Push-Alarm Test</button>
                     <button class="sidebar-btn d-lg-none text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i> Logout</button>
 
@@ -443,7 +443,7 @@
                         </div>
                         <div class="calendar-grid">
                             <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
-                            <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday}">
+                            <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday, 'calendar-cell-clickable': cell.inMonth && canManageDienste}" @click="cell.inMonth && canManageDienste && openCalendarDayModal(cell.key)" :title="cell.inMonth && canManageDienste ? 'Klicken, um einen Termin an diesem Tag anzulegen' : ''">
                                 <div class="calendar-cell-num">{{ cell.day }}</div>
                                 <div v-for="ev in cell.events" :key="ev.type + ev.title + ev.date" class="calendar-event" :class="'calendar-event-' + ev.type" :title="ev.title + (ev.subtitle ? ' — ' + ev.subtitle : '')">
                                     {{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
@@ -1528,6 +1528,23 @@
                                         </table>
                                     </div>
                                 </div>
+                                <div class="col-12">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-scale-balanced text-danger me-2"></i>Rechtliches (Impressum & Datenschutz)</h5>
+                                        <p class="text-muted small">Wird auf der Login-Seite als Link angezeigt, sobald hier Text hinterlegt ist.</p>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label class="form-label text-white">Impressum</label>
+                                                <textarea v-model="stationConfig.impressum_text" class="form-control bg-dark border-secondary text-white" rows="6" placeholder="Verantwortlich für den Inhalt:&#10;Name, Anschrift, Kontakt..."></textarea>
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label class="form-label text-white">Datenschutzerklärung</label>
+                                                <textarea v-model="stationConfig.datenschutz_text" class="form-control bg-dark border-secondary text-white" rows="6" placeholder="Hinweise zur Verarbeitung personenbezogener Daten..."></textarea>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-premium rounded-pill fw-bold mt-3" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Speichern</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1545,6 +1562,10 @@
                                         <div class="mb-3">
                                             <label class="form-label text-white">BIC</label>
                                             <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Standard-Stundensatz (€) <i class="fa fa-question-circle text-muted" title="Wird als Vorschlag beim Öffnen der Abrechnung genutzt, statt jedes Jahr neu eingetragen werden zu müssen."></i></label>
+                                            <input type="number" step="0.01" v-model.number="stationConfig.default_hourly_rate" class="form-control bg-dark border-secondary text-white">
                                         </div>
                                         <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
                                     </div>
@@ -3153,7 +3174,10 @@
                                     <div class="row g-2 align-items-end">
                                         <div class="col-md-5">
                                             <label class="small text-muted fw-bold mb-1">Lehrgangsname</label>
-                                            <input type="text" v-model="newCourse.course_name" class="form-control form-control-sm">
+                                            <input type="text" list="lehrgangTypesList" v-model="newCourse.course_name" class="form-control form-control-sm">
+                                            <datalist id="lehrgangTypesList">
+                                                <option v-for="t in lehrgangTypes" :key="t.id" :value="t.name"></option>
+                                            </datalist>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="small text-muted fw-bold mb-1">Datum</label>
@@ -3165,6 +3189,22 @@
                                         </div>
                                         <div class="col-md-1">
                                             <button class="btn btn-premium btn-sm w-100" @click="submitCourse"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 pt-3 border-top border-secondary border-opacity-10">
+                                        <button class="btn btn-xs btn-outline-light rounded-pill px-2" style="font-size:0.7rem;" type="button" data-bs-toggle="collapse" data-bs-target="#lehrgangTypesManage"><i class="fa fa-gear me-1"></i>Lehrgangsarten verwalten</button>
+                                        <div class="collapse mt-2" id="lehrgangTypesManage">
+                                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                                <span v-for="t in lehrgangTypes" :key="t.id" class="badge bg-secondary d-inline-flex align-items-center gap-1">
+                                                    {{t.name}}
+                                                    <i class="fa fa-times" style="cursor:pointer;" @click="deleteLehrgangType(t.id)"></i>
+                                                </span>
+                                                <span v-if="lehrgangTypes.length === 0" class="text-muted small">Noch keine Lehrgangsarten hinterlegt.</span>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <input type="text" v-model="newLehrgangType" class="form-control form-control-sm" placeholder="Neue Lehrgangsart..." @keyup.enter="addLehrgangType">
+                                                <button class="btn btn-outline-light btn-sm" @click="addLehrgangType"><i class="fa fa-plus"></i></button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -3325,7 +3365,7 @@
                         </div>
                     </div>
                     <div class="modal-footer border-secondary border-opacity-10">
-                        <button type="button" class="btn btn-outline-light rounded-pill px-4" @click="printAnniversaries"><i class="fa fa-print me-1"></i>Drucken</button>
+                        <a :href="'/api/personnel/anniversaries/pdf?year=' + anniversariesYear" target="_blank" class="btn btn-outline-light rounded-pill px-4"><i class="fa fa-file-pdf me-1"></i>Als PDF</a>
                         <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
                     </div>
                 </div>

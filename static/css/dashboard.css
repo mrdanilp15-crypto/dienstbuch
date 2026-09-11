@@ -475,6 +475,21 @@
         input, select, textarea, .form-control, .form-select {
             color: #ffffff !important;
         }
+        /* Einheitliche Feldhöhe: native Datums-Inputs bringen browserseitig ihr eigenes
+           Kalender-Icon/Spinner-UI mit und rendern dadurch (auch bei identischem CSS)
+           oft ein paar Pixel höher als Text-/Zahlen-Felder oder <select> - in Formularen
+           mit gemischten Feldtypen nebeneinander (z.B. Fahrzeugakte: TÜV-Datum neben
+           Sicherheitsprüfung, Kilometerstand neben Nächster Service) wirkte das uneinheitlich.
+           Feste Zeilenhöhe statt browserabhängiger intrinsischer Höhe erzwingt gleiches Maß.
+           color-scheme: dark sorgt zusätzlich dafür, dass das native Kalender-Icon selbst
+           zum dunklen Theme passt statt dunkel-auf-dunkel kaum sichtbar zu sein. */
+        input.form-control, select.form-select, textarea.form-control {
+            line-height: 1.5;
+            min-height: calc(1.5em + 0.75rem + 2px);
+        }
+        input[type="date"].form-control, input[type="time"].form-control, input[type="datetime-local"].form-control {
+            color-scheme: dark;
+        }
         input::placeholder, textarea::placeholder {
             color: rgba(255, 255, 255, 0.4) !important;
         }
@@ -869,6 +884,13 @@
 }
 .calendar-cell-today {
     border: 1px solid var(--bs-danger, #dc3545);
+}
+.calendar-cell-clickable {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.calendar-cell-clickable:hover {
+    background: rgba(220, 53, 69, 0.12);
 }
 .calendar-cell-num {
     font-size: 0.75rem;
