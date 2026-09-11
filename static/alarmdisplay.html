@@ -93,6 +93,17 @@
             color: #ffd700;
         }
 
+        .weather-warning-strip {
+            background: repeating-linear-gradient(135deg, #b45309, #b45309 20px, #92400e 20px, #92400e 40px);
+            color: #fff;
+            font-weight: 700;
+            padding: 10px 20px;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow-x: auto;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
         .clock-container {
             font-size: 2rem;
             font-weight: 800;
@@ -403,7 +414,7 @@
         /* Print overrides */
         @media print {
             body { background: white; color: black; }
-            .alarm-header, .feedback-panel, .print-btn, #displayMap, .command-card:not(.main-alarm-card), .weather-banner { display: none !important; }
+            .alarm-header, .feedback-panel, .print-btn, #displayMap, .command-card:not(.main-alarm-card), .weather-banner, .weather-warning-strip { display: none !important; }
             .main-grid { grid-template-columns: 1fr; padding: 0; }
             .main-alarm-card { border: none; box-shadow: none; padding: 0; }
             .stichwort-val { color: black; font-size: 3rem; }
@@ -442,6 +453,14 @@
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
+
+        <!-- DWD Unwetterwarnungen -->
+        <div v-if="weatherWarnings.length > 0" class="weather-warning-strip">
+            <i class="fa fa-triangle-exclamation fa-beat me-2"></i>
+            <span v-for="(w, i) in weatherWarnings" :key="i" class="me-4">
+                <strong>{{ w.event }}</strong><span v-if="w.headline"> – {{ w.headline }}</span>
+            </span>
+        </div>
 
         <!-- Haupt-Alarm-Anzeige: volle Breite statt in eine Spalte gequetscht, damit
              Stichwort & Adresse aus der Distanz gut lesbar sind. -->
@@ -626,6 +645,7 @@
                         description: 'Wetterdaten',
                         iconClass: 'fa-cloud'
                     },
+                    weatherWarnings: [],
 
                     // Alarm timer states
                     formattedAlarmTime: '00:00',
@@ -692,6 +712,9 @@
                 this.initDisplayMap();
                 this.fetchWeather();
                 setInterval(this.fetchWeather, 300000); // Update weather every 5 mins
+
+                this.fetchWeatherWarnings();
+                setInterval(this.fetchWeatherWarnings, 600000); // DWD-Warnungen alle 10 Min neu laden
             },
             methods: {
                 initWebSocket() {
@@ -726,6 +749,15 @@
                 updateClock() {
                     const now = new Date();
                     this.timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                },
+                async fetchWeatherWarnings() {
+                    try {
+                        const res = await fetch('/api/weather/warnings');
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.weatherWarnings = data.warnings || [];
+                        }
+                    } catch(e) {}
                 },
                 async fetchWeather() {
                     try {

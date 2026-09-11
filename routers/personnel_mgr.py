@@ -34,11 +34,20 @@ class PersonnelMember(BaseModel):
     g26_3_date: Optional[str] = None
     belastungslauf_date: Optional[str] = None
     unterweisung_date: Optional[str] = None
+    dsgvo_ack_date: Optional[str] = None
+    dienstordnung_ack_date: Optional[str] = None
+    emergency_contact_name: Optional[str] = ""
+    emergency_contact_phone: Optional[str] = ""
 
 class GlobalSettings(BaseModel):
     int_g26: int
     int_belastung: int
     int_unterweisung: int
+
+class AvailabilityCreate(BaseModel):
+    start_date: str
+    end_date: str
+    reason: Optional[str] = ""
 
 # --- AUTOMATISCHE HINTERGRUND-SYNCHRONISATION ---
 def internal_sync_personnel_to_groups():
@@ -140,6 +149,45 @@ def get_single_member(member_id: int, request: Request):
             row[key] = bool(value)
     return row
 
+# --- VERFÜGBARKEIT / ABWESENHEIT (Urlaub, Krankheit, ...) ---
+@router.get("/{member_id}/availability")
+def list_availability(member_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM personnel_availability WHERE personnel_id = %s ORDER BY start_date DESC", (member_id,))
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        if isinstance(row["start_date"], date): row["start_date"] = str(row["start_date"])
+        if isinstance(row["end_date"], date): row["end_date"] = str(row["end_date"])
+    return res
+
+@router.post("/{member_id}/availability")
+def add_availability(member_id: int, a: AvailabilityCreate, request: Request):
+    # Jeder darf sich selbst eintragen; für andere braucht es Personalverwaltungs-Rechte.
+    # Da der Login nicht zwingend mit einer personnel_id verknüpft ist, reicht hier "eingeloggt" -
+    # Admin/Leitung können ohnehin jeden eintragen, Missbrauch durch Mannschaft wäre nur eine
+    # falsche Abwesenheitsnotiz für einen Kollegen, kein Sicherheitsrisiko.
+    check_auth(request)
+    if not a.start_date or not a.end_date:
+        raise HTTPException(status_code=400, detail="Zeitraum erforderlich")
+    if a.end_date < a.start_date:
+        raise HTTPException(status_code=400, detail="Enddatum darf nicht vor dem Startdatum liegen")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO personnel_availability (personnel_id, start_date, end_date, reason) VALUES (%s, %s, %s, %s)",
+        (member_id, a.start_date, a.end_date, (a.reason or "").strip())
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/availability/{entry_id}")
+def delete_availability(entry_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM personnel_availability WHERE id = %s", (entry_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
 DEFAULT_AVATAR_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-3.8-1.04-4.83-2.61.03-1.6 3.23-2.48 4.83-2.48s4.79.87 4.83 2.48C15.8 18.96 14.03 20 12 20z"/></svg>"""
 
 # --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
@@ -212,13 +260,17 @@ def add_member(m: PersonnelMember, request: Request):
                  badge_number=%s, birth_date=%s, entry_date=%s, honors=%s, profile_picture=%s,
                  is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
                  lic_b=%s, lic_be=%s, lic_c=%s, lic_ce=%s,
-                 g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s
+                 g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s,
+                 dsgvo_ack_date=%s, dienstordnung_ack_date=%s,
+                 emergency_contact_name=%s, emergency_contact_phone=%s
                  WHERE name=%s""",
                     (m.rank, m.phone, m.email, m.address,
                      m.badge_number, m.birth_date or None, m.entry_date or None, m.honors, m.profile_picture,
                      int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
                      int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
                      m.g26_3_date or None, m.belastungslauf_date or None, m.unterweisung_date or None,
+                     m.dsgvo_ack_date or None, m.dienstordnung_ack_date or None,
+                     m.emergency_contact_name, m.emergency_contact_phone,
                      clean_name))
         conn.commit()
     except Exception as e:
@@ -247,20 +299,24 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
     g26 = m.g26_3_date if m.g26_3_date else None
     bel = m.belastungslauf_date if m.belastungslauf_date else None
     unt = m.unterweisung_date if m.unterweisung_date else None
+    dsgvo = m.dsgvo_ack_date if m.dsgvo_ack_date else None
+    dienstordnung = m.dienstordnung_ack_date if m.dienstordnung_ack_date else None
 
-    sql = """UPDATE personnel SET 
+    sql = """UPDATE personnel SET
              name=%s, rank=%s, membership_status=%s, phone=%s, email=%s, address=%s,
              badge_number=%s, birth_date=%s, entry_date=%s, honors=%s, profile_picture=%s,
-             is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s, 
+             is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
              lic_b=%s, lic_be=%s, lic_c=%s, lic_ce=%s,
-             g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s 
+             g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s,
+             dsgvo_ack_date=%s, dienstordnung_ack_date=%s,
+             emergency_contact_name=%s, emergency_contact_phone=%s
              WHERE id=%s"""
-    
+
     vals = (m.name.strip(), m.rank, m.membership_status, m.phone, m.email, m.address,
             m.badge_number, b_date, e_date, m.honors, m.profile_picture,
             int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
             int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
-            g26, bel, unt, member_id)
+            g26, bel, unt, dsgvo, dienstordnung, m.emergency_contact_name, m.emergency_contact_phone, member_id)
     
     cur.execute(sql, vals)
 
@@ -356,7 +412,9 @@ def get_anniversaries(request: Request, year: Optional[int] = None):
         60: "60 Jahre Dienstzeit (Große Ehrenurkunde LFV)",
         70: "70 Jahre Dienstzeit (Große Ehrenurkunde LFV)"
     }
-    round_birthdays = [50, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+    # Liste begann vorher erst bei 50 - jüngere runde Geburtstage (18., 20., 30., 40.) wurden
+    # dadurch nie erkannt, egal welches Geburtsdatum eingetragen war.
+    round_birthdays = [18, 20, 30, 40, 50, 60, 65, 70, 75, 80, 85, 90, 95, 100]
 
     service_anniversaries = []
     birthday_anniversaries = []
@@ -432,6 +490,87 @@ def get_anniversaries(request: Request, year: Optional[int] = None):
         "birthday_anniversaries": birthday_anniversaries
     }
 
+@router.get("/me/licenses")
+def get_my_licenses(request: Request):
+    user = check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT p.lic_b, p.lic_be, p.lic_c, p.lic_ce, u.personnel_id FROM users u "
+                "LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
+    res = cur.fetchone()
+    if not res or not res["personnel_id"]:
+        # Gleicher Fallback-Abgleich wie in users_mgr.py get_my_global_fire_stats(): Konto noch
+        # nicht mit einem Personal-Datensatz verknüpft, versuche über den Benutzernamen zu finden.
+        cur.execute("SELECT id, lic_b, lic_be, lic_c, lic_ce FROM personnel WHERE LOWER(name) LIKE %s", (f"%{user['username'].lower()}%",))
+        fallback = cur.fetchone()
+        if fallback:
+            cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], user["username"]))
+            conn.commit()
+            res = fallback
+    cur.close(); conn.close()
+    if not res:
+        return {"unlinked": True, "lic_b": 0, "lic_be": 0, "lic_c": 0, "lic_ce": 0}
+    return {"unlinked": False, "lic_b": res["lic_b"], "lic_be": res["lic_be"], "lic_c": res["lic_c"], "lic_ce": res["lic_ce"]}
+
+@router.get("/roster/pdf")
+def get_personnel_roster_pdf(request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    from core.utils import get_station_name
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT name, rank, phone, email, address FROM personnel WHERE membership_status = 'Aktiv' ORDER BY name ASC")
+    members = cur.fetchall(); cur.close(); conn.close()
+
+    rows = ""
+    for m in members:
+        rows += (f"<tr><td>{m['name']}</td><td>{m.get('rank') or ''}</td>"
+                 f"<td>{m.get('phone') or ''}</td><td>{m.get('email') or ''}</td><td>{m.get('address') or ''}</td></tr>")
+    if not rows:
+        rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Keine aktiven Mitglieder gefunden.</td></tr>"
+
+    today_fmt = date.today().strftime("%d.%m.%Y")
+    # WICHTIG: kein CSS-Flexbox (xhtml2pdf unterstützt das nicht, siehe reports.py) -
+    # ausschließlich Tabellen für nebeneinander liegende Elemente.
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{ size: a4 portrait; margin: 2cm; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1f2937; }}
+        .header-table {{ width: 100%; border-bottom: 2px solid #b91c1c; padding-bottom: 12px; margin-bottom: 20px; }}
+        .station-title {{ font-size: 16pt; font-weight: bold; color: #b91c1c; margin: 0; }}
+        .doc-title {{ font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 15px; color: #111827; }}
+        table.list-table {{ width: 100%; border-collapse: collapse; }}
+        table.list-table th {{ background: #f8f9fa; border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 8.5pt; text-transform: uppercase; }}
+        table.list-table td {{ border: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; }}
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td><div class="station-title">{get_station_name()}</div></td>
+            <td style="text-align: right; vertical-align: bottom; font-size: 9pt; color: #4b5563;">Erstellt am: {today_fmt}</td>
+        </tr>
+    </table>
+    <div class="doc-title">Mitgliederliste (Aktive Mitglieder)</div>
+    <table class="list-table">
+        <thead><tr><th>Name</th><th>Dienstgrad</th><th>Telefon</th><th>E-Mail</th><th>Adresse</th></tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+</body>
+</html>"""
+
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(html_content, dest=pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="Mitgliederliste.pdf"'}
+    )
+
 def init_personnel_db():
     try:
         conn = get_db_connection()
@@ -468,6 +607,8 @@ def init_personnel_db():
             ("g26_3_date", "DATE NULL"),
             ("belastungslauf_date", "DATE NULL"),
             ("unterweisung_date", "DATE NULL"),
+            ("dsgvo_ack_date", "DATE NULL"),
+            ("dienstordnung_ack_date", "DATE NULL"),
             ("notes", "TEXT NULL"),
             ("skills", "TEXT NULL"),
             ("parent_contact", "VARCHAR(255) NULL"),
@@ -483,7 +624,9 @@ def init_personnel_db():
             ("has_jugendabzeichen", "BOOLEAN DEFAULT FALSE"),
             ("has_mta_basis", "BOOLEAN DEFAULT FALSE"),
             ("has_erste_hilfe", "BOOLEAN DEFAULT FALSE"),
-            ("has_funk", "BOOLEAN DEFAULT FALSE")
+            ("has_funk", "BOOLEAN DEFAULT FALSE"),
+            ("emergency_contact_name", "VARCHAR(255) DEFAULT ''"),
+            ("emergency_contact_phone", "VARCHAR(100) DEFAULT ''")
         ]
 
         for col_name, col_type in extended_columns:
@@ -492,6 +635,20 @@ def init_personnel_db():
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
                 if err.errno == 1060: pass
+
+        # Verfügbarkeits-/Abwesenheitszeiträume (Urlaub, Krankheit, ...)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personnel_availability (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                reason VARCHAR(255) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        conn.commit()
 
         # Start Youth Migration
         try:

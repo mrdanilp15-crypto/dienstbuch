@@ -27,7 +27,7 @@ def api_login(data: LoginRequest, response: Response, request: Request):
             raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
             
         if verify_password(user['password_hash'], data.password):
-            cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (user["id"],))
+            cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s", (user["id"],))
             conn.commit(); cur.close(); conn.close()
             
             token = create_session_token(user['username'], user['role'])

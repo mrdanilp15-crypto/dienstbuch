@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
@@ -27,6 +27,8 @@ class EquipmentCreate(BaseModel):
     interval_months: Optional[int] = 12
     last_inspection: Optional[str] = None
     next_inspection: Optional[str] = None
+    purchase_value: Optional[float] = None
+    insurance_policy: Optional[str] = ""
 
 class BatchInspectRequest(BaseModel):
     barcodes: List[str]
@@ -49,6 +51,7 @@ class CourseCreate(BaseModel):
     course_name: str
     date: str
     certificate_url: Optional[str] = ""
+    valid_until: Optional[str] = None
 
 class BmaCreate(BaseModel):
     object_name: str
@@ -79,6 +82,10 @@ class VehicleCheckCreate(BaseModel):
     items_checked: dict
     notes: str = ""
 
+class LoanCreate(BaseModel):
+    borrower_name: str
+    note: Optional[str] = ""
+
 # --- 🔧 GERÄTE & MATERIAL ENDPUNKTE ---
 @router.get("/equipment")
 def list_equipment(request: Request):
@@ -87,7 +94,9 @@ def list_equipment(request: Request):
     cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT e.*,
-               (SELECT status FROM equipment_inspections WHERE equipment_id = e.id ORDER BY date DESC, id DESC LIMIT 1) as current_status
+               (SELECT status FROM equipment_inspections WHERE equipment_id = e.id ORDER BY date DESC, id DESC LIMIT 1) as current_status,
+               (SELECT borrower_name FROM equipment_loans WHERE equipment_id = e.id AND returned_at IS NULL ORDER BY checked_out_at DESC LIMIT 1) as loaned_to,
+               (SELECT checked_out_at FROM equipment_loans WHERE equipment_id = e.id AND returned_at IS NULL ORDER BY checked_out_at DESC LIMIT 1) as loaned_since
         FROM equipment e
         ORDER BY e.next_inspection ASC
     """)
@@ -99,6 +108,8 @@ def list_equipment(request: Request):
             row["next_inspection"] = str(row["next_inspection"])
         if not row.get("current_status"):
             row["current_status"] = "Bestanden"
+        if row.get("loaned_since"):
+            row["loaned_since"] = str(row["loaned_since"])
     return res
 
 @router.post("/equipment")
@@ -109,9 +120,9 @@ def create_equipment(eq: EquipmentCreate, request: Request):
     next_i = eq.next_inspection if eq.next_inspection else None
     try:
         cur.execute("""
-            INSERT INTO equipment (name, barcode, category, image_url, manual_url, interval_months, last_inspection, next_inspection)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i))
+            INSERT INTO equipment (name, barcode, category, image_url, manual_url, interval_months, last_inspection, next_inspection, purchase_value, insurance_policy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i, eq.purchase_value, eq.insurance_policy or ""))
         conn.commit()
     except mysql.connector.Error as err:
         # barcode ist UNIQUE NOT NULL - ohne diese Behandlung schlug das Anlegen bei einem
@@ -135,9 +146,9 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
     try:
         cur.execute("""
             UPDATE equipment
-            SET name=%s, barcode=%s, category=%s, image_url=%s, manual_url=%s, interval_months=%s, last_inspection=%s, next_inspection=%s
+            SET name=%s, barcode=%s, category=%s, image_url=%s, manual_url=%s, interval_months=%s, last_inspection=%s, next_inspection=%s, purchase_value=%s, insurance_policy=%s
             WHERE id=%s
-        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i, eq_id))
+        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i, eq.purchase_value, eq.insurance_policy or "", eq_id))
         conn.commit()
     except mysql.connector.Error as err:
         if err.errno == 1062:
@@ -157,6 +168,46 @@ def delete_equipment(eq_id: int, request: Request):
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
+@router.get("/equipment/{eq_id}/loans")
+def list_loans(eq_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM equipment_loans WHERE equipment_id = %s ORDER BY checked_out_at DESC", (eq_id,))
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        row["checked_out_at"] = str(row["checked_out_at"])
+        row["returned_at"] = str(row["returned_at"]) if row.get("returned_at") else None
+    return res
+
+@router.post("/equipment/{eq_id}/loans")
+def checkout_equipment(eq_id: int, loan: LoanCreate, request: Request):
+    check_auth(request)
+    if not loan.borrower_name or not loan.borrower_name.strip():
+        raise HTTPException(status_code=400, detail="Name des Ausleihenden erforderlich")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id FROM equipment_loans WHERE equipment_id = %s AND returned_at IS NULL", (eq_id,))
+    if cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Gerät ist bereits ausgeliehen. Erst zurückgeben, dann erneut ausleihen.")
+    cur.execute(
+        "INSERT INTO equipment_loans (equipment_id, borrower_name, note) VALUES (%s, %s, %s)",
+        (eq_id, loan.borrower_name.strip(), (loan.note or "").strip())
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.put("/equipment/loans/{loan_id}/return")
+def return_equipment(loan_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE equipment_loans SET returned_at = NOW() WHERE id = %s AND returned_at IS NULL", (loan_id,))
+    conn.commit()
+    affected = cur.rowcount
+    cur.close(); conn.close()
+    if affected == 0:
+        raise HTTPException(status_code=404, detail="Keine offene Ausleihe mit dieser ID gefunden")
+    return {"status": "success"}
+
 @router.get("/equipment/{eq_id}/inspections")
 def list_inspections(eq_id: int, request: Request):
     check_auth(request)
@@ -168,6 +219,105 @@ def list_inspections(eq_id: int, request: Request):
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
     return res
+
+@router.get("/equipment/{eq_id}/report/pdf")
+def get_equipment_report_pdf(eq_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM equipment WHERE id = %s", (eq_id,))
+    eq = cur.fetchone()
+    if not eq:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Gerät nicht gefunden")
+
+    cur.execute("SELECT * FROM equipment_inspections WHERE equipment_id = %s ORDER BY date DESC, id DESC", (eq_id,))
+    inspections = cur.fetchall()
+    cur.execute("SELECT * FROM equipment_defect_reports WHERE equipment_id = %s ORDER BY created_at DESC", (eq_id,))
+    defects = cur.fetchall()
+    cur.close(); conn.close()
+
+    from core.utils import get_station_name
+    station_name = get_station_name()
+    today_fmt = date.today().strftime("%d.%m.%Y")
+
+    insp_rows = ""
+    for i in inspections:
+        d = i["date"].strftime("%d.%m.%Y") if isinstance(i["date"], date) else str(i["date"])
+        insp_rows += f"<tr><td>{d}</td><td>{i['inspector']}</td><td>{i['status']}</td><td>{i.get('note') or ''}</td></tr>"
+    if not insp_rows:
+        insp_rows = "<tr><td colspan='4' style='text-align:center; color:#6b7280;'>Keine Prüfungen erfasst.</td></tr>"
+
+    defect_rows = ""
+    for d in defects:
+        created = d["created_at"].strftime("%d.%m.%Y") if hasattr(d["created_at"], "strftime") else str(d["created_at"])
+        resolved = d["resolved_at"].strftime("%d.%m.%Y") if d.get("resolved_at") and hasattr(d["resolved_at"], "strftime") else "-"
+        defect_rows += f"<tr><td>{created}</td><td>{d['reporter_name']}</td><td>{d['severity']}</td><td>{d['description']}</td><td>{d['status']}</td><td>{resolved}</td></tr>"
+    if not defect_rows:
+        defect_rows = "<tr><td colspan='6' style='text-align:center; color:#6b7280;'>Keine Mängel gemeldet.</td></tr>"
+
+    # WICHTIG: kein CSS-Flexbox (xhtml2pdf unterstützt das nicht, siehe reports.py) -
+    # ausschließlich Tabellen für nebeneinander liegende Elemente.
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{ size: a4 portrait; margin: 2cm; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1f2937; }}
+        .header-table {{ width: 100%; border-bottom: 2px solid #b91c1c; padding-bottom: 12px; margin-bottom: 20px; }}
+        .station-title {{ font-size: 16pt; font-weight: bold; color: #b91c1c; margin: 0; }}
+        .doc-title {{ font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-top: 15px; margin-bottom: 15px; color: #111827; }}
+        .data-table {{ width: 100%; border-collapse: collapse; margin: 10px 0 25px 0; }}
+        .data-table td {{ padding: 6px 8px; vertical-align: top; }}
+        .data-table td.label {{ width: 30%; font-weight: bold; color: #374151; border-bottom: 1px solid #f3f4f6; }}
+        .data-table td.value {{ width: 70%; border-bottom: 1px solid #f3f4f6; }}
+        h3 {{ font-size: 12pt; color: #b91c1c; margin-top: 25px; margin-bottom: 8px; }}
+        table.list-table {{ width: 100%; border-collapse: collapse; }}
+        table.list-table th {{ background: #f8f9fa; border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 8.5pt; text-transform: uppercase; }}
+        table.list-table td {{ border: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; }}
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td><div class="station-title">{station_name}</div></td>
+            <td style="text-align: right; vertical-align: bottom; font-size: 9pt; color: #4b5563;">Erstellt am: {today_fmt}</td>
+        </tr>
+    </table>
+    <div class="doc-title">Prüf- und Mängelnachweis</div>
+    <table class="data-table">
+        <tr><td class="label">Gerätebezeichnung:</td><td class="value"><strong>{eq['name']}</strong></td></tr>
+        <tr><td class="label">Barcode / ID:</td><td class="value">{eq['barcode']}</td></tr>
+        <tr><td class="label">Kategorie:</td><td class="value">{eq['category']}</td></tr>
+        <tr><td class="label">Prüfintervall:</td><td class="value">{eq.get('interval_months') or '-'} Monate</td></tr>
+    </table>
+    <h3>Prüfhistorie</h3>
+    <table class="list-table">
+        <thead><tr><th>Datum</th><th>Prüfer</th><th>Status</th><th>Notiz</th></tr></thead>
+        <tbody>{insp_rows}</tbody>
+    </table>
+    <h3>Gemeldete Mängel</h3>
+    <table class="list-table">
+        <thead><tr><th>Gemeldet am</th><th>Melder</th><th>Schwere</th><th>Beschreibung</th><th>Status</th><th>Erledigt am</th></tr></thead>
+        <tbody>{defect_rows}</tbody>
+    </table>
+</body>
+</html>"""
+
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(html_content, dest=pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+
+    safe_name = eq['name'].replace(' ', '_').replace('/', '_')
+    filename = f"Pruefnachweis_{safe_name}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
 
 @router.post("/equipment/{eq_id}/inspections")
 def create_inspection(eq_id: int, insp: InspectionCreate, request: Request):
@@ -252,6 +402,8 @@ def list_lehrgaenge(p_id: int, request: Request):
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
+        if isinstance(row.get("valid_until"), date):
+            row["valid_until"] = str(row["valid_until"])
     return res
 
 @router.post("/personnel/{p_id}/lehrgaenge")
@@ -259,9 +411,9 @@ def add_lehrgang(p_id: int, course: CourseCreate, request: Request):
     user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
-        INSERT INTO lehrgaenge (personnel_id, course_name, date, certificate_url)
-        VALUES (%s, %s, %s, %s)
-    """, (p_id, course.course_name.strip(), course.date, course.certificate_url))
+        INSERT INTO lehrgaenge (personnel_id, course_name, date, certificate_url, valid_until)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (p_id, course.course_name.strip(), course.date, course.certificate_url, course.valid_until or None))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
@@ -393,5 +545,49 @@ def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
         INSERT INTO vehicle_checks (vehicle_id, date, checker_name, status, items_checked, notes)
         VALUES (%s, %s, %s, %s, %s, %s)
     """, (veh_id, check.date, check.checker_name, check.status, json.dumps(check.items_checked), check.notes))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- VERBRAUCHSMATERIAL / BESTANDSALARM ---
+@router.get("/consumables")
+def list_consumables(request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM consumables ORDER BY name ASC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        r["current_stock"] = float(r["current_stock"])
+        r["min_stock"] = float(r["min_stock"])
+    return res
+
+@router.post("/consumables")
+def add_consumable(data: dict, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO consumables (name, unit, current_stock, min_stock, note) VALUES (%s, %s, %s, %s, %s)",
+        (name, data.get("unit") or "Stk", float(data.get("current_stock") or 0), float(data.get("min_stock") or 0), data.get("note") or "")
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.put("/consumables/{item_id}")
+def update_consumable(item_id: int, data: dict, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "UPDATE consumables SET name=%s, unit=%s, current_stock=%s, min_stock=%s, note=%s WHERE id=%s",
+        (data.get("name"), data.get("unit") or "Stk", float(data.get("current_stock") or 0), float(data.get("min_stock") or 0), data.get("note") or "", item_id)
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/consumables/{item_id}")
+def delete_consumable(item_id: int, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM consumables WHERE id = %s", (item_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}

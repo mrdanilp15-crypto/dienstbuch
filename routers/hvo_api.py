@@ -48,3 +48,35 @@ def add_hvo_check(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
+# --- SANITÄTSMATERIAL (Verbandsmaterial, Medikamente...) MIT VERFALLSDATUM ---
+@router.get("/api/hvo/material")
+def get_hvo_material(request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM hvo_material ORDER BY expiry_date ASC")
+    res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        if r.get("expiry_date"): r["expiry_date"] = str(r["expiry_date"])
+    return res
+
+@router.post("/api/hvo/material")
+def add_hvo_material(data: dict, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO hvo_material (name, quantity, expiry_date, note) VALUES (%s, %s, %s, %s)",
+        (name, int(data.get("quantity") or 1), data.get("expiry_date") or None, data.get("note") or "")
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/api/hvo/material/{material_id}")
+def delete_hvo_material(material_id: int, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM hvo_material WHERE id = %s", (material_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+

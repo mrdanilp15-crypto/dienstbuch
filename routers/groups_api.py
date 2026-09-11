@@ -387,9 +387,167 @@ def year_report(group_id: int, year: int, request: Request):
     c.close()
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
 
+@router.get("/annual-report", response_class=HTMLResponse)
+def year_report_all_groups(year: int, request: Request):
+    # Gesamt-Jahresbericht über ALLE Gruppen hinweg statt nur eine einzelne - gleiche Logik
+    # wie year_report() oben, nur über jede Gruppe hinweg aggregiert. Da jede Person laut
+    # internal_sync_personnel_to_groups() in JEDER Gruppe im Roster steht, ist die Quote hier
+    # eine Näherung (Nenner = Summe der Diensttermine aller Gruppen) - für den schnellen
+    # Gesamtüberblick der Wehrführung ausreichend genau.
+    # WICHTIG: bewusst NICHT als /groups/all/print_view angelegt - das hätte mit
+    # /groups/{group_id}/print_view kollidiert (group_id würde "all" als String annehmen und
+    # dann an der int-Validierung scheitern, statt zu diesem Endpunkt durchzufallen).
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, name FROM groups_table ORDER BY name ASC")
+    groups = cur.fetchall()
+
+    html_body = ""
+    p_stats = {}
+    cat_sums = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0}
+    max_s_total = 0
+
+    for g in groups:
+        group_id = g['id']
+        cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (group_id, year))
+        max_s = cur.fetchone()['total'] or 0
+        max_s_total += max_s
+
+        cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.group_id=%s AND YEAR(s.date)=%s ORDER BY s.date ASC, s.id ASC", (group_id, year))
+        sessions_list = cur.fetchall()
+        if not sessions_list:
+            continue
+
+        attendance_by_session = {}
+        session_ids = [s['id'] for s in sessions_list]
+        placeholders = ", ".join(["%s"] * len(session_ids))
+        cur.execute(f"""
+            SELECT a.session_id, p.name, a.is_present, a.note, a.vehicle, a.signature
+            FROM attendance a JOIN persons p ON a.person_id = p.id
+            WHERE a.session_id IN ({placeholders})
+            ORDER BY a.session_id, p.name
+        """, tuple(session_ids))
+        for row in cur.fetchall():
+            attendance_by_session.setdefault(row['session_id'], []).append(row)
+
+        for s in sessions_list:
+            if s['leader_signature']: s['leader_signature'] = safe_decode(s['leader_signature'])
+            persons = attendance_by_session.get(s['id'], [])
+            for p in persons: p['signature'] = safe_decode(p['signature'])
+            html_body += reports.generate_single_report(s, persons, get_station_name())
+            cat = s['category'] if s['category'] in cat_sums else "Sonstiges"
+            cat_sums[cat] += float(s['duration'])
+            for p in persons:
+                if p['name'] not in p_stats: p_stats[p['name']] = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0, "total_h": 0.0, "p": 0}
+                if p['is_present']:
+                    p_stats[p['name']]["p"] += 1
+                    p_stats[p['name']][cat] += float(s['duration'])
+                    p_stats[p['name']]["total_h"] += float(s['duration'])
+
+    for n in p_stats:
+        p_stats[n]['q'] = round((p_stats[n]['p'] / max_s_total) * 100) if max_s_total > 0 else 0
+    html_body += reports.generate_year_report("Gesamte Feuerwehr", year, p_stats, cat_sums, get_station_name())
+    c.close()
+    return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
+
 # --- GLOBALER NUTZERSTUNDEN-ABGLEICH ---
 # Routes moved to routers/users_mgr.py
 
 # --- ALARMIERUNG (APAGER PRO WEBHOOK & CONFIG) ---
 # Routes moved to routers/apager_api.py
+
+# --- VORLAGEN FÜR WIEDERKEHRENDE DIENSTEINTRÄGE ---
+@router.get("/groups/{group_id}/templates")
+def list_session_templates(group_id: int, request: Request):
+    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT * FROM session_templates WHERE group_id = %s ORDER BY name ASC", (group_id,))
+    res = cur.fetchall(); c.close()
+    for r in res:
+        if r.get("duration") is not None: r["duration"] = float(r["duration"])
+    return res
+
+@router.post("/groups/{group_id}/templates")
+def create_session_template(group_id: int, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    name = (data.get("name") or "").strip()
+    if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute(
+        "INSERT INTO session_templates (group_id, name, category, duration, description, instructors, time, end_time) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        (group_id, name, data.get("category") or "Übung", float(data.get("duration") or 2.0),
+         data.get("description") or "", data.get("instructors") or "", data.get("time") or "", data.get("end_time") or "")
+    )
+    c.commit(); cur.close(); c.close()
+    return {"status": "success"}
+
+@router.delete("/templates/{template_id}")
+def delete_session_template(template_id: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute("DELETE FROM session_templates WHERE id = %s", (template_id,))
+    c.commit(); cur.close(); c.close()
+    return {"status": "success"}
+
+# --- GEMEINSAME KALENDERANSICHT ---
+@router.get("/api/calendar")
+def get_calendar_events(request: Request, year: int, month: int):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    c = get_db_connection(); cur = c.cursor(dictionary=True)
+    events = []
+
+    cur.execute("""
+        SELECT s.id, s.date, s.time, s.category, s.description, g.name as gname
+        FROM sessions s JOIN groups_table g ON s.group_id = g.id
+        WHERE YEAR(s.date) = %s AND MONTH(s.date) = %s
+    """, (year, month))
+    for row in cur.fetchall():
+        events.append({
+            "date": str(row["date"]), "type": "dienst",
+            "title": row["description"] or row["category"] or "Dienst",
+            "subtitle": row["gname"], "time": str(row["time"]) if row["time"] else None
+        })
+
+    cur.execute("""
+        SELECT id, date, time, stichwort, adresse, status FROM missions
+        WHERE YEAR(date) = %s AND MONTH(date) = %s
+    """, (year, month))
+    for row in cur.fetchall():
+        events.append({
+            "date": str(row["date"]), "type": "einsatz",
+            "title": row["stichwort"] or "Einsatz",
+            "subtitle": row["adresse"], "time": str(row["time"]) if row["time"] else None
+        })
+
+    cur.execute("""
+        SELECT r.id, r.start_datetime, r.end_datetime, r.purpose, v.name as vname
+        FROM vehicle_reservations r JOIN vehicles v ON r.vehicle_id = v.id
+        WHERE YEAR(r.start_datetime) = %s AND MONTH(r.start_datetime) = %s
+    """, (year, month))
+    for row in cur.fetchall():
+        events.append({
+            "date": str(row["start_datetime"])[:10], "type": "reservierung",
+            "title": f"{row['vname']}: {row['purpose']}",
+            "subtitle": None, "time": str(row["start_datetime"])[11:16]
+        })
+    c.close()
+
+    from routers import personnel_mgr
+    anniversaries = personnel_mgr.get_anniversaries(request, year)
+    for b in anniversaries.get("birthday_anniversaries", []):
+        if b["birthday_date"][5:7] == f"{month:02d}":
+            events.append({"date": b["birthday_date"], "type": "jubilaeum", "title": f"{b['name']} wird {b['age']}", "subtitle": "Runder Geburtstag", "time": None})
+    for sv in anniversaries.get("service_anniversaries", []):
+        if sv["anniversary_date"][5:7] == f"{month:02d}":
+            events.append({"date": sv["anniversary_date"], "type": "jubilaeum", "title": f"{sv['name']}: {sv['years']} Jahre Dienst", "subtitle": "Dienstjubiläum", "time": None})
+
+    events.sort(key=lambda e: (e["date"], e["time"] or ""))
+    return events
 

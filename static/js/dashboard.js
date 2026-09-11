@@ -2,6 +2,7 @@ const { createApp } = Vue;
         let sigPad = null, sigModal = null, selfPasswordModal = null;
         let missionSigPad = null, missionSigModal = null;
         let map = null, hydrantMarkers = [];
+        let globalSearchTimer = null;
 
         function initResponsiveCanvas(canvasId, padInstance, existingSignatureDataUrl) {
             const canvas = document.getElementById(canvasId);
@@ -175,7 +176,25 @@ const { createApp } = Vue;
                     personnelSearch: '',
                     activePersonnel: null,
                     newGear: { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] },
-                    newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' },
+                    newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '', valid_until: '' },
+                    availabilityList: [],
+                    newAvailability: { start_date: '', end_date: '', reason: '' },
+                    dueSoonItems: [],
+                    mileageChartInstance: null,
+                    newLoan: { borrower_name: '', note: '' },
+                    vehicleReservations: [],
+                    newReservation: { purpose: '', start_datetime: '', end_datetime: '' },
+                    vehicleDocuments: [],
+                    vehicleMaintenance: [],
+                    newMaintenance: { date: new Date().toISOString().split('T')[0], description: '', workshop: '', cost: 0 },
+                    calendarYear: new Date().getFullYear(),
+                    calendarMonth: new Date().getMonth() + 1,
+                    calendarEvents: [],
+                    myLicenses: null,
+                    globalSearchQuery: '',
+                    globalSearchResults: null,
+                    globalSearchOpen: false,
+                    auditLog: [],
                     ranks: [
                         'Feuerwehranwärter (FWA)', 'Feuerwehrfrauanwärterin (FWAin)',
                         'Feuerwehrmann (FM)', 'Feuerwehrfrau (FF)',
@@ -242,7 +261,7 @@ const { createApp } = Vue;
                     editUserRole: 'mannschaft',
                     editUserPersonnelId: null,
                     showMobileSidebar: false,
-                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14 },
+                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14, dwd_warncell_id: '' },
                     uploadedMissionFiles: [],
                     archiveFiles: [],
                     newArchiveFile: { is_public: false },
@@ -280,17 +299,26 @@ const { createApp } = Vue;
                     newClubItem: { item_name: '', quantity: 1, status: 'OK' },
                     clubDonations: [],
                     newDonation: { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] },
+                    membershipFees: [],
+                    feesYear: new Date().getFullYear(),
                     
                     hvoTab: 'protocols',
                     hvoProtocols: [],
                     newHvoProtocol: { date: new Date().toISOString().split('T')[0], symptoms: '', therapy: '', handover: '' },
                     hvoChecks: [],
                     newHvoCheck: { device_name: '' },
+                    hvoMaterial: [],
+                    newHvoMaterial: { name: '', quantity: 1, expiry_date: '', note: '' },
+                    consumables: [],
+                    newConsumable: { name: '', unit: 'Stk', current_stock: 0, min_stock: 0, note: '' },
+                    scheduleRsvpMap: {},
                     
                     werkstattTab: 'pruefungen',
 
                     statsTotalMissions: 0,
-                    statsChartInstance: null, statsChartMonthInstance: null,
+                    statsChartInstance: null, statsChartMonthInstance: null, statsAttendanceInstance: null,
+                    statsYear: new Date().getFullYear(),
+                    statsAttendanceTop: [],
                     
                     anniversariesYear: new Date().getFullYear(),
                     anniversariesData: { service_anniversaries: [], birthday_anniversaries: [] },
@@ -303,8 +331,56 @@ const { createApp } = Vue;
                 canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
                 canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
+                // Backend /billing/... (mission_mgr.py) erlaubt dieselbe Rollenmenge -
+                // eigener Name statt canManageMaterial wiederzuverwenden, damit im Abrechnungs-
+                // Bereich klar bleibt, wofür die Prüfung tatsächlich steht.
+                canManageBilling() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
                 canManageYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
                 canManageSettings() { return ['admin', 'leitung'].includes(this.role); },
+
+                calendarMonthLabel() {
+                    const names = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+                    return `${names[this.calendarMonth - 1]} ${this.calendarYear}`;
+                },
+                calendarCells() {
+                    const year = this.calendarYear, month = this.calendarMonth;
+                    const eventsByDate = {};
+                    for (const ev of this.calendarEvents) {
+                        (eventsByDate[ev.date] = eventsByDate[ev.date] || []).push(ev);
+                    }
+                    const firstOfMonth = new Date(year, month - 1, 1);
+                    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Montag = 0
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const cells = [];
+                    for (let i = 0; i < startOffset; i++) {
+                        const day = daysInPrevMonth - startOffset + i + 1;
+                        cells.push({ key: 'prev-' + day, day, inMonth: false, isToday: false, events: [] });
+                    }
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                        cells.push({ key: dateStr, day, inMonth: true, isToday: dateStr === todayStr, events: eventsByDate[dateStr] || [] });
+                    }
+                    let nextDay = 1;
+                    while (cells.length % 7 !== 0) {
+                        cells.push({ key: 'next-' + nextDay, day: nextDay, inMonth: false, isToday: false, events: [] });
+                        nextDay++;
+                    }
+                    return cells;
+                },
+
+                lowStockConsumables() {
+                    return this.consumables.filter(c => c.min_stock > 0 && c.current_stock <= c.min_stock);
+                },
+                activePersonnelForMatrix() {
+                    return this.personnel.filter(p => p.membership_status === 'Aktiv');
+                },
+                globalSearchResultCount() {
+                    if (!this.globalSearchResults) return 0;
+                    const r = this.globalSearchResults;
+                    return r.personnel.length + r.vehicles.length + r.equipment.length + r.documents.length + r.notes.length + r.missions.length + r.bmas.length;
+                },
 
                 filteredNotes() {
                     if (this.notesActiveFilter === 'all') return this.notes;
@@ -866,6 +942,32 @@ const { createApp } = Vue;
                 async loadSchedules() {
                     const res = await fetch('/api/missions/schedules/list', { credentials: 'include' });
                     if(res.ok) this.schedules = await res.json();
+                    await this.loadScheduleRsvps();
+                },
+                async loadScheduleRsvps() {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const upcoming = this.schedules.filter(s => s.date >= todayStr);
+                    const results = await Promise.all(upcoming.map(async s => {
+                        try {
+                            const res = await fetch(`/api/missions/schedules/${s.id}/rsvp`, { credentials: 'include' });
+                            return res.ok ? [s.id, await res.json()] : null;
+                        } catch(e) { return null; }
+                    }));
+                    const map = {};
+                    for (const r of results) { if (r) map[r[0]] = r[1]; }
+                    this.scheduleRsvpMap = map;
+                },
+                async submitScheduleRsvp(scheduleId, status) {
+                    const res = await fetch(`/api/missions/schedules/${scheduleId}/rsvp`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ status })
+                    });
+                    if (res.ok) {
+                        await this.loadScheduleRsvps();
+                    } else {
+                        const d = await res.json().catch(() => ({}));
+                        await appAlert(d.detail || "Rückmeldung konnte nicht gespeichert werden.");
+                    }
                 },
                 openScheduleModal() {
                     this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id };
@@ -979,6 +1081,67 @@ const { createApp } = Vue;
                     if(!this.activeVehicleForLog) return;
                     const res = await fetch(`/api/material/vehicles/${this.activeVehicleForLog.id}/log`, { credentials: 'include' });
                     if(res.ok) this.vehicleLogs = await res.json();
+                    this.$nextTick(() => this.renderMileageChart());
+                    await this.loadVehicleReservations();
+                },
+                async loadVehicleReservations() {
+                    if (!this.activeVehicleForLog) { this.vehicleReservations = []; return; }
+                    try {
+                        const res = await fetch(`/api/vehicles/${this.activeVehicleForLog.id}/reservations`, { credentials: 'include' });
+                        this.vehicleReservations = res.ok ? await res.json() : [];
+                    } catch(e) { this.vehicleReservations = []; }
+                },
+                async openReservationModal() {
+                    this.newReservation = { purpose: '', start_datetime: '', end_datetime: '' };
+                    if (!this.myLicenses) {
+                        try {
+                            const res = await fetch('/api/personnel/me/licenses', { credentials: 'include' });
+                            this.myLicenses = res.ok ? await res.json() : {};
+                        } catch(e) { this.myLicenses = {}; }
+                    }
+                    new bootstrap.Modal(document.getElementById('vehicleReservationModal')).show();
+                },
+                async submitVehicleReservation() {
+                    const res = await fetch(`/api/vehicles/${this.activeVehicleForLog.id}/reservations`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newReservation) });
+                    if (res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('vehicleReservationModal')).hide();
+                        await this.loadVehicleReservations();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Reservierung konnte nicht gespeichert werden.");
+                    }
+                },
+                async deleteVehicleReservation(id) {
+                    if (!await appConfirm("Reservierung stornieren?")) return;
+                    const res = await fetch(`/api/vehicles/reservations/${id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) { await this.loadVehicleReservations(); }
+                    else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Stornieren fehlgeschlagen.");
+                    }
+                },
+                renderMileageChart() {
+                    const ctx = document.getElementById('mileageChart');
+                    if (!ctx) return;
+                    if (this.mileageChartInstance) this.mileageChartInstance.destroy();
+                    // Backend liefert absteigend (neueste zuerst) - für den Verlauf über die Zeit
+                    // wird hier aufsteigend sortiert gebraucht.
+                    const ordered = [...this.vehicleLogs].sort((a, b) => new Date(a.date) - new Date(b.date));
+                    this.mileageChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ordered.map(l => l.date),
+                            datasets: [{
+                                label: 'Kilometerstand',
+                                data: ordered.map(l => l.mileage_end),
+                                borderColor: 'rgba(183, 28, 28, 1)',
+                                backgroundColor: 'rgba(183, 28, 28, 0.15)',
+                                fill: true,
+                                tension: 0.2
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } }
+                    });
                 },
                 openLogRideModal() {
                     this.newLogRide = { date: new Date().toISOString().split('T')[0], mileage_start: this.activeVehicleForLog.milage || 0, mileage_end: (this.activeVehicleForLog.milage || 0) + 10, driver_name: '', purpose: '' };
@@ -1203,9 +1366,16 @@ const { createApp } = Vue;
                     }
                     await this.loadDefectReports();
                     await this.loadClubData();
+                    if (this.canManageMaterial) await this.loadDueSoon();
+                },
+                async loadDueSoon() {
+                    try {
+                        const res = await fetch('/api/admin/stats/due-soon', { credentials: 'include' });
+                        this.dueSoonItems = res.ok ? await res.json() : [];
+                    } catch(e) { this.dueSoonItems = []; }
                 },
                 openEquipmentModal() {
-                    this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null };
+                    this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null, purchase_value: null, insurance_policy: '' };
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();
                 },
                 editEquipment(eq) {
@@ -1279,6 +1449,33 @@ const { createApp } = Vue;
                         await appAlert("Prüfung konnte nicht gespeichert werden.");
                     }
                 },
+                openLoanModal(eq) {
+                    this.activeEquipment = eq;
+                    this.newLoan = { borrower_name: '', note: '' };
+                    new bootstrap.Modal(document.getElementById('loanEquipmentModal')).show();
+                },
+                async submitLoan() {
+                    const res = await fetch(`/api/material/equipment/${this.activeEquipment.id}/loans`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newLoan) });
+                    if (res.ok) {
+                        bootstrap.Modal.getInstance(document.getElementById('loanEquipmentModal')).hide();
+                        await this.loadEquipment();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Ausleihe konnte nicht gespeichert werden.");
+                    }
+                },
+                async returnEquipmentLoan(eq) {
+                    if (!await appConfirm(`${eq.name} als zurückgegeben markieren?`)) return;
+                    try {
+                        const listRes = await fetch(`/api/material/equipment/${eq.id}/loans`, { credentials: 'include' });
+                        const loans = listRes.ok ? await listRes.json() : [];
+                        const openLoan = loans.find(l => !l.returned_at);
+                        if (!openLoan) { await this.loadEquipment(); return; }
+                        const res = await fetch(`/api/material/equipment/loans/${openLoan.id}/return`, { method: 'PUT', credentials: 'include' });
+                        if (res.ok) { await this.loadEquipment(); }
+                        else { await appAlert("Rückgabe konnte nicht gespeichert werden."); }
+                    } catch(e) { await appAlert("Verbindung fehlgeschlagen."); }
+                },
                 openBatchInspectModal() {
                     this.batchInspect = { rawBarcodes: '', inspector: '', status: 'Bestanden', note: '' };
                     new bootstrap.Modal(document.getElementById('batchInspectModal')).show();
@@ -1301,7 +1498,7 @@ const { createApp } = Vue;
                     if(res.ok) this.personnel = await res.json();
                 },
                 openPersonnelModal() {
-                    this.activePersonnel = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: null, entry_date: null, honors: '', profile_picture: '', has_picture: false, courses: [], gearList: [] };
+                    this.activePersonnel = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: null, entry_date: null, honors: '', profile_picture: '', has_picture: false, courses: [], gearList: [], emergency_contact_name: '', emergency_contact_phone: '' };
                     this.qualifications.forEach(q => this.activePersonnel[q.id] = false);
                     ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => this.activePersonnel[k] = false);
                     new bootstrap.Modal(document.getElementById('personnelModal')).show();
@@ -1378,10 +1575,36 @@ const { createApp } = Vue;
                         this.activePersonnel.gearList = await gRes.json();
                     }
                 },
+                async loadAvailability(personnelId) {
+                    if (!personnelId) { this.availabilityList = []; return; }
+                    try {
+                        const res = await fetch(`/api/personnel/${personnelId}/availability`, { credentials: 'include' });
+                        this.availabilityList = res.ok ? await res.json() : [];
+                    } catch(e) { this.availabilityList = []; }
+                },
+                async submitAvailability(personnelId) {
+                    if (!this.newAvailability.start_date || !this.newAvailability.end_date) {
+                        await appAlert("Bitte Von- und Bis-Datum angeben.");
+                        return;
+                    }
+                    const res = await fetch(`/api/personnel/${personnelId}/availability`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newAvailability) });
+                    if (res.ok) {
+                        this.newAvailability = { start_date: '', end_date: '', reason: '' };
+                        await this.loadAvailability(personnelId);
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Eintrag konnte nicht gespeichert werden.");
+                    }
+                },
+                async deleteAvailability(entryId, personnelId) {
+                    if (!await appConfirm("Abwesenheitseintrag löschen?")) return;
+                    const res = await fetch(`/api/personnel/availability/${entryId}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadAvailability(personnelId);
+                },
                 async submitCourse() {
                     const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newCourse) });
                     if(res.ok) {
-                        this.newCourse = { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '' };
+                        this.newCourse = { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '', valid_until: '' };
                         const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
                         this.activePersonnel.courses = await cRes.json();
                     }
@@ -1971,6 +2194,23 @@ const { createApp } = Vue;
                         if(iRes.ok) this.clubInventory = await iRes.json();
                         if(dRes.ok) this.clubDonations = await dRes.json();
                     } catch(err) { console.error(err); }
+                    await this.loadMembershipFees();
+                },
+                async loadMembershipFees() {
+                    try {
+                        const res = await fetch(`/api/verein/membership-fees?year=${this.feesYear}`, { credentials: 'include' });
+                        this.membershipFees = res.ok ? await res.json() : [];
+                    } catch(e) { this.membershipFees = []; }
+                },
+                async toggleMembershipFee(f, paid) {
+                    const res = await fetch('/api/verein/membership-fees', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
+                        body: JSON.stringify({ personnel_id: f.personnel_id, year: this.feesYear, amount: f.amount || 0, paid: paid })
+                    });
+                    if (res.ok) await this.loadMembershipFees();
+                    else await appAlert("Konnte nicht gespeichert werden.");
                 },
                 async submitClubItem() {
                     const res = await fetch('/api/verein/inventory', {
@@ -2037,6 +2277,56 @@ const { createApp } = Vue;
                         this.newHvoCheck = { device_name: '' };
                         await this.loadHvoData();
                     }
+                },
+                async loadHvoMaterial() {
+                    try {
+                        const res = await fetch('/api/hvo/material', { credentials: 'include' });
+                        this.hvoMaterial = res.ok ? await res.json() : [];
+                    } catch(e) { this.hvoMaterial = []; }
+                },
+                async submitHvoMaterial() {
+                    if (!this.newHvoMaterial.name.trim()) return;
+                    const res = await fetch('/api/hvo/material', {
+                        method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include',
+                        body: JSON.stringify(this.newHvoMaterial)
+                    });
+                    if (res.ok) {
+                        this.newHvoMaterial = { name: '', quantity: 1, expiry_date: '', note: '' };
+                        await this.loadHvoMaterial();
+                    }
+                },
+                async deleteHvoMaterial(id) {
+                    if (!await appConfirm("Eintrag löschen?")) return;
+                    await fetch(`/api/hvo/material/${id}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadHvoMaterial();
+                },
+                async loadConsumables() {
+                    try {
+                        const res = await fetch('/api/material/consumables', { credentials: 'include' });
+                        this.consumables = res.ok ? await res.json() : [];
+                    } catch(e) { this.consumables = []; }
+                },
+                async submitConsumable() {
+                    if (!this.newConsumable.name.trim()) return;
+                    const res = await fetch('/api/material/consumables', {
+                        method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include',
+                        body: JSON.stringify(this.newConsumable)
+                    });
+                    if (res.ok) {
+                        this.newConsumable = { name: '', unit: 'Stk', current_stock: 0, min_stock: 0, note: '' };
+                        await this.loadConsumables();
+                    }
+                },
+                async saveConsumable(c) {
+                    await fetch(`/api/material/consumables/${c.id}`, {
+                        method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include',
+                        body: JSON.stringify(c)
+                    });
+                },
+                async deleteConsumable(id) {
+                    if (!await appConfirm("Eintrag löschen?")) return;
+                    await fetch(`/api/material/consumables/${id}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadConsumables();
                 },
 
                 addPsaEquipment() {
@@ -2182,10 +2472,158 @@ const { createApp } = Vue;
                 openVehicleFormModal(veh) {
                     if (veh) {
                         this.activeVehicle = { ...veh };
+                        this.loadVehicleDocuments(veh.id);
+                        this.loadVehicleMaintenance(veh.id);
                     } else {
-                        this.activeVehicle = { id: null, name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' };
+                        this.activeVehicle = { id: null, name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '', required_license: null, purchase_value: null, insurance_policy: '' };
+                        this.vehicleDocuments = [];
+                        this.vehicleMaintenance = [];
                     }
                     new bootstrap.Modal(document.getElementById('vehicleFormModal')).show();
+                },
+                async loadVehicleMaintenance(vehicleId) {
+                    try {
+                        const res = await fetch(`/api/vehicles/${vehicleId}/maintenance`, { credentials: 'include' });
+                        this.vehicleMaintenance = res.ok ? await res.json() : [];
+                    } catch(e) { this.vehicleMaintenance = []; }
+                },
+                async submitVehicleMaintenance() {
+                    if (!this.newMaintenance.description.trim()) return;
+                    const res = await fetch(`/api/vehicles/${this.activeVehicle.id}/maintenance`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify(this.newMaintenance)
+                    });
+                    if (res.ok) {
+                        this.newMaintenance = { date: new Date().toISOString().split('T')[0], description: '', workshop: '', cost: 0 };
+                        await this.loadVehicleMaintenance(this.activeVehicle.id);
+                    }
+                },
+                async deleteVehicleMaintenance(id) {
+                    if (!await appConfirm("Eintrag löschen?")) return;
+                    await fetch(`/api/vehicles/maintenance/${id}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadVehicleMaintenance(this.activeVehicle.id);
+                },
+                isDormantAccount(usr) {
+                    if (!usr.last_login) return true;
+                    const days = (new Date() - new Date(usr.last_login)) / (1000 * 60 * 60 * 24);
+                    return days > 90;
+                },
+                async loadAuditLog() {
+                    try {
+                        const res = await fetch('/api/admin/audit-log', { credentials: 'include' });
+                        this.auditLog = res.ok ? await res.json() : [];
+                    } catch(e) { this.auditLog = []; }
+                },
+                onGlobalSearchInput() {
+                    this.globalSearchOpen = true;
+                    clearTimeout(globalSearchTimer);
+                    if (this.globalSearchQuery.trim().length < 2) {
+                        this.globalSearchResults = null;
+                        return;
+                    }
+                    globalSearchTimer = setTimeout(async () => {
+                        try {
+                            const res = await fetch(`/api/search?q=${encodeURIComponent(this.globalSearchQuery.trim())}`, { credentials: 'include' });
+                            this.globalSearchResults = res.ok ? await res.json() : null;
+                        } catch(e) { this.globalSearchResults = null; }
+                    }, 300);
+                },
+                onGlobalSearchBlur() {
+                    setTimeout(() => { this.globalSearchOpen = false; }, 200);
+                },
+                async goToSearchPersonnel(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'personal'; this.showMobileSidebar = false;
+                    await this.editPersonnel({ id: item.id });
+                },
+                goToSearchVehicle(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'fahrzeuge'; this.showMobileSidebar = false;
+                    const full = this.vehicles.find(v => v.id === item.id);
+                    if (full) this.openVehicleFormModal(full);
+                },
+                goToSearchEquipment(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'material'; this.materialSubTab = 'geraete'; this.showMobileSidebar = false;
+                    this.eqSearch = item.name;
+                    this.loadEquipment();
+                },
+                goToSearchDocument(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    window.open(item.url, '_blank');
+                },
+                goToSearchNote(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'notizen'; this.notesActiveFilter = 'all'; this.showMobileSidebar = false;
+                    this.loadNotes();
+                },
+                async goToSearchMission(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'einsaetze'; this.showMobileSidebar = false;
+                    await this.loadMissions();
+                    await this.editMission({ id: item.id });
+                },
+                goToSearchBma(item) {
+                    this.globalSearchOpen = false; this.globalSearchQuery = '';
+                    this.activeTab = 'verwaltung'; this.verwaltungTab = 'bma'; this.showMobileSidebar = false;
+                    const full = this.bmas.find(b => b.id === item.id);
+                    if (full) this.startBmaEdit(full);
+                },
+                exportAttendanceStatsCsv() {
+                    const rows = [['Name', 'Dienststunden', 'Einsatzstunden', 'Gesamtstunden']];
+                    for (const p of this.statsAttendanceTop) {
+                        rows.push([p.name, p.session_hours, p.mission_hours, p.total_hours]);
+                    }
+                    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+                    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Stundenstatistik_${this.statsYear}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                },
+                async loadCalendar() {
+                    try {
+                        const res = await fetch(`/api/calendar?year=${this.calendarYear}&month=${this.calendarMonth}`, { credentials: 'include' });
+                        this.calendarEvents = res.ok ? await res.json() : [];
+                    } catch(e) { this.calendarEvents = []; }
+                },
+                shiftCalendarMonth(delta) {
+                    let m = this.calendarMonth + delta, y = this.calendarYear;
+                    if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+                    this.calendarMonth = m; this.calendarYear = y;
+                    this.loadCalendar();
+                },
+                async loadVehicleDocuments(vehicleId) {
+                    try {
+                        const res = await fetch(`/api/vehicles/${vehicleId}/documents`, { credentials: 'include' });
+                        this.vehicleDocuments = res.ok ? await res.json() : [];
+                    } catch(e) { this.vehicleDocuments = []; }
+                },
+                async uploadVehicleDocument(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('is_public', 'true');
+                    formData.append('vehicle_id', this.activeVehicle.id);
+                    const res = await fetch('/api/archive/upload', { method: 'POST', credentials: 'include', body: formData });
+                    if (res.ok) {
+                        await this.loadVehicleDocuments(this.activeVehicle.id);
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Upload fehlgeschlagen.");
+                    }
+                    if (this.$refs.vehicleDocFile) this.$refs.vehicleDocFile.value = '';
+                },
+                async deleteVehicleDocument(docId) {
+                    if (!await appConfirm("Dokument löschen?")) return;
+                    const res = await fetch(`/api/archive/files/${docId}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadVehicleDocuments(this.activeVehicle.id);
+                    else await appAlert("Löschen fehlgeschlagen.");
                 },
                 async saveVehicle() {
                     const isEdit = this.activeVehicle.id !== null;
@@ -2269,6 +2707,10 @@ const { createApp } = Vue;
                         return;
                     }
                     window.open(`/api/missions/${missionId}/employer-certificate/${personnelId}`, '_blank');
+                },
+                async openQualMatrixModal() {
+                    if (this.personnel.length === 0) await this.loadPersonnel();
+                    new bootstrap.Modal(document.getElementById('qualMatrixModal')).show();
                 },
                 async openAnniversariesModal() {
                     this.anniversariesYear = new Date().getFullYear();
@@ -2652,6 +3094,36 @@ const { createApp } = Vue;
                         }
                     } catch(err) {
                         console.error('Error loading stats:', err);
+                    }
+
+                    if (this.isAdmin || this.role === 'leitung') {
+                        try {
+                            const aRes = await fetch(`/api/admin/stats/attendance?year=${this.statsYear}`, { credentials: 'include' });
+                            if (aRes.ok) {
+                                this.statsAttendanceTop = await aRes.json();
+                                const chartTop = this.statsAttendanceTop.slice(0, 10);
+                                const ctxAtt = document.getElementById('statsChartAttendance');
+                                if (ctxAtt) {
+                                    if (this.statsAttendanceInstance) this.statsAttendanceInstance.destroy();
+                                    this.statsAttendanceInstance = new Chart(ctxAtt, {
+                                        type: 'bar',
+                                        data: {
+                                            labels: chartTop.map(p => p.name),
+                                            datasets: [{
+                                                label: 'Stunden ' + this.statsYear,
+                                                data: chartTop.map(p => p.total_hours),
+                                                backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                                                borderColor: 'rgba(16, 185, 129, 1)',
+                                                borderWidth: 1
+                                            }]
+                                        },
+                                        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true } } }
+                                    });
+                                }
+                            }
+                        } catch(err) {
+                            console.error('Error loading attendance stats:', err);
+                        }
                     }
                     });
                 }

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, File, Form
+from typing import Optional
 import json
 import os
 import uuid
@@ -223,11 +224,11 @@ def auto_backup(request: Request):
     return {"status": "success", "backup_file": f"{zip_path}.zip", "sql_dump": db_dump_path}
 
 @router.post("/api/archive/upload")
-async def upload_archive_file(request: Request, file: UploadFile = File(...), is_public: bool = False):
+async def upload_archive_file(request: Request, file: UploadFile = File(...), is_public: bool = False, vehicle_id: Optional[int] = Form(None)):
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    
+
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_ARCHIVE_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Dateityp '{ext}' nicht erlaubt.")
@@ -235,20 +236,20 @@ async def upload_archive_file(request: Request, file: UploadFile = File(...), is
     from main import UPLOAD_DIR
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
-    
+
     with open(filepath, "wb") as buffer:
         content = await file.read()
         buffer.write(content)
-        
+
     url = f"/static/uploads/{filename}"
-    
+
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute(
-        "INSERT INTO archive_files (filename, url, uploaded_by, is_public) VALUES (%s, %s, %s, %s)",
-        (file.filename, url, user["username"], 1 if is_public else 0)
+        "INSERT INTO archive_files (filename, url, uploaded_by, is_public, vehicle_id) VALUES (%s, %s, %s, %s, %s)",
+        (file.filename, url, user["username"], 1 if is_public else 0, vehicle_id)
     )
     conn.commit(); cur.close(); conn.close()
-    
+
     log_audit_action(user["username"], "ARCHIV_DATEI_HOCHGELADEN", f"Datei '{file.filename}' hochgeladen (Öffentlich: {is_public}).")
     return {"status": "success", "url": url}
 
@@ -257,14 +258,29 @@ def get_archive_files(request: Request):
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
-        
+
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT id, filename, url, uploaded_by, is_public, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
         FROM archive_files
-        WHERE is_public = 1 OR uploaded_by = %s
+        WHERE (is_public = 1 OR uploaded_by = %s) AND vehicle_id IS NULL
         ORDER BY id DESC
     """, (user["username"],))
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@router.get("/api/vehicles/{vehicle_id}/documents")
+def get_vehicle_documents(vehicle_id: int, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT id, filename, url, uploaded_by, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as created_at
+        FROM archive_files
+        WHERE vehicle_id = %s
+        ORDER BY id DESC
+    """, (vehicle_id,))
     res = cur.fetchall(); cur.close(); conn.close()
     return res
 
@@ -351,3 +367,82 @@ def get_admin_stats(request: Request):
         "missions_by_month": missions_by_month,
         "total_missions": total_missions
     }
+
+@router.get("/api/search")
+def global_search(q: str, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"personnel": [], "vehicles": [], "equipment": [], "documents": [], "notes": [], "missions": [], "bmas": []}
+    like = f"%{q}%"
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+
+    cur.execute("SELECT id, name, rank FROM personnel WHERE name LIKE %s ORDER BY name LIMIT 8", (like,))
+    personnel = cur.fetchall()
+
+    cur.execute("SELECT id, name, radio_name FROM vehicles WHERE name LIKE %s OR radio_name LIKE %s ORDER BY name LIMIT 8", (like, like))
+    vehicles = cur.fetchall()
+
+    cur.execute("SELECT id, name, barcode, category FROM equipment WHERE name LIKE %s OR barcode LIKE %s ORDER BY name LIMIT 8", (like, like))
+    equipment = cur.fetchall()
+
+    cur.execute("SELECT id, filename, url FROM archive_files WHERE filename LIKE %s AND is_public = 1 ORDER BY created_at DESC LIMIT 8", (like,))
+    documents = cur.fetchall()
+
+    # Gleiche Sichtbarkeits-Regel wie notes_manager.py list_notes(): eigene Notizen +
+    # öffentliche + rollenspezifische - eine Suche darf keine fremden privaten Notizen
+    # zutage fördern, die der Nutzer über die normale Notizbuch-Ansicht gar nicht sähe.
+    cur.execute("""
+        SELECT id, title, visibility FROM notes
+        WHERE (title LIKE %s OR content LIKE %s)
+          AND (username = %s OR visibility = 'public'
+               OR (visibility = 'admin' AND %s IN ('admin', 'leitung'))
+               OR (visibility = 'geratewart' AND %s IN ('geratewart', 'admin')))
+        ORDER BY created_at DESC LIMIT 8
+    """, (like, like, user["username"], user["role"], user["role"]))
+    notes = cur.fetchall()
+
+    cur.execute("SELECT id, stichwort, adresse, date FROM missions WHERE stichwort LIKE %s OR adresse LIKE %s ORDER BY date DESC LIMIT 8", (like, like))
+    missions = cur.fetchall()
+    for m in missions:
+        if m.get("date"): m["date"] = str(m["date"])
+
+    cur.execute("SELECT id, object_name, address FROM bma WHERE object_name LIKE %s OR address LIKE %s ORDER BY object_name LIMIT 8", (like, like))
+    bmas = cur.fetchall()
+
+    cur.close(); conn.close()
+    return {"personnel": personnel, "vehicles": vehicles, "equipment": equipment, "documents": documents, "notes": notes, "missions": missions, "bmas": bmas}
+
+@router.get("/api/admin/stats/attendance")
+def get_attendance_stats(year: int, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    # Wiederverwendet dieselbe Stunden-Berechnung wie die Abrechnung (Dienst- + Einsatzstunden
+    # pro Person), nur ohne Stundensatz - vermeidet eine zweite, abweichende Implementierung
+    # derselben nicht-trivialen Query.
+    from routers.mission_mgr import calculate_compensations
+    comps = calculate_compensations(year, 0.0, request)
+    return sorted([c for c in comps if c["total_hours"] > 0], key=lambda x: x["total_hours"], reverse=True)
+
+@router.get("/api/admin/stats/due-soon")
+def get_due_soon(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung", "geratewart"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.reminders import get_due_items
+    return get_due_items()
+
+@router.get("/api/admin/audit-log")
+def get_audit_log(request: Request, limit: int = 200):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    limit = max(1, min(limit, 500))
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, created_at, username, action, details FROM audit_log ORDER BY created_at DESC LIMIT %s", (limit,))
+    res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        r["created_at"] = str(r["created_at"])
+    return res

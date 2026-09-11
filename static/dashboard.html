@@ -43,6 +43,41 @@
                     </button>
                     <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
                 </div>
+                <div class="position-relative d-none d-lg-block" style="width: 260px;" @focusout="onGlobalSearchBlur">
+                    <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="globalSearchQuery" @input="onGlobalSearchInput" @focus="globalSearchOpen = true" placeholder="Suche: Kamerad, Fahrzeug, Gerät, Dokument..." style="padding-left: 32px !important;">
+                    <i class="fa fa-search text-muted position-absolute" style="left: 13px; top: 50%; transform: translateY(-50%); font-size: 0.8rem;"></i>
+                    <div v-if="globalSearchOpen && globalSearchResults" class="card premium-card p-2 position-absolute shadow" style="top: 110%; left: 0; right: 0; z-index: 2000; max-height: 60vh; overflow-y: auto;">
+                        <div v-if="globalSearchResultCount === 0" class="text-muted small text-center py-2">Keine Treffer.</div>
+                        <div v-if="globalSearchResults.personnel.length">
+                            <div class="small text-muted fw-bold px-2 pt-1">KAMERADEN</div>
+                            <div v-for="p in globalSearchResults.personnel" :key="'p'+p.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchPersonnel(p)"><i class="fa fa-user text-danger me-2"></i>{{p.name}} <span class="text-muted small">{{p.rank}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.vehicles.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">FAHRZEUGE</div>
+                            <div v-for="v in globalSearchResults.vehicles" :key="'v'+v.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchVehicle(v)"><i class="fa fa-truck text-danger me-2"></i>{{v.name}} <span class="text-muted small">{{v.radio_name}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.equipment.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">GERÄTE</div>
+                            <div v-for="eq in globalSearchResults.equipment" :key="'e'+eq.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchEquipment(eq)"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>{{eq.name}} <span class="text-muted small">{{eq.barcode}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.documents.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">DOKUMENTE</div>
+                            <div v-for="d in globalSearchResults.documents" :key="'d'+d.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchDocument(d)"><i class="fa fa-file-alt text-danger me-2"></i>{{d.filename}}</div>
+                        </div>
+                        <div v-if="globalSearchResults.notes.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">NOTIZEN</div>
+                            <div v-for="n in globalSearchResults.notes" :key="'n'+n.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchNote(n)"><i class="fa fa-sticky-note text-danger me-2"></i>{{n.title}}</div>
+                        </div>
+                        <div v-if="globalSearchResults.missions.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">EINSÄTZE</div>
+                            <div v-for="m in globalSearchResults.missions" :key="'m'+m.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchMission(m)"><i class="fa fa-fire text-danger me-2"></i>{{m.stichwort}} <span class="text-muted small">{{m.adresse}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.bmas.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">BMA-OBJEKTE</div>
+                            <div v-for="b in globalSearchResults.bmas" :key="'b'+b.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchBma(b)"><i class="fa fa-building-shield text-danger me-2"></i>{{b.object_name}} <span class="text-muted small">{{b.address}}</span></div>
+                        </div>
+                    </div>
+                </div>
                 <!-- aPager Live-Status -->
                 <div class="d-none d-lg-flex align-items-center gap-3">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @click="toggleTheme" title="Hell/Dunkel Modus">
@@ -73,6 +108,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; loadNotes(); showMobileSidebar = false"><i class="fa fa-sticky-note me-2"></i> Digitales Notizbuch</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; loadCalendar(); showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
 
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
@@ -171,6 +207,7 @@
                                 </div>
                                 <div class="d-flex gap-2">
                                     <a :href="'/groups/' + selectedGroup.id + '/print_view?year=' + selectedYear" target="_blank" class="btn btn-outline-light rounded-pill px-3 fw-bold btn-sm"><i class="fa fa-print me-1"></i> Jahresbericht</a>
+                                    <a v-if="canManageSettings" :href="'/annual-report?year=' + selectedYear" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold btn-sm" title="Jahresbericht über alle Gruppen zusammen"><i class="fa fa-file-lines me-1"></i> Gesamt-Jahresbericht</a>
                                     <button v-if="canManageDienste" class="btn btn-premium rounded-pill px-4 shadow btn-sm fw-bold" @click="createNew"><i class="fa fa-plus me-1"></i> Dienst erfassen</button>
                                 </div>
                             </div>
@@ -183,20 +220,28 @@
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-dark table-hover mb-0 align-middle">
-                                        <thead><tr class="text-muted small"><th>DATUM</th><th>ZEIT</th><th>THEMA</th><th>KATEGORIE</th><th class="text-end">AKTION</th></tr></thead>
+                                        <thead><tr class="text-muted small"><th>DATUM</th><th>ZEIT</th><th>THEMA</th><th>KATEGORIE</th><th>TEILNAHME</th><th class="text-end">AKTION</th></tr></thead>
                                         <tbody>
                                             <tr v-for="s in schedules" :key="s.id">
                                                 <td class="fw-bold text-white">{{ formatDateDay(s.date) }}.{{ formatDateMonth(s.date) }}</td>
                                                 <td>{{s.time}}</td>
                                                 <td class="fw-bold">{{s.title}}</td>
                                                 <td><span class="badge" :class="s.type==='Übung'?'bg-primary':s.type==='Schulung'?'bg-success':'bg-secondary'">{{s.type}}</span></td>
+                                                <td>
+                                                    <div v-if="scheduleRsvpMap[s.id]" class="btn-group btn-group-sm" role="group">
+                                                        <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Ja' ? 'btn-success' : 'btn-outline-success'" @click="submitScheduleRsvp(s.id, 'Ja')" title="Zusagen">Ja</button>
+                                                        <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Vielleicht' ? 'btn-warning' : 'btn-outline-warning'" @click="submitScheduleRsvp(s.id, 'Vielleicht')" title="Vielleicht">?</button>
+                                                        <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Nein' ? 'btn-danger' : 'btn-outline-danger'" @click="submitScheduleRsvp(s.id, 'Nein')" title="Absagen">Nein</button>
+                                                    </div>
+                                                    <small v-if="scheduleRsvpMap[s.id]" class="text-muted d-block mt-1">{{ scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Ja').length }} Zusage(n)</small>
+                                                </td>
                                                 <td class="text-end">
                                                     <button v-if="canManageDienste" class="btn btn-sm btn-outline-light rounded-pill me-1" @click="openScheduleAttendance(s)"><i class="fa fa-clipboard-user me-1"></i>Anwesenheit</button>
                                                     <button v-if="canManageDienste" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteSchedule(s.id)"><i class="fa fa-trash"></i></button>
                                                 </td>
                                             </tr>
                                             <tr v-if="schedules.length === 0">
-                                                <td colspan="5" class="text-center py-4 text-muted">Keine geplanten Dienste eingetragen.</td>
+                                                <td colspan="6" class="text-center py-4 text-muted">Keine geplanten Dienste eingetragen.</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -376,6 +421,38 @@
                 </div>
             </div> <!-- MISSING DIV FROM NOTIZEN -->
 
+                <!-- TAB: KALENDER -->
+                <div v-show="activeTab === 'kalender'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Gemeinsamer Kalender</h2>
+                            <small class="text-muted">Dienste, Einsätze, Fahrzeug-Reservierungen & Jubiläen im Überblick</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-outline-light btn-sm rounded-pill" @click="shiftCalendarMonth(-1)"><i class="fa fa-chevron-left"></i></button>
+                            <div class="fw-bold text-white" style="min-width:160px;text-align:center;">{{ calendarMonthLabel }}</div>
+                            <button class="btn btn-outline-light btn-sm rounded-pill" @click="shiftCalendarMonth(1)"><i class="fa fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <div class="card premium-card p-3 mb-4">
+                        <div class="d-flex flex-wrap gap-3 small mb-2">
+                            <span><i class="fa fa-circle text-primary me-1"></i>Dienst</span>
+                            <span><i class="fa fa-circle text-danger me-1"></i>Einsatz</span>
+                            <span><i class="fa fa-circle text-warning me-1"></i>Fahrzeug-Reservierung</span>
+                            <span><i class="fa fa-circle text-success me-1"></i>Jubiläum</span>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
+                            <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday}">
+                                <div class="calendar-cell-num">{{ cell.day }}</div>
+                                <div v-for="ev in cell.events" :key="ev.type + ev.title + ev.date" class="calendar-event" :class="'calendar-event-' + ev.type" :title="ev.title + (ev.subtitle ? ' — ' + ev.subtitle : '')">
+                                    {{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB 2: EINSATZBERICHTE -->
                 <div v-show="activeTab === 'einsaetze'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -439,12 +516,12 @@
                                 <div class="list-group list-group-flush">
                                     <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
-                                            <h6 class="fw-bold text-white mb-0">{{v.name}}</h6>
+                                            <h6 class="fw-bold text-white mb-0">{{v.name}} <span v-if="v.required_license" class="badge bg-secondary rounded-pill ms-1" style="font-size:0.6rem;" title="Erforderliche Führerscheinklasse">FS {{v.required_license}}</span></h6>
                                             <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}} &bull; {{v.milage}} km</small>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <span class="status-dot" :class="'status-' + v.status"></span>
-                                            <select v-model="v.status" class="form-select form-select-sm w-auto" @change="quickStatusChange(v)" :disabled="role === 'mannschaft'">
+                                            <select v-model="v.status" class="form-select form-select-sm w-auto" @change="quickStatusChange(v)" :disabled="!canManageMaterial">
                                                 <option :value="1">S1</option>
                                                 <option :value="2">S2</option>
                                                 <option :value="3">S3</option>
@@ -477,6 +554,9 @@
                                     </select>
                                 </div>
 
+                                <div v-if="activeVehicleForLog && vehicleLogs.length > 1" class="mb-3" style="height: 220px; position: relative;">
+                                    <canvas id="mileageChart"></canvas>
+                                </div>
                                 <div class="table-responsive" v-if="activeVehicleForLog">
                                     <table class="table table-dark table-hover mb-0 align-middle">
                                         <thead><tr class="text-muted small"><th>DATUM</th><th>FAHRER</th><th>ZWECK</th><th>KM START</th><th>KM ENDE</th></tr></thead>
@@ -493,6 +573,23 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+
+                            <div class="card premium-card p-4 mt-4" v-if="activeVehicleForLog">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-calendar-days text-danger me-2"></i>Belegungsplan</h5>
+                                    <button class="btn btn-premium btn-sm rounded-pill" @click="openReservationModal"><i class="fa fa-plus me-1"></i>Reservieren</button>
+                                </div>
+                                <div class="d-flex flex-column gap-2">
+                                    <div v-for="res in vehicleReservations" :key="res.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <div class="text-white fw-bold small">{{res.purpose}}</div>
+                                            <div class="text-muted" style="font-size:0.75rem;"><i class="fa-regular fa-clock me-1"></i>{{ new Date(res.start_datetime).toLocaleString('de-DE') }} – {{ new Date(res.end_datetime).toLocaleString('de-DE') }} &bull; {{res.reserved_by}}</div>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteVehicleReservation(res.id)" title="Stornieren"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="vehicleReservations.length === 0" class="text-center py-3 text-muted small">Keine anstehenden Reservierungen.</div>
                                 </div>
                             </div>
                         </div>
@@ -528,6 +625,12 @@
                         <li class="nav-item">
                             <button class="nav-link" :class="materialSubTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
                         </li>
+                        <li class="nav-item">
+                            <button class="nav-link position-relative" :class="materialSubTab === 'verbrauch' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'verbrauch'; loadConsumables()">
+                                <i class="fa fa-box me-1"></i>Verbrauchsmaterial
+                                <span v-if="lowStockConsumables.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:0.6rem;">{{lowStockConsumables.length}}</span>
+                            </button>
+                        </li>
                         <li class="nav-item ms-auto">
                             <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
                         </li>
@@ -535,6 +638,15 @@
 
                     <!-- Geräteliste -->
                     <div v-show="materialSubTab === 'geraete'">
+                        <div v-if="canManageMaterial && dueSoonItems.length > 0" class="card premium-card p-4 mb-4" style="border-color: rgba(255, 193, 7, 0.4) !important;">
+                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Bald fällig / überfällig (nächste 14 Tage)</h5>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span v-for="it in dueSoonItems" :key="it.type + it.name + it.due_date" class="badge rounded-pill px-3 py-2" :class="it.overdue ? 'bg-danger' : 'bg-warning text-dark'">
+                                    <i class="fa" :class="{'fa-truck': it.type === 'vehicle', 'fa-user-doctor': it.type === 'g26', 'fa-screwdriver-wrench': it.type === 'equipment', 'fa-graduation-cap': it.type === 'lehrgang', 'fa-clipboard-check': it.type === 'vehicle_check'}"></i>
+                                    {{ it.name }} ({{ it.detail }}) - {{ it.overdue ? 'überfällig' : new Date(it.due_date).toLocaleDateString('de-DE') }}
+                                </span>
+                            </div>
+                        </div>
                         <div class="row g-3 mb-4">
                             <div class="col-12 col-md-4">
                                 <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
@@ -577,10 +689,16 @@
                                         <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{eq.last_inspection || 'Nie'}}</span></div>
                                         <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
                                     </div>
-                                    <div class="d-flex gap-2">
+                                    <div v-if="eq.loaned_to" class="p-2 rounded-3 mb-3 small" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.3);">
+                                        <i class="fa fa-user-clock text-warning me-1"></i>Ausgeliehen an <strong class="text-white">{{eq.loaned_to}}</strong> seit {{ new Date(eq.loaned_since).toLocaleDateString('de-DE') }}
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap">
                                         <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
                                         <button v-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
+                                        <button v-if="!eq.loaned_to" class="btn btn-sm btn-outline-info rounded-pill" @click.stop="openLoanModal(eq)" title="Ausleihen"><i class="fa fa-hand-holding"></i></button>
+                                        <button v-else class="btn btn-sm btn-info rounded-pill text-dark" @click.stop="returnEquipmentLoan(eq)" title="Zurückgeben"><i class="fa fa-rotate-left"></i></button>
                                         <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
+                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click.stop="window.open('/api/material/equipment/' + eq.id + '/report/pdf', '_blank')" title="Prüf- und Mängelnachweis als PDF"><i class="fa fa-file-pdf"></i></button>
                                         <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger rounded-pill" @click.stop="deleteEquipmentFromSubtab(eq.id)" title="Gerät löschen"><i class="fa fa-trash"></i></button>
                                     </div>
                                 </div>
@@ -757,6 +875,62 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- SUBTAB: VERBRAUCHSMATERIAL / BESTANDSALARM -->
+                    <div v-show="materialSubTab === 'verbrauch'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-box text-danger me-2"></i>Verbrauchsmaterial-Bestand</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-hover align-middle small">
+                                            <thead><tr class="text-muted"><th>Bezeichnung</th><th>Bestand</th><th>Mindestbestand</th><th>Notiz</th><th></th></tr></thead>
+                                            <tbody>
+                                                <tr v-for="c in consumables" :key="c.id" :class="{'table-danger': c.min_stock > 0 && c.current_stock <= c.min_stock}">
+                                                    <td class="fw-bold text-white">{{c.name}}</td>
+                                                    <td>
+                                                        <input type="number" step="0.5" v-model.number="c.current_stock" style="width:80px;" class="form-control form-control-sm bg-dark border-secondary text-white d-inline-block" @change="saveConsumable(c)"> {{c.unit}}
+                                                    </td>
+                                                    <td>{{c.min_stock}} {{c.unit}}</td>
+                                                    <td class="text-muted">{{c.note}}</td>
+                                                    <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteConsumable(c.id)"><i class="fa fa-trash"></i></button></td>
+                                                </tr>
+                                                <tr v-if="consumables.length === 0"><td colspan="5" class="text-center py-3 text-muted">Kein Verbrauchsmaterial erfasst.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Material erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Bezeichnung</label>
+                                        <input type="text" v-model="newConsumable.name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schaummittel">
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Einheit</label>
+                                            <input type="text" v-model="newConsumable.unit" class="form-control bg-dark border-secondary text-white" placeholder="Stk, L, kg...">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Aktueller Bestand</label>
+                                            <input type="number" step="0.5" v-model.number="newConsumable.current_stock" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Mindestbestand (Warnschwelle)</label>
+                                        <input type="number" step="0.5" v-model.number="newConsumable.min_stock" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Notiz</label>
+                                        <input type="text" v-model="newConsumable.note" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitConsumable">Hinzufügen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- TAB 5: PERSONALVERWALTUNG -->
@@ -768,6 +942,8 @@
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-outline-warning rounded-pill" @click="openAnniversariesModal"><i class="fa fa-award me-1"></i>Jubiläen</button>
+                            <a v-if="isAdmin || role === 'leitung'" href="/api/personnel/roster/pdf" target="_blank" class="btn btn-outline-light rounded-pill"><i class="fa fa-file-pdf me-1"></i>Mitgliederliste (PDF)</a>
+                            <button v-if="isAdmin || role === 'leitung'" class="btn btn-outline-info rounded-pill" @click="openQualMatrixModal"><i class="fa fa-table-cells me-1"></i>Qualifikationsmatrix</button>
                             <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
                         </div>
                     </div>
@@ -938,7 +1114,7 @@
                                     <div v-if="bills.length === 0" class="text-center py-4 text-muted">Keine Kostenbescheide erfasst.</div>
                                 </div>
 
-                                <div v-if="role !== 'mannschaft'">
+                                <div v-if="canManageBilling">
                                     <h6 class="fw-bold text-white mb-3"><i class="fa fa-plus me-1"></i>Neuer Kostenbescheid</h6>
                                     <div class="mb-3">
                                         <label class="form-label">Einsatz wählen</label>
@@ -1027,6 +1203,9 @@
                         <li class="nav-item" v-if="isAdmin">
                             <button class="nav-link" :class="verwaltungTab === 'logins' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'logins'; loadSystemUsers()"><i class="fa fa-key me-1"></i>System-Logins</button>
                         </li>
+                        <li class="nav-item" v-if="isAdmin">
+                            <button class="nav-link" :class="verwaltungTab === 'audit' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'audit'; loadAuditLog()"><i class="fa fa-clock-rotate-left me-1"></i>Aktivitäts-Log</button>
+                        </li>
                                                 <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
                             <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
                         </li>
@@ -1059,9 +1238,9 @@
                                     <div v-if="bmas.length === 0" class="text-center py-4 text-muted">Keine BMA-Objekte erfasst.</div>
                                 </div>
 
-                                <div v-if="role !== 'mannschaft'">
+                                <div v-if="canManageSettings">
                                     <h6 class="fw-bold text-white mb-3">
-                                        <i class="fa" :class="activeBmaId ? 'fa-pen-to-square' : 'fa-plus'"></i> 
+                                        <i class="fa" :class="activeBmaId ? 'fa-pen-to-square' : 'fa-plus'"></i>
                                         <span v-if="activeBmaId">BMA-Objekt bearbeiten</span><span v-else>Neues BMA Objekt</span>
                                     </h6>
                                     <div class="mb-3">
@@ -1117,7 +1296,7 @@
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-key text-danger me-2"></i>System-Logins verwalten <i class="fa fa-question-circle text-muted" style="font-size:0.9rem;" title="Erstelle, bearbeite und verwalte die Zugangskonten aller Kameraden."></i></h5>
                                         <div class="table-responsive" style="max-height: 400px;">
                                             <table class="table table-dark table-hover mb-0 align-middle small">
-                                                <thead><tr class="text-muted"><th>BENUTZER</th><th>ROLLE</th><th>KAMERAD</th><th>AKTIONEN</th></tr></thead>
+                                                <thead><tr class="text-muted"><th>BENUTZER</th><th>ROLLE</th><th>KAMERAD</th><th>LETZTER LOGIN</th><th>AKTIONEN</th></tr></thead>
                                                 <tbody>
                                                     <tr v-for="usr in systemUsers" :key="usr.id">
                                                         <td class="fw-bold text-white">{{ usr.username }}</td>
@@ -1126,6 +1305,10 @@
                                                         </td>
                                                         <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                         <td>
+                                                            <span v-if="isDormantAccount(usr)" class="badge bg-warning text-dark" :title="usr.last_login ? ('Letzter Login: ' + usr.last_login) : 'Noch nie eingeloggt'"><i class="fa fa-moon me-1"></i>Ruhend</span>
+                                                            <small v-else class="text-muted">{{ usr.last_login ? usr.last_login.split(' ')[0] : '—' }}</small>
+                                                        </td>
+                                                        <td>
                                                             <div class="d-flex gap-1 flex-wrap">
                                                                 <button class="btn btn-xs btn-outline-primary rounded-pill" @click="startUserEdit(usr)" style="font-size:0.65rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
                                                                 <button class="btn btn-xs btn-outline-warning rounded-pill" @click="resetUserPassword(usr)" style="font-size:0.65rem;">PW Reset</button>
@@ -1133,7 +1316,7 @@
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                    <tr v-if="systemUsers.length === 0"><td colspan="4" class="text-center py-3 text-muted">Keine Benutzer gefunden.</td></tr>
+                                                    <tr v-if="systemUsers.length === 0"><td colspan="5" class="text-center py-3 text-muted">Keine Benutzer gefunden.</td></tr>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1236,6 +1419,30 @@
                         </div>
                         </div>
 
+                        <!-- SUB-TAB: Aktivitäts-Log (Audit-Log) -->
+                        <div v-show="verwaltungTab === 'audit'" v-if="isAdmin">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white m-0"><i class="fa fa-clock-rotate-left text-danger me-2"></i>Aktivitäts-Log <i class="fa fa-question-circle text-muted" style="font-size:0.9rem;" title="Protokoll wichtiger Änderungen (Anlegen, Löschen, Rollenänderungen...) im System."></i></h5>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill" @click="loadAuditLog"><i class="fa fa-rotate me-1"></i>Aktualisieren</button>
+                                </div>
+                                <div class="table-responsive" style="max-height: 600px;">
+                                    <table class="table table-dark table-hover mb-0 align-middle small">
+                                        <thead><tr class="text-muted"><th>ZEITPUNKT</th><th>BENUTZER</th><th>AKTION</th><th>DETAILS</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="a in auditLog" :key="a.id">
+                                                <td class="text-muted" style="white-space:nowrap;">{{a.created_at}}</td>
+                                                <td class="fw-bold text-white">{{a.username}}</td>
+                                                <td><span class="badge bg-secondary">{{a.action}}</span></td>
+                                                <td class="text-muted">{{a.details}}</td>
+                                            </tr>
+                                            <tr v-if="auditLog.length === 0"><td colspan="4" class="text-center py-3 text-muted">Kein Log vorhanden.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- SUB-TAB: Kalender -->
                         <div v-show="verwaltungTab === 'kalender'">
                             <div class="row g-4">
@@ -1299,6 +1506,10 @@
                                         <div class="mb-3">
                                             <label class="form-label text-white"><i class="fa fa-bullhorn text-warning me-2"></i>Hallendisplay Lauftext / Wach-Ticker</label>
                                             <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>DWD Warncell-ID (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Gemeindeschlüssel für Wetterwarnungen des Deutschen Wetterdienstes. Zu finden in der Warncell-ID-Liste auf dwd.de/DE/leistungen/opendata/help/warnungen"></i></label>
+                                            <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 105515000000">
                                         </div>
                                         <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
                                     </div>
@@ -1421,6 +1632,46 @@
                                         <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
                                     </div>
                                 </div>
+
+                                <!-- Mitgliedsbeiträge -->
+                                <div class="col-12">
+                                    <div class="card premium-card p-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                            <h5 class="fw-bold text-white mb-0"><i class="fa fa-id-card text-danger me-2"></i>Mitgliedsbeiträge</h5>
+                                            <select v-model="feesYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadMembershipFees">
+                                                <option v-for="y in [2024,2025,2026,2027]" :value="y">Jahr {{ y }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Mitglied</th>
+                                                        <th>Betrag (€)</th>
+                                                        <th>Status</th>
+                                                        <th class="text-end">Aktion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="f in membershipFees" :key="f.personnel_id">
+                                                        <td class="fw-bold text-white">{{f.name}}</td>
+                                                        <td>
+                                                            <input type="number" step="0.01" v-model.number="f.amount" style="width: 90px;" class="form-control form-control-sm bg-dark border-secondary text-white">
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge" :class="f.paid_at ? 'bg-success' : 'bg-secondary'">{{ f.paid_at ? ('Bezahlt am ' + f.paid_at) : 'Offen' }}</span>
+                                                        </td>
+                                                        <td class="text-end">
+                                                            <button v-if="!f.paid_at" class="btn btn-xs btn-premium rounded-pill px-2" @click="toggleMembershipFee(f, true)">Als bezahlt markieren</button>
+                                                            <button v-else class="btn btn-xs btn-outline-secondary rounded-pill px-2" @click="toggleMembershipFee(f, false)">Zurücksetzen</button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-if="membershipFees.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine aktiven Mitglieder gefunden.</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1432,6 +1683,9 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-chart-bar text-danger me-2"></i>Statistiken</h2>
                             <small class="text-muted">Übersicht der Einsatzstatistiken</small>
                         </div>
+                        <select v-if="isAdmin || role === 'leitung'" v-model="statsYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadStats">
+                            <option v-for="y in [2024,2025,2026,2027]" :value="y">Jahr {{ y }}</option>
+                        </select>
                     </div>
                     <div class="row g-4">
                         <div class="col-12">
@@ -1453,6 +1707,21 @@
                                 <h5 class="fw-bold text-white mb-3">Einsätze pro Monat</h5>
                                 <div style="height: 400px; position: relative;">
                                     <canvas id="statsChartMonth"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white m-0">Top 10 Kameraden nach Dienst-/Einsatzstunden ({{ statsYear }})</h5>
+                                    <button v-if="statsAttendanceTop.length > 0" class="btn btn-sm btn-outline-light rounded-pill" @click="exportAttendanceStatsCsv"><i class="fa fa-file-csv me-1"></i>CSV-Export ({{statsAttendanceTop.length}} Kameraden)</button>
+                                </div>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChartAttendance"></canvas>
+                                </div>
+                                <div v-if="statsAttendanceTop.length === 0" class="empty-state">
+                                    <i class="fa-solid fa-chart-simple"></i>
+                                    <p>Keine Stunden für {{ statsYear }} erfasst</p>
                                 </div>
                             </div>
                         </div>
@@ -1762,6 +2031,9 @@
                         <li class="nav-item">
                             <button class="nav-link" :class="hvoTab === 'checks' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'checks'"><i class="fa fa-suitcase-medical me-1"></i>AED & Ausrüstungs-Check</button>
                         </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'material' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'material'; loadHvoMaterial()"><i class="fa fa-kit-medical me-1"></i>Sanitätsmaterial</button>
+                        </li>
                     </ul>
 
                     <!-- SUBTAB: PROTOCOLS -->
@@ -1854,6 +2126,58 @@
                                         </select>
                                     </div>
                                     <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoCheck">Erfolgreich prüfen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: SANITÄTSMATERIAL -->
+                    <div v-show="hvoTab === 'material'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-kit-medical text-danger me-2"></i>Verbandsmaterial & Medikamente</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-hover align-middle small">
+                                            <thead><tr class="text-muted"><th>Bezeichnung</th><th>Menge</th><th>Verfallsdatum</th><th>Notiz</th><th></th></tr></thead>
+                                            <tbody>
+                                                <tr v-for="m in hvoMaterial" :key="m.id">
+                                                    <td class="fw-bold text-white">{{m.name}}</td>
+                                                    <td>{{m.quantity}}</td>
+                                                    <td>
+                                                        <span v-if="m.expiry_date" class="badge rounded-pill" :class="new Date(m.expiry_date) < new Date() ? 'bg-danger' : 'bg-secondary'">{{m.expiry_date}}</span>
+                                                    </td>
+                                                    <td class="text-muted">{{m.note}}</td>
+                                                    <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteHvoMaterial(m.id)"><i class="fa fa-trash"></i></button></td>
+                                                </tr>
+                                                <tr v-if="hvoMaterial.length === 0"><td colspan="5" class="text-center py-3 text-muted">Kein Sanitätsmaterial erfasst.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Material erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Bezeichnung</label>
+                                        <input type="text" v-model="newHvoMaterial.name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Sterile Kompressen">
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Menge</label>
+                                            <input type="number" v-model.number="newHvoMaterial.quantity" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Verfallsdatum</label>
+                                            <input type="date" v-model="newHvoMaterial.expiry_date" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Notiz</label>
+                                        <input type="text" v-model="newHvoMaterial.note" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoMaterial">Hinzufügen</button>
                                 </div>
                             </div>
                         </div>
@@ -2310,7 +2634,7 @@
                                     <input type="date" v-model="activeVehicle.next_service" class="form-control">
                                 </div>
                             </div>
-                            <div class="mb-4">
+                            <div class="mb-3">
                                 <label class="form-label">BOS Status</label>
                                 <select v-model="activeVehicle.status" class="form-select">
                                     <option :value="1">Status 1 (Einsatzbereit über Funk)</option>
@@ -2320,8 +2644,76 @@
                                     <option :value="6">Status 6 (Nicht einsatzbereit / Werkstatt)</option>
                                 </select>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Erforderliche Führerscheinklasse <i class="fa fa-question-circle text-muted" title="Wird bei der Reservierung als Hinweis angezeigt"></i></label>
+                                <select v-model="activeVehicle.required_license" class="form-select">
+                                    <option :value="null">Keine besondere Anforderung</option>
+                                    <option value="B">Klasse B</option>
+                                    <option value="BE">Klasse BE</option>
+                                    <option value="C">Klasse C</option>
+                                    <option value="CE">Klasse CE</option>
+                                </select>
+                            </div>
+                            <div class="row g-2 mb-4">
+                                <div class="col-6">
+                                    <label class="form-label">Anschaffungswert (€)</label>
+                                    <input type="number" step="0.01" v-model.number="activeVehicle.purchase_value" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Versicherungs-Policennummer</label>
+                                    <input type="text" v-model="activeVehicle.insurance_policy" class="form-control">
+                                </div>
+                            </div>
                             <button type="submit" class="btn btn-premium w-100 rounded-pill">Fahrzeug speichern</button>
                         </form>
+
+                        <div v-if="activeVehicle.id" class="mt-4 pt-3 border-top border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-3"><i class="fa fa-paperclip text-danger me-2"></i>Dokumente (Fahrzeugschein, Versicherung, ...)</h6>
+                            <input type="file" ref="vehicleDocFile" class="form-control bg-dark border-secondary text-white mb-2" @change="uploadVehicleDocument">
+                            <div class="list-group list-group-flush bg-transparent">
+                                <div v-for="doc in vehicleDocuments" :key="doc.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                    <a :href="doc.url" target="_blank" class="small text-danger text-decoration-underline"><i class="fa fa-file-alt me-2"></i>{{doc.filename}}</a>
+                                    <button class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteVehicleDocument(doc.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                </div>
+                                <div v-if="vehicleDocuments.length === 0" class="text-muted small">Keine Dokumente hochgeladen.</div>
+                            </div>
+                        </div>
+
+                        <div v-if="activeVehicle.id" class="mt-4 pt-3 border-top border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-3"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Wartungskosten-Historie</h6>
+                            <div class="row g-2 align-items-end mb-3">
+                                <div class="col-4">
+                                    <label class="form-label small">Datum</label>
+                                    <input type="date" v-model="newMaintenance.date" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-8">
+                                    <label class="form-label small">Beschreibung</label>
+                                    <input type="text" v-model="newMaintenance.description" class="form-control form-control-sm" placeholder="z. B. Bremsen erneuert">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">Werkstatt</label>
+                                    <input type="text" v-model="newMaintenance.workshop" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label small">Kosten (€)</label>
+                                    <input type="number" step="0.01" v-model.number="newMaintenance.cost" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-1">
+                                    <button class="btn btn-premium btn-sm w-100" @click="submitVehicleMaintenance"><i class="fa fa-plus"></i></button>
+                                </div>
+                            </div>
+                            <div class="list-group list-group-flush bg-transparent">
+                                <div v-for="m in vehicleMaintenance" :key="m.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                    <div>
+                                        <div class="fw-bold small">{{m.description}}</div>
+                                        <small class="text-muted">{{m.date}} &bull; {{m.workshop || '—'}} &bull; {{m.cost.toFixed(2)}} €</small>
+                                    </div>
+                                    <button class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteVehicleMaintenance(m.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                </div>
+                                <div v-if="vehicleMaintenance.length === 0" class="text-muted small">Keine Einträge.</div>
+                                <div v-if="vehicleMaintenance.length > 0" class="text-end fw-bold text-white small pt-2">Gesamt: {{ vehicleMaintenance.reduce((s,m) => s+m.cost, 0).toFixed(2) }} €</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2454,7 +2846,7 @@
                                 <label class="form-label">Prüffrist (Monate)</label>
                                 <input type="number" v-model="activeEquipment.interval_months" class="form-control">
                             </div>
-                            <div class="row g-2 mb-4">
+                            <div class="row g-2 mb-3">
                                 <div class="col-6">
                                     <label class="form-label">Letzte Prüfung</label>
                                     <input type="date" v-model="activeEquipment.last_inspection" class="form-control">
@@ -2462,6 +2854,16 @@
                                 <div class="col-6">
                                     <label class="form-label">Nächste Prüfung</label>
                                     <input type="date" v-model="activeEquipment.next_inspection" class="form-control">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-4">
+                                <div class="col-6">
+                                    <label class="form-label">Anschaffungswert (€)</label>
+                                    <input type="number" step="0.01" v-model.number="activeEquipment.purchase_value" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Versicherungs-Policennummer</label>
+                                    <input type="text" v-model="activeEquipment.insurance_policy" class="form-control">
                                 </div>
                             </div>
                             <div class="mb-4 text-center p-3 bg-black bg-opacity-25 rounded border border-secondary border-opacity-10" v-if="activeEquipment && activeEquipment.id">
@@ -2527,6 +2929,68 @@
                                 <textarea v-model="newInspection.note" class="form-control" rows="2"></textarea>
                             </div>
                             <button type="submit" class="btn btn-premium w-100 rounded-pill">Prüfung verbuchen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: GERÄT AUSLEIHEN -->
+        <div class="modal fade" id="loanEquipmentModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Gerät ausleihen<span v-if="activeEquipment"> – {{activeEquipment.name}}</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitLoan">
+                            <div class="mb-3">
+                                <label class="form-label">Ausgeliehen an</label>
+                                <input type="text" v-model="newLoan.borrower_name" class="form-control" placeholder="Name des Kameraden" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz (optional)</label>
+                                <input type="text" v-model="newLoan.note" class="form-control" placeholder="z. B. für Übung am ...">
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Ausleihe eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: FAHRZEUG RESERVIEREN -->
+        <div class="modal fade" id="vehicleReservationModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Fahrzeug reservieren<span v-if="activeVehicleForLog"> – {{activeVehicleForLog.name}}</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div v-if="activeVehicleForLog && activeVehicleForLog.required_license && myLicenses && !myLicenses['lic_' + activeVehicleForLog.required_license.toLowerCase()]" class="alert alert-warning small py-2">
+                            <i class="fa fa-triangle-exclamation me-1"></i>Für dieses Fahrzeug wird Führerschein <strong>Klasse {{activeVehicleForLog.required_license}}</strong> benötigt. Laut deinem Personal-Datensatz ist diese Klasse nicht hinterlegt.
+                        </div>
+                        <div v-else-if="activeVehicleForLog && activeVehicleForLog.required_license" class="alert alert-secondary small py-2">
+                            <i class="fa fa-id-card me-1"></i>Für dieses Fahrzeug wird Führerschein Klasse {{activeVehicleForLog.required_license}} benötigt.
+                        </div>
+                        <form @submit.prevent="submitVehicleReservation">
+                            <div class="mb-3">
+                                <label class="form-label">Zweck</label>
+                                <input type="text" v-model="newReservation.purpose" class="form-control" placeholder="z. B. Übung, Ausbildung..." required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Von</label>
+                                    <input type="datetime-local" v-model="newReservation.start_datetime" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Bis</label>
+                                    <input type="datetime-local" v-model="newReservation.end_datetime" class="form-control" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Reservierung eintragen</button>
                         </form>
                     </div>
                 </div>
@@ -2635,6 +3099,7 @@
                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-qual">Qualifikationen</button></li>
                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-lehr">Lehrgänge</button></li>
                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-inv">Kleidung & Inventar</button></li>
+                            <li class="nav-item" v-if="activePersonnel.id"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-avail" @click="loadAvailability(activePersonnel.id)">Verfügbarkeit</button></li>
                         </ul>
 
                         <div class="tab-content">
@@ -2647,6 +3112,15 @@
                                     <div class="col-md-6"><label class="form-label">Telefonnummer</label><input type="text" v-model="activePersonnel.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
                                     <div class="col-md-12"><label class="form-label">E-Mail-Adresse</label><input type="email" v-model="activePersonnel.email" class="form-control" placeholder="name@beispiel.de"></div>
                                     <div class="col-md-12"><label class="form-label">Adresse</label><textarea v-model="activePersonnel.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
+                                    <div class="col-md-12 mt-2">
+                                        <div class="p-3 rounded-3 border" style="background: rgba(183, 28, 28, 0.08); border-color: rgba(183, 28, 28, 0.3) !important;">
+                                            <label class="form-label text-danger fw-bold mb-2"><i class="fa fa-phone-volume me-1"></i>Notfallkontakt (Angehörige)</label>
+                                            <div class="row g-2">
+                                                <div class="col-md-6"><input type="text" v-model="activePersonnel.emergency_contact_name" class="form-control" placeholder="Name, Beziehung (z. B. Ehepartner/in)"></div>
+                                                <div class="col-md-6"><input type="text" v-model="activePersonnel.emergency_contact_phone" class="form-control" placeholder="Telefonnummer"></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2677,25 +3151,32 @@
                                 <div v-if="canManagePersonnel" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
                                     <h6 class="fw-bold text-white mb-3">Lehrgang eintragen</h6>
                                     <div class="row g-2 align-items-end">
-                                        <div class="col-md-6">
+                                        <div class="col-md-5">
                                             <label class="small text-muted fw-bold mb-1">Lehrgangsname</label>
                                             <input type="text" v-model="newCourse.course_name" class="form-control form-control-sm">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <label class="small text-muted fw-bold mb-1">Datum</label>
                                             <input type="date" v-model="newCourse.date" class="form-control form-control-sm">
                                         </div>
-                                        <div class="col-md-2">
-                                            <button class="btn btn-premium btn-sm w-100" @click="submitCourse"><i class="fa fa-plus me-1"></i>Hinzufügen</button>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Gültig bis (optional)</label>
+                                            <input type="date" v-model="newCourse.valid_until" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitCourse"><i class="fa fa-plus"></i></button>
                                         </div>
                                     </div>
                                 </div>
                                 <table class="table table-dark table-hover mb-0 align-middle small">
-                                    <thead><tr class="text-muted"><th>LEHRGANG</th><th>DATUM</th><th>Aktion</th></tr></thead>
+                                    <thead><tr class="text-muted"><th>LEHRGANG</th><th>DATUM</th><th>GÜLTIG BIS</th><th>Aktion</th></tr></thead>
                                     <tbody>
                                         <tr v-for="c in activePersonnel.courses" :key="c.id">
                                             <td class="fw-bold text-white">{{c.course_name}}</td>
                                             <td>{{c.date}}</td>
+                                            <td>
+                                                <span v-if="c.valid_until" class="badge rounded-pill" :class="new Date(c.valid_until) < new Date() ? 'bg-danger' : 'bg-secondary'">{{c.valid_until}}</span>
+                                            </td>
                                             <td>
                                                 <button v-if="canManagePersonnel" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteCourse(c.id)"><i class="fa fa-trash"></i></button>
                                             </td>
@@ -2737,6 +3218,42 @@
                                                 <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteGear(g.id)"><i class="fa fa-trash"></i></button>
                                             </td>
                                         </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- VERFÜGBARKEIT / ABWESENHEIT -->
+                            <div class="tab-pane fade" id="tp-avail">
+                                <div class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Abwesenheit eintragen (Urlaub, Krankheit, ...)</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Von</label>
+                                            <input type="date" v-model="newAvailability.start_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Bis</label>
+                                            <input type="date" v-model="newAvailability.end_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Grund (optional)</label>
+                                            <input type="text" v-model="newAvailability.reason" class="form-control form-control-sm" placeholder="Urlaub, Krankheit...">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitAvailability(activePersonnel.id)"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>VON</th><th>BIS</th><th>GRUND</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="av in availabilityList" :key="av.id">
+                                            <td class="fw-bold text-white">{{av.start_date}}</td>
+                                            <td class="fw-bold text-white">{{av.end_date}}</td>
+                                            <td>{{av.reason || '-'}}</td>
+                                            <td><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteAvailability(av.id, activePersonnel.id)"><i class="fa fa-trash"></i></button></td>
+                                        </tr>
+                                        <tr v-if="availabilityList.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine Abwesenheiten erfasst.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2810,6 +3327,50 @@
                     <div class="modal-footer border-secondary border-opacity-10">
                         <button type="button" class="btn btn-outline-light rounded-pill px-4" @click="printAnniversaries"><i class="fa fa-print me-1"></i>Drucken</button>
                         <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: QUALIFIKATIONSMATRIX -->
+        <div class="modal fade" id="qualMatrixModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-table-cells text-info me-2"></i>Qualifikationsmatrix (Aktive Mitglieder)</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle small mb-0">
+                                <thead>
+                                    <tr class="text-muted">
+                                        <th>Name</th>
+                                        <th v-for="q in qualifications" :key="q.id" class="text-center">{{q.label}}</th>
+                                        <th v-for="l in [{id:'lic_b',n:'Klasse B'},{id:'lic_be',n:'Klasse BE'},{id:'lic_c',n:'Klasse C'},{id:'lic_ce',n:'Klasse CE'}]" :key="l.id" class="text-center">{{l.n}}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="p in activePersonnelForMatrix" :key="p.id">
+                                        <td class="fw-bold text-white">{{p.name}}</td>
+                                        <td v-for="q in qualifications" :key="q.id" class="text-center">
+                                            <i class="fa" :class="p[q.id] ? 'fa-check text-success' : 'fa-minus text-muted'"></i>
+                                        </td>
+                                        <td v-for="l in [{id:'lic_b'},{id:'lic_be'},{id:'lic_c'},{id:'lic_ce'}]" :key="l.id" class="text-center">
+                                            <i class="fa" :class="p[l.id] ? 'fa-check text-success' : 'fa-minus text-muted'"></i>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="activePersonnelForMatrix.length === 0"><td :colspan="qualifications.length + 5" class="text-center py-3 text-muted">Keine aktiven Mitglieder.</td></tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="fw-bold text-white border-top border-secondary">
+                                        <td>Gesamt</td>
+                                        <td v-for="q in qualifications" :key="'sum_'+q.id" class="text-center">{{ activePersonnelForMatrix.filter(p => p[q.id]).length }}</td>
+                                        <td v-for="l in [{id:'lic_b'},{id:'lic_be'},{id:'lic_c'},{id:'lic_ce'}]" :key="'sum_'+l.id" class="text-center">{{ activePersonnelForMatrix.filter(p => p[l.id]).length }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

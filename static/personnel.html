@@ -508,6 +508,15 @@
                                 <div class="col-md-6"><label class="form-label">Telefonnummer</label><input type="text" v-model="activePerson.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
                                 <div class="col-md-12"><label class="form-label">E-Mail-Adresse</label><input type="email" v-model="activePerson.email" class="form-control" placeholder="name@beispiel.de"></div>
                                 <div class="col-md-12"><label class="form-label">Adresse</label><textarea v-model="activePerson.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
+                                <div class="col-md-12 mt-2">
+                                    <div class="p-3 rounded-3 border" style="background: rgba(183, 28, 28, 0.08); border-color: rgba(183, 28, 28, 0.3) !important;">
+                                        <label class="form-label text-danger fw-bold mb-2"><i class="fa fa-phone-volume me-1"></i>Notfallkontakt (Angehörige)</label>
+                                        <div class="row g-2">
+                                            <div class="col-md-6"><input type="text" v-model="activePerson.emergency_contact_name" class="form-control" placeholder="Name, Beziehung (z. B. Ehepartner/in)"></div>
+                                            <div class="col-md-6"><input type="text" v-model="activePerson.emergency_contact_phone" class="form-control" placeholder="Telefonnummer"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -539,6 +548,12 @@
                                 <div class="col-md-12" v-for="f in [{f: 'g26_3_date', l: 'G26.3 Atemschutzuntersuchung'}, {f: 'belastungslauf_date', l: 'Jährlicher Belastungslauf (Kriechstrecke)'}, {f: 'unterweisung_date', l: 'UVV Sicherheitsunterweisung'}]">
                                     <div class="p-3 border border-secondary border-opacity-10 rounded-3 bg-black bg-opacity-20 d-flex justify-content-between align-items-center">
                                         <div><span :class="getHealthStatus(activePerson[f.f], f.f)" class="status-dot"></span><span class="fw-bold small text-white">{{ f.l }}</span></div>
+                                        <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm">
+                                    </div>
+                                </div>
+                                <div class="col-md-12" v-for="f in [{f: 'dsgvo_ack_date', l: 'Datenschutzerklärung (DSGVO) bestätigt'}, {f: 'dienstordnung_ack_date', l: 'Dienstordnung bestätigt'}]">
+                                    <div class="p-3 border border-secondary border-opacity-10 rounded-3 bg-black bg-opacity-20 d-flex justify-content-between align-items-center">
+                                        <div><span class="status-dot" :class="activePerson[f.f] ? 'bg-ok' : 'bg-crit'"></span><span class="fw-bold small text-white">{{ f.l }}</span></div>
                                         <input type="date" v-model="activePerson[f.f]" class="form-control w-auto form-control-sm">
                                     </div>
                                 </div>
@@ -728,7 +743,9 @@ createApp({
         openNewMemberModal() {
             this.activePerson = {
                 id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: '', entry_date: '', honors: '', profile_picture: '', has_picture: false,
-                is_truppmann: false, is_funk: false, is_agt: false, is_maschinist: false, is_tf: false, is_gf: false, lic_b: false, lic_be: false, lic_c: false, lic_ce: false, g26_3_date: '', belastungslauf_date: '', unterweisung_date: ''
+                is_truppmann: false, is_funk: false, is_agt: false, is_maschinist: false, is_tf: false, is_gf: false, lic_b: false, lic_be: false, lic_c: false, lic_ce: false, g26_3_date: '', belastungslauf_date: '', unterweisung_date: '',
+                dsgvo_ack_date: '', dienstordnung_ack_date: '',
+                emergency_contact_name: '', emergency_contact_phone: ''
             };
             this.modalInstance.show();
         },
