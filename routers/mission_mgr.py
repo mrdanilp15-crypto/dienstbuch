@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request, Response, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
-import os
 import base64
 from datetime import date
 
@@ -25,13 +25,15 @@ def format_time_val(t_val):
         return t_val[:5] if len(t_val) >= 5 else t_val
     return str(t_val)[:5]
 
-def check_auth(request: Request, require_admin: bool = False) -> dict:
+def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
     from core.utils import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
     if require_admin and user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    if allowed_roles and user["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     return user
 
 class MissionAttendanceEntry(BaseModel):
@@ -153,9 +155,10 @@ def get_mission(mission_id: int, request: Request):
     m["attendance"] = att
     return m
 
-@router.get("/{mission_id}/pdf")
-def get_mission_pdf(mission_id: int, request: Request):
-    check_auth(request)
+def _prepare_mission_report_data(mission_id: int):
+    """Lädt einen Einsatz + Anwesenheit und bringt sie in die Form, die
+    generate_single_report() erwartet. Wird sowohl für die PDF- als auch
+    für die HTML-Berichtsansicht genutzt, damit beide identisch aussehen."""
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM missions WHERE id = %s", (mission_id,))
@@ -163,31 +166,33 @@ def get_mission_pdf(mission_id: int, request: Request):
     if not m:
         cur.close(); conn.close()
         raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
-    
+
     cur.execute("""
-        SELECT ma.is_present, ma.vehicle, p.name, p.signature 
-        FROM mission_attendance ma 
-        JOIN personnel p ON ma.personnel_id = p.id 
+        SELECT ma.is_present, ma.vehicle, p.name
+        FROM mission_attendance ma
+        JOIN personnel p ON ma.personnel_id = p.id
         WHERE ma.mission_id = %s
     """, (mission_id,))
     att = cur.fetchall()
     cur.close(); conn.close()
-    
+
     if isinstance(m["date"], date):
         m["date"] = str(m["date"])
-    
+
     # We need to adapt `m` to fit `generate_single_report` which expects specific keys
     m['gname'] = "Feuerwehr"
     m['instructors'] = "Einsatzleiter"
     m['category'] = "Einsatz"
     if not m.get('description'):
         m['description'] = m.get('stichwort', 'Einsatz') + " - " + m.get('meldung', '')
-    
+
     sig = m.get("leader_signature")
     if sig:
         m["leader_signature"] = safe_decode(sig)
-    
-    # Adapt persons
+
+    # Adapt persons - Einsatz-Teilnehmer haben (anders als normale Dienste) keine
+    # eigene Unterschrift pro Person in der DB, nur der Einsatzleiter unterschreibt
+    # (missions.leader_signature oben).
     persons = []
     for a in att:
         is_p = 1 if a['is_present'] in ('Abgerückt', 'Bereitstellung') else 0
@@ -195,32 +200,294 @@ def get_mission_pdf(mission_id: int, request: Request):
             'name': a['name'],
             'is_present': is_p,
             'vehicle': a['vehicle'],
-            'signature': safe_decode(a['signature'])
+            'signature': None
         })
-    
-    town_name = os.getenv("TOWN_NAME", "Deine Feuerwehr")
-    
+
+    from core.utils import get_station_name
+    town_name = get_station_name()
+    return m, persons, town_name
+
+@router.get("/{mission_id}/report", response_class=HTMLResponse)
+def get_mission_report(mission_id: int, request: Request):
+    check_auth(request)
+    m, persons, town_name = _prepare_mission_report_data(mission_id)
     from routers.reports import generate_single_report, get_report_styles
     html_content = generate_single_report(m, persons, town_name)
-    
+    return f"<html><head><meta charset='utf-8'><style>{get_report_styles()}</style></head><body>{html_content}</body></html>"
+
+@router.get("/{mission_id}/pdf")
+def get_mission_pdf(mission_id: int, request: Request):
+    check_auth(request)
+    m, persons, town_name = _prepare_mission_report_data(mission_id)
+
+    from routers.reports import generate_single_report, get_report_styles
+    html_content = generate_single_report(m, persons, town_name)
+
     full_html = f"<html><head><meta charset='utf-8'><style>{get_report_styles()}</style></head><body>{html_content}</body></html>"
-    
+
     import xhtml2pdf.pisa as pisa
     import io
     pdf_buf = io.BytesIO()
     pisa.CreatePDF(full_html, dest=pdf_buf)
     pdf_bytes = pdf_buf.getvalue()
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=Einsatzbericht_{mission_id}.pdf"}
+        # "inline" statt "attachment": öffnet das PDF im Browser-Tab/-Fenster
+        # (window.open im Frontend), statt es nur stumm herunterzuladen und eine
+        # Download-Benachrichtigung anzuzeigen.
+        headers={"Content-Disposition": f"inline; filename=Einsatzbericht_{mission_id}.pdf"}
+    )
+
+@router.get("/{mission_id}/employer-certificate/{personnel_id}")
+def get_employer_certificate(mission_id: int, personnel_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    
+    cur.execute("SELECT * FROM missions WHERE id = %s", (mission_id,))
+    m = cur.fetchone()
+    if not m:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+
+    cur.execute("SELECT * FROM personnel WHERE id = %s", (personnel_id,))
+    p = cur.fetchone()
+    if not p:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Kamerad nicht gefunden")
+
+    cur.execute("SELECT is_present, vehicle FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
+    att = cur.fetchone()
+    cur.close(); conn.close()
+
+    from core.utils import get_station_name
+    station_name = get_station_name()
+
+    try:
+        if isinstance(m["date"], date):
+            e_date_fmt = m["date"].strftime("%d.%m.%Y")
+        else:
+            parts = str(m["date"]).split("-")
+            e_date_fmt = f"{parts[2]}.{parts[1]}.{parts[0]}"
+    except Exception:
+        e_date_fmt = str(m["date"])
+
+    start_time = format_time_val(m.get("time") or "00:00")
+    end_time = format_time_val(m.get("end_time") or "")
+    if not end_time:
+        end_time = "Gemäß Einsatzdauer"
+
+    birth_str = ""
+    if p.get("birth_date"):
+        try:
+            if isinstance(p["birth_date"], date):
+                birth_str = f", geb. am {p['birth_date'].strftime('%d.%m.%Y')}"
+            else:
+                b_parts = str(p["birth_date"]).split("-")
+                birth_str = f", geb. am {b_parts[2]}.{b_parts[1]}.{b_parts[0]}"
+        except Exception:
+            birth_str = f", geb. am {p['birth_date']}"
+
+    addr_str = f" ({p['address']})" if p.get("address") else ""
+    today_fmt = date.today().strftime("%d.%m.%Y")
+    duration_str = f"{m.get('duration', 2.0)} Std."
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{
+            size: a4 portrait;
+            margin: 2.5cm 2cm 2cm 2cm;
+        }}
+        body {{
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.5;
+            color: #1f2937;
+        }}
+        .header-table {{
+            width: 100%;
+            border-bottom: 2px solid #b91c1c;
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+        }}
+        .station-title {{
+            font-size: 16pt;
+            font-weight: bold;
+            color: #b91c1c;
+            margin: 0;
+        }}
+        .station-sub {{
+            font-size: 9pt;
+            color: #4b5563;
+            margin: 0;
+        }}
+        .doc-title {{
+            font-size: 14pt;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            color: #111827;
+        }}
+        .doc-subtitle {{
+            font-size: 10pt;
+            text-align: center;
+            color: #4b5563;
+            margin-bottom: 25px;
+        }}
+        .box {{
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+        }}
+        .data-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }}
+        .data-table td {{
+            padding: 6px 8px;
+            vertical-align: top;
+        }}
+        .data-table td.label {{
+            width: 32%;
+            font-weight: bold;
+            color: #374151;
+            border-bottom: 1px solid #f3f4f6;
+        }}
+        .data-table td.value {{
+            width: 68%;
+            border-bottom: 1px solid #f3f4f6;
+        }}
+        .legal-box {{
+            background-color: #fef2f2;
+            border-left: 4px solid #b91c1c;
+            padding: 10px 14px;
+            font-size: 8.5pt;
+            color: #4b5563;
+            margin-top: 25px;
+            margin-bottom: 25px;
+            line-height: 1.4;
+        }}
+        .signature-table {{
+            width: 100%;
+            margin-top: 45px;
+        }}
+        .signature-table td {{
+            vertical-align: top;
+            width: 50%;
+        }}
+        .sig-line {{
+            border-top: 1px solid #374151;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-size: 8.5pt;
+            color: #4b5563;
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td>
+                <div class="station-title">{station_name}</div>
+                <div class="station-sub">Freiwillige Feuerwehr &bull; Gesetzliche Gefahrenabwehr</div>
+            </td>
+            <td style="text-align: right; vertical-align: bottom;">
+                <div style="font-size: 9pt; color: #4b5563;">Datum: {today_fmt}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="doc-title">Bescheinigung</div>
+    <div class="doc-subtitle">über die Teilnahme an einem Feuerwehreinsatz zur Vorlage beim Arbeitgeber<br>(Anspruch auf Lohnfortzahlung / Erstattung von Verdienstausfall)</div>
+
+    <p>Hiermit wird zur Vorlage bei der zuständigen Personalabteilung / dem Lohnbüro amtlich bescheinigt, dass</p>
+
+    <div class="box">
+        <span style="font-size: 12pt; font-weight: bold; color: #111827;">Herr / Frau {p['name']}</span>{birth_str}{addr_str}
+    </div>
+
+    <p>als ehrenamtliche/r Angehörige/r der <strong>{station_name}</strong> im Rahmen der gesetzlichen Pflichtaufgaben an folgendem Einsatz teilgenommen hat:</p>
+
+    <table class="data-table">
+        <tr>
+            <td class="label">Einsatzdatum:</td>
+            <td class="value"><strong>{e_date_fmt}</strong></td>
+        </tr>
+        <tr>
+            <td class="label">Einsatzzeit (von – bis):</td>
+            <td class="value"><strong>{start_time} Uhr bis {end_time} Uhr</strong></td>
+        </tr>
+        <tr>
+            <td class="label">Gesamtdauer:</td>
+            <td class="value"><strong>{duration_str}</strong> (inkl. Nachbereitung / Wiederherstellung der Einsatzbereitschaft)</td>
+        </tr>
+        <tr>
+            <td class="label">Einsatzstichwort:</td>
+            <td class="value">{m.get('stichwort') or 'Einsatz'}</td>
+        </tr>
+        <tr>
+            <td class="label">Einsatzort / Adresse:</td>
+            <td class="value">{m.get('adresse') or 'Einsatzgebiet'}</td>
+        </tr>
+        <tr>
+            <td class="label">Einsatz-Aktenzeichen:</td>
+            <td class="value">Einsatz #{mission_id}</td>
+        </tr>
+    </table>
+
+    <div class="legal-box">
+        <strong>Rechtliche Hinweise für den Arbeitgeber:</strong><br>
+        Feuerwehrangehörige sind während der Dauer des Einsatzes sowie für einen zur Wiederherstellung der Arbeits- und Leistungsfähigkeit notwendigen Zeitraum nach den Feuerwehrgesetzen der Länder von der Arbeitsleistung freigestellt. Dem Arbeitnehmer darf durch den ehrenamtlichen Feuerwehrdienst kein Nachteil im Arbeitsverhältnis entstehen. Das Arbeitsentgelt (inklusive aller Nebenleistungen) ist für den Zeitraum der Freistellung fortzuzahlen.<br><br>
+        <strong>Erstattungsanspruch:</strong><br>
+        Die zuständige Gemeinde bzw. Stadtverwaltung erstattet privaten Arbeitgebern auf Antrag das weitergewährte Arbeitsentgelt einschließlich der vom Arbeitgeber zu tragenden Sozialversicherungsbeiträge. Bitte reichen Sie hierfür den Erstattungsantrag mit Angabe der Brutto-Lohnkosten bei der zuständigen Stadt-/Gemeindeverwaltung ein.
+    </div>
+
+    <table class="signature-table">
+        <tr>
+            <td style="padding-right: 25px;">
+                <div style="font-size: 9pt; color: #4b5563;">Dienstsiegel / Stempel:</div>
+                <div style="height: 60px; border: 1px dashed #d1d5db; border-radius: 4px; margin-top: 5px;"></div>
+            </td>
+            <td style="padding-left: 25px;">
+                <div class="sig-line">
+                    (Unterschrift Feuerwehrkommandant / Einsatzleiter)
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(html_content, dest=pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+
+    safe_p_name = p['name'].replace(' ', '_').replace('/', '_')
+    filename = f"Arbeitgeberbescheinigung_{safe_p_name}_Einsatz_{mission_id}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
 
 @router.post("")
 def create_mission(m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -247,7 +514,7 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
 @router.put("/{mission_id}")
 def update_mission(mission_id: int, m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT status, leader_signature FROM missions WHERE id = %s", (mission_id,))
@@ -290,7 +557,7 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
 
 @router.delete("/{mission_id}")
 def delete_mission(mission_id: int, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
@@ -304,7 +571,7 @@ def delete_mission(mission_id: int, request: Request):
 @router.post("/{mission_id}/signature")
 def save_mission_signature(mission_id: int, data: dict, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (data.get("signature"), mission_id))
@@ -329,7 +596,7 @@ def list_respiration_log(mission_id: int, request: Request):
 @router.post("/{mission_id}/respiration")
 def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -342,7 +609,7 @@ def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request
 @router.delete("/respiration/{entry_id}")
 def delete_respiration_entry(entry_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM respiration_log WHERE id = %s", (entry_id,))
@@ -556,7 +823,7 @@ def export_sepa_xml(year: int, hourly_rate: float, sender_iban: str, sender_bic:
 # --- 📅 ÜBUNGS- & DIENSTPLANUNG ---
 @router.get("/schedules/list")
 def list_schedules(request: Request):
-    check_auth(request)
+    # Kein check_auth: wird auch vom nicht eingeloggten Hallenmonitor (alarmdisplay.html) gelesen.
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM schedules ORDER BY date ASC, time ASC")
@@ -571,7 +838,7 @@ def list_schedules(request: Request):
 @router.post("/schedules")
 def create_schedule(s: ScheduleCreate, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -584,7 +851,7 @@ def create_schedule(s: ScheduleCreate, request: Request):
 @router.put("/schedules/{sch_id}")
 def update_schedule(sch_id: int, s: ScheduleCreate, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -598,7 +865,7 @@ def update_schedule(sch_id: int, s: ScheduleCreate, request: Request):
 @router.delete("/schedules/{sch_id}")
 def delete_schedule(sch_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM schedule_attendance WHERE schedule_id = %s", (sch_id,))
@@ -623,7 +890,7 @@ def get_schedule_attendance(sch_id: int, request: Request):
 @router.post("/schedules/{sch_id}/attendance")
 def save_schedule_attendance(sch_id: int, data: List[ScheduleAttendanceEntry], request: Request):
     user = check_auth(request)
-    if user["role"] == "mannschaft":
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM schedule_attendance WHERE schedule_id = %s", (sch_id,))

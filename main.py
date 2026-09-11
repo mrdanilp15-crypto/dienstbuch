@@ -41,7 +41,8 @@ CURRENT_VERSION = "2.50"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
-SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
+# Der eigentliche Session-Signierschlüssel lebt in core.utils (dort auch automatisch
+# generiert/persistiert, falls SECRET_KEY nicht gesetzt ist).
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -123,7 +124,21 @@ def init_db_extensions():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
+        # WICHTIG: personnel muss als Erstes existieren - mission_attendance,
+        # respiration_log und youth_attendance legen weiter unten Fremdschlüssel
+        # darauf an. Auf einer frischen Datenbank gab es personnel sonst noch nicht,
+        # wodurch "CREATE TABLE youth_attendance" mit Errno 150 abstürzte und alles
+        # danach - inklusive der Admin-Kontoanlage - nie ausgeführt wurde.
+        # Die volle Spalten-/Jugendfeuerwehr-Migration läuft weiterhin in
+        # personnel_mgr.init_personnel_db() weiter unten, hier nur die Basistabelle.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personnel (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE
+            ) ENGINE=InnoDB;
+        """)
+
         required_columns = [
             ("is_truppmann", "BOOLEAN DEFAULT FALSE"),
             ("is_funk", "BOOLEAN DEFAULT FALSE"),
@@ -173,6 +188,18 @@ def init_db_extensions():
         cur.execute("SELECT COUNT(*) FROM station_settings")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text) VALUES (%s, 50.1109, 8.6821, 14, %s)", (TOWN_NAME, "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"))
+        else:
+            # Selbstheilung: Falls durch einen Redeploy-Timing-Zufall (zwei Container kurz
+            # gleichzeitig gestartet) mehrere Zeilen entstanden sind, behält NUR die älteste
+            # (niedrigste id) - das ist die, die über /api/settings/station tatsächlich laufend
+            # bearbeitet wird. Ohne das lieferte "SELECT ... LIMIT 1" ohne ORDER BY zufällig mal
+            # die alte Musterstadt-Default-Zeile, mal die echte - der Standort wirkte "instabil".
+            cur.execute("SELECT COUNT(*) FROM station_settings")
+            if cur.fetchone()[0] > 1:
+                cur.execute("""
+                    DELETE FROM station_settings
+                    WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM station_settings) AS keep_row)
+                """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS archive_files (
@@ -455,9 +482,34 @@ def init_db_extensions():
                 apager_log_id INT,
                 personnel_id INT,
                 status VARCHAR(50) NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_apager_feedback_alarm_person (apager_log_id, personnel_id)
             ) ENGINE=InnoDB;
         """)
+        # Migration: fehlender UNIQUE KEY auf bestehenden Installationen nachrüsten,
+        # sonst greift "ON DUPLICATE KEY UPDATE" beim Feedback-Speichern nie und es
+        # entstehen doppelte Rückmeldungs-Zeilen pro Person/Alarm.
+        try:
+            cur.execute("""
+                SELECT COUNT(*) FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'apager_feedbacks'
+                  AND INDEX_NAME = 'uq_apager_feedback_alarm_person'
+            """)
+            if cur.fetchone()[0] == 0:
+                # Vorab Duplikate bereinigen (jeweils neuesten Eintrag behalten), sonst schlägt ADD UNIQUE fehl
+                cur.execute("""
+                    DELETE f1 FROM apager_feedbacks f1
+                    INNER JOIN apager_feedbacks f2
+                    WHERE f1.apager_log_id = f2.apager_log_id
+                      AND f1.personnel_id = f2.personnel_id
+                      AND f1.id < f2.id
+                """)
+                cur.execute("""
+                    ALTER TABLE apager_feedbacks
+                    ADD UNIQUE KEY uq_apager_feedback_alarm_person (apager_log_id, personnel_id)
+                """)
+        except Exception as mig_err:
+            print("Konnte apager_feedbacks UNIQUE KEY nicht migrieren:", mig_err)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS equipment_defect_reports (
@@ -839,7 +891,7 @@ def get_manifest():
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
     except Exception:
         try:
             cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -851,7 +903,7 @@ def get_station_settings():
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
         return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": ""}
@@ -892,11 +944,20 @@ def update_station_settings(data: dict, request: Request):
     except Exception:
         pass
 
-    cur.execute("SELECT id FROM station_settings LIMIT 1")
+    # Duplikate (aus Redeploy-Race-Conditions) vor dem Speichern bereinigen, damit nicht
+    # wieder eine alte Default-Zeile irgendwo übrig bleibt und später zufällig zurückkommt.
+    cur.execute("SELECT COUNT(*) FROM station_settings")
+    if cur.fetchone()[0] > 1:
+        cur.execute("""
+            DELETE FROM station_settings
+            WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM station_settings) AS keep_row)
+        """)
+
+    cur.execute("SELECT id FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone()
     if row:
         cur.execute("""
-            UPDATE station_settings 
+            UPDATE station_settings
             SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s
             WHERE id = %s
         """, (station_name, lat, lng, zoom, ticker_text, iban, bic, row[0]))

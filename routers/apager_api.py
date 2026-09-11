@@ -38,8 +38,7 @@ def regenerate_apager_key(request: Request):
 
 @router.get("/api/apager/logs")
 def get_apager_logs(request: Request):
-    user = get_current_user(request)
-    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
     r = cur.fetchall(); cur.close(); conn.close()
@@ -240,8 +239,7 @@ async def generic_alarm_webhook(req: Request, api_key: Optional[str] = None):
 
 @router.get("/api/apager/feedbacks")
 def get_apager_feedbacks(request: Request):
-    check_user = get_current_user(request)
-    if not check_user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT af.*, p.name, p.is_agt, p.is_maschinist, p.is_gf, p.is_tf
@@ -255,7 +253,7 @@ def get_apager_feedbacks(request: Request):
     return res
 
 @router.post("/api/apager/feedbacks")
-def submit_apager_feedback(status: str, request: Request):
+def submit_apager_feedback(status: str, request: Request, alarm_id: Optional[int] = None):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -264,20 +262,28 @@ def submit_apager_feedback(status: str, request: Request):
     if not row or not row["personnel_id"]:
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Kein Kamerad mit diesem Login verknüpft.")
-    
+
     personnel_id = row["personnel_id"]
-    
-    # Letzten Alarm holen
-    cur.execute("SELECT id FROM apager_logs ORDER BY created_at DESC LIMIT 1")
-    alarm = cur.fetchone()
+
+    if alarm_id is not None:
+        # Client kennt den konkreten Alarm (z. B. den zuletzt angezeigten) - genau diesen bestätigen.
+        cur.execute("SELECT id FROM apager_logs WHERE id = %s", (alarm_id,))
+        alarm = cur.fetchone()
+        if not alarm:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Alarm nicht gefunden.")
+    else:
+        # Fallback für ältere Clients: letzten Alarm nehmen.
+        cur.execute("SELECT id FROM apager_logs ORDER BY created_at DESC LIMIT 1")
+        alarm = cur.fetchone()
     alarm_id = alarm["id"] if alarm else None
-    
+
     cur.execute("""
         INSERT INTO apager_feedbacks (apager_log_id, personnel_id, status)
         VALUES (%s, %s, %s)
         ON DUPLICATE KEY UPDATE status = %s
     """, (alarm_id, personnel_id, status, status))
-    
+
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

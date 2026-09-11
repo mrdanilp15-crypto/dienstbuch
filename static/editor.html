@@ -320,7 +320,7 @@
                     <label class="small text-muted fw-bold mb-2 d-block">DIENSTKATEGORIE</label>
                     <div class="btn-group w-100 rounded-3 overflow-hidden border border-secondary border-opacity-20">
                         <button class="btn btn-cat" :class="{'active-ubung': category==='Übung'}" @click="!isReadOnly && setCat('Übung')" :disabled="isReadOnly">Übung</button>
-                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && setCat('Einsatz')" :disabled="isReadOnly">Einsatz</button>
+                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && (!sessionId ? (window.location.href='/dashboard#new_mission') : setCat('Einsatz'))" :disabled="isReadOnly">Einsatz</button>
                         <button class="btn btn-cat" :class="{'active-sonstiges': category==='Sonstiges'}" @click="!isReadOnly && setCat('Sonstiges')" :disabled="isReadOnly">Sonstiges</button>
                     </div>
                 </div>
@@ -500,6 +500,64 @@
     const { createApp } = Vue;
     let sigPad = null, sigModal = null, saveTimer = null;
 
+    // In-App-Ersatz für window.alert()/confirm(): statt des nativen Browser-Dialogs
+    // (zeigt Host-Adresse, wirkt wie Systembenachrichtigung) ein normales Bootstrap-Modal.
+    function _appDialogShow(html, id) {
+        let el = document.getElementById(id);
+        if (el) el.remove();
+        el = document.createElement('div');
+        el.className = 'modal fade';
+        el.id = id;
+        el.innerHTML = html;
+        document.body.appendChild(el);
+        const modal = new bootstrap.Modal(el);
+        modal.show();
+        return { el, modal };
+    }
+    function appAlert(message, title = 'Hinweis') {
+        return new Promise((resolve) => {
+            const { el } = _appDialogShow(`
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-secondary border-opacity-10">
+                            <h5 class="modal-title fw-bold text-white"></h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                        <div class="modal-footer border-secondary border-opacity-10">
+                            <button type="button" class="btn btn-premium rounded-pill px-4" data-bs-dismiss="modal">OK</button>
+                        </div>
+                    </div>
+                </div>`, 'appAlertModal');
+            el.querySelector('.modal-title').textContent = title;
+            el.querySelector('.modal-body').textContent = message;
+            el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(); }, { once: true });
+        });
+    }
+    function appConfirm(message, title = 'Bitte bestätigen') {
+        return new Promise((resolve) => {
+            const { el, modal } = _appDialogShow(`
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-secondary border-opacity-10">
+                            <h5 class="modal-title fw-bold text-white"></h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                        <div class="modal-footer border-secondary border-opacity-10">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="button" class="btn btn-premium rounded-pill px-4" id="appConfirmOk">OK</button>
+                        </div>
+                    </div>
+                </div>`, 'appConfirmModal');
+            el.querySelector('.modal-title').textContent = title;
+            el.querySelector('.modal-body').textContent = message;
+            let result = false;
+            el.querySelector('#appConfirmOk').addEventListener('click', () => { result = true; modal.hide(); });
+            el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(result); }, { once: true });
+        });
+    }
+
     createApp({
         data() {
             return {
@@ -540,7 +598,9 @@
                 const authData = await authRes.json();
                 
                 this.isAdmin = (authData.role === 'admin');
-                this.isReadOnly = (authData.role === 'mannschaft'); 
+                // Muss zum Schreibrechte-Check des Backends passen (siehe groups_api.py save_attendance):
+                // nur admin/leitung/gruppenfuehrer dürfen Dienste tatsächlich speichern.
+                this.isReadOnly = !['admin', 'leitung', 'gruppenfuehrer'].includes(authData.role);
             } catch (e) {
                 window.location.href = '/';
                 return;
@@ -655,6 +715,11 @@
                 };
                 try {
                     const res = await fetch('/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body:JSON.stringify(data) });
+                    if (!res.ok) {
+                        this.saveState = 'idle';
+                        await appAlert("Speichern fehlgeschlagen: Du hast keine Berechtigung, diesen Dienst zu bearbeiten.");
+                        return;
+                    }
                     const rd = await res.json();
                     if(rd.session_id && !this.sessionId) {
                         this.sessionId = rd.session_id;
@@ -662,11 +727,14 @@
                     }
                     this.saveState = 'saved';
                     setTimeout(() => this.saveState = 'idle', 2000);
-                } catch(e) { this.saveState = 'idle'; }
+                } catch(e) {
+                    this.saveState = 'idle';
+                    await appAlert("Speichern fehlgeschlagen: Verbindung zum Server unterbrochen.");
+                }
             },
-            removePerson(p) {
+            async removePerson(p) {
                 if(this.isReadOnly) return;
-                if(confirm(p.name + " wirklich entfernen?")) {
+                if(await appConfirm(p.name + " wirklich entfernen?")) {
                     this.persons = this.persons.filter(x => String(x.id || x.person_id) !== String(p.id || p.person_id));
                     this.autoSave();
                 }

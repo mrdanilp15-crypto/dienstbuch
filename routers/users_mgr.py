@@ -80,8 +80,10 @@ def update_user_personnel_relation(user_id: int, data: dict, request: Request):
 def change_user_password(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    new_pw = data.get("password")
-    p_hash = hash_password(new_pw.strip())
+    new_pw = (data.get("password") or "").strip()
+    if not new_pw:
+        raise HTTPException(status_code=400, detail="Passwort darf nicht leer sein!")
+    p_hash = hash_password(new_pw)
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
     conn.commit(); cur.close(); conn.close()

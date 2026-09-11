@@ -8,13 +8,15 @@ from datetime import date
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
 
-def check_auth(request: Request, require_admin: bool = False) -> dict:
+def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
     from core.utils import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
     if require_admin and user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    if allowed_roles and user["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     return user
 
 class EquipmentCreate(BaseModel):
@@ -102,9 +104,7 @@ def list_equipment(request: Request):
 
 @router.post("/equipment")
 def create_equipment(eq: EquipmentCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
@@ -117,9 +117,7 @@ def create_equipment(eq: EquipmentCreate, request: Request):
 
 @router.put("/equipment/{eq_id}")
 def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
@@ -133,9 +131,7 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
 
 @router.delete("/equipment/{eq_id}")
 def delete_equipment(eq_id: int, request: Request):
-    user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "geratewart"):
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM equipment_inspections WHERE equipment_id = %s", (eq_id,))
     cur.execute("DELETE FROM equipment_defect_reports WHERE equipment_id = %s", (eq_id,))
@@ -157,9 +153,7 @@ def list_inspections(eq_id: int, request: Request):
 
 @router.post("/equipment/{eq_id}/inspections")
 def create_inspection(eq_id: int, insp: InspectionCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO equipment_inspections (equipment_id, date, inspector, status, note)
@@ -175,9 +169,7 @@ def create_inspection(eq_id: int, insp: InspectionCreate, request: Request):
 
 @router.post("/equipment/batch-inspect")
 def batch_inspect(b: BatchInspectRequest, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     today = date.today().isoformat()
     for bc in b.barcodes:
@@ -214,9 +206,7 @@ def list_personal_inventar(p_id: int, request: Request):
 
 @router.post("/personnel/{p_id}/inventar")
 def add_inventar_item(p_id: int, item: InventarCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO personal_inventar (personnel_id, item_name, size, issue_date)
@@ -227,9 +217,7 @@ def add_inventar_item(p_id: int, item: InventarCreate, request: Request):
 
 @router.delete("/personnel/inventar/{item_id}")
 def delete_inventar_item(item_id: int, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM personal_inventar WHERE id = %s", (item_id,))
     conn.commit(); cur.close(); conn.close()
@@ -250,9 +238,7 @@ def list_lehrgaenge(p_id: int, request: Request):
 
 @router.post("/personnel/{p_id}/lehrgaenge")
 def add_lehrgang(p_id: int, course: CourseCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO lehrgaenge (personnel_id, course_name, date, certificate_url)
@@ -263,9 +249,7 @@ def add_lehrgang(p_id: int, course: CourseCreate, request: Request):
 
 @router.delete("/personnel/lehrgaenge/{course_id}")
 def delete_lehrgang(course_id: int, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM lehrgaenge WHERE id = %s", (course_id,))
     conn.commit(); cur.close(); conn.close()
@@ -274,7 +258,7 @@ def delete_lehrgang(course_id: int, request: Request):
 # --- 🏢 OBJEKTE & BRANDMELDEANLAGEN (BMA) ---
 @router.get("/bma")
 def list_bmas(request: Request):
-    check_auth(request)
+    # Kein check_auth: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM bma ORDER BY object_name ASC")
@@ -283,9 +267,7 @@ def list_bmas(request: Request):
 
 @router.post("/bma")
 def create_bma(b: BmaCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO bma (object_name, address, bma_number, key_depot, map_url, lat, lng)
@@ -296,9 +278,7 @@ def create_bma(b: BmaCreate, request: Request):
 
 @router.put("/bma/{b_id}")
 def update_bma(b_id: int, b: BmaCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         UPDATE bma 
@@ -310,7 +290,7 @@ def update_bma(b_id: int, b: BmaCreate, request: Request):
 
 @router.delete("/bma/{b_id}")
 def delete_bma(b_id: int, request: Request):
-    user = check_auth(request, require_admin=True)
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM bma WHERE id = %s", (b_id,))
     conn.commit(); cur.close(); conn.close()
@@ -319,7 +299,7 @@ def delete_bma(b_id: int, request: Request):
 # --- 🗺️ HYDRANTEN & WATER POINTS ---
 @router.get("/hydrants")
 def list_hydrants(request: Request):
-    check_auth(request)
+    # Kein check_auth: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM hydrants")
@@ -328,9 +308,7 @@ def list_hydrants(request: Request):
 
 @router.post("/hydrants")
 def create_hydrant(h: HydrantCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO hydrants (lat, lng, type, label)
@@ -341,9 +319,7 @@ def create_hydrant(h: HydrantCreate, request: Request):
 
 @router.delete("/hydrants/{h_id}")
 def delete_hydrant(h_id: int, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM hydrants WHERE id = %s", (h_id,))
     conn.commit(); cur.close(); conn.close()
@@ -364,9 +340,7 @@ def list_vehicle_logs(veh_id: int, request: Request):
 
 @router.post("/vehicles/{veh_id}/log")
 def add_vehicle_log(veh_id: int, log: VehicleLogCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart", "gruppenfuehrer"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO vehicle_log (vehicle_id, date, mileage_start, mileage_end, driver_name, purpose)
@@ -394,9 +368,7 @@ def list_vehicle_checks(veh_id: int, request: Request):
 
 @router.post("/vehicles/{veh_id}/checks")
 def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
-    user = check_auth(request)
-    if user["role"] == "mannschaft":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart", "gruppenfuehrer"))
     import json
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""

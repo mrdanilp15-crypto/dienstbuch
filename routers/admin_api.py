@@ -20,10 +20,14 @@ def export_database_backup(request: Request):
 
     tables_to_export = [
         "users", "personnel", "groups_table", "persons", "sessions", "attendance",
-        "vehicles", "log_rides", "hvo_checks", "equipment", "inspections",
-        "equipment_defect_reports", "notes", "archive_files", "youth_sessions",
-        "youth_attendance", "settings", "audit_log", "apager_config", "apager_logs",
-        "broadcasts", "schedules"
+        "vehicles", "vehicle_log", "vehicle_checks", "hvo_protocols", "hvo_equipment_checks",
+        "equipment", "equipment_inspections", "equipment_defect_reports", "notes",
+        "archive_files", "youth_sessions", "youth_attendance", "settings",
+        "station_settings", "audit_log", "apager_config", "apager_logs",
+        "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
+        "schedule_attendance", "missions", "mission_attendance", "respiration_log",
+        "billing_verursacher", "personal_inventar", "lehrgaenge", "hydrants", "bma",
+        "drone_images", "push_subscriptions", "club_inventory", "club_donations"
     ]
 
     conn = get_db_connection()
@@ -168,6 +172,8 @@ def auto_backup(request: Request):
     db_pass = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or os.getenv("MYSQL_PASSWORD") or "dein_app_passwort"
     db_name = os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "attendance_system"))
     
+    sql_dump_ok = False
+    sql_dump_error = None
     try:
         if os.name == 'nt':
             mysqldump_cmd = f"mysqldump -h {db_host} -u {db_user} -p{db_pass} {db_name} > {db_dump_path}"
@@ -176,14 +182,24 @@ def auto_backup(request: Request):
             mysqldump_cmd = ["mysqldump", "-h", db_host, "-u", db_user, f"-p{db_pass}", db_name]
             with open(db_dump_path, "w") as f:
                 subprocess.run(mysqldump_cmd, stdout=f, check=True)
+        sql_dump_ok = os.path.exists(db_dump_path) and os.path.getsize(db_dump_path) > 0
     except Exception as e:
         print(f"Error during mysqldump: {e}")
-        pass
-        
+        sql_dump_error = str(e)
+
     zip_filename = f"backup_{ts}"
     zip_path = os.path.join(backup_dir, zip_filename)
     shutil.make_archive(zip_path, 'zip', "static/uploads")
-    
+
+    if not sql_dump_ok:
+        log_audit_action(user["username"], "AUTO_BACKUP_SQL_FEHLGESCHLAGEN", f"mysqldump nicht verfügbar oder fehlgeschlagen: {sql_dump_error or 'leere Ausgabe'}")
+        return {
+            "status": "partial",
+            "backup_file": f"{zip_path}.zip",
+            "sql_dump": None,
+            "warning": "Der SQL-Datenbank-Dump konnte nicht erstellt werden (mysqldump fehlt oder ist fehlgeschlagen). Nur die Datei-Uploads wurden gesichert. Bitte nutze zusätzlich den JSON-Export unter 'Datenbank-Sicherung'."
+        }
+
     return {"status": "success", "backup_file": f"{zip_path}.zip", "sql_dump": db_dump_path}
 
 @router.post("/api/archive/upload")

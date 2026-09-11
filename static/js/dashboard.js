@@ -22,6 +22,100 @@ const { createApp } = Vue;
             }
         }
 
+        // In-App-Ersatz für window.alert()/confirm()/prompt(): die nativen Browser-Dialoge
+        // zeigen die Host-Adresse an und wirken wie eine Systembenachrichtigung statt eines
+        // echten App-Fensters. Diese Varianten rendern stattdessen ein normales, zum Rest der
+        // App passendes Bootstrap-Modal. Aufruf wie gewohnt, nur mit "await" davor.
+        function _appDialogShow(html, id) {
+            let el = document.getElementById(id);
+            if (el) el.remove();
+            el = document.createElement('div');
+            el.className = 'modal fade';
+            el.id = id;
+            el.innerHTML = html;
+            document.body.appendChild(el);
+            const modal = new bootstrap.Modal(el);
+            modal.show();
+            return { el, modal };
+        }
+
+        function appAlert(message, title = 'Hinweis') {
+            return new Promise((resolve) => {
+                const { el, modal } = _appDialogShow(`
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header border-secondary border-opacity-10">
+                                <h5 class="modal-title fw-bold text-white"></h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                            <div class="modal-footer border-secondary border-opacity-10">
+                                <button type="button" class="btn btn-premium rounded-pill px-4" data-bs-dismiss="modal">OK</button>
+                            </div>
+                        </div>
+                    </div>`, 'appAlertModal');
+                el.querySelector('.modal-title').textContent = title;
+                el.querySelector('.modal-body').textContent = message;
+                el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(); }, { once: true });
+            });
+        }
+
+        function appConfirm(message, title = 'Bitte bestätigen') {
+            return new Promise((resolve) => {
+                const { el, modal } = _appDialogShow(`
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header border-secondary border-opacity-10">
+                                <h5 class="modal-title fw-bold text-white"></h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                            <div class="modal-footer border-secondary border-opacity-10">
+                                <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                                <button type="button" class="btn btn-premium rounded-pill px-4" id="appConfirmOk">OK</button>
+                            </div>
+                        </div>
+                    </div>`, 'appConfirmModal');
+                el.querySelector('.modal-title').textContent = title;
+                el.querySelector('.modal-body').textContent = message;
+                let result = false;
+                el.querySelector('#appConfirmOk').addEventListener('click', () => { result = true; modal.hide(); });
+                el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(result); }, { once: true });
+            });
+        }
+
+        function appPrompt(message, defaultValue = '', title = 'Eingabe') {
+            return new Promise((resolve) => {
+                const { el, modal } = _appDialogShow(`
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header border-secondary border-opacity-10">
+                                <h5 class="modal-title fw-bold text-white"></h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <label class="form-label text-white mb-2"></label>
+                                <input type="text" class="form-control" id="appPromptInput">
+                            </div>
+                            <div class="modal-footer border-secondary border-opacity-10">
+                                <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                                <button type="button" class="btn btn-premium rounded-pill px-4" id="appPromptOk">OK</button>
+                            </div>
+                        </div>
+                    </div>`, 'appPromptModal');
+                el.querySelector('.modal-title').textContent = title;
+                el.querySelector('.modal-body label').textContent = message;
+                const input = el.querySelector('#appPromptInput');
+                input.value = defaultValue || '';
+                let result = null;
+                const submit = () => { result = input.value; modal.hide(); };
+                el.querySelector('#appPromptOk').addEventListener('click', submit);
+                input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+                el.addEventListener('shown.bs.modal', () => input.focus());
+                el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(result); }, { once: true });
+            });
+        }
+
         const app = createApp({
             data() {
                 return {
@@ -198,10 +292,22 @@ const { createApp } = Vue;
                     scannedQrObject: null,
                     
                     statsTotalMissions: 0,
-                    statsChartInstance: null, statsChartMonthInstance: null
+                    statsChartInstance: null, statsChartMonthInstance: null,
+                    
+                    anniversariesYear: new Date().getFullYear(),
+                    anniversariesData: { service_anniversaries: [], birthday_anniversaries: [] },
+                    isLoadingAnniversaries: false,
+                    anniversariesActiveTab: 'service'
                 }
             },
             computed: {
+                canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
+                canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
+                canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
+                canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
+                canManageYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
+                canManageSettings() { return ['admin', 'leitung'].includes(this.role); },
+
                 filteredNotes() {
                     if (this.notesActiveFilter === 'all') return this.notes;
                     return this.notes.filter(n => n.visibility === this.notesActiveFilter);
@@ -449,6 +555,12 @@ const { createApp } = Vue;
                     this.loadStats();
                 }
                 
+                if (window.location.hash === '#new_mission') {
+                    this.activeTab = 'einsaetze';
+                    this.openNewMissionModal();
+                    window.location.hash = ''; // clear it
+                }
+                
                 const canvas = document.getElementById('sigCanvas');
                 if(canvas) { sigPad = new SignaturePad(canvas, { backgroundColor: 'white' }); }
                 sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
@@ -529,9 +641,9 @@ const { createApp } = Vue;
                             this.noteEditingId = null;
                             await this.loadNotes();
                         } else {
-                            alert("Eintrag konnte nicht gespeichert werden.");
+                            await appAlert("Eintrag konnte nicht gespeichert werden.");
                         }
-                    } catch (e) { alert("Serverfehler beim Senden."); }
+                    } catch (e) { await appAlert("Serverfehler beim Senden."); }
                 },
                 startNoteEdit(note) {
                     this.noteEditingId = note.id;
@@ -547,16 +659,16 @@ const { createApp } = Vue;
                     this.newNote.visibility = 'private';
                 },
                 async deleteNote(id) {
-                    if (confirm("Möchtest du diesen Eintrag permanent löschen?")) {
+                    if (await appConfirm("Möchtest du diesen Eintrag permanent löschen?")) {
                         try {
                             const res = await fetch(`/api/notes/${id}`, { method: 'DELETE', credentials: 'include' });
                             if (res.ok) { 
                                 if (this.noteEditingId === id) this.cancelNoteEdit();
                                 await this.loadNotes(); 
                             } else { 
-                                alert("Löschen fehlgeschlagen."); 
+                                await appAlert("Löschen fehlgeschlagen."); 
                             }
-                        } catch (e) { alert("Verbindungsfehler."); }
+                        } catch (e) { await appAlert("Verbindungsfehler."); }
                     }
                 },
                 getVisLabel(vis) {
@@ -567,15 +679,15 @@ const { createApp } = Vue;
                     return vis;
                 },
 
-                startQrScanner() {
-                    if (typeof Html5Qrcode === 'undefined') { alert('Scanner-Bibliothek nicht geladen'); return; }
+                async startQrScanner() {
+                    if (typeof Html5Qrcode === 'undefined') { await appAlert('Scanner-Bibliothek nicht geladen'); return; }
                     this.html5Qrcode = new Html5Qrcode("qr-reader");
                     const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
                     modal.show();
                     this.html5Qrcode.start(
                         { facingMode: "environment" },
                         { fps: 10, qrbox: { width: 250, height: 250 } },
-                        (decodedText, decodedResult) => {
+                        async (decodedText, decodedResult) => {
                             const eq = this.equipment.find(e => e.barcode === decodedText || String(e.id) === decodedText);
                             this.stopQrScanner();
                             const modalEl = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
@@ -583,13 +695,13 @@ const { createApp } = Vue;
                             if (eq) {
                                 this.addInspection(eq);
                             } else {
-                                alert("Kein Gerät mit Barcode '" + decodedText + "' gefunden.");
+                                await appAlert("Kein Gerät mit Barcode '" + decodedText + "' gefunden.");
                             }
                         },
                         (err) => { /* ignore */ }
-                    ).catch(err => {
+                    ).catch(async err => {
                         console.error(err);
-                        alert("Kamera-Zugriff fehlgeschlagen. Ist HTTPS aktiv?");
+                        await appAlert("Kamera-Zugriff fehlgeschlagen. Ist HTTPS aktiv?");
                     });
                 },
                 stopQrScanner() {
@@ -608,9 +720,9 @@ const { createApp } = Vue;
                             if (sub) await sub.unsubscribe();
                         } catch(e) {}
                         await this.setupPushNotifications(true);
-                        alert("Push-Benachrichtigungen aktiviert!");
+                        await appAlert("Push-Benachrichtigungen aktiviert!");
                     } else {
-                        alert("Berechtigung verweigert.");
+                        await appAlert("Berechtigung verweigert.");
                     }
                 },
                 async setupPushNotifications(forceReset = false) {
@@ -634,6 +746,7 @@ const { createApp } = Vue;
                         await fetch('/api/push/subscribe', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
                             body: JSON.stringify(sub)
                         });
                     } catch(err) { console.error('Push setup failed:', err); }
@@ -709,7 +822,7 @@ const { createApp } = Vue;
                     document.documentElement.setAttribute('data-theme', this.isDarkMode ? 'dark' : 'light');
                     localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
                 },
-                startScanner() {
+                async startScanner() {
                     const modal = new bootstrap.Modal(document.getElementById('scannerModal'));
                     modal.show();
                     
@@ -718,7 +831,7 @@ const { createApp } = Vue;
                     }
                     
                     this.qrScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 }, false);
-                    this.qrScanner.render((decodedText, decodedResult) => {
+                    this.qrScanner.render(async (decodedText, decodedResult) => {
                         this.qrScanner.clear();
                         bootstrap.Modal.getInstance(document.getElementById('scannerModal')).hide();
                         
@@ -728,7 +841,7 @@ const { createApp } = Vue;
                             this.activeEquipment = JSON.parse(JSON.stringify(eq));
                             new bootstrap.Modal(document.getElementById('equipmentModal')).show();
                         } else {
-                            alert(`Gerät "${decodedText}" nicht im System gefunden.`);
+                            await appAlert(`Gerät "${decodedText}" nicht im System gefunden.`);
                         }
                     }, (errorMessage) => {
                         // ignore errors during scanning
@@ -784,7 +897,7 @@ const { createApp } = Vue;
                     }
                 },
                 async deleteSchedule(id) {
-                    if(confirm("Termin wirklich löschen?")) {
+                    if(await appConfirm("Termin wirklich löschen?")) {
                         await fetch(`/api/missions/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
                         await this.loadSchedules();
                     }
@@ -834,30 +947,39 @@ const { createApp } = Vue;
                     } catch(e) {}
                 },
                 async submitFeedback(status) {
-                    const res = await fetch(`/api/apager/feedbacks?status=${encodeURIComponent(status)}`, { method: 'POST', credentials: 'include' });
-                    if(res.ok) {
-                        alert("Rückmeldung erfolgreich gesendet!");
-                        await this.loadApagerConfig();
+                    const alarmId = (this.apagerLogs && this.apagerLogs.length > 0) ? this.apagerLogs[0].id : null;
+                    let url = `/api/apager/feedbacks?status=${encodeURIComponent(status)}`;
+                    if (alarmId !== null) url += `&alarm_id=${alarmId}`;
+                    try {
+                        const res = await fetch(url, { method: 'POST', credentials: 'include' });
+                        if(res.ok) {
+                            await this.loadApagerConfig();
+                        } else {
+                            const d = await res.json().catch(() => ({}));
+                            await appAlert(d.detail || "Rückmeldung konnte nicht gesendet werden.");
+                        }
+                    } catch(e) {
+                        await appAlert("Rückmeldung konnte nicht gesendet werden: Verbindung fehlgeschlagen.");
                     }
                 },
                 async deleteApagerLog(id) {
-                    if (confirm("Alarmierungseintrag wirklich löschen?")) {
+                    if (await appConfirm("Alarmierungseintrag wirklich löschen?")) {
                         const res = await fetch(`/api/apager/logs/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) await this.loadApagerConfig();
                     }
                 },
                 async clearApagerLogs() {
-                    if (confirm("Ganzes Alarmierungsprotokoll wirklich unwiderruflich leeren?")) {
+                    if (await appConfirm("Ganzes Alarmierungsprotokoll wirklich unwiderruflich leeren?")) {
                         const res = await fetch('/api/apager/logs', { method: 'DELETE', credentials: 'include' });
                         if(res.ok) await this.loadApagerConfig();
                     }
                 },
                 async editApagerLog(log) {
-                    const stichwort = prompt("Stichwort anpassen:", log.stichwort);
+                    const stichwort = await appPrompt("Stichwort anpassen:", log.stichwort);
                     if (stichwort === null) return;
-                    const adresse = prompt("Einsatzort anpassen:", log.adresse);
+                    const adresse = await appPrompt("Einsatzort anpassen:", log.adresse);
                     if (adresse === null) return;
-                    const meldung = prompt("Meldung anpassen:", log.meldung);
+                    const meldung = await appPrompt("Meldung anpassen:", log.meldung);
                     if (meldung === null) return;
                     const res = await fetch(`/api/apager/logs/${log.id}`, {
                         method: 'PUT',
@@ -898,6 +1020,15 @@ const { createApp } = Vue;
                 async markBroadcastAsRead(b) {
                     const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
                     if(res.ok) this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
+                },
+                async deleteBroadcast(b) {
+                    if (!await appConfirm(`Meldung "${b.title}" wirklich permanent löschen?`)) return;
+                    const res = await fetch(`/api/broadcasts/${b.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) {
+                        this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
+                    } else {
+                        await appAlert("Meldung konnte nicht gelöscht werden.");
+                    }
                 },
 
                 handleIncidentClick(m) {
@@ -1002,7 +1133,7 @@ const { createApp } = Vue;
                     }
                 },
                 async deleteMission(id) {
-                    if(confirm("Einsatzbericht unwiderruflich löschen?")) {
+                    if(await appConfirm("Einsatzbericht unwiderruflich löschen?")) {
                         await fetch(`/api/missions/${id}`, { method: 'DELETE', credentials: 'include' });
                         await Promise.all([this.loadMissions(), this.loadData()]);
                     }
@@ -1015,7 +1146,7 @@ const { createApp } = Vue;
                     }, 250);
                 },
                 async saveMissionSig() {
-                    if(!missionSigPad || missionSigPad.isEmpty()) return alert("Bitte unterschreiben!");
+                    if(!missionSigPad || missionSigPad.isEmpty()) return await appAlert("Bitte unterschreiben!");
                     const sigData = missionSigPad.toDataURL();
                     let url = `/api/missions/${this.activeS.id}/signature`;
                     if (this.activeS.isNewMission === false) {
@@ -1037,7 +1168,7 @@ const { createApp } = Vue;
                 
                 // Respiration Atemschutz
                 async submitRespi() {
-                    if(!this.newRespi.personnel_id) return alert("Träger wählen!");
+                    if(!this.newRespi.personnel_id) return await appAlert("Träger wählen!");
                     const res = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newRespi) });
                     if(res.ok) {
                         this.newRespi = { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true };
@@ -1185,11 +1316,11 @@ const { createApp } = Vue;
                             this.activePersonnel.profile_picture = data.url;
                             this.activePersonnel.has_picture = true;
                         } else {
-                            alert("Fehler beim Hochladen des Profilbilds.");
+                            await appAlert("Fehler beim Hochladen des Profilbilds.");
                         }
                     } catch(err) {
                         console.error(err);
-                        alert("Verbindung fehlgeschlagen beim Hochladen des Profilbilds.");
+                        await appAlert("Verbindung fehlgeschlagen beim Hochladen des Profilbilds.");
                     }
                 },
                 async savePersonnel() {
@@ -1206,7 +1337,7 @@ const { createApp } = Vue;
                     }
                 },
                 async deletePersonnel() {
-                    if(confirm("Mitglied permanent löschen?")) {
+                    if(await appConfirm("Mitglied permanent löschen?")) {
                         await fetch(`/api/personnel/delete/${this.activePersonnel.id}`, { method: 'DELETE', credentials: 'include' });
                         bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
                         await this.loadPersonnel();
@@ -1260,19 +1391,19 @@ const { createApp } = Vue;
                     });
                 },
                 async submitBill() {
-                    if(!this.newBill.mission_id) return alert("Bitte einen Einsatz auswählen!");
+                    if(!this.newBill.mission_id) return await appAlert("Bitte einen Einsatz auswählen!");
                     const res = await fetch(`/api/missions/billing/${this.newBill.mission_id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newBill) });
                     if(res.ok) {
-                        alert("Kostenbescheid erfolgreich buchen!");
+                        await appAlert("Kostenbescheid erfolgreich buchen!");
                         this.newBill = { mission_id: null, recipient_name: '', address: '', amount: 150.00, details: '' };
                         await this.loadBills();
                     } else {
                         const err = await res.json();
-                        alert("Fehler beim Buchen: " + (err.detail || "Keine Berechtigung"));
+                        await appAlert("Fehler beim Buchen: " + (err.detail || "Keine Berechtigung"));
                     }
                 },
                 async deleteBill(id) {
-                    if(confirm("Rechnung löschen?")) {
+                    if(await appConfirm("Rechnung löschen?")) {
                         await fetch(`/api/missions/billing/${id}`, { method: 'DELETE', credentials: 'include' });
                         await this.loadBills();
                     }
@@ -1376,9 +1507,9 @@ const { createApp } = Vue;
                     const res = await fetch(`/api/missions/billing/compensations/list?year=${this.sepaYear}&hourly_rate=${this.sepaRate}`, { credentials: 'include' });
                     if(res.ok) this.compensations = await res.json();
                 },
-                downloadSepa() {
-                    const iban = prompt("Sender IBAN eingeben:", this.stationConfig?.iban || '');
-                    const bic = prompt("Sender BIC eingeben:", this.stationConfig?.bic || '');
+                async downloadSepa() {
+                    const iban = await appPrompt("Sender IBAN eingeben:", this.stationConfig?.iban || '');
+                    const bic = await appPrompt("Sender BIC eingeben:", this.stationConfig?.bic || '');
                     if(iban && bic) {
                         window.open(`/api/missions/billing/export/sepa?year=${this.sepaYear}&hourly_rate=${this.sepaRate}&sender_iban=${iban}&sender_bic=${bic}`, '_blank');
                     }
@@ -1408,7 +1539,7 @@ const { createApp } = Vue;
                     this.newBma = { object_name: '', address: '', bma_number: '', key_depot: false, map_url: '' };
                 },
                 async deleteBma(id) {
-                    if(confirm("Objekt löschen?")) {
+                    if(await appConfirm("Objekt löschen?")) {
                         await fetch(`/api/material/bma/${id}`, { method: 'DELETE', credentials: 'include' });
                         await this.loadBmas();
                     }
@@ -1453,6 +1584,7 @@ const { createApp } = Vue;
                                     }
                                 });
                             } else {
+                                map.setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
                                 map.invalidateSize();
                                 setTimeout(() => { if (map) map.invalidateSize(); }, 300);
                             }
@@ -1578,7 +1710,7 @@ const { createApp } = Vue;
                         bootstrap.Modal.getInstance(document.getElementById('mapObjectModal')).hide();
                         this.loadHydrants();
                     } else {
-                        alert("Fehler beim Speichern des Objekts.");
+                        await appAlert("Fehler beim Speichern des Objekts.");
                     }
                 },
                 panToCoords(lat, lng, zoom) {
@@ -1587,13 +1719,13 @@ const { createApp } = Vue;
                     }
                 },
                 async deleteHydrantItem(id) {
-                    if (confirm("Objekt wirklich permanent von der Karte löschen?")) {
+                    if (await appConfirm("Objekt wirklich permanent von der Karte löschen?")) {
                         const res = await fetch(`/api/material/hydrants/${id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) this.loadHydrants();
                     }
                 },
                 async deleteBmaItem(id) {
-                    if (confirm("BMA-Objekt wirklich permanent aus dem Verzeichnis und von der Karte löschen?")) {
+                    if (await appConfirm("BMA-Objekt wirklich permanent aus dem Verzeichnis und von der Karte löschen?")) {
                         const res = await fetch(`/api/material/bma/${id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) this.loadHydrants();
                     }
@@ -1621,7 +1753,7 @@ const { createApp } = Vue;
                     } catch(err) { console.error(err); }
                 },
                 async deleteDroneImage(id) {
-                    if (confirm("Bild wirklich permanent löschen?")) {
+                    if (await appConfirm("Bild wirklich permanent löschen?")) {
                         const res = await fetch(`/api/material/drone-images/${id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) await this.loadDroneImages();
                     }
@@ -1705,7 +1837,7 @@ const { createApp } = Vue;
                 },
                 async saveYouthModal() {
                     if (!this.newYouth.name || !this.newYouth.name.trim()) {
-                        alert("Bitte gib den Namen des Jugendlichen ein!");
+                        await appAlert("Bitte gib den Namen des Jugendlichen ein!");
                         return;
                     }
                     await this.submitYouthMember();
@@ -1723,7 +1855,7 @@ const { createApp } = Vue;
                 },
                 async submitYouthMember() {
                     if (!this.newYouth.name || !this.newYouth.name.trim()) {
-                        alert("Bitte gib den Namen des Jugendlichen ein!");
+                        await appAlert("Bitte gib den Namen des Jugendlichen ein!");
                         return;
                     }
                     const isNew = !this.editingYouthId;
@@ -1741,11 +1873,11 @@ const { createApp } = Vue;
                         await this.loadJugendData();
                     } else {
                         const err = await res.json();
-                        alert("Fehler beim Speichern: " + (err.detail || "Unbekannter Fehler"));
+                        await appAlert("Fehler beim Speichern: " + (err.detail || "Unbekannter Fehler"));
                     }
                 },
                 async deleteYouthMember(id) {
-                    if (confirm("Jugendfeuerwehr-Mitglied wirklich löschen?")) {
+                    if (await appConfirm("Jugendfeuerwehr-Mitglied wirklich löschen?")) {
                         const res = await fetch(`/api/jugend/members/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) {
                             if (this.editingYouthId === id) this.cancelYouthEdit();
@@ -1775,7 +1907,7 @@ const { createApp } = Vue;
                 },
                 async submitYouthSession() {
                     if (!this.newYouthSession.date || !this.newYouthSession.topic || this.newYouthSession.topic.trim() === '') {
-                        alert("Bitte Datum und Thema angeben!");
+                        await appAlert("Bitte Datum und Thema angeben!");
                         return;
                     }
                     const payload = {
@@ -1797,13 +1929,13 @@ const { createApp } = Vue;
                     if(res.ok) {
                         this.cancelYouthSessionEdit();
                         await this.loadJugendData();
-                        alert("Dienstbericht erfolgreich gespeichert!");
+                        await appAlert("Dienstbericht erfolgreich gespeichert!");
                     } else {
-                        alert("Fehler beim Speichern des Dienstberichts.");
+                        await appAlert("Fehler beim Speichern des Dienstberichts.");
                     }
                 },
                 async deleteYouthSession(id) {
-                    if (confirm("Dienstbericht wirklich löschen?")) {
+                    if (await appConfirm("Dienstbericht wirklich löschen?")) {
                         const res = await fetch(`/api/jugend/sessions/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) await this.loadJugendData();
                     }
@@ -1833,7 +1965,7 @@ const { createApp } = Vue;
                     }
                 },
                 async deleteClubItem(id) {
-                    if(confirm("Vereins-Inventargegenstand löschen?")) {
+                    if(await appConfirm("Vereins-Inventargegenstand löschen?")) {
                         const res = await fetch(`/api/verein/inventory/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) await this.loadClubData();
                     }
@@ -1886,36 +2018,15 @@ const { createApp } = Vue;
                         await this.loadHvoData();
                     }
                 },
-                
-                // AI Mission summary generator draft trigger
-                async generateAiMissionDraft() {
-                    if (!this.activeMission) return;
-                    try {
-                        const res = await fetch('/api/missions/ai-draft', {
-                            method: 'POST',
-                            headers: {'Content-Type':'application/json'},
-                            credentials: 'include',
-                            body: JSON.stringify({
-                                stichwort: this.activeMission.stichwort || 'Bandeinsatz',
-                                adresse: this.activeMission.adresse || 'Musterstraße 1',
-                                meldung: this.activeMission.meldung || 'Rauchentwicklung'
-                            })
-                        });
-                        if (res.ok) {
-                            const d = await res.json();
-                            this.activeMission.description = d.draft;
-                        }
-                    } catch(err) { console.error(err); }
-                },
-                
-                scanQrCodeSim() {
+
+                async scanQrCodeSim() {
                     const code = this.qrScanInput.trim();
                     if (!code) return;
                     const match = this.equipInspectSchedule.find(x => x.barcode === code);
                     if (match) {
                         this.scannedQrObject = match;
                     } else {
-                        alert("Prüfobjekt mit diesem QR-Code / Barcode nicht gefunden!");
+                        await appAlert("Prüfobjekt mit diesem QR-Code / Barcode nicht gefunden!");
                         this.scannedQrObject = null;
                     }
                 },
@@ -1958,11 +2069,11 @@ const { createApp } = Vue;
                                 body: JSON.stringify(updatePayload)
                             });
                             await this.loadEquipment();
-                            alert(`Prüfung für ${eq.name} erfolgreich erfasst.`);
+                            await appAlert(`Prüfung für ${eq.name} erfolgreich erfasst.`);
                             this.scannedQrObject = null;
                             this.qrScanInput = '';
                         } else {
-                            alert("Fehler beim Übermitteln der Prüfung.");
+                            await appAlert("Fehler beim Übermitteln der Prüfung.");
                         }
                     }
                 },
@@ -1975,19 +2086,19 @@ const { createApp } = Vue;
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();
                 },
                 async deleteEquipmentFromSubtab(id) {
-                    if (confirm("Gerät permanent aus der Datenbank löschen? All seine Prüf- und Mängeldaten gehen verloren!")) {
+                    if (await appConfirm("Gerät permanent aus der Datenbank löschen? All seine Prüf- und Mängeldaten gehen verloren!")) {
                         const res = await fetch(`/api/material/equipment/${id}`, { method: 'DELETE', credentials: 'include' });
                         if(res.ok) {
                             await this.loadEquipment();
                         } else {
                             const err = await res.json();
-                            alert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
+                            await appAlert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
                         }
                     }
                 },
                 async deleteEquipmentInModal() {
                     if (!this.activeEquipment || !this.activeEquipment.id) return;
-                    if (confirm(`Gerät "${this.activeEquipment.name}" wirklich permanent löschen?`)) {
+                    if (await appConfirm(`Gerät "${this.activeEquipment.name}" wirklich permanent löschen?`)) {
                         const res = await fetch(`/api/material/equipment/${this.activeEquipment.id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) {
                             const modalEl = document.getElementById('equipmentModal');
@@ -1996,7 +2107,7 @@ const { createApp } = Vue;
                             await this.loadEquipment();
                         } else {
                             const err = await res.json();
-                            alert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
+                            await appAlert("Fehler beim Löschen: " + (err.detail || "Keine Berechtigung"));
                         }
                     }
                 },
@@ -2025,10 +2136,10 @@ const { createApp } = Vue;
                     }
                 },
                 async submitSelfPassword() {
-                    if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { alert("Die neuen Passwörter stimmen nicht überein!"); return; }
+                    if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { await appAlert("Die neuen Passwörter stimmen nicht überein!"); return; }
                     const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
                     if (res.ok) {
-                        alert("Dein Passwort wurde erfolgreich aktualisiert!");
+                        await appAlert("Dein Passwort wurde erfolgreich aktualisiert!");
                         this.isFirstLoginBlock = false;
                         const el = document.getElementById('selfPasswordModal');
                         if (el) {
@@ -2038,41 +2149,41 @@ const { createApp } = Vue;
                     }
                 },
                 async bindSelfAccount() {
-                    if (!this.selfBindPersonnelId) return alert("Wähle einen Kameraden aus!");
+                    if (!this.selfBindPersonnelId) return await appAlert("Wähle einen Kameraden aus!");
                     const res = await fetch('/api/users/me/bind-personnel', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: this.selfBindPersonnelId }) });
                     if (res.ok) {
-                        alert("Konto erfolgreich verknüpft!");
+                        await appAlert("Konto erfolgreich verknüpft!");
                         await this.fetchPersonalStats();
                     }
                 },
                 
                 
                 async submitNewLogin() {
-                    if (!this.newLogin.username || !this.newLogin.password) return alert("Benutzername und Passwort sind erforderlich!");
+                    if (!this.newLogin.username || !this.newLogin.password) return await appAlert("Benutzername und Passwort sind erforderlich!");
                     const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogin) });
                     if (res.ok) {
-                        alert("System-Login angelegt!");
+                        await appAlert("System-Login angelegt!");
                         this.newLogin = { username: '', password: '', role: 'mannschaft', personnel_id: null };
                         await this.loadSystemUsers();
                     } else {
                         const err = await res.json();
-                        alert("Fehler: " + (err.detail || "Unbekannter Fehler"));
+                        await appAlert("Fehler: " + (err.detail || "Unbekannter Fehler"));
                     }
                 },
                 async deleteUserAccount(id) {
-                    if (confirm("System-Login permanent löschen?")) {
+                    if (await appConfirm("System-Login permanent löschen?")) {
                         const res = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) {
-                            alert("Konto gelöscht.");
+                            await appAlert("Konto gelöscht.");
                             await this.loadSystemUsers();
                         }
                     }
                 },
                 async resetUserPassword(usr) {
-                    const newPw = prompt(`Neues Passwort für Benutzer '${usr.username}':`);
+                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}':`);
                     if (newPw) {
                         const res = await fetch(`/api/users/${usr.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: newPw }) });
-                        if (res.ok) alert("Passwort erfolgreich zurückgesetzt!");
+                        if (res.ok) await appAlert("Passwort erfolgreich zurückgesetzt!");
                     }
                 },
 
@@ -2085,7 +2196,7 @@ const { createApp } = Vue;
                 },
                 async loadCheckHistory(vehId) {
                     try {
-                        const res = await fetch(`/api/vehicles/${vehId}/checks`, { credentials: 'include' });
+                        const res = await fetch(`/api/material/vehicles/${vehId}/checks`, { credentials: 'include' });
                         if(res.ok) this.vehicleCheckHistory = await res.json();
                     } catch(e) { console.error(e); }
                 },
@@ -2094,19 +2205,21 @@ const { createApp } = Vue;
                     const allChecked = Object.values(this.currentChecklist.items_checked).every(v => v);
                     this.currentChecklist.status = allChecked ? 'OK' : 'Mängel';
                     if (!allChecked && !this.currentChecklist.notes) {
-                        alert("Da nicht alle Punkte abgehakt wurden, trage bitte die gefundenen Mängel in die Bemerkungen ein!");
+                        await appAlert("Da nicht alle Punkte abgehakt wurden, trage bitte die gefundenen Mängel in die Bemerkungen ein!");
                         return;
                     }
                     try {
-                        const res = await fetch(`/api/vehicles/${this.activeVehicleForCheck.id}/checks`, {
+                        const res = await fetch(`/api/material/vehicles/${this.activeVehicleForCheck.id}/checks`, {
                             method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.currentChecklist)
                         });
                         if (res.ok) {
                             bootstrap.Modal.getInstance(document.getElementById('vehicleCheckModal')).hide();
-                            alert("Fahrzeug-Check erfolgreich gespeichert!");
+                            await appAlert("Fahrzeug-Check erfolgreich gespeichert!");
                             await this.loadVehicles(); // update status if needed
+                        } else {
+                            await appAlert("Fahrzeug-Check konnte nicht gespeichert werden.");
                         }
-                    } catch(e) { alert("Verbindung fehlgeschlagen."); }
+                    } catch(e) { await appAlert("Verbindung fehlgeschlagen."); }
                 },
                 openVehicleFormModal(veh) {
                     if (veh) {
@@ -2127,7 +2240,7 @@ const { createApp } = Vue;
                     }
                 },
                 async deleteVehicle(id) {
-                    if (confirm("Fahrzeug aus Fuhrpark löschen?")) {
+                    if (await appConfirm("Fahrzeug aus Fuhrpark löschen?")) {
                         const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE', credentials: 'include' });
                         if (res.ok) await this.loadVehicles();
                     }
@@ -2150,22 +2263,22 @@ const { createApp } = Vue;
                 getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
                 
                 // Group methods
-                async addGroup() { const name = prompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
-                async editGroup(g) { const name = prompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
-                async deleteGroup(g) { if (confirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
+                async addGroup() { const name = await appPrompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
+                async editGroup(g) { const name = await appPrompt("Neuer Name:", g.name); if (name && name !== g.name) { await fetch(`/groups/${g.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },
+                async deleteGroup(g) { if (await appConfirm(`Gruppe "${g.name}" wirklich löschen?`)) { await fetch(`/groups/${g.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadGroups(); this.selectedGroup = null; if(this.groups.length > 0) this.selectGroup(this.groups[0]); } },
                 async deleteSession(s) { 
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
                         const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
-                        if (confirm("Einsatzbericht unwiderruflich löschen?")) {
+                        if (await appConfirm("Einsatzbericht unwiderruflich löschen?")) {
                             const res = await fetch(`/api/missions/${realId}`, { method: 'DELETE', credentials: 'include' });
                             if (res.ok) {
                                 await Promise.all([this.loadMissions(), this.loadData()]);
                             } else {
-                                alert("Fehler: Einsatzbericht konnte nicht gelöscht werden (Fehlende Rechte?).");
+                                await appAlert("Fehler: Einsatzbericht konnte nicht gelöscht werden (Fehlende Rechte?).");
                             }
                         }
                     } else {
-                        if (confirm("Eintrag löschen?")) {
+                        if (await appConfirm("Eintrag löschen?")) {
                             await fetch(`/sessions/${s.id}`, { method: 'DELETE', credentials: 'include' });
                             await this.loadData();
                         }
@@ -2180,7 +2293,7 @@ const { createApp } = Vue;
                         window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`;
                     }
                 },
-                downloadMissionPdf(m) {
+                async downloadMissionPdf(m) {
                     if (m.isNewMission) {
                         window.open('/api/missions/' + m.id + '/pdf', '_blank');
                     } else if (typeof m.id === 'string' && String(m.id).startsWith('hvo_')) {
@@ -2189,8 +2302,42 @@ const { createApp } = Vue;
                         const mId = parseInt(String(m.rawSession.id).replace('m_', ''));
                         window.open('/api/missions/' + mId + '/pdf', '_blank');
                     } else {
-                        alert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
+                        await appAlert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
                     }
+                },
+                async downloadEmployerCert(missionId, personnelId) {
+                    if (!missionId || !personnelId) {
+                        await appAlert("Einsatz oder Kamerad nicht ausgewählt.");
+                        return;
+                    }
+                    window.open(`/api/missions/${missionId}/employer-certificate/${personnelId}`, '_blank');
+                },
+                async openAnniversariesModal() {
+                    this.anniversariesYear = new Date().getFullYear();
+                    await this.loadAnniversaries(this.anniversariesYear);
+                    const modalEl = document.getElementById('anniversariesModal');
+                    if (modalEl) {
+                        const m = new bootstrap.Modal(modalEl);
+                        m.show();
+                    }
+                },
+                async loadAnniversaries(year) {
+                    this.isLoadingAnniversaries = true;
+                    try {
+                        const res = await fetch(`/api/personnel/anniversaries?year=${year}`, { credentials: 'include' });
+                        if (res.ok) {
+                            this.anniversariesData = await res.json();
+                        } else {
+                            console.error("Fehler beim Laden der Jubiläen");
+                        }
+                    } catch (e) {
+                        console.error("Netzwerkfehler Jubiläen:", e);
+                    } finally {
+                        this.isLoadingAnniversaries = false;
+                    }
+                },
+                printAnniversaries() {
+                    window.print();
                 },
                 openReport(s) { 
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
@@ -2214,7 +2361,7 @@ const { createApp } = Vue;
                     }
                 },
                 async saveSig() {
-                    if (!sigPad || sigPad.isEmpty()) { alert("Bitte unterschreiben!"); return; }
+                    if (!sigPad || sigPad.isEmpty()) { await appAlert("Bitte unterschreiben!"); return; }
                     const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
                     if (r.ok) { sigModal.hide(); await this.loadData(); }
                 },
@@ -2234,17 +2381,17 @@ const { createApp } = Vue;
                 },
                 async submitDefectReport() {
                     if (!this.newDefect.equipment_id || !this.newDefect.description.trim()) {
-                        alert('Bitte Gerät und Beschreibung angeben!'); return;
+                        await appAlert('Bitte Gerät und Beschreibung angeben!'); return;
                     }
                     const res = await fetch('/api/material/defect-reports', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         credentials: 'include', body: JSON.stringify(this.newDefect)
                     });
                     if (res.ok) {
-                        alert('✅ Mangel wurde gemeldet!');
+                        await appAlert('✅ Mangel wurde gemeldet!');
                         this.newDefect = { equipment_id: null, description: '', severity: 'Mittel' };
                         await this.loadDefectReports();
-                    } else { const d = await res.json(); alert(d.detail || 'Fehler beim Melden.'); }
+                    } else { const d = await res.json(); await appAlert(d.detail || 'Fehler beim Melden.'); }
                 },
                 async resolveDefect(id, status) {
                     const res = await fetch(`/api/material/defect-reports/${id}`, {
@@ -2254,7 +2401,7 @@ const { createApp } = Vue;
                     if (res.ok) await this.loadDefectReports();
                 },
                 async deleteDefectReport(id) {
-                    if (!confirm("Mangelmeldung unwiderruflich löschen?")) return;
+                    if (!await appConfirm("Mangelmeldung unwiderruflich löschen?")) return;
                     const res = await fetch(`/api/material/defect-reports/${id}`, {
                         method: 'DELETE',
                         credentials: 'include'
@@ -2263,35 +2410,36 @@ const { createApp } = Vue;
                         await this.loadDefectReports();
                     } else {
                         const d = await res.json();
-                        alert(d.detail || "Fehler beim Löschen.");
+                        await appAlert(d.detail || "Fehler beim Löschen.");
                     }
                 },
                 
                 // === TEST ALARM METHODS ===
                 async sendTestAlarm() {
-                    if (!confirm('Test-Alarm wirklich auslösen? Dies erscheint im Protokoll.')) return;
+                    if (!await appConfirm('Test-Alarm wirklich auslösen? Dies erscheint im Protokoll.')) return;
                     const res = await fetch('/api/apager/test-alarm', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         credentials: 'include', body: JSON.stringify(this.testAlarm)
                     });
                     if (res.ok) {
-                        alert('✅ Test-Alarm wurde im Protokoll eingetragen!');
+                        await appAlert('✅ Test-Alarm wurde im Protokoll eingetragen!');
                         this.testAlarm = { stichwort: '', adresse: '', meldung: '' };
                         await this.loadApagerConfig();
-                    } else { const d = await res.json(); alert(d.detail || 'Fehler beim Test-Alarm.'); }
+                    } else { const d = await res.json(); await appAlert(d.detail || 'Fehler beim Test-Alarm.'); }
                 },
-                copyWebhookUrl() {
+                async copyWebhookUrl() {
                     const url = `${window.location.protocol}//${this.serverHost}/api/apager/webhook?api_key=${this.apagerConfig.api_key || ''}`;
-                    navigator.clipboard.writeText(url).then(() => alert('✅ Webhook-URL in Zwischenablage kopiert!'));
+                    await navigator.clipboard.writeText(url);
+                    await appAlert('✅ Webhook-URL in Zwischenablage kopiert!');
                 },
                 
                 async uploadBackupFile() {
                     const fileInput = this.$refs.backupFileInput;
                     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                        alert("Bitte wähle zuerst eine Backup-JSON-Datei aus!");
+                        await appAlert("Bitte wähle zuerst eine Backup-JSON-Datei aus!");
                         return;
                     }
-                    if (!confirm("WARNUNG: Möchtest du diese Datenbank-Sicherung wirklich einspielen? Vorhandene Datensätze werden aktualisiert.")) {
+                    if (!await appConfirm("WARNUNG: Möchtest du diese Datenbank-Sicherung wirklich einspielen? Vorhandene Datensätze werden aktualisiert.")) {
                         return;
                     }
                     const file = fileInput.files[0];
@@ -2305,14 +2453,14 @@ const { createApp } = Vue;
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(`✅ Backup erfolgreich importiert (${data.imported_rows} Datensätze aktualisiert)!`);
+                            await appAlert(`✅ Backup erfolgreich importiert (${data.imported_rows} Datensätze aktualisiert)!`);
                             fileInput.value = '';
                             location.reload();
                         } else {
-                            alert("Fehler beim Importieren: " + (data.detail || "Unbekannter Fehler"));
+                            await appAlert("Fehler beim Importieren: " + (data.detail || "Unbekannter Fehler"));
                         }
                     } catch (err) {
-                        alert("Verbindung zum Server fehlgeschlagen!");
+                        await appAlert("Verbindung zum Server fehlgeschlagen!");
                     }
                 },
                 
@@ -2353,10 +2501,10 @@ const { createApp } = Vue;
                         })
                     ]);
                     if (r1.ok && r2.ok) {
-                        alert('✅ Login erfolgreich aktualisiert!');
+                        await appAlert('✅ Login erfolgreich aktualisiert!');
                         this.cancelUserEdit();
                         await this.loadSystemUsers();
-                    } else { alert('Fehler beim Speichern. Bitte erneut versuchen.'); }
+                    } else { await appAlert('Fehler beim Speichern. Bitte erneut versuchen.'); }
                 },
                 async loadStationSettings() {
                     try {
@@ -2375,21 +2523,22 @@ const { createApp } = Vue;
                             body: JSON.stringify(this.stationConfig)
                         });
                         if (res.ok) {
-                            alert("✅ Standort-Einstellungen erfolgreich gespeichert!");
+                            await appAlert("✅ Standort-Einstellungen erfolgreich gespeichert!");
                             await this.loadStationSettings();
+                            if (map) map.setView([this.stationConfig.lat, this.stationConfig.lng], this.stationConfig.zoom);
                         } else {
                             const d = await res.json();
-                            alert(d.detail || "Fehler beim Speichern der Wachen-Einstellungen.");
+                            await appAlert(d.detail || "Fehler beim Speichern der Wachen-Einstellungen.");
                         }
                     } catch(e) {
                         console.error(e);
-                        alert("Verbindung fehlgeschlagen.");
+                        await appAlert("Verbindung fehlgeschlagen.");
                     }
                 },
                 async lookupStationCoordinates() {
                     const query = this.stationConfig.station_name.trim();
                     if (!query) {
-                        alert("Bitte gib zuerst einen Wachennamen an!");
+                        await appAlert("Bitte gib zuerst einen Wachennamen an!");
                         return;
                     }
                     try {
@@ -2403,16 +2552,16 @@ const { createApp } = Vue;
                                 this.stationConfig.lat = lat;
                                 this.stationConfig.lng = lon;
                                 this.stationConfig.zoom = 15;
-                                alert(`✅ Koordinaten gefunden:\nBreitengrad: ${lat}\nLängengrad: ${lon}`);
+                                await appAlert(`✅ Koordinaten gefunden:\nBreitengrad: ${lat}\nLängengrad: ${lon}`);
                             } else {
-                                alert("Es konnten keine Koordinaten für diesen Namen gefunden werden. Bitte genauer angeben (z. B. 'Feuerwehrhaus Buxheim' oder inklusive Postleitzahl/Ort).");
+                                await appAlert("Es konnten keine Koordinaten für diesen Namen gefunden werden. Bitte genauer angeben (z. B. 'Feuerwehrhaus Buxheim' oder inklusive Postleitzahl/Ort).");
                             }
                         } else {
-                            alert("Fehler bei der Verbindung zum Geokodierungs-Dienst.");
+                            await appAlert("Fehler bei der Verbindung zum Geokodierungs-Dienst.");
                         }
                     } catch(e) {
                         console.error(e);
-                        alert("Fehler beim Suchen der Koordinaten.");
+                        await appAlert("Fehler beim Suchen der Koordinaten.");
                     }
                 },
                 async uploadMissionFile(event) {
@@ -2431,11 +2580,11 @@ const { createApp } = Vue;
                             this.uploadedMissionFiles.push({ name: data.filename, url: data.url });
                             this.$refs.missionFile.value = ''; // clear input
                         } else {
-                            alert('Fehler beim Datei-Upload.');
+                            await appAlert('Fehler beim Datei-Upload.');
                         }
                     } catch(e) {
                         console.error(e);
-                        alert('Fehler beim Datei-Upload.');
+                        await appAlert('Fehler beim Datei-Upload.');
                     }
                 },
                  removeMissionFile(index) {
@@ -2462,19 +2611,19 @@ const { createApp } = Vue;
                             credentials: 'include'
                         });
                         if (res.ok) {
-                            alert("✅ Datei erfolgreich ins Archiv hochgeladen!");
+                            await appAlert("✅ Datei erfolgreich ins Archiv hochgeladen!");
                             this.$refs.archiveFileInput.value = '';
                             await this.loadArchiveFiles();
                         } else {
-                            alert("Fehler beim Hochladen ins Archiv.");
+                            await appAlert("Fehler beim Hochladen ins Archiv.");
                         }
                     } catch(e) {
                         console.error(e);
-                        alert("Verbindung fehlgeschlagen.");
+                        await appAlert("Verbindung fehlgeschlagen.");
                     }
                 },
                 async deleteArchiveFile(id) {
-                    if (!confirm("Datei wirklich permanent aus dem Archiv löschen?")) return;
+                    if (!await appConfirm("Datei wirklich permanent aus dem Archiv löschen?")) return;
                     try {
                         const res = await fetch(`/api/archive/files/${id}`, {
                             method: 'DELETE',
@@ -2484,11 +2633,11 @@ const { createApp } = Vue;
                             await this.loadArchiveFiles();
                         } else {
                             const d = await res.json();
-                            alert(d.detail || "Fehler beim Löschen.");
+                            await appAlert(d.detail || "Fehler beim Löschen.");
                         }
                     } catch(e) {
                         console.error(e);
-                        alert("Verbindung fehlgeschlagen.");
+                        await appAlert("Verbindung fehlgeschlagen.");
                     }
                 },
                 async loadStats() {
@@ -2549,7 +2698,7 @@ const { createApp } = Vue;
 
         // Global function for map popup delete button
         window.deleteHydrant = async (id) => {
-            if(confirm("Hydrant permanent löschen?")) {
+            if(await appConfirm("Hydrant permanent löschen?")) {
                 const res = await fetch(`/api/material/hydrants/${id}`, { method: 'DELETE' });
                 if(res.ok) {
                     if (window.vueApp && window.vueApp.loadHydrants) {
@@ -2562,7 +2711,7 @@ const { createApp } = Vue;
         };
 
         window.deleteBmaOnMap = async (id) => {
-            if(confirm("BMA-Objekt von der Karte entfernen? (Das Objekt bleibt in der Liste vorhanden)")) {
+            if(await appConfirm("BMA-Objekt von der Karte entfernen? (Das Objekt bleibt in der Liste vorhanden)")) {
                 if (window.vueApp) {
                     const match = window.vueApp.bmas.find(b => b.id === id);
                     if (match) {

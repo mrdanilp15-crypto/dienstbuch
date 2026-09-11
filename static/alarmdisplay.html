@@ -958,7 +958,30 @@
                             
                             // Force TTS to read postcodes as individual words (e.g. 87740 -> Acht Sieben Sieben Vier Null)
                             const digitWords = {'0':'Null', '1':'Eins', '2':'Zwei', '3':'Drei', '4':'Vier', '5':'Fünf', '6':'Sechs', '7':'Sieben', '8':'Acht', '9':'Neun'};
-                            const transformTTS = (str) => (str || 'Unbekannt').replace(/\d{5}/g, m => m.split('').map(d => digitWords[d]).join(' '));
+
+                            // Deutsche Kardinalzahl ausschreiben (0-999), z.B. für Hausnummern.
+                            // Grund: manche TTS-Stimmen lesen eine nackte Zahl nach einem Straßennamen
+                            // (z.B. "Tannenwiesen 26") als Ordnungszahl ("...die Sechsundzwanzigste")
+                            // statt als Grundzahl ("...Sechsundzwanzig"). Ausgeschriebenes Wort umgeht das.
+                            const onesWords = ['null','eins','zwei','drei','vier','fünf','sechs','sieben','acht','neun','zehn','elf','zwölf','dreizehn','vierzehn','fünfzehn','sechzehn','siebzehn','achtzehn','neunzehn'];
+                            const tensWords = {2:'zwanzig',3:'dreißig',4:'vierzig',5:'fünfzig',6:'sechzig',7:'siebzig',8:'achtzig',9:'neunzig'};
+                            const numberToGermanWords = (n) => {
+                                if (n < 20) return onesWords[n];
+                                if (n < 100) {
+                                    const t = Math.floor(n / 10), u = n % 10;
+                                    const unitPart = u === 0 ? '' : (u === 1 ? 'ein' : onesWords[u]) + 'und';
+                                    return unitPart + tensWords[t];
+                                }
+                                const h = Math.floor(n / 100), rest = n % 100;
+                                return (h === 1 ? 'einhundert' : onesWords[h] + 'hundert') + (rest === 0 ? '' : numberToGermanWords(rest));
+                            };
+
+                            const transformTTS = (str) => (str || 'Unbekannt')
+                                .replace(/\d{5}/g, m => m.split('').map(d => digitWords[d]).join(' '))
+                                .replace(/\d+/g, m => {
+                                    const n = parseInt(m, 10);
+                                    return (n >= 0 && n <= 999) ? numberToGermanWords(n) : m;
+                                });
                             
                             const ttsAdresse = transformTTS(alarm.adresse);
                             const ttsStichwort = transformTTS(alarm.stichwort);
