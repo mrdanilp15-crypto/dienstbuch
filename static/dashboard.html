@@ -146,13 +146,13 @@
                                 <div class="list-group list-group-flush">
                                     <div v-for="g in groups" :key="g.id" class="group-item rounded-3 mb-1" :class="{active: selectedGroup?.id === g.id}" @click="selectGroup(g)">
                                         <span>{{ g.name }}</span>
-                                        <div v-if="isAdmin" class="d-flex gap-1">
+                                        <div v-if="canManageSettings" class="d-flex gap-1">
                                             <button class="btn btn-xs btn-outline-light border-0 p-1" @click.stop="editGroup(g)"><i class="fa fa-edit text-muted"></i></button>
                                             <button class="btn btn-xs btn-outline-danger border-0 p-1" @click.stop="deleteGroup(g)"><i class="fa fa-trash-alt text-danger"></i></button>
                                         </div>
                                     </div>
                                 </div>
-                                <div v-if="isAdmin" class="mt-3">
+                                <div v-if="canManageSettings" class="mt-3">
                                     <button class="btn btn-premium btn-sm w-100 rounded-pill" @click="addGroup"><i class="fa fa-folder-plus me-1"></i> Neue Liste</button>
                                 </div>
                             </div>
@@ -247,7 +247,7 @@
                                     <div class="d-flex gap-2">
                                         <button class="btn btn-sm btn-outline-light rounded-pill px-3" @click.stop="openReport(s)">Bericht</button>
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill px-3" @click.stop="openSig(s)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
-                                        <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="deleteSession(s)" style="width:34px; height:34px; display:flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
+                                        <button v-if="canManageDienste" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="deleteSession(s)" style="width:34px; height:34px; display:flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -405,7 +405,7 @@
                                     </div>
                                     <div class="d-flex gap-2">
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
-                                        <button v-if="isAdmin" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
+                                        <button v-if="canManagePersonnel" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -880,7 +880,7 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung Pro</h2>
                             <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
                         </div>
-                        <button v-if="isAdmin" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
+                        <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
                     </div>
 
                     <div class="row g-3 mb-4">
@@ -968,6 +968,10 @@
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h5 class="fw-bold text-white mb-0"><i class="fa fa-users text-danger me-2"></i>Rückmeldungen (Letzter Alarm)</h5>
                                     <span class="badge bg-success rounded-pill px-3">{{ activeFeedbacksCount }} Zusage(n)</span>
+                                </div>
+                                <div class="d-flex gap-2 mb-3" v-if="apagerLogs.length > 0">
+                                    <button class="btn btn-success flex-fill rounded-pill fw-bold" @click="submitFeedback('Komme')"><i class="fa fa-check me-1"></i>Ich komme</button>
+                                    <button class="btn btn-outline-danger flex-fill rounded-pill fw-bold" @click="submitFeedback('Nein')"><i class="fa fa-xmark me-1"></i>Ich komme nicht</button>
                                 </div>
                                 <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 small" v-if="apagerFeedbacks.length > 0">
                                     <div class="row g-2">
@@ -1219,7 +1223,7 @@
                                                     <tr v-for="usr in systemUsers" :key="usr.id">
                                                         <td class="fw-bold text-white">{{ usr.username }}</td>
                                                         <td>
-                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':'bg-secondary'">{{ usr.role }}</span>
+                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':'bg-secondary'">{{ usr.role }}</span>
                                                         </td>
                                                         <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                         <td>
@@ -1263,18 +1267,20 @@
                                         <div class="mb-3">
                                             <label class="form-label">Systemrolle</label>
                                             <select v-if="editingUserId" v-model="editUserRole" class="form-select">
-                                                <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
-                                                <option value="geratewart">Gerätewart (Materialpflege)</option>
-                                                <option value="jugendwarte">Jugendwart (Jugend-Schreibrechte)</option>
-                                                <option value="leitung">Leitung (Schreibrechte)</option>
-                                                <option value="admin">Administrator (Vollzugriff)</option>
+                                                <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
+                                                <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
+                                                <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
+                                                <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
+                                                <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
                                             </select>
                                             <select v-else v-model="newLogin.role" class="form-select">
-                                                <option value="mannschaft">Mannschaft (Schreibgeschützt)</option>
-                                                <option value="geratewart">Gerätewart (Materialpflege)</option>
-                                                <option value="jugendwarte">Jugendwart (Jugend-Schreibrechte)</option>
-                                                <option value="leitung">Leitung (Schreibrechte)</option>
-                                                <option value="admin">Administrator (Vollzugriff)</option>
+                                                <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
+                                                <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
+                                                <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
+                                                <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
+                                                <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
                                             </select>
                                         </div>
                                         <div class="mb-3">
@@ -2736,7 +2742,7 @@
                             </div>
 </div>
                     </div>
-                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between" v-if="isAdmin">
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between" v-if="canManagePersonnel">
                         <button type="button" class="btn btn-link text-danger fw-bold border-0" @click="deletePersonnel"><i class="fa fa-trash me-1"></i> Löschen</button>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>

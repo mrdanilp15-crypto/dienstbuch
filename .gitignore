@@ -11,3 +11,6 @@ __pycache__/
 
 # Push Notification Keys
 *.pem
+
+# Auto-generierter Session-Signierschlüssel (siehe core/utils.py)
+secret.key

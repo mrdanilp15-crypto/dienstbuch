@@ -198,10 +198,22 @@ const { createApp } = Vue;
                     scannedQrObject: null,
                     
                     statsTotalMissions: 0,
-                    statsChartInstance: null, statsChartMonthInstance: null
+                    statsChartInstance: null, statsChartMonthInstance: null,
+                    
+                    anniversariesYear: new Date().getFullYear(),
+                    anniversariesData: { service_anniversaries: [], birthday_anniversaries: [] },
+                    isLoadingAnniversaries: false,
+                    anniversariesActiveTab: 'service'
                 }
             },
             computed: {
+                canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
+                canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
+                canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
+                canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
+                canManageYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
+                canManageSettings() { return ['admin', 'leitung'].includes(this.role); },
+
                 filteredNotes() {
                     if (this.notesActiveFilter === 'all') return this.notes;
                     return this.notes.filter(n => n.visibility === this.notesActiveFilter);
@@ -447,6 +459,12 @@ const { createApp } = Vue;
                 
                 if (this.activeTab === 'stats') {
                     this.loadStats();
+                }
+                
+                if (window.location.hash === '#new_mission') {
+                    this.activeTab = 'einsaetze';
+                    this.openNewMissionModal();
+                    window.location.hash = ''; // clear it
                 }
                 
                 const canvas = document.getElementById('sigCanvas');
@@ -834,10 +852,14 @@ const { createApp } = Vue;
                     } catch(e) {}
                 },
                 async submitFeedback(status) {
-                    const res = await fetch(`/api/apager/feedbacks?status=${encodeURIComponent(status)}`, { method: 'POST', credentials: 'include' });
+                    const alarmId = (this.apagerLogs && this.apagerLogs.length > 0) ? this.apagerLogs[0].id : null;
+                    let url = `/api/apager/feedbacks?status=${encodeURIComponent(status)}`;
+                    if (alarmId !== null) url += `&alarm_id=${alarmId}`;
+                    const res = await fetch(url, { method: 'POST', credentials: 'include' });
                     if(res.ok) {
-                        alert("Rückmeldung erfolgreich gesendet!");
                         await this.loadApagerConfig();
+                    } else {
+                        alert("Rückmeldung konnte nicht gesendet werden.");
                     }
                 },
                 async deleteApagerLog(id) {
@@ -898,6 +920,15 @@ const { createApp } = Vue;
                 async markBroadcastAsRead(b) {
                     const res = await fetch(`/api/broadcasts/${b.id}/read`, { method: 'POST', credentials: 'include' });
                     if(res.ok) this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
+                },
+                async deleteBroadcast(b) {
+                    if (!confirm(`Meldung "${b.title}" wirklich permanent löschen?`)) return;
+                    const res = await fetch(`/api/broadcasts/${b.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) {
+                        this.activeBroadcasts = this.activeBroadcasts.filter(item => item.id !== b.id);
+                    } else {
+                        alert("Meldung konnte nicht gelöscht werden.");
+                    }
                 },
 
                 handleIncidentClick(m) {
@@ -2085,7 +2116,7 @@ const { createApp } = Vue;
                 },
                 async loadCheckHistory(vehId) {
                     try {
-                        const res = await fetch(`/api/vehicles/${vehId}/checks`, { credentials: 'include' });
+                        const res = await fetch(`/api/material/vehicles/${vehId}/checks`, { credentials: 'include' });
                         if(res.ok) this.vehicleCheckHistory = await res.json();
                     } catch(e) { console.error(e); }
                 },
@@ -2098,13 +2129,15 @@ const { createApp } = Vue;
                         return;
                     }
                     try {
-                        const res = await fetch(`/api/vehicles/${this.activeVehicleForCheck.id}/checks`, {
+                        const res = await fetch(`/api/material/vehicles/${this.activeVehicleForCheck.id}/checks`, {
                             method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.currentChecklist)
                         });
                         if (res.ok) {
                             bootstrap.Modal.getInstance(document.getElementById('vehicleCheckModal')).hide();
                             alert("Fahrzeug-Check erfolgreich gespeichert!");
                             await this.loadVehicles(); // update status if needed
+                        } else {
+                            alert("Fahrzeug-Check konnte nicht gespeichert werden.");
                         }
                     } catch(e) { alert("Verbindung fehlgeschlagen."); }
                 },
@@ -2191,6 +2224,40 @@ const { createApp } = Vue;
                     } else {
                         alert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
                     }
+                },
+                downloadEmployerCert(missionId, personnelId) {
+                    if (!missionId || !personnelId) {
+                        alert("Einsatz oder Kamerad nicht ausgewählt.");
+                        return;
+                    }
+                    window.open(`/api/missions/${missionId}/employer-certificate/${personnelId}`, '_blank');
+                },
+                async openAnniversariesModal() {
+                    this.anniversariesYear = new Date().getFullYear();
+                    await this.loadAnniversaries(this.anniversariesYear);
+                    const modalEl = document.getElementById('anniversariesModal');
+                    if (modalEl) {
+                        const m = new bootstrap.Modal(modalEl);
+                        m.show();
+                    }
+                },
+                async loadAnniversaries(year) {
+                    this.isLoadingAnniversaries = true;
+                    try {
+                        const res = await fetch(`/api/personnel/anniversaries?year=${year}`, { credentials: 'include' });
+                        if (res.ok) {
+                            this.anniversariesData = await res.json();
+                        } else {
+                            console.error("Fehler beim Laden der Jubiläen");
+                        }
+                    } catch (e) {
+                        console.error("Netzwerkfehler Jubiläen:", e);
+                    } finally {
+                        this.isLoadingAnniversaries = false;
+                    }
+                },
+                printAnniversaries() {
+                    window.print();
                 },
                 openReport(s) { 
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {

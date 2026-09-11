@@ -320,7 +320,7 @@
                     <label class="small text-muted fw-bold mb-2 d-block">DIENSTKATEGORIE</label>
                     <div class="btn-group w-100 rounded-3 overflow-hidden border border-secondary border-opacity-20">
                         <button class="btn btn-cat" :class="{'active-ubung': category==='Übung'}" @click="!isReadOnly && setCat('Übung')" :disabled="isReadOnly">Übung</button>
-                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && setCat('Einsatz')" :disabled="isReadOnly">Einsatz</button>
+                        <button class="btn btn-cat" :class="{'active-einsatz': category==='Einsatz'}" @click="!isReadOnly && (!sessionId ? (window.location.href='/dashboard#new_mission') : setCat('Einsatz'))" :disabled="isReadOnly">Einsatz</button>
                         <button class="btn btn-cat" :class="{'active-sonstiges': category==='Sonstiges'}" @click="!isReadOnly && setCat('Sonstiges')" :disabled="isReadOnly">Sonstiges</button>
                     </div>
                 </div>
@@ -540,7 +540,9 @@
                 const authData = await authRes.json();
                 
                 this.isAdmin = (authData.role === 'admin');
-                this.isReadOnly = (authData.role === 'mannschaft'); 
+                // Muss zum Schreibrechte-Check des Backends passen (siehe groups_api.py save_attendance):
+                // nur admin/leitung/gruppenfuehrer dürfen Dienste tatsächlich speichern.
+                this.isReadOnly = !['admin', 'leitung', 'gruppenfuehrer'].includes(authData.role);
             } catch (e) {
                 window.location.href = '/';
                 return;
@@ -655,6 +657,11 @@
                 };
                 try {
                     const res = await fetch('/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body:JSON.stringify(data) });
+                    if (!res.ok) {
+                        this.saveState = 'idle';
+                        alert("Speichern fehlgeschlagen: Du hast keine Berechtigung, diesen Dienst zu bearbeiten.");
+                        return;
+                    }
                     const rd = await res.json();
                     if(rd.session_id && !this.sessionId) {
                         this.sessionId = rd.session_id;
@@ -662,7 +669,10 @@
                     }
                     this.saveState = 'saved';
                     setTimeout(() => this.saveState = 'idle', 2000);
-                } catch(e) { this.saveState = 'idle'; }
+                } catch(e) {
+                    this.saveState = 'idle';
+                    alert("Speichern fehlgeschlagen: Verbindung zum Server unterbrochen.");
+                }
             },
             removePerson(p) {
                 if(this.isReadOnly) return;

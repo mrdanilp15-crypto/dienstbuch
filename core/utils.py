@@ -9,7 +9,36 @@ from fastapi import Request
 from typing import Optional
 from database import get_db_connection
 
-SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
+def _get_or_create_secret_key() -> str:
+    """
+    Liefert den Signier-Schlüssel für Session-Tokens.
+    Wird SECRET_KEY nicht per Umgebungsvariable gesetzt, generiert und
+    persistiert das System automatisch einen zufälligen Schlüssel (statt eines
+    im Quellcode sichtbaren, für jede Installation identischen Fallback-Werts).
+    So bleiben Sessions über Neustarts hinweg gültig, aber der Schlüssel ist
+    nicht mehr öffentlich bekannt/rätbar.
+    """
+    env_key = os.getenv("SECRET_KEY")
+    if env_key:
+        return env_key
+
+    key_path = os.path.join(os.getcwd(), "secret.key")
+    try:
+        if os.path.exists(key_path):
+            with open(key_path, "r") as f:
+                existing = f.read().strip()
+                if existing:
+                    return existing
+        new_key = secrets.token_hex(32)
+        with open(key_path, "w") as f:
+            f.write(new_key)
+        return new_key
+    except Exception as e:
+        print(f"WARNUNG: Konnte secret.key nicht lesen/schreiben ({e}). Nutze einen nur für diesen Prozesslauf gültigen Schlüssel.")
+        return secrets.token_hex(32)
+
+
+SECRET_KEY = _get_or_create_secret_key()
 
 def log_audit_action(username: str, action: str, details: str):
     try:

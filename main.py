@@ -41,7 +41,8 @@ CURRENT_VERSION = "2.50"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
-SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
+# Der eigentliche Session-Signierschlüssel lebt in core.utils (dort auch automatisch
+# generiert/persistiert, falls SECRET_KEY nicht gesetzt ist).
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -455,9 +456,34 @@ def init_db_extensions():
                 apager_log_id INT,
                 personnel_id INT,
                 status VARCHAR(50) NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_apager_feedback_alarm_person (apager_log_id, personnel_id)
             ) ENGINE=InnoDB;
         """)
+        # Migration: fehlender UNIQUE KEY auf bestehenden Installationen nachrüsten,
+        # sonst greift "ON DUPLICATE KEY UPDATE" beim Feedback-Speichern nie und es
+        # entstehen doppelte Rückmeldungs-Zeilen pro Person/Alarm.
+        try:
+            cur.execute("""
+                SELECT COUNT(*) FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'apager_feedbacks'
+                  AND INDEX_NAME = 'uq_apager_feedback_alarm_person'
+            """)
+            if cur.fetchone()[0] == 0:
+                # Vorab Duplikate bereinigen (jeweils neuesten Eintrag behalten), sonst schlägt ADD UNIQUE fehl
+                cur.execute("""
+                    DELETE f1 FROM apager_feedbacks f1
+                    INNER JOIN apager_feedbacks f2
+                    WHERE f1.apager_log_id = f2.apager_log_id
+                      AND f1.personnel_id = f2.personnel_id
+                      AND f1.id < f2.id
+                """)
+                cur.execute("""
+                    ALTER TABLE apager_feedbacks
+                    ADD UNIQUE KEY uq_apager_feedback_alarm_person (apager_log_id, personnel_id)
+                """)
+        except Exception as mig_err:
+            print("Konnte apager_feedbacks UNIQUE KEY nicht migrieren:", mig_err)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS equipment_defect_reports (

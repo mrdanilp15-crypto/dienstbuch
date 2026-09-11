@@ -362,10 +362,12 @@
                                 <div class="mb-4">
                                     <label class="form-label">System-Rolle</label>
                                     <select v-model="newUser.role" class="form-select">
-                                        <option value="mannschaft">Mannschaft (Lesen)</option>
-                                        <option value="user">User (Eintragen)</option>
-                                        <option value="geratewart">Gerätewart (Meldungen)</option>
-                                        <option value="admin">Admin (Vollzugriff)</option>
+                                        <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
+                                        <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
+                                        <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                        <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
+                                        <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
+                                        <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
                                     </select>
                                 </div>
                                 <button type="submit" class="btn btn-premium w-100 fw-bold py-2">Konto aktivieren</button>
@@ -394,7 +396,7 @@
                                             </td>
                                             <td>
                                                 <select v-model="u.role" @change="updateUserRole(u)" :disabled="u.username === 'admin'" class="form-select form-select-sm border-0 w-auto rounded-pill px-3 bg-dark text-white fw-bold">
-                                                    <option value="mannschaft">MANNSCHAFT</option><option value="user">USER</option><option value="geratewart">GERÄTEWART</option><option value="admin">ADMIN</option>
+                                                    <option value="mannschaft">MANNSCHAFT</option><option value="geratewart">GERÄTEWART</option><option value="jugendwarte">JUGENDWART</option><option value="gruppenfuehrer">GRUPPENFÜHRER</option><option value="leitung">LEITUNG</option><option value="admin">ADMIN</option>
                                                 </select>
                                             </td>
                                             <td class="text-end">
