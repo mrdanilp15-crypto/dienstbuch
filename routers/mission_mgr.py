@@ -734,14 +734,18 @@ def calculate_compensations(year: int, hourly_rate: float, request: Request):
     
     result = []
     for m in members:
-        total_hours = float(m["session_hours"]) + float(m["mission_hours"])
+        # round(): die Addition zweier aus Decimal konvertierter floats (session_hours +
+        # mission_hours) kann durch Binärgleitkomma-Rundung hässliche Werte wie
+        # 7.300000000000001 erzeugen, die ohne Rundung 1:1 in der Abrechnungstabelle
+        # angezeigt wurden.
+        total_hours = round(float(m["session_hours"]) + float(m["mission_hours"]), 2)
         compensation = round(total_hours * hourly_rate, 2)
         result.append({
             "id": m["id"],
             "name": m["name"],
             "email": m["email"],
-            "session_hours": float(m["session_hours"]),
-            "mission_hours": float(m["mission_hours"]),
+            "session_hours": round(float(m["session_hours"]), 2),
+            "mission_hours": round(float(m["mission_hours"]), 2),
             "total_hours": total_hours,
             "compensation": compensation
         })

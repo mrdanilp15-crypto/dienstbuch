@@ -18,5 +18,8 @@ Dieses System ermöglicht eine rechtssichere und digitale Erfassung von Übungen
 ## 🔄 Updates
 Einmal installiert, kann das System bequem anzeigen wenn ein Update vergübar ist!
 
+## ⚠️ Bekannte Einschränkung: Push-Alarme auf Samsung Internet
+Für zuverlässigen Alarmempfang (Ton + Bildschirm-Aufwecken bei Push-Benachrichtigungen) auf dem Handy bitte **Google Chrome** statt **Samsung Internet** verwenden. Samsung Internet hat eine bekannte, browserseitige Einschränkung bei der Web-Notification-API: Alarme kommen dort zwar an, aber ohne Ton und ohne den Bildschirm zu wecken – unabhängig davon, wie die Benachrichtigungs-Einstellungen konfiguriert sind. Das lässt sich von der App-Seite aus nicht beheben. In Chrome funktioniert es zuverlässig.
+
 ---
 *Gott zur Ehr, dem Nächsten zur Wehr!*

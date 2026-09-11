@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 import datetime
+import decimal
 import shutil
 import subprocess
 from datetime import date
@@ -54,6 +55,12 @@ def export_database_backup(request: Request):
                         r[k] = str(v)
                     elif isinstance(v, bytes):
                         r[k] = v.decode('utf-8', errors='ignore')
+                    # DECIMAL-Spalten (z.B. missions.duration, sessions.duration,
+                    # club_donations.amount) kommen aus mysql-connector als decimal.Decimal -
+                    # json.dumps() kann das nicht serialisieren und wirft sonst einen
+                    # unbehandelten TypeError, der hier als 500 Internal Server Error endet.
+                    elif isinstance(v, decimal.Decimal):
+                        r[k] = float(v)
             backup_tables[table] = rows
         except Exception as e:
             print(f"Export warning for table {table}: {e}")

@@ -96,6 +96,9 @@
                     <div class="sidebar-section-header">System</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; loadStats(); showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
+
+                    <div class="sidebar-section-header">Unterstützung</div>
+                    <button class="sidebar-btn text-warning" data-bs-toggle="modal" data-bs-target="#donationModal"><i class="fa fa-mug-hot"></i> Entwickler unterstützen</button>
                 </div>
 
 
@@ -526,9 +529,6 @@
                         <li class="nav-item">
                             <button class="nav-link" :class="materialSubTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link" :class="materialSubTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'verein'; loadClubData()"><i class="fa fa-building-columns me-1"></i>Vereinskasse & Inventar</button>
-                        </li>
                         <li class="nav-item ms-auto">
                             <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
                         </li>
@@ -800,87 +800,6 @@
                         </div>
                     </div>
                 </div>
-                    <!-- SUBTAB: VEREIN (Vereinskasse & Inventar - Moved to Material) -->
-                    <div v-show="materialSubTab === 'verein'">
-                        <div class="row g-4">
-                            <!-- Club finances and inventory -->
-                            <div class="col-12 col-lg-8">
-                                <div class="card premium-card p-4 mb-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Gegenstand</th>
-                                                    <th>Menge</th>
-                                                    <th>Zustand</th>
-                                                    <th v-if="canManageMaterial">Aktion</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="item in clubInventory" :key="item.id">
-                                                    <td><strong>{{ item.item_name }}</strong></td>
-                                                    <td>{{ item.quantity }}x</td>
-                                                    <td><span class="badge bg-success">{{ item.status }}</span></td>
-                                                    <td v-if="canManageMaterial">
-                                                        <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
-                                                    </td>
-                                                </tr>
-                                                <tr v-if="canManageMaterial">
-                                                    <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
-                                                    <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
-                                                    <td><span class="badge bg-success">OK</span></td>
-                                                    <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
-                                            <thead>
-                                                <tr>
-                                                    <th>Spender / Mitglied</th>
-                                                    <th>Betrag</th>
-                                                    <th>Datum</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="d in clubDonations" :key="d.id">
-                                                    <td><strong>{{ d.donor }}</strong></td>
-                                                    <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
-                                                    <td>{{ d.formatted_date }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Add donation form -->
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4 h-100">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Zahler / Spender</label>
-                                        <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Betrag (€)</label>
-                                        <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label text-white">Datum</label>
-                                        <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
-                                    </div>
-                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- TAB 5: PERSONALVERWALTUNG -->
@@ -1158,6 +1077,9 @@
                             <button class="nav-link" :class="verwaltungTab === 'bankdaten' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'bankdaten'"><i class="fa fa-university me-1"></i>Bankdaten</button>
                         </li>
                         <li class="nav-item">
+                            <button class="nav-link" :class="verwaltungTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'verein'; loadClubData()"><i class="fa fa-building-columns me-1"></i>Vereinskasse & Inventar</button>
+                        </li>
+                        <li class="nav-item">
                             <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
                         </li>
                     </ul>
@@ -1365,11 +1287,11 @@
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
                                         <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL:</p>
                                         <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
-                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">http://{{serverHost}}/api/calendar/export.ics</code>
+                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">http://{{serverHost}}/api/calendar/feed.ics</code>
                                         </div>
                                         <div class="d-flex gap-2">
-                                            <button class="btn btn-outline-light rounded-pill" onclick="navigator.clipboard.writeText(window.location.protocol+'//'+window.location.host+'/api/calendar/export.ics')"><i class="fa fa-copy me-1"></i>URL kopieren</button>
-                                            <a :href="'webcal://'+serverHost+'/api/calendar/export.ics'" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                            <button class="btn btn-outline-light rounded-pill" onclick="navigator.clipboard.writeText(window.location.protocol+'//'+window.location.host+'/api/calendar/feed.ics')"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics'" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
                                         </div>
                                     </div>
                                 </div>
@@ -1458,7 +1380,89 @@
                                         </div>
                                         <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
                                     </div>
-                                
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SUB-TAB: Vereinskasse & Inventar (aus Geräte & Material hierher verschoben - inhaltlich Vereinsfinanzen, kein Ausrüstungsthema) -->
+                        <div v-show="verwaltungTab === 'verein'">
+                            <div class="row g-4">
+                                <!-- Club finances and inventory -->
+                                <div class="col-12 col-lg-8">
+                                    <div class="card premium-card p-4 mb-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Gegenstand</th>
+                                                        <th>Menge</th>
+                                                        <th>Zustand</th>
+                                                        <th v-if="canManageMaterial">Aktion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="item in clubInventory" :key="item.id">
+                                                        <td><strong>{{ item.item_name }}</strong></td>
+                                                        <td>{{ item.quantity }}x</td>
+                                                        <td><span class="badge bg-success">{{ item.status }}</span></td>
+                                                        <td v-if="canManageMaterial">
+                                                            <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-if="canManageMaterial">
+                                                        <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
+                                                        <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
+                                                        <td><span class="badge bg-success">OK</span></td>
+                                                        <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Spender / Mitglied</th>
+                                                        <th>Betrag</th>
+                                                        <th>Datum</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="d in clubDonations" :key="d.id">
+                                                        <td><strong>{{ d.donor }}</strong></td>
+                                                        <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
+                                                        <td>{{ d.formatted_date }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Add donation form -->
+                                <div class="col-12 col-lg-4">
+                                    <div class="card premium-card p-4 h-100">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Zahler / Spender</label>
+                                            <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Betrag (€)</label>
+                                            <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-white">Datum</label>
+                                            <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
+                                        </div>
+                                        <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1910,8 +1914,35 @@
                         <button type="button" class="btn-close" :class="{'btn-close-white': isDarkMode}" @click="stopScanner"></button>
                     </div>
                     <div class="modal-body text-center">
-                        <div id="qr-reader" style="width:100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--border-color);"></div>
+                        <div id="qr-reader-scan" style="width:100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--border-color);"></div>
                         <p class="text-muted mt-3 mb-0 small">Bitte halte die Kamera auf den Barcode oder QR-Code des Geräts.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ENTWICKLER UNTERSTÜTZEN -->
+        <div class="modal fade" id="donationModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-mug-hot text-warning me-2"></i>Entwickler unterstützen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="text-white">
+                            Dieses Digitale Dienstbuch wird von mir als Privatperson in meiner Freizeit entwickelt und
+                            weiterentwickelt - ohne Firma oder Team dahinter. Fehlerbehebungen, neue Funktionen und
+                            der Support kosten einiges an Zeit.
+                        </p>
+                        <p class="text-secondary small">
+                            Wenn dir die App hilft und du die Weiterentwicklung unterstützen möchtest, freue ich mich
+                            über eine kleine Spende. Das ist völlig freiwillig und hat keinerlei Einfluss auf die
+                            Nutzung der App.
+                        </p>
+                        <a href="https://www.paypal.me/Breteax" target="_blank" rel="noopener noreferrer" class="btn btn-premium w-100 rounded-pill fw-bold mt-3">
+                            <i class="fa-brands fa-paypal me-2"></i>Über PayPal unterstützen
+                        </a>
                     </div>
                 </div>
             </div>
@@ -2112,20 +2143,20 @@
                             <!-- MISSION BASE DATA -->
                             <div class="tab-pane fade show active" id="m-tab-base">
                                 <div class="row g-3">
-                                    <div class="col-md-6"><label class="form-label">Einsatzstichwort</label><input type="text" v-model="activeMission.stichwort" class="form-control" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-6"><label class="form-label">Einsatzort / Adresse</label><input type="text" v-model="activeMission.adresse" class="form-control" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-6"><label class="form-label">Einsatzdatum</label><input type="date" v-model="activeMission.date" class="form-control" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-3"><label class="form-label">Alarm/Beginn (Uhrzeit)</label><input type="time" v-model="activeMission.time" class="form-control" @input="calcMissionDuration" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-3"><label class="form-label">Ende (Uhrzeit)</label><input type="time" v-model="activeMission.end_time" class="form-control" @input="calcMissionDuration" :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="role === 'mannschaft'"></div>
-                                    <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
+                                    <div class="col-md-6"><label class="form-label">Einsatzstichwort</label><input type="text" v-model="activeMission.stichwort" class="form-control" required :disabled="!canManageMissions"></div>
+                                    <div class="col-md-6"><label class="form-label">Einsatzort / Adresse</label><input type="text" v-model="activeMission.adresse" class="form-control" required :disabled="!canManageMissions"></div>
+                                    <div class="col-md-6"><label class="form-label">Einsatzdatum</label><input type="date" v-model="activeMission.date" class="form-control" required :disabled="!canManageMissions"></div>
+                                    <div class="col-md-3"><label class="form-label">Alarm/Beginn (Uhrzeit)</label><input type="time" v-model="activeMission.time" class="form-control" @input="calcMissionDuration" required :disabled="!canManageMissions"></div>
+                                    <div class="col-md-3"><label class="form-label">Ende (Uhrzeit)</label><input type="time" v-model="activeMission.end_time" class="form-control" @input="calcMissionDuration" :disabled="!canManageMissions"></div>
+                                    <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="!canManageMissions"></div>
+                                    <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="!canManageMissions"></textarea></div>
                                     <div class="col-md-12">
                                         <label class="form-label mb-0">Schadensablauf / Bericht</label>
-                                        <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea>
+                                        <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="!canManageMissions"></textarea>
                                     </div>
                                     <div class="col-md-12">
                                         <label class="form-label">Berichtsstatus</label>
-                                        <select v-model="activeMission.status" class="form-select" :disabled="role === 'mannschaft'">
+                                        <select v-model="activeMission.status" class="form-select" :disabled="!canManageMissions">
                                             <option value="Entwurf">Entwurf</option>
                                             <option value="In Prüfung">In Prüfung</option>
                                             <option value="Freigegeben">Freigegeben (Sperrung)</option>
@@ -2133,21 +2164,21 @@
                                     </div>
                                     <div class="col-md-12">
                                         <label class="form-label">Zugeordnete Gruppe / Einheit</label>
-                                        <select v-model="activeMission.group_id" class="form-select" :disabled="role === 'mannschaft'">
+                                        <select v-model="activeMission.group_id" class="form-select" :disabled="!canManageMissions">
                                             <option :value="null">Alle Einheiten / Gesamtwehr</option>
                                             <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
                                         </select>
                                     </div>
                                     <div class="col-md-12 mt-3">
                                         <label class="form-label text-white"><i class="fa fa-paperclip me-2 text-danger"></i>Archiv-Anhänge (Berichte, Fotos, Dokumente)</label>
-                                        <div class="d-flex gap-2 mb-2" v-if="role !== 'mannschaft'">
+                                        <div class="d-flex gap-2 mb-2" v-if="canManageMissions">
                                             <input type="file" ref="missionFile" class="form-control bg-dark border-secondary text-white" @change="uploadMissionFile">
                                         </div>
                                         <!-- Display list of attached files -->
                                         <div v-if="uploadedMissionFiles.length > 0" class="list-group list-group-flush bg-transparent mt-2">
                                             <div v-for="(file, index) in uploadedMissionFiles" :key="index" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
                                                 <a :href="file.url" target="_blank" class="small text-danger text-decoration-underline"><i class="fa fa-file-alt me-2"></i>{{ file.name }}</a>
-                                                <button v-if="role !== 'mannschaft'" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="removeMissionFile(index)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                                <button v-if="canManageMissions" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="removeMissionFile(index)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
                                             </div>
                                         </div>
                                         <div v-else class="text-muted small">Keine Anhänge vorhanden.</div>
@@ -2165,11 +2196,11 @@
                                             <span v-if="p.g26_expired" class="text-danger fw-bold ms-2" style="font-size:0.75rem;"><i class="fa fa-warning"></i> G26 abgelaufen!</span>
                                         </div>
                                         <div class="d-flex gap-2 flex-wrap">
-                                            <select v-model="p.vehicle" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
+                                            <select v-model="p.vehicle" class="form-select form-select-sm" style="width: auto;" :disabled="!canManageMissions">
                                                 <option value="">Kein Fahrzeug</option>
                                                 <option v-for="v in vehicles" :value="v.name">{{v.name}}</option>
                                             </select>
-                                            <select v-model="p.is_present" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
+                                            <select v-model="p.is_present" class="form-select form-select-sm" style="width: auto;" :disabled="!canManageMissions">
                                                 <option value="Nein">Nein / Nicht anwesend</option>
                                                 <option value="Abgerückt">Abgerückt (Einsatzfahrt)</option>
                                                 <option value="Bereitstellung">Bereitstellung (Einsatzstelle)</option>
@@ -2188,7 +2219,10 @@
 
                             <!-- ATEMSCHUTZ LOG -->
                             <div class="tab-pane fade" id="m-tab-agt">
-                                <div v-if="canManageMissions" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                <div v-if="canManageMissions && !activeMission.id" class="list-group-item bg-transparent text-muted small border-secondary border-opacity-10 py-2 mb-3">
+                                    <i class="fa fa-circle-info me-1"></i>Speichere den Einsatz zuerst, bevor du Atemschutz-Einträge hinzufügen kannst.
+                                </div>
+                                <div v-if="canManageMissions && activeMission.id" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
                                     <h6 class="fw-bold text-white mb-3">AGT-Eintrag hinzufügen</h6>
                                     <div class="row g-2 align-items-end">
                                         <div class="col-md-4">
