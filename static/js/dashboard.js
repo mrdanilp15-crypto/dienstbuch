@@ -120,7 +120,6 @@ const { createApp } = Vue;
             data() {
                 return {
                     isOnline: navigator.onLine,
-                    qrScanner: null,
                     html5Qrcode: null,
                     isDarkMode: true,
                     ready: false, isAdmin: false, username: '', role: '',
@@ -289,9 +288,7 @@ const { createApp } = Vue;
                     newHvoCheck: { device_name: '' },
                     
                     werkstattTab: 'pruefungen',
-                    qrScanInput: '',
-                    scannedQrObject: null,
-                    
+
                     statsTotalMissions: 0,
                     statsChartInstance: null, statsChartMonthInstance: null,
                     
@@ -349,29 +346,22 @@ const { createApp } = Vue;
                     });
                 },
                 funkDevices() {
+                    // Nur echte, in der Geräteverwaltung angelegte Funkgeräte - keine
+                    // erfundenen Werte (Akkustand/Ladezyklen wurden vorher aus dem Barcode-Text
+                    // berechnet und hatten keinerlei Bezug zum tatsächlichen Gerätezustand).
                     if (!this.equipment) return [];
                     return this.equipment.filter(eq => eq && (eq.category === 'Funk' || eq.category === 'Funkgerät' || eq.category === 'TETRA')).map(eq => {
                         let type = 'HRT (Handfunkgerät)';
                         if (eq.name.toLowerCase().includes('mrt') || eq.name.toLowerCase().includes('fahrzeug')) {
                             type = 'MRT (Fahrzeugfunk)';
                         }
-                        let rufname = `Florian ${this.getCityName()} - ${eq.name}`;
-                        let akku = 100;
-                        let ladezyklen = 0;
-                        if (eq.barcode) {
-                            let sum = 0;
-                            for (let i = 0; i < eq.barcode.length; i++) sum += eq.barcode.charCodeAt(i);
-                            akku = 70 + (sum % 31);
-                            ladezyklen = 10 + (sum % 200);
-                        }
                         return {
                             id: eq.id,
                             barcode: eq.barcode,
                             name: eq.name,
                             type: type,
-                            rufname: rufname,
-                            akku: akku,
-                            ladezyklen: ladezyklen,
+                            lastInspection: eq.last_inspection || 'Nie geprüft',
+                            currentStatus: eq.current_status || 'Bestanden',
                             rawEq: eq
                         };
                     });
@@ -573,12 +563,8 @@ const { createApp } = Vue;
 
                 // Kamera zuverlässig stoppen, egal wie der Scanner-Dialog geschlossen wird
                 // (X-Button, Klick auf den Hintergrund, Escape-Taste) - nur der X-Button rief
-                // bisher stopScanner()/stopQrScanner() auf. Bei Hintergrund-Klick/Escape blieb
-                // die Kamera im Hintergrund aktiv; öffnete man danach den jeweils anderen der
-                // beiden Scanner (beide teilten sich zudem dieselbe DOM-ID "qr-reader"), liefen
-                // zwei Kamera-Streams gleichzeitig - ein plausibler Grund für einen Browser-Absturz.
-                const scannerModalEl = document.getElementById('scannerModal');
-                if (scannerModalEl) scannerModalEl.addEventListener('hidden.bs.modal', () => this.stopScanner());
+                // bisher stopQrScanner() auf, bei Hintergrund-Klick/Escape blieb die Kamera im
+                // Hintergrund aktiv.
                 const qrScannerModalEl = document.getElementById('qrScannerModal');
                 if (qrScannerModalEl) qrScannerModalEl.addEventListener('hidden.bs.modal', () => this.stopQrScanner());
 
@@ -693,10 +679,6 @@ const { createApp } = Vue;
 
                 async startQrScanner() {
                     if (typeof Html5Qrcode === 'undefined') { await appAlert('Scanner-Bibliothek nicht geladen'); return; }
-                    // Sicherstellen, dass nicht gleichzeitig der andere Scanner (Scan (Kamera))
-                    // noch eine Kamera offen hält - zwei parallele Kamera-Streams waren ein
-                    // plausibler Auslöser für Browser-Abstürze in diesem Bereich.
-                    this.stopScanner();
                     this.html5Qrcode = new Html5Qrcode("qr-reader");
                     const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
                     modal.show();
@@ -846,46 +828,6 @@ const { createApp } = Vue;
                     this.isDarkMode = !this.isDarkMode;
                     document.documentElement.setAttribute('data-theme', this.isDarkMode ? 'dark' : 'light');
                     localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
-                },
-                async startScanner() {
-                    // Sicherstellen, dass nicht gleichzeitig der andere Scanner (Barcode
-                    // Scannen) noch eine Kamera offen hält.
-                    this.stopQrScanner();
-
-                    const modal = new bootstrap.Modal(document.getElementById('scannerModal'));
-                    modal.show();
-
-                    if (this.qrScanner) {
-                        try { this.qrScanner.clear(); } catch(e) {}
-                    }
-
-                    this.qrScanner = new Html5QrcodeScanner("qr-reader-scan", { fps: 10, qrbox: 250 }, false);
-                    this.qrScanner.render(async (decodedText, decodedResult) => {
-                        this.stopScanner();
-
-                        // Try to find equipment with this barcode/QR
-                        const eq = this.equipment.find(e => e.id == decodedText || e.name.includes(decodedText));
-                        if(eq) {
-                            this.activeEquipment = JSON.parse(JSON.stringify(eq));
-                            new bootstrap.Modal(document.getElementById('equipmentModal')).show();
-                        } else {
-                            await appAlert(`Gerät "${decodedText}" nicht im System gefunden.`);
-                        }
-                    }, (errorMessage) => {
-                        // ignore errors during scanning
-                    });
-                },
-                stopScanner() {
-                    if (this.qrScanner) {
-                        // try/catch: clear() erneut auf einer bereits geräumten Instanz
-                        // aufzurufen (z.B. wenn sowohl der X-Button als auch der
-                        // hidden.bs.modal-Listener feuern) darf nicht mit einem unbehandelten
-                        // Fehler abbrechen.
-                        try { this.qrScanner.clear(); } catch(e) {}
-                        this.qrScanner = null;
-                    }
-                    const m = bootstrap.Modal.getInstance(document.getElementById('scannerModal'));
-                    if(m) m.hide();
                 },
                 async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/login'; },
                 
@@ -1291,6 +1233,9 @@ const { createApp } = Vue;
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('equipmentModal')).hide();
                         await this.loadEquipment();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Gerät konnte nicht gespeichert werden.");
                     }
                 },
                 async openInspectionsHistoryModal(eq) {
@@ -1309,6 +1254,8 @@ const { createApp } = Vue;
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('addInspectionModal')).hide();
                         await this.loadEquipment();
+                    } else {
+                        await appAlert("Prüfung konnte nicht gespeichert werden.");
                     }
                 },
                 openBatchInspectModal() {
@@ -1322,6 +1269,8 @@ const { createApp } = Vue;
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('batchInspectModal')).hide();
                         await this.loadEquipment();
+                    } else {
+                        await appAlert("Sammelprüfung konnte nicht gespeichert werden.");
                     }
                 },
 
@@ -2069,64 +2018,6 @@ const { createApp } = Vue;
                     }
                 },
 
-                async scanQrCodeSim() {
-                    const code = this.qrScanInput.trim();
-                    if (!code) return;
-                    const match = this.equipInspectSchedule.find(x => x.barcode === code);
-                    if (match) {
-                        this.scannedQrObject = match;
-                    } else {
-                        await appAlert("Prüfobjekt mit diesem QR-Code / Barcode nicht gefunden!");
-                        this.scannedQrObject = null;
-                    }
-                },
-                async confirmQrCheck() {
-                    if (this.scannedQrObject && this.scannedQrObject.rawEq) {
-                        const eq = this.scannedQrObject.rawEq;
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        let nextDateStr = null;
-                        if (eq.interval_months) {
-                            const d = new Date();
-                            d.setMonth(d.getMonth() + eq.interval_months);
-                            nextDateStr = d.toISOString().split('T')[0];
-                        }
-                        const res = await fetch(`/api/material/equipment/${eq.id}/inspections`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            credentials: 'include',
-                            body: JSON.stringify({
-                                date: todayStr,
-                                inspector: this.username || 'System',
-                                status: 'Bestanden',
-                                note: 'Automatische QR-Code Prüfung'
-                            })
-                        });
-                        if (res.ok) {
-                            const updatePayload = {
-                                name: eq.name,
-                                barcode: eq.barcode,
-                                category: eq.category,
-                                image_url: eq.image_url,
-                                manual_url: eq.manual_url,
-                                interval_months: eq.interval_months,
-                                last_inspection: todayStr,
-                                next_inspection: nextDateStr
-                            };
-                            await fetch(`/api/material/equipment/${eq.id}`, {
-                                method: 'PUT',
-                                headers: {'Content-Type': 'application/json'},
-                                credentials: 'include',
-                                body: JSON.stringify(updatePayload)
-                            });
-                            await this.loadEquipment();
-                            await appAlert(`Prüfung für ${eq.name} erfolgreich erfasst.`);
-                            this.scannedQrObject = null;
-                            this.qrScanInput = '';
-                        } else {
-                            await appAlert("Fehler beim Übermitteln der Prüfung.");
-                        }
-                    }
-                },
                 addPsaEquipment() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Atemschutz', image_url: '', manual_url: '', interval_months: 12, last_inspection: null, next_inspection: null };
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();
@@ -2170,10 +2061,6 @@ const { createApp } = Vue;
                         const sRes = await fetch('/api/users/me/sessions?year=' + this.selectedYear, { credentials: 'include' });
                         if (sRes.ok) { this.personalSessions = await sRes.json(); }
                     } catch(e) {}
-                },
-                getCityName() {
-                    const name = this.stationConfig.station_name || 'Neustadt';
-                    return name.replace(/feuerwehr/gi, '').trim() || 'Neustadt';
                 },
                 openSelfPasswordModal() {
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };

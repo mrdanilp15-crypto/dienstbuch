@@ -506,7 +506,6 @@
                             <small class="text-muted">Bestandsakten, Prüffristen und Sammelprüfungen</small>
                         </div>
                         <div class="d-flex gap-2">
-                            <button v-if="canManageMaterial" class="btn btn-outline-info rounded-pill px-3" @click="startScanner"><i class="fa fa-barcode me-1"></i>Scan (Kamera)</button>
                             <button v-if="canManageMaterial" class="btn btn-outline-warning rounded-pill px-3" @click="openBatchInspectModal"><i class="fa fa-qrcode me-1"></i>Sammelprüfung (Batch)</button>
                             <button v-if="canManageMaterial" class="btn btn-premium rounded-pill px-3" @click="openEquipmentModal"><i class="fa fa-plus me-1"></i>Gerät erfassen</button>
                         </div>
@@ -614,7 +613,7 @@
                                         <div class="d-flex justify-content-between align-items-start mb-2">
                                             <div>
                                                 <span class="badge me-2" :class="dr.severity === 'Kritisch' ? 'bg-danger' : dr.severity === 'Mittel' ? 'bg-warning text-dark' : 'bg-secondary'">{{dr.severity}}</span>
-                                                <span class="badge" :class="dr.status === 'Offen' ? 'bg-danger' : 'bg-success'">{{dr.status}}</span>
+                                                <span class="badge" :class="dr.status === 'Erledigt' ? 'bg-success' : dr.status === 'In Bearbeitung' ? 'bg-warning text-dark' : 'bg-danger'">{{dr.status}}</span>
                                             </div>
                                             <small class="text-muted">{{dr.created_at ? dr.created_at.substring(0,10) : ''}}</small>
                                         </div>
@@ -623,11 +622,11 @@
                                         <div class="d-flex justify-content-between align-items-center">
                                             <small class="text-muted"><i class="fa fa-user me-1"></i>Gemeldet von: <strong class="text-white">{{dr.reporter_name}}</strong></small>
                                             <div class="d-flex gap-1 align-items-center">
-                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Offen'" class="d-flex gap-1">
+                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" class="d-flex gap-1">
                                                     <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
-                                                    <button class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                                    <button v-if="dr.status !== 'In Bearbeitung'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
                                                 </div>
-                                                <small v-else-if="dr.status !== 'Offen'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
+                                                <small v-else-if="dr.status === 'Erledigt'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
                                                 <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
                                             </div>
                                         </div>
@@ -666,7 +665,7 @@
                     <div v-show="materialSubTab === 'pruefungen'">
                         <div class="row g-4">
                             <!-- Inspection planner list -->
-                            <div class="col-12 col-lg-8">
+                            <div class="col-12">
                                 <div class="card premium-card p-4">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <h5 class="fw-bold text-white mb-0"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
@@ -710,34 +709,13 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- QR Code Scanner Simulator -->
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-qrcode text-danger me-2"></i>QR-Code Prüfungs-Scanner</h5>
-                                    <p class="text-muted small mb-3">Gib den Geräte-Barcode manuell ein, um den Prüfstatus direkt abzufragen und eine neue Prüfung zu verbuchen.</p>
-                                    <div class="input-group mb-3">
-                                        <input type="text" v-model="qrScanInput" class="form-control form-control-sm bg-dark border-secondary text-white font-monospace" placeholder="z. B. EQ-AGT-01">
-                                        <button class="btn btn-premium btn-sm" @click="scanQrCodeSim"><i class="fa fa-search"></i></button>
-                                    </div>
-
-                                    <div v-if="scannedQrObject" class="bg-black bg-opacity-35 p-3 rounded-4 border border-secondary border-opacity-10 small shadow-sm">
-                                        <h6 class="fw-bold text-white mb-2">{{ scannedQrObject.name }}</h6>
-                                        <div class="mb-1 text-muted">Kategorie: <strong class="text-white">{{ scannedQrObject.category }}</strong></div>
-                                        <div class="mb-1 text-muted">Letzter Check: <strong class="text-white">{{ scannedQrObject.lastTest }}</strong></div>
-                                        <div class="mb-3 text-muted">Fälligkeits-Intervall: <strong class="text-white">{{ scannedQrObject.interval }} Monate</strong></div>
-                                        
-                                        <button class="btn btn-premium btn-sm w-100 rounded-pill mt-2" @click="confirmQrCheck"><i class="fa fa-check me-1"></i>Prüfung jetzt durchführen</button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
                     <!-- SUBTAB: FUNK (TETRA MRT/HRT) -->
                     <div v-show="materialSubTab === 'funk'">
                         <div class="row g-4">
-                            <div class="col-12 col-lg-8">
+                            <div class="col-12">
                                 <div class="card premium-card p-4">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <h5 class="fw-bold text-white mb-0"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
@@ -749,26 +727,19 @@
                                                 <tr>
                                                     <th>Bezeichnung</th>
                                                     <th>Typ</th>
-                                                    <th>Funkrufname (BOS)</th>
-                                                    <th>Akkustand</th>
-                                                    <th>Ladezyklen</th>
+                                                    <th>Barcode</th>
+                                                    <th>Letzte Prüfung</th>
+                                                    <th>Status</th>
                                                     <th v-if="canManageMaterial" class="text-end">Aktion</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr v-for="dev in funkDevices" :key="dev.name">
+                                                <tr v-for="dev in funkDevices" :key="dev.id">
                                                     <td><strong>{{ dev.name }}</strong></td>
                                                     <td>{{ dev.type }}</td>
-                                                    <td class="text-danger font-monospace">{{ dev.rufname }}</td>
-                                                    <td>
-                                                        <div class="d-flex align-items-center gap-2">
-                                                            <div class="progress flex-grow-1" style="height: 6px;">
-                                                                <div class="progress-bar bg-success" :style="{width: dev.akku + '%'}"></div>
-                                                            </div>
-                                                            <span>{{ dev.akku }}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>{{ dev.ladezyklen }} Zyklen</td>
+                                                    <td class="text-muted font-monospace">{{ dev.barcode }}</td>
+                                                    <td>{{ dev.lastInspection }}</td>
+                                                    <td><span class="badge" :class="dev.currentStatus === 'Bestanden' ? 'bg-success' : 'bg-danger'">{{ dev.currentStatus }}</span></td>
                                                     <td v-if="canManageMaterial" class="text-end">
                                                         <div class="d-flex justify-content-end gap-1">
                                                             <button class="btn btn-sm btn-outline-light p-1 border-0" @click="editEquipment(dev.rawEq)" title="Bearbeiten"><i class="fa fa-edit"></i></button>
@@ -784,22 +755,8 @@
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="col-12 col-lg-4">
-                                <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-info-circle text-danger me-2"></i>TETRA Funkverwaltung</h5>
-                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small mb-3">
-                                        <h6 class="fw-bold text-white mb-1">BOS TETRA Einstellungen</h6>
-                                        <p class="text-muted mb-0">Die Funkgruppe ist primär auf <strong>TMO_FF_REG_2</strong> konfiguriert. Ausweichgruppe im Nahbereich ist DMO_Grup_5.</p>
-                                    </div>
-                                    <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 small">
-                                        <h6 class="fw-bold text-white mb-1">Letzte Funkübung</h6>
-                                        <p class="text-muted mb-0">Funkübung am <strong>18.06.2026</strong> erfolgreich absolviert. Alle Geräte funktionsfähig.</p>
-                                </div>
-                            </div>
                         </div>
                     </div>
-                </div>
                 </div>
 
                 <!-- TAB 5: PERSONALVERWALTUNG -->
@@ -1905,21 +1862,6 @@
             </div>
         </div>
         <!-- MODAL: MAP OBJECT CREATION -->
-        <!-- Scanner Modal -->
-        <div class="modal fade" id="scannerModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content" style="background: var(--card-bg); border-color: var(--border-color); color: var(--text-color);">
-                    <div class="modal-header border-0">
-                        <h5 class="modal-title fw-bold">QR / Barcode Scanner</h5>
-                        <button type="button" class="btn-close" :class="{'btn-close-white': isDarkMode}" @click="stopScanner"></button>
-                    </div>
-                    <div class="modal-body text-center">
-                        <div id="qr-reader-scan" style="width:100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--border-color);"></div>
-                        <p class="text-muted mt-3 mb-0 small">Bitte halte die Kamera auf den Barcode oder QR-Code des Geräts.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- MODAL: ENTWICKLER UNTERSTÜTZEN -->
         <div class="modal fade" id="donationModal" tabindex="-1">
