@@ -22,7 +22,10 @@ def _get_or_create_secret_key() -> str:
     if env_key:
         return env_key
 
-    key_path = os.path.join(os.getcwd(), "secret.key")
+    # Im persistenten Docker-Volume ablegen (/app/data, siehe docker-compose.yml),
+    # sonst würde jeder Redeploy den Schlüssel neu würfeln und alle Logins invalidieren.
+    data_dir = "/app/data" if os.path.exists("/app/data") else os.getcwd()
+    key_path = os.path.join(data_dir, "secret.key")
     try:
         if os.path.exists(key_path):
             with open(key_path, "r") as f:

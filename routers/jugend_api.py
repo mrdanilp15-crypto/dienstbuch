@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Union
 from datetime import datetime, date
 import json
+import mysql.connector
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action
@@ -58,15 +59,22 @@ def add_youth_member(data: dict, request: Request):
     has_funk = 1 if data.get("has_funk") else 0
 
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO personnel 
-        (name, membership_status, parent_contact, skills, birth_date, entry_date, phone, email, address, notes,
-         lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk)
-        VALUES (%s, 'Jugend', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (name, parent, skills, birth_date, entry_date, phone, email, address, notes,
-          lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk))
-    conn.commit(); cur.close(); conn.close()
-    log_audit_action(user["username"], "JUGEND_ANLEGEN", f"Jugendmitglied '{name}' neu angelegt.")
+    try:
+        cur.execute("""
+            INSERT INTO personnel
+            (name, membership_status, parent_contact, skills, birth_date, entry_date, phone, email, address, notes,
+             lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk)
+            VALUES (%s, 'Jugend', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (name, parent, skills, birth_date, entry_date, phone, email, address, notes,
+              lic_am, lic_a1, lic_b, lic_l, lic_t, has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk))
+        conn.commit()
+        log_audit_action(user["username"], "JUGEND_ANLEGEN", f"Jugendmitglied '{name}' neu angelegt.")
+    except mysql.connector.Error as err:
+        if err.errno == 1062:
+            raise HTTPException(status_code=400, detail=f"Ein Kamerad namens '{name}' existiert bereits!")
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        cur.close(); conn.close()
     return {"status": "success"}
 
 @router.put("/api/jugend/members/{m_id}")
@@ -103,17 +111,24 @@ def update_youth_member(m_id: int, data: dict, request: Request):
     has_funk = 1 if data.get("has_funk") else 0
 
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("""
-        UPDATE personnel 
-        SET name=%s, parent_contact=%s, skills=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, notes=%s,
-            lic_am=%s, lic_a1=%s, lic_b=%s, lic_l=%s, lic_t=%s,
-            has_jf1=%s, has_jf2=%s, has_jf3=%s, has_wissentest=%s, has_leistungsspange=%s, has_jugendabzeichen=%s, has_mta_basis=%s, has_erste_hilfe=%s, has_funk=%s
-        WHERE id=%s
-    """, (name, parent, skills, birth_date, entry_date, phone, email, address, notes,
-          lic_am, lic_a1, lic_b, lic_l, lic_t,
-          has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk, m_id))
-    conn.commit(); cur.close(); conn.close()
-    log_audit_action(user["username"], "JUGEND_BEARBEITEN", f"Jugendmitglied ID {m_id} ('{name}') aktualisiert.")
+    try:
+        cur.execute("""
+            UPDATE personnel
+            SET name=%s, parent_contact=%s, skills=%s, birth_date=%s, entry_date=%s, phone=%s, email=%s, address=%s, notes=%s,
+                lic_am=%s, lic_a1=%s, lic_b=%s, lic_l=%s, lic_t=%s,
+                has_jf1=%s, has_jf2=%s, has_jf3=%s, has_wissentest=%s, has_leistungsspange=%s, has_jugendabzeichen=%s, has_mta_basis=%s, has_erste_hilfe=%s, has_funk=%s
+            WHERE id=%s
+        """, (name, parent, skills, birth_date, entry_date, phone, email, address, notes,
+              lic_am, lic_a1, lic_b, lic_l, lic_t,
+              has_jf1, has_jf2, has_jf3, has_wissentest, has_leistungsspange, has_jugendabzeichen, has_mta_basis, has_erste_hilfe, has_funk, m_id))
+        conn.commit()
+        log_audit_action(user["username"], "JUGEND_BEARBEITEN", f"Jugendmitglied ID {m_id} ('{name}') aktualisiert.")
+    except mysql.connector.Error as err:
+        if err.errno == 1062:
+            raise HTTPException(status_code=400, detail=f"Ein Kamerad namens '{name}' existiert bereits!")
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        cur.close(); conn.close()
     return {"status": "success"}
 
 @router.delete("/api/jugend/members/{m_id}")

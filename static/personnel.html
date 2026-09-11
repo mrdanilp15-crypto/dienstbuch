@@ -552,6 +552,96 @@
 
 <script>
 const { createApp } = Vue;
+
+// In-App-Ersatz für window.alert()/confirm()/prompt(): statt des nativen Browser-Dialogs
+// (zeigt Host-Adresse, wirkt wie Systembenachrichtigung) ein normales Bootstrap-Modal.
+function _appDialogShow(html, id) {
+    let el = document.getElementById(id);
+    if (el) el.remove();
+    el = document.createElement('div');
+    el.className = 'modal fade';
+    el.id = id;
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    const modal = new bootstrap.Modal(el);
+    modal.show();
+    return { el, modal };
+}
+function appAlert(message, title = 'Hinweis') {
+    return new Promise((resolve) => {
+        const { el } = _appDialogShow(`
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <button type="button" class="btn btn-premium rounded-pill px-4" data-bs-dismiss="modal">OK</button>
+                    </div>
+                </div>
+            </div>`, 'appAlertModal');
+        el.querySelector('.modal-title').textContent = title;
+        el.querySelector('.modal-body').textContent = message;
+        el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(); }, { once: true });
+    });
+}
+function appConfirm(message, title = 'Bitte bestätigen') {
+    return new Promise((resolve) => {
+        const { el, modal } = _appDialogShow(`
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-white" style="white-space: pre-wrap;"></div>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="button" class="btn btn-premium rounded-pill px-4" id="appConfirmOk">OK</button>
+                    </div>
+                </div>
+            </div>`, 'appConfirmModal');
+        el.querySelector('.modal-title').textContent = title;
+        el.querySelector('.modal-body').textContent = message;
+        let result = false;
+        el.querySelector('#appConfirmOk').addEventListener('click', () => { result = true; modal.hide(); });
+        el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(result); }, { once: true });
+    });
+}
+function appPrompt(message, defaultValue = '', title = 'Eingabe') {
+    return new Promise((resolve) => {
+        const { el, modal } = _appDialogShow(`
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label text-white mb-2"></label>
+                        <input type="text" class="form-control" id="appPromptInput">
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="button" class="btn btn-premium rounded-pill px-4" id="appPromptOk">OK</button>
+                    </div>
+                </div>
+            </div>`, 'appPromptModal');
+        el.querySelector('.modal-title').textContent = title;
+        el.querySelector('.modal-body label').textContent = message;
+        const input = el.querySelector('#appPromptInput');
+        input.value = defaultValue || '';
+        let result = null;
+        const submit = () => { result = input.value; modal.hide(); };
+        el.querySelector('#appPromptOk').addEventListener('click', submit);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+        el.addEventListener('shown.bs.modal', () => input.focus());
+        el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(result); }, { once: true });
+    });
+}
+
 createApp({
     data() {
         return {
@@ -607,10 +697,10 @@ createApp({
         },
         async changePasswordPrompt(user) {
             const sug = this.generateRandomPassword();
-            const newPassword = prompt(`Neues Kennwort für '${user.username}' vergeben (Passwort-Wechsel wird erzwungen):`, sug);
+            const newPassword = await appPrompt(`Neues Kennwort für '${user.username}' vergeben (Passwort-Wechsel wird erzwungen):`, sug);
             if (newPassword && newPassword.trim() !== "") {
                 const res = await fetch(`/api/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: newPassword.trim() }) });
-                if (res.ok) alert(`Das Passwort wurde überschrieben!\nTemporärer Zugang: ${newPassword.trim()}`);
+                if (res.ok) await appAlert(`Das Passwort wurde überschrieben!\nTemporärer Zugang: ${newPassword.trim()}`);
                 await this.loadUsers();
             }
         },
@@ -633,9 +723,9 @@ createApp({
             await fetch(`/api/users/${user.id}/personnel`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ personnel_id: user.personnel_id }) });
             this.loadUsers();
         },
-        async deleteUser(user) { if (confirm("Konto löschen?")) { await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
+        async deleteUser(user) { if (await appConfirm("Konto löschen?")) { await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' }); await this.loadUsers(); } },
         async saveActiveMember() {
-            if(!this.activePerson.name) return alert("Name darf nicht leer sein!");
+            if(!this.activePerson.name) return await appAlert("Name darf nicht leer sein!");
             const payload = { ...this.activePerson };
             this.qualifications.forEach(q => payload[q.id] = this.activePerson[q.id] ? 1 : 0);
             ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => payload[k] = this.activePerson[k] ? 1 : 0);
@@ -643,7 +733,7 @@ createApp({
             await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
             this.load(); this.modalInstance.hide();
         },
-        async deleteActiveMember() { if(confirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
+        async deleteActiveMember() { if(await appConfirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
     },
     mounted() { this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
 }).mount('#app');

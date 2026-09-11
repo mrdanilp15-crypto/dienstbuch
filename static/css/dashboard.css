@@ -402,8 +402,14 @@
         .form-control:focus, .form-select:focus {
             background: rgba(255, 255, 255, 0.12) !important;
             border-color: var(--primary) !important;
-            color: #ffffff !important;
             box-shadow: 0 0 10px rgba(183, 28, 28, 0.4) !important;
+        }
+        /* Textfarbe im Fokus NICHT hier erzwingen: sonst gewinnt diese Regel (gleiche
+           Spezifität wie [data-theme="light"] .form-control, aber später im CSS) im
+           Lightmode und macht den Text während der Eingabe weiß-auf-hell unsichtbar.
+           Dark-Mode-Text bleibt trotzdem korrekt weiß, siehe .form-control-Basisregel. */
+        [data-theme="dark"] .form-control:focus, [data-theme="dark"] .form-select:focus {
+            color: #ffffff !important;
         }
 
         .btn-premium {

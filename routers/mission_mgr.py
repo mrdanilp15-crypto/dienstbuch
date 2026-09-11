@@ -216,7 +216,10 @@ def get_mission_pdf(mission_id: int, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=Einsatzbericht_{mission_id}.pdf"}
+        # "inline" statt "attachment": öffnet das PDF im Browser-Tab/-Fenster
+        # (window.open im Frontend), statt es nur stumm herunterzuladen und eine
+        # Download-Benachrichtigung anzuzeigen.
+        headers={"Content-Disposition": f"inline; filename=Einsatzbericht_{mission_id}.pdf"}
     )
 
 @router.get("/{mission_id}/employer-certificate/{personnel_id}")
@@ -468,7 +471,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
 
 @router.post("")

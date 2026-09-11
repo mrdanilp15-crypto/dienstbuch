@@ -404,6 +404,7 @@
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2">
+                                        <button v-if="m.isNewMission" class="btn btn-sm btn-outline-light rounded-pill" @click.stop="downloadMissionPdf(m)" title="Einsatzbericht als PDF"><i class="fa fa-file-pdf me-1"></i>PDF</button>
                                         <button v-if="role !== 'mannschaft'" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
                                         <button v-if="canManagePersonnel" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
@@ -444,6 +445,7 @@
                                                 <option :value="6">S6</option>
                                             </select>
                                             <div v-if="role !== 'mannschaft'" class="d-flex gap-1 ms-1">
+                                                <button class="btn btn-xs btn-outline-info border-0 p-1" @click="openChecklist(v)" title="Fahrzeug-Check"><i class="fa fa-clipboard-check text-info"></i></button>
                                                 <button class="btn btn-xs btn-outline-light border-0 p-1" @click="openVehicleFormModal(v)"><i class="fa fa-edit text-muted"></i></button>
                                                 <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicle(v.id)"><i class="fa fa-trash text-danger"></i></button>
                                             </div>
@@ -880,7 +882,10 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung Pro</h2>
                             <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
                         </div>
-                        <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-warning rounded-pill" @click="openAnniversariesModal"><i class="fa fa-award me-1"></i>Jubiläen</button>
+                            <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
+                        </div>
                     </div>
 
                     <div class="row g-3 mb-4">
@@ -1003,6 +1008,9 @@
                                                 <small class="text-muted">{{log.created_at}}</small>
                                             </div>
                                             <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                                <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                    <i class="fa fa-edit text-primary"></i>
+                                                </button>
                                                 <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="deleteApagerLog(log.id)" title="Eintrag löschen" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
                                                     <i class="fa fa-trash-alt text-danger"></i>
                                                 </button>
@@ -1647,7 +1655,7 @@
                                 <h5 class="fw-bold text-white mb-0"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr-Mitglieder</h5>
                                 <small class="text-muted">Übersicht der Jugendgruppe & Akten</small>
                             </div>
-                            <div class="text-muted small"><i class="fa fa-info-circle me-1"></i>Mitglieder werden in der Personalverwaltung hinzugefügt.</div>
+                            <button v-if="canManageYouth" class="btn btn-premium rounded-pill" @click="openNewYouthModal"><i class="fa fa-plus-circle me-1"></i>Neues Jugendmitglied</button>
                         </div>
 
                         <div class="row g-3 mb-4">
@@ -2100,7 +2108,10 @@
                                     <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
                                     <div class="col-md-12">
-                                        <label class="form-label mb-0">Schadensablauf / Bericht</label>
+                                        <div class="d-flex justify-content-between align-items-center mb-0">
+                                            <label class="form-label mb-0">Schadensablauf / Bericht</label>
+                                            <button v-if="role !== 'mannschaft'" type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2 py-1" @click="generateAiMissionDraft" style="font-size:0.7rem;" title="Textentwurf aus Stichwort/Adresse/Meldung generieren"><i class="fa fa-wand-magic-sparkles me-1"></i>KI-Entwurf</button>
+                                        </div>
                                         <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea>
                                     </div>
                                     <div class="col-md-12">
@@ -2157,6 +2168,7 @@
                                                 <option value="Entschuldigt">Entschuldigt / Abgemeldet</option>
                                                 <option value="Abgebrochen">Einsatzstorno / Abgebrochen</option>
                                             </select>
+                                            <button v-if="activeMission.id && p.is_present !== 'Nein'" class="btn btn-xs btn-outline-light border-0 p-1" @click="downloadEmployerCert(activeMission.id, p.personnel_id)" title="Arbeitgeberbescheinigung (PDF)"><i class="fa fa-file-invoice text-warning"></i></button>
                                         </div>
                                     </div>
                                 </div>
@@ -2753,6 +2765,68 @@
             </div>
         </div>
 
+        <!-- MODAL: JUBILÄEN & RUNDE GEBURTSTAGE -->
+        <div class="modal fade" id="anniversariesModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-award text-warning me-2"></i>Jubiläen & runde Geburtstage {{ anniversariesYear }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="d-flex gap-2 align-items-end mb-4">
+                            <div>
+                                <label class="form-label mb-1">Jahr</label>
+                                <input type="number" v-model.number="anniversariesYear" class="form-control" style="width: 120px;">
+                            </div>
+                            <button class="btn btn-outline-light rounded-pill" @click="loadAnniversaries(anniversariesYear)"><i class="fa fa-refresh me-1"></i>Laden</button>
+                        </div>
+
+                        <div v-if="isLoadingAnniversaries" class="text-center py-5 text-muted"><i class="fa fa-spinner fa-spin me-2"></i>Lädt...</div>
+
+                        <div v-else>
+                            <h6 class="fw-bold text-danger mb-2"><i class="fa fa-medal me-2"></i>Dienstjubiläen</h6>
+                            <div class="table-responsive mb-4">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr><th>Name</th><th>Dienstgrad</th><th>Jahre</th><th>Ehrung</th><th>Datum</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="a in anniversariesData.service_anniversaries" :key="'svc_' + a.personnel_id">
+                                            <td class="fw-bold text-white">{{ a.name }}</td>
+                                            <td>{{ a.rank }}</td>
+                                            <td><span class="badge bg-danger">{{ a.years }} Jahre</span></td>
+                                            <td class="small text-muted">{{ a.badge }}</td>
+                                            <td>{{ a.anniversary_date }}</td>
+                                        </tr>
+                                        <tr v-if="anniversariesData.service_anniversaries.length === 0"><td colspan="5" class="text-center text-muted py-3">Keine Dienstjubiläen in diesem Jahr.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h6 class="fw-bold text-warning mb-2"><i class="fa fa-cake-candles me-2"></i>Runde Geburtstage</h6>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr><th>Name</th><th>Dienstgrad</th><th>Alter</th><th>Datum</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="a in anniversariesData.birthday_anniversaries" :key="'bd_' + a.personnel_id">
+                                            <td class="fw-bold text-white">{{ a.name }}</td>
+                                            <td>{{ a.rank }}</td>
+                                            <td><span class="badge bg-warning text-dark">{{ a.age }} Jahre</span></td>
+                                            <td>{{ a.birthday_date }}</td>
+                                        </tr>
+                                        <tr v-if="anniversariesData.birthday_anniversaries.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine runden Geburtstage in diesem Jahr.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4" @click="printAnniversaries"><i class="fa fa-print me-1"></i>Drucken</button>
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: JUGEND-PERSONALAKTE -->
         <div class="modal fade" id="youthModal" tabindex="-1">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -2781,7 +2855,7 @@
                                 </div>
                                 <div class="flex-grow-1">
                                     <label class="form-label text-white fw-bold mb-1">Name des Jugendlichen *</label>
-                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;" readonly title="Name kann nur in der Personalverwaltung geändert werden.">
+                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;" :readonly="!!editingYouthId" :title="editingYouthId ? 'Name kann nur in der Personalverwaltung geändert werden.' : ''">
                                 </div>
                             </div>
                             <div class="row g-3">
@@ -2915,6 +2989,7 @@
                     </div>
                     <div class="modal-footer border-secondary border-opacity-10 d-flex justify-content-between">
                         <div>
+                            <button v-if="editingYouthId && canManageYouth" type="button" class="btn btn-link text-danger fw-bold border-0" @click="deleteYouthMemberInModal"><i class="fa fa-trash me-1"></i> Löschen</button>
                         </div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
