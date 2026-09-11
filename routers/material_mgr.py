@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
-import mysql.connector
-import os
 from datetime import date
 
 router = APIRouter(prefix="/api/material", tags=["Material"])

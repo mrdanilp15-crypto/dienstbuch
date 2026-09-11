@@ -6,7 +6,7 @@ import os
 import traceback
 
 try:
-    from pywebpush import webpush, WebPushException
+    from pywebpush import webpush, WebPushException  # noqa: F401 - nur zum Prüfen, ob das Paket installiert ist
     PYWEBPUSH_INSTALLED = True
 except ImportError:
     PYWEBPUSH_INSTALLED = False

@@ -720,7 +720,14 @@ const { createApp } = Vue;
                             if (sub) await sub.unsubscribe();
                         } catch(e) {}
                         await this.setupPushNotifications(true);
-                        await appAlert("Push-Benachrichtigungen aktiviert!");
+                        if (navigator.userAgent.includes('SamsungBrowser')) {
+                            await appAlert(
+                                "Push-Benachrichtigungen aktiviert!\n\n⚠️ Achtung: Du nutzt Samsung Internet. Dieser Browser hat eine bekannte Einschränkung und spielt bei Alarmen oft keinen Ton ab und weckt den Bildschirm nicht zuverlässig auf - auch wenn alle Benachrichtigungs-Einstellungen korrekt sind.\n\nFür zuverlässigen Alarmempfang bitte stattdessen Google Chrome auf diesem Handy verwenden (Seite dort öffnen, Benachrichtigungen erlauben).",
+                                "Wichtiger Hinweis"
+                            );
+                        } else {
+                            await appAlert("Push-Benachrichtigungen aktiviert!");
+                        }
                     } else {
                         await appAlert("Berechtigung verweigert.");
                     }

@@ -630,20 +630,65 @@
             .main-content {
                 padding: 10px !important;
             }
-            
-            /* Compact custom scrollbars for mobile elements */
-            .table-responsive::-webkit-scrollbar, 
-            .list-group::-webkit-scrollbar, 
-            .sidebar-menu::-webkit-scrollbar {
-                width: 4px;
-                height: 4px;
-            }
-            .table-responsive::-webkit-scrollbar-thumb, 
-            .list-group::-webkit-scrollbar-thumb,
-            .sidebar-menu::-webkit-scrollbar-thumb {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 2px;
-            }
+        }
+
+        /* Schlanker Custom-Scrollbar app-weit (nicht nur Mobile) - der dicke native
+           Browser-Scrollbar fiel bisher auf Desktop mitten im Glassmorphism-Design auf. */
+        .main-content::-webkit-scrollbar,
+        .table-responsive::-webkit-scrollbar,
+        .list-group::-webkit-scrollbar,
+        .sidebar-menu::-webkit-scrollbar,
+        .modal-body::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .main-content::-webkit-scrollbar-track,
+        .table-responsive::-webkit-scrollbar-track,
+        .list-group::-webkit-scrollbar-track,
+        .sidebar-menu::-webkit-scrollbar-track,
+        .modal-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .main-content::-webkit-scrollbar-thumb,
+        .table-responsive::-webkit-scrollbar-thumb,
+        .list-group::-webkit-scrollbar-thumb,
+        .sidebar-menu::-webkit-scrollbar-thumb,
+        .modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        .main-content::-webkit-scrollbar-thumb:hover,
+        .table-responsive::-webkit-scrollbar-thumb:hover,
+        .list-group::-webkit-scrollbar-thumb:hover,
+        .sidebar-menu::-webkit-scrollbar-thumb:hover,
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.28);
+        }
+        .main-content, .table-responsive, .list-group, .sidebar-menu, .modal-body {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+        /* Im Lightmode wäre ein weißer Thumb auf hellem Grund praktisch unsichtbar. */
+        [data-theme="light"] .main-content::-webkit-scrollbar-thumb,
+        [data-theme="light"] .table-responsive::-webkit-scrollbar-thumb,
+        [data-theme="light"] .list-group::-webkit-scrollbar-thumb,
+        [data-theme="light"] .sidebar-menu::-webkit-scrollbar-thumb,
+        [data-theme="light"] .modal-body::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.18);
+        }
+        [data-theme="light"] .main-content::-webkit-scrollbar-thumb:hover,
+        [data-theme="light"] .table-responsive::-webkit-scrollbar-thumb:hover,
+        [data-theme="light"] .list-group::-webkit-scrollbar-thumb:hover,
+        [data-theme="light"] .sidebar-menu::-webkit-scrollbar-thumb:hover,
+        [data-theme="light"] .modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.32);
+        }
+        [data-theme="light"] .main-content,
+        [data-theme="light"] .table-responsive,
+        [data-theme="light"] .list-group,
+        [data-theme="light"] .sidebar-menu,
+        [data-theme="light"] .modal-body {
+            scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
         }
 
         @media (max-width: 768px) {
@@ -732,6 +777,25 @@
 .vis-private { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
 .vis-admin { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
 .vis-geratewart { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.25); }
+
+/* Einheitlicher Leer-Zustand für Listen (Dienste, Notizen, Mitglieder, Einsätze, ...) -
+   statt einer stillen leeren Fläche, wenn eine Liste noch keine Einträge hat. */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--text-secondary);
+}
+.empty-state i {
+    font-size: 2.5rem;
+    opacity: 0.35;
+    margin-bottom: 14px;
+    display: block;
+}
+.empty-state p {
+    margin: 0;
+    font-weight: 600;
+    opacity: 0.8;
+}
 
 /* Light Mode Fixes for Global Overrides */
 [data-theme='light'] label,

@@ -325,5 +325,5 @@ async def send_test_alarm(data: dict, request: Request):
             "url": "/dashboard"
         })
     except Exception as e:
-        pass
+        print(f"Push-Versand beim Test-Alarm fehlgeschlagen: {e}")
     return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}

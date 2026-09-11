@@ -4,7 +4,7 @@ from typing import Optional
 import mysql.connector
 
 from database import get_db_connection
-from core.utils import log_audit_action, hash_password, get_current_user
+from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache
 
 router = APIRouter()
 
@@ -35,6 +35,7 @@ def admin_reset_user_password(user_id: int, request: Request):
     p_hash = hash_password("admin123")
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
     conn.commit(); cur.close(); conn.close()
+    invalidate_role_cache(target_user["username"])
     log_audit_action(user["username"], "PASSWORT_RESET", f"Passwort für '{target_user['username']}' auf 'admin123' zurückgesetzt.")
     return {"status": "success", "message": "Passwort auf 'admin123' zurückgesetzt. Erstanmeldung erforderlich."}
 
@@ -42,12 +43,17 @@ def admin_reset_user_password(user_id: int, request: Request):
 def add_user(data: UserCreateRequest, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    username_clean = data.username.strip()
+    if not username_clean:
+        raise HTTPException(status_code=400, detail="Benutzername darf nicht leer sein!")
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen lang sein!")
     conn = get_db_connection(); cur = conn.cursor()
     try:
         p_hash = hash_password(data.password)
-        cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 1, %s)", (data.username.strip(), p_hash, data.role, data.personnel_id or None))
+        cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 1, %s)", (username_clean, p_hash, data.role, data.personnel_id or None))
         conn.commit()
-        log_audit_action(user["username"], "NUTZER_ANLEGEN", f"Konto für '{data.username.strip()}' verknüpft mit Personal-ID {data.personnel_id} erstellt.")
+        log_audit_action(user["username"], "NUTZER_ANLEGEN", f"Konto für '{username_clean}' verknüpft mit Personal-ID {data.personnel_id} erstellt.")
     except mysql.connector.Error as err:
         if err.errno == 1062: raise HTTPException(status_code=400, detail="Benutzername existiert bereits!")
         raise HTTPException(status_code=500, detail=str(err))
@@ -60,8 +66,11 @@ def update_user_role(user_id: int, data: dict, request: Request):
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_role = data.get("role")
     conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
     cur.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
     conn.commit(); cur.close(); conn.close()
+    if row: invalidate_role_cache(row[0])
     return {"status": "success"}
 
 @router.put("/api/users/{user_id}/personnel")
@@ -81,12 +90,15 @@ def change_user_password(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_pw = (data.get("password") or "").strip()
-    if not new_pw:
-        raise HTTPException(status_code=400, detail="Passwort darf nicht leer sein!")
+    if len(new_pw) < 6:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen lang sein!")
     p_hash = hash_password(new_pw)
-    conn = get_db_connection(); cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    target_user = cur.fetchone()
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
     conn.commit(); cur.close(); conn.close()
+    if target_user: invalidate_role_cache(target_user["username"])
     return {"status": "success"}
 
 @router.delete("/api/users/{user_id}")
@@ -94,8 +106,11 @@ def delete_user(user_id: int, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit(); cur.close(); conn.close()
+    if row: invalidate_role_cache(row[0])
     return {"status": "success"}
 
 @router.get("/api/users/me/stats")
@@ -121,38 +136,40 @@ def get_my_global_fire_stats(year: int, request: Request):
         cur.close(); conn.close()
         return {"hours": 0, "count": 0, "unlinked": True}
         
+    # WICHTIG: exakter Namensabgleich, kein LIKE '%Name%'-Fallback - sonst würden z.B.
+    # "Max" und "Maximilian" fälschlich zusammengezählt.
     query = """
-        SELECT 
+        SELECT
             COALESCE((
-                SELECT SUM(s.duration) 
-                FROM attendance a 
-                JOIN sessions s ON a.session_id = s.id 
-                JOIN persons p ON a.person_id = p.id 
+                SELECT SUM(s.duration)
+                FROM attendance a
+                JOIN sessions s ON a.session_id = s.id
+                JOIN persons p ON a.person_id = p.id
                 WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
             ), 0) as session_hours,
             COALESCE((
-                SELECT COUNT(DISTINCT s.id) 
-                FROM attendance a 
-                JOIN sessions s ON a.session_id = s.id 
-                JOIN persons p ON a.person_id = p.id 
+                SELECT COUNT(DISTINCT s.id)
+                FROM attendance a
+                JOIN sessions s ON a.session_id = s.id
+                JOIN persons p ON a.person_id = p.id
                 WHERE p.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
             ), 0) as session_count,
             COALESCE((
-                SELECT SUM(m.duration) 
-                FROM mission_attendance ma 
-                JOIN missions m ON ma.mission_id = m.id 
-                JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                SELECT SUM(m.duration)
+                FROM mission_attendance ma
+                JOIN missions m ON ma.mission_id = m.id
+                JOIN personnel pl ON ma.personnel_id = pl.id
+                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_hours,
             COALESCE((
-                SELECT COUNT(DISTINCT m.id) 
-                FROM mission_attendance ma 
-                JOIN missions m ON ma.mission_id = m.id 
-                JOIN personnel pl ON ma.personnel_id = pl.id 
-                WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                SELECT COUNT(DISTINCT m.id)
+                FROM mission_attendance ma
+                JOIN missions m ON ma.mission_id = m.id
+                JOIN personnel pl ON ma.personnel_id = pl.id
+                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_count
     """
-    cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, klarnat_name, year, klarnat_name, klarnat_name, year))
+    cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
     stats = cur.fetchone(); cur.close(); conn.close()
     
     total_hours = float(stats["session_hours"] or 0) + float(stats["mission_hours"] or 0)
@@ -195,8 +212,8 @@ def get_my_sessions(year: int, request: Request):
             FROM mission_attendance ma
             JOIN missions m ON ma.mission_id = m.id
             JOIN personnel pl ON ma.personnel_id = pl.id
-            WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) OR pl.name LIKE CONCAT('%%', %s, '%%')) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
-        """, (klarnat_name, klarnat_name, year))
+            WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+        """, (klarnat_name, year))
         m_sessions = cur.fetchall()
         sessions.extend(m_sessions)
     except Exception as e:

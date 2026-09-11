@@ -1,22 +1,12 @@
 import os
 import mysql.connector
-import urllib.request
 import time
-import hashlib
-import secrets
-import hmac
-import base64
-import json
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Optional, Union
-from datetime import datetime, timedelta, date
 import uuid
-import shutil
 
-from routers import reports
 from routers import notes_manager
 from routers import personnel_mgr
 from routers import mission_mgr
@@ -46,7 +36,10 @@ UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.co
 
 from fastapi.middleware.gzip import GZipMiddleware
 
-app = FastAPI()
+# API-Dokumentation (/docs, /redoc, /openapi.json) bleibt deaktiviert: sie würde ungeschützt
+# die komplette Routen-/Datenmodellliste offenlegen - unnötige Angriffsfläche für ein
+# internes System, das nur per HTTP im LAN erreichbar ist.
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 @app.middleware("http")
@@ -93,7 +86,7 @@ app.include_router(push_api.router)
 from database import get_db_connection
 
 # --- REVISIONS-LOGBUCH HELFER ---
-from core.utils import log_audit_action, hash_password, verify_password, create_session_token, get_current_user
+from core.utils import log_audit_action, hash_password, get_current_user
 
 
 # --- AUTOMATISCHE GRUPPEN-SYNCHRONISATION (FIX FÜR DIE FEHLENDEN KAMERADEN) ---
@@ -375,7 +368,6 @@ def init_db_extensions():
                 next_inspection DATE NULL
             ) ENGINE=InnoDB;
         """)
-
 
 
         cur.execute("""
@@ -815,9 +807,6 @@ def init_db():
 
 init_db()
 
-from core.models import safe_decode, PersonData, VehicleData, EntryDto, AttendanceUpload, GroupData
-from pydantic import BaseModel
-
 class BroadcastCreateRequest(BaseModel):
     title: str
     content: str
@@ -850,7 +839,6 @@ def get_edit(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
     return FileResponse("static/editor.html")
 
-from fastapi.responses import RedirectResponse
 @app.get("/notizen")
 def get_notes_page(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")

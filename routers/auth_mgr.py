@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from typing import Optional
 
 from database import get_db_connection
-from core.utils import log_audit_action, verify_password, hash_password, create_session_token, get_current_user
+from core.utils import log_audit_action, verify_password, hash_password, create_session_token, get_current_user, invalidate_role_cache
 
 router = APIRouter()
 
@@ -13,7 +12,7 @@ class LoginRequest(BaseModel):
     password: str
 
 @router.post("/api/login")
-def api_login(data: LoginRequest, response: Response):
+def api_login(data: LoginRequest, response: Response, request: Request):
     username_clean = data.username.strip()
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -32,7 +31,12 @@ def api_login(data: LoginRequest, response: Response):
             conn.commit(); cur.close(); conn.close()
             
             token = create_session_token(user['username'], user['role'])
-            response.set_cookie(key="session_token", value=token, httponly=True, max_age=30*24*60*60, samesite="lax")
+            # "Secure"-Flag: nur setzen, wenn die Verbindung tatsächlich über HTTPS lief (direkt
+            # oder über einen Reverse Proxy, der das per X-Forwarded-Proto meldet, z.B. Nginx
+            # Proxy Manager). Fest auf True zu setzen würde den Login komplett brechen, sobald
+            # die App (wie aktuell) auch per reinem HTTP im lokalen Netz erreichbar ist.
+            is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+            response.set_cookie(key="session_token", value=token, httponly=True, max_age=30*24*60*60, samesite="lax", secure=is_https)
             log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
             return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
         else:
@@ -82,8 +86,8 @@ def user_change_self_password(data: dict, request: Request):
     old_pw = data.get("old_password")
     new_pw = data.get("new_password")
     
-    if not old_pw or not new_pw or len(new_pw.strip()) < 4:
-        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz!")
+    if not old_pw or not new_pw or len(new_pw.strip()) < 6:
+        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz (mind. 6 Zeichen)!")
         
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -97,5 +101,6 @@ def user_change_self_password(data: dict, request: Request):
     new_hash = hash_password(new_pw.strip())
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 0 WHERE username = %s", (new_hash, user["username"]))
     conn.commit(); cur.close(); conn.close()
+    invalidate_role_cache(user["username"])
     log_audit_action(user["username"], "PASSWORT_ÄNDERUNG", "Eigenes Passwort erfolgreich aktualisiert.")
     return {"status": "success"}

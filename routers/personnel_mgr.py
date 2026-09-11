@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Response, Request, BackgroundTasks
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 import mysql.connector
 import os
 import base64
@@ -128,6 +128,13 @@ def get_single_member(member_id: int, request: Request):
 DEFAULT_AVATAR_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-3.8-1.04-4.83-2.61.03-1.6 3.23-2.48 4.83-2.48s4.79.87 4.83 2.48C15.8 18.96 14.03 20 12 20z"/></svg>"""
 
 # --- BILDER DIREKT ALS BINÄRDATEI STREAMEN ---
+# Cache-Control lang setzen: das Frontend hängt an jede Avatar-URL bereits einen
+# cacheBuster-Query-Parameter an, der bei jedem Speichern eines Mitglieds hochgezählt wird
+# - Invalidierung passiert also schon über die URL selbst. Ohne diesen Header lädt der
+# Browser bei jedem Aufruf der Mitgliederliste (dashboard/personnel/editor) für JEDE
+# angezeigte Person erneut Bild+DB-Abfrage, statt aus dem Cache zu bedienen.
+AVATAR_CACHE_HEADERS = {"Cache-Control": "public, max-age=604800, immutable"}
+
 @router.get("/avatar/{member_id}")
 def get_avatar(member_id: int, request: Request):
     check_auth(request)
@@ -138,14 +145,14 @@ def get_avatar(member_id: int, request: Request):
         row = cur.fetchone()
         cur.close()
         conn.close()
-        
+
         if row and row[0]:
             data_str = row[0].strip()
             if data_str.startswith("data:"):
                 header, encoded = data_str.split(",", 1)
                 mime = header.split(";")[0].split(":")[1]
                 image_bytes = base64.b64decode(encoded)
-                return Response(content=image_bytes, media_type=mime)
+                return Response(content=image_bytes, media_type=mime, headers=AVATAR_CACHE_HEADERS)
             elif data_str.startswith("/static/") or data_str.startswith("static/"):
                 filepath = data_str.lstrip("/")
                 if os.path.exists(filepath):
@@ -153,10 +160,10 @@ def get_avatar(member_id: int, request: Request):
                     if filepath.endswith(".png"): mime = "image/png"
                     elif filepath.endswith(".gif"): mime = "image/gif"
                     with open(filepath, "rb") as f:
-                        return Response(content=f.read(), media_type=mime)
+                        return Response(content=f.read(), media_type=mime, headers=AVATAR_CACHE_HEADERS)
     except Exception:
         pass
-    return Response(content=DEFAULT_AVATAR_SVG, media_type="image/svg+xml")
+    return Response(content=DEFAULT_AVATAR_SVG, media_type="image/svg+xml", headers=AVATAR_CACHE_HEADERS)
 
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
@@ -169,15 +176,35 @@ def add_member(m: PersonnelMember, request: Request):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. In globale Akte schmeißen
+        # 1. In globale Akte schmeißen (nur Name+Status, damit der UNIQUE-Name-Konflikt bei
+        # bereits existierenden Kameraden sauber ignoriert statt als Fehler geworfen wird)
         cur.execute("INSERT IGNORE INTO personnel (name, membership_status) VALUES (%s, %s)", (clean_name, m.membership_status))
         conn.commit()
-        
+
         # 2. Direkt für alle Gruppen in persons eintragen, damit er im Editor wählbar wird
         cur.execute("SELECT id FROM groups_table")
         groups = cur.fetchall()
         for (group_id,) in groups:
             cur.execute("INSERT IGNORE INTO persons (group_id, name) VALUES (%s, %s)", (group_id, clean_name))
+        conn.commit()
+
+        # 3. Alle restlichen Formularfelder nachtragen (Rang, Kontakt, Lizenzen, Quals, ...).
+        # Schritt 1 legt bewusst nur Name+Status an; ohne dieses UPDATE würden alle übrigen
+        # Angaben aus dem "Neues Mitglied"-Formular (Telefon, Adresse, Führerscheine,
+        # Qualifikationen, Geburtsdatum, ...) beim Anlegen stillschweigend verloren gehen.
+        cur.execute("""UPDATE personnel SET
+                 rank=%s, phone=%s, email=%s, address=%s,
+                 badge_number=%s, birth_date=%s, entry_date=%s, honors=%s, profile_picture=%s,
+                 is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
+                 lic_b=%s, lic_be=%s, lic_c=%s, lic_ce=%s,
+                 g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s
+                 WHERE name=%s""",
+                    (m.rank, m.phone, m.email, m.address,
+                     m.badge_number, m.birth_date or None, m.entry_date or None, m.honors, m.profile_picture,
+                     int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
+                     int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
+                     m.g26_3_date or None, m.belastungslauf_date or None, m.unterweisung_date or None,
+                     clean_name))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -185,7 +212,7 @@ def add_member(m: PersonnelMember, request: Request):
     finally:
         cur.close()
         conn.close()
-        
+
     # Sicherheits-Zweitprüfung anstoßen
     internal_sync_personnel_to_groups()
     return {"status": "success"}

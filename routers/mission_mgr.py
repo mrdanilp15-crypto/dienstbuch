@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException, Request, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
-import mysql.connector
-import base64
 from datetime import date
 
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
@@ -261,6 +259,14 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
     cur.execute("SELECT is_present, vehicle FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
     att = cur.fetchone()
     cur.close(); conn.close()
+
+    # Serverseitig erzwingen, dass die Person auch tatsächlich als anwesend erfasst wurde -
+    # der "Bescheinigung"-Button im Frontend blendet zwar nur bei is_present != 'Nein' ein,
+    # das war aber rein kosmetisch: ohne diese Prüfung könnte jeder eingeloggte Nutzer für
+    # jede Person/jeden Einsatz eine offizielle Arbeitgeber-Bescheinigung erzeugen, auch ohne
+    # erfasste oder mit verneinter Teilnahme.
+    if not att or att["is_present"] in (None, "", "Nein", "0", "false", "False"):
+        raise HTTPException(status_code=400, detail="Keine erfasste Anwesenheit dieser Person bei diesem Einsatz - Bescheinigung kann nicht erstellt werden.")
 
     from core.utils import get_station_name
     station_name = get_station_name()
@@ -696,6 +702,9 @@ def calculate_compensations(year: int, hourly_rate: float, request: Request):
     cur = conn.cursor(dictionary=True)
     
     # 1. Berechne alle Dienst- und Einsatzstunden pro Kamerad
+    # WICHTIG: exakter Namensabgleich, kein LIKE '%Name%'-Fallback - das hier ist die
+    # Grundlage für die Aufwandsentschädigung (SEPA-Export), ein "Max" != "Maximilian"
+    # Fehlmatch würde direkt zu falschen Auszahlungen führen.
     query = """
         SELECT p.id, p.name, p.email,
                COALESCE((
@@ -703,8 +712,8 @@ def calculate_compensations(year: int, hourly_rate: float, request: Request):
                    FROM attendance a 
                    JOIN sessions s ON a.session_id = s.id 
                    JOIN persons prs ON a.person_id = prs.id
-                   WHERE (LOWER(TRIM(prs.name)) = LOWER(TRIM(p.name)) OR prs.name LIKE CONCAT('%%', p.name, '%%') OR p.name LIKE CONCAT('%%', prs.name, '%%')) 
-                     AND a.is_present = 1 
+                   WHERE LOWER(TRIM(prs.name)) = LOWER(TRIM(p.name))
+                     AND a.is_present = 1
                      AND YEAR(s.date) = %s
                ), 0) as session_hours,
                COALESCE((
