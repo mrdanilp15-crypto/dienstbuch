@@ -1,8 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-import mysql.connector
-from typing import Optional
-import os
 
 router = APIRouter(prefix="/api/notes", tags=["Notes"])
 
@@ -46,13 +43,15 @@ def list_notes(request: Request):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     
+    # "admin"-Sichtbarkeit ist trotz des DB-Werts "admin" fachlich für "Führung / Admin
+    # Intern" gedacht (siehe Label im Frontend) - deshalb hier bewusst auch "leitung".
     query = """
-        SELECT id, username, title, content, visibility, 
-               DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted 
-        FROM notes 
+        SELECT id, username, title, content, visibility,
+               DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted
+        FROM notes
         WHERE username = %s
            OR visibility = 'public'
-           OR (visibility = 'admin' AND %s = 'admin')
+           OR (visibility = 'admin' AND %s IN ('admin', 'leitung'))
            OR (visibility = 'geratewart' AND %s IN ('geratewart', 'admin'))
         ORDER BY created_at DESC
     """
@@ -66,8 +65,8 @@ def list_notes(request: Request):
 def create_note(data: NoteCreate, request: Request):
     user = get_user_from_request(request)
     
-    if data.visibility == "admin" and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Nur Admins dürfen Admin-Notizen erstellen!")
+    if data.visibility == "admin" and user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Nur Admins und Leitung dürfen Notizen mit Sichtbarkeit 'Führung / Admin Intern' erstellen!")
         
     conn = get_db_connection()
     cur = conn.cursor()
@@ -102,10 +101,10 @@ def update_note(note_id: int, data: NoteCreate, request: Request):
         conn.close()
         raise HTTPException(status_code=403, detail="Nur der Ersteller darf diese Notiz bearbeiten!")
         
-    if data.visibility == "admin" and user["role"] != "admin":
+    if data.visibility == "admin" and user["role"] not in ("admin", "leitung"):
         cur.close()
         conn.close()
-        raise HTTPException(status_code=403, detail="Nur Admins dürfen Sichtbarkeit auf Admin setzen!")
+        raise HTTPException(status_code=403, detail="Nur Admins und Leitung dürfen Sichtbarkeit auf 'Führung / Admin Intern' setzen!")
         
     query = "UPDATE notes SET title = %s, content = %s, visibility = %s WHERE id = %s"
     cur.execute(query, (data.title.strip(), data.content.strip(), data.visibility, note_id))
@@ -129,8 +128,9 @@ def delete_note(note_id: int, request: Request):
         raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
         
     can_delete = (
-        user["username"] == note["username"] or 
-        user["role"] == "admin" or 
+        user["username"] == note["username"] or
+        user["role"] == "admin" or
+        (user["role"] == "leitung" and note["visibility"] == "admin") or
         (user["role"] == "geratewart" and note["visibility"] == "geratewart")
     )
     

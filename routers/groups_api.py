@@ -1,15 +1,13 @@
-from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from typing import Optional, List, Union
-from datetime import datetime, date
-import json
+from typing import Optional
+from datetime import datetime
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action, get_station_name
 
 router = APIRouter()
-from core.models import safe_decode, PersonData, VehicleData, EntryDto, AttendanceUpload, GroupData
+from core.models import safe_decode, AttendanceUpload, GroupData
 from routers import reports
 
 # --- GRUPPEN & DIENST-STRUKTUREN ---
@@ -103,8 +101,13 @@ def get_stats(id: int, year: int, request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) as total FROM sessions WHERE group_id=%s AND YEAR(date)=%s", (id, year))
     max_s = cur.fetchone()['total'] or 0
+    # WICHTIG: nur exakter (getrimmter, groß-/kleinschreibungsunabhängiger) Namensabgleich.
+    # Ein LIKE '%Name%'-Fallback wurde hier bewusst entfernt: er hätte z.B. "Max" auch auf
+    # "Maximilian" gematcht und so Einsatzstunden der falschen Person zugerechnet/doppelt
+    # gezählt. persons.name wird durch sync_personnel_to_editor_groups() ohnehin laufend
+    # exakt mit personnel.name synchronisiert, ein Fallback ist dafür nicht nötig.
     sql = """
-        SELECT p.id as person_id, p.name, 
+        SELECT p.id as person_id, p.name,
                COALESCE(SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN 1 ELSE 0 END), 0) as present_count, 
                COALESCE(SUM(CASE WHEN a.is_present=1 AND s.id IS NOT NULL THEN s.duration ELSE 0 END), 0) as session_hours,
                COALESCE((
@@ -112,7 +115,7 @@ def get_stats(id: int, year: int, request: Request):
                    FROM mission_attendance ma
                    JOIN missions m ON ma.mission_id = m.id
                    JOIN personnel pl ON ma.personnel_id = pl.id
-                   WHERE (LOWER(TRIM(pl.name)) = LOWER(TRIM(p.name)) OR pl.name LIKE CONCAT('%%', p.name, '%%') OR p.name LIKE CONCAT('%%', pl.name, '%%'))
+                   WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(p.name))
                      AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
                      AND ma.is_present IS NOT NULL
                      AND YEAR(m.date) = %s
@@ -337,11 +340,26 @@ def year_report(group_id: int, year: int, request: Request):
     max_s = cur.fetchone()['total'] or 0
     cur.execute("SELECT s.*, g.name as gname FROM sessions s JOIN groups_table g ON s.group_id = g.id WHERE s.group_id=%s AND YEAR(s.date)=%s ORDER BY s.date ASC, s.id ASC", (group_id, year))
     sessions_list = cur.fetchall()
+
+    # Anwesenheit für ALLE Sitzungen des Jahres in einer Abfrage statt einer Query pro
+    # Sitzung (N+1) holen und in Python nach session_id gruppieren.
+    attendance_by_session = {}
+    if sessions_list:
+        session_ids = [s['id'] for s in sessions_list]
+        placeholders = ", ".join(["%s"] * len(session_ids))
+        cur.execute(f"""
+            SELECT a.session_id, p.name, a.is_present, a.note, a.vehicle, a.signature
+            FROM attendance a JOIN persons p ON a.person_id = p.id
+            WHERE a.session_id IN ({placeholders})
+            ORDER BY a.session_id, p.name
+        """, tuple(session_ids))
+        for row in cur.fetchall():
+            attendance_by_session.setdefault(row['session_id'], []).append(row)
+
     html_body = ""; p_stats = {}; cat_sums = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0}
     for s in sessions_list:
         if s['leader_signature']: s['leader_signature'] = safe_decode(s['leader_signature'])
-        cur.execute("SELECT p.name, a.is_present, a.note, a.vehicle, a.signature FROM attendance a JOIN persons p ON a.person_id = p.id WHERE a.session_id=%s ORDER BY p.name", (s['id'],))
-        persons = cur.fetchall()
+        persons = attendance_by_session.get(s['id'], [])
         for p in persons: p['signature'] = safe_decode(p['signature'])
         html_body += reports.generate_single_report(s, persons, get_station_name())
         cat = s['category'] if s['category'] in cat_sums else "Sonstiges"

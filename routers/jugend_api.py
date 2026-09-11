@@ -1,9 +1,5 @@
-from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from typing import Optional, List, Union
-from datetime import datetime, date
-import json
+from fastapi import APIRouter, HTTPException, Request
+from datetime import date
 import mysql.connector
 
 from database import get_db_connection
@@ -152,13 +148,25 @@ def get_youth_sessions(request: Request):
     for s in sessions:
         if isinstance(s["date"], date):
             s["date"] = str(s["date"])
-        cur.execute("""
-            SELECT ya.member_id, ya.is_present, ym.name
+        s["attendance"] = []
+
+    # Anwesenheit für ALLE Sitzungen in einer einzigen Abfrage statt einer Query pro
+    # Sitzung (N+1) holen und in Python nach session_id gruppieren.
+    if sessions:
+        session_ids = [s["id"] for s in sessions]
+        placeholders = ", ".join(["%s"] * len(session_ids))
+        cur.execute(f"""
+            SELECT ya.session_id, ya.member_id, ya.is_present, ym.name
             FROM youth_attendance ya
             JOIN personnel ym ON ya.member_id = ym.id
-            WHERE ya.session_id = %s
-        """, (s["id"],))
-        s["attendance"] = cur.fetchall()
+            WHERE ya.session_id IN ({placeholders})
+        """, tuple(session_ids))
+        attendance_by_session = {}
+        for row in cur.fetchall():
+            attendance_by_session.setdefault(row["session_id"], []).append(row)
+        for s in sessions:
+            s["attendance"] = attendance_by_session.get(s["id"], [])
+
     cur.close(); conn.close()
     return sessions
 

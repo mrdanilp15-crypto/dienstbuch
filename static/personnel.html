@@ -78,12 +78,29 @@
             position: relative; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        .member-card:hover { 
-            box-shadow: 0 15px 35px rgba(183, 28, 28, 0.15); 
+        .member-card:hover {
+            box-shadow: 0 15px 35px rgba(183, 28, 28, 0.15);
             border-color: rgba(183, 28, 28, 0.3);
             transform: translateY(-2px);
         }
-        
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state i {
+            font-size: 2.5rem;
+            opacity: 0.35;
+            margin-bottom: 14px;
+            display: block;
+        }
+        .empty-state p {
+            margin: 0;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
         .avatar-container { 
             width: 65px; 
             height: 65px; 
@@ -333,6 +350,10 @@
                             </div>
                         </div>
                     </div>
+                    <div v-if="filteredPersonnel.length === 0" class="empty-state">
+                        <i class="fa-solid fa-user-slash"></i>
+                        <p>Keine Kameraden gefunden</p>
+                    </div>
                 </div>
             </div>
 
@@ -350,7 +371,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Passwort</label>
-                                    <input type="password" v-model="newUser.password" class="form-control" required>
+                                    <input type="password" v-model="newUser.password" class="form-control" placeholder="Min. 6 Zeichen" minlength="6" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Zugeordneter Kamerad</label>
@@ -683,7 +704,6 @@ createApp({
         },
         async loadUsers() { const res = await fetch('/api/users/list', { credentials: 'include' }); if (res.ok) this.users = await res.json(); },
         async loadAuditLogs() { const res = await fetch('/api/audit/logs', { credentials: 'include' }); if (res.ok) this.auditLogs = await res.json(); },
-        getPersonnelName(id) { if(!id) return 'Keine Verknüpfung'; const p = this.personnel.find(x => x.id == id); return p ? p.name : 'Unbekannt'; },
         getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
         getHealthStatus(dateStr, field) {
             if(!dateStr) return '';
@@ -716,7 +736,13 @@ createApp({
         onAvatarChange(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { this.activePerson.profile_picture = event.target.result; }; reader.readAsDataURL(file); },
         async createUser() {
             const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) });
-            if (res.ok) { this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null }; await this.loadUsers(); }
+            if (res.ok) {
+                this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null };
+                await this.loadUsers();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                await appAlert("Fehler: " + (err.detail || "Konto konnte nicht angelegt werden."));
+            }
         },
         async updateUserRole(user) { await fetch(`/api/users/${user.id}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: user.role }) }); },
         async updateUserPersonnelId(user) {

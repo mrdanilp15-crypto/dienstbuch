@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v12';
+const CACHE_NAME = 'fw-app-cache-v18';
 const urlsToCache = [
   '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
@@ -86,10 +86,16 @@ self.addEventListener('push', event => {
     icon: iconUrl,
     vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500, 250, 500],
     requireInteraction: true,
+    silent: false, // explizit NICHT stumm - ob wirklich ein Ton kommt, entscheidet aber am Ende das Handy (siehe unten)
     data: { url: data.url || '/' },
     tag: 'alarm-' + Date.now(),
     renotify: true
   };
+  // WICHTIG: Ob der Bildschirm angeht, ein Ton kommt oder die Meldung als große
+  // "Heads-up"-Ansicht statt nur im Benachrichtigungsfenster erscheint, entscheidet
+  // NICHT diese Seite, sondern der vom Handy-Betriebssystem für diese Website/PWA
+  // angelegte Benachrichtigungskanal. Ohne "Wichtig/Dringend"-Einstufung dieses Kanals
+  // ist Ton/Bildschirm-Aufwecken technisch von hier aus nicht erzwingbar (siehe README/Chat).
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

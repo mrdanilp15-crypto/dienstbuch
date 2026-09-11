@@ -12,6 +12,16 @@ from core.utils import get_current_user, log_audit_action
 
 router = APIRouter()
 
+# Erlaubte Dateiendungen für Archiv-Uploads: verhindert, dass z.B. eine .html/.svg-Datei
+# hochgeladen wird, die beim Aufruf über /static/uploads/... mit ihrem eigenen Content-Type
+# (text/html, image/svg+xml) ausgeliefert würde und darin JavaScript im App-Origin ausführen
+# könnte (gespeicherte XSS trotz httponly-Session-Cookie).
+ALLOWED_ARCHIVE_EXTENSIONS = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff",
+    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods",
+    ".txt", ".csv", ".zip",
+}
+
 @router.get("/api/admin/backup/export")
 def export_database_backup(request: Request):
     user = get_current_user(request)
@@ -175,13 +185,16 @@ def auto_backup(request: Request):
     sql_dump_ok = False
     sql_dump_error = None
     try:
-        if os.name == 'nt':
-            mysqldump_cmd = f"mysqldump -h {db_host} -u {db_user} -p{db_pass} {db_name} > {db_dump_path}"
-            subprocess.run(["powershell", "-Command", mysqldump_cmd], check=True)
-        else:
-            mysqldump_cmd = ["mysqldump", "-h", db_host, "-u", db_user, f"-p{db_pass}", db_name]
-            with open(db_dump_path, "w") as f:
-                subprocess.run(mysqldump_cmd, stdout=f, check=True)
+        # Passwort über MYSQL_PWD statt als -p<pass>-Kommandozeilenargument übergeben:
+        # so landet es nicht in der Prozessliste, und Sonderzeichen (", $, `, ...) im
+        # Passwort können den Aufruf nicht mehr als Shell-String fehlinterpretieren -
+        # subprocess.run bekommt hier für beide Plattformen eine reine Argumentliste
+        # statt eines zusammengebauten Shell-Kommandos (kein shell=True nötig).
+        mysqldump_cmd = ["mysqldump", "-h", db_host, "-u", db_user, db_name]
+        dump_env = os.environ.copy()
+        dump_env["MYSQL_PWD"] = db_pass
+        with open(db_dump_path, "w", encoding="utf-8") as f:
+            subprocess.run(mysqldump_cmd, stdout=f, env=dump_env, check=True)
         sql_dump_ok = os.path.exists(db_dump_path) and os.path.getsize(db_dump_path) > 0
     except Exception as e:
         print(f"Error during mysqldump: {e}")
@@ -208,8 +221,11 @@ async def upload_archive_file(request: Request, file: UploadFile = File(...), is
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
     
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_ARCHIVE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Dateityp '{ext}' nicht erlaubt.")
+
     from main import UPLOAD_DIR
-    ext = os.path.splitext(file.filename)[1]
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     

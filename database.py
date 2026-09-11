@@ -76,17 +76,13 @@ def get_db_connection():
 
     print(f"[DB AUTO-REPAIR] Zugriffsfehler für '{user}'. Starte automatische Passwort-Synchronisation über Root...")
 
-    # 3. Versuch: Passwort-Vergleichsliste für den Root-Zugang
-    root_passwords_to_try = [
-        env_root_pass,
-        "Dein_ganz_geheimes_root_passwort",
-        "dein_ganz_geheimes_root_passwort",
-        password,
-        "dein_app_passwort",
-        "rootpass123",
-        "root",
-        ""
-    ]
+    # 3. Root-Zugang NUR über die konfigurierte ROOT_PASS/MYSQL_ROOT_PASSWORD Umgebungsvariable.
+    # Früher wurde hier zusätzlich eine Liste hartcodierter Beispiel-Passwörter durchprobiert
+    # ("rootpass123", "root", leer, ...) - das war ein reales Sicherheitsrisiko (Credential-
+    # Stuffing gegen die eigene Datenbank) und half nur, wenn ROOT_PASS ohnehin schon korrekt
+    # gesetzt war. ROOT_PASS ist laut README ein Pflichtwert bei der Installation, ein Fallback
+    # auf erratene Passwörter ist damit nicht nötig.
+    root_passwords_to_try = [env_root_pass] if env_root_pass else []
 
     for try_root in root_passwords_to_try:
         if try_root is None:
