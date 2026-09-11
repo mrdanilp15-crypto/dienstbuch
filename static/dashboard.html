@@ -2108,10 +2108,7 @@
                                     <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="role === 'mannschaft'"></div>
                                     <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="role === 'mannschaft'"></textarea></div>
                                     <div class="col-md-12">
-                                        <div class="d-flex justify-content-between align-items-center mb-0">
-                                            <label class="form-label mb-0">Schadensablauf / Bericht</label>
-                                            <button v-if="role !== 'mannschaft'" type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2 py-1" @click="generateAiMissionDraft" style="font-size:0.7rem;" title="Textentwurf aus Stichwort/Adresse/Meldung generieren"><i class="fa fa-wand-magic-sparkles me-1"></i>KI-Entwurf</button>
-                                        </div>
+                                        <label class="form-label mb-0">Schadensablauf / Bericht</label>
                                         <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="role === 'mannschaft'"></textarea>
                                     </div>
                                     <div class="col-md-12">
@@ -2150,12 +2147,12 @@
                             <div class="tab-pane fade" id="m-tab-att">
                                 <label class="form-label mb-2 d-block">Einsatzbeteiligung Personal</label>
                                 <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto mb-4" style="max-height: 250px;">
-                                    <div v-for="p in activeMission.attList" :key="p.personnel_id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-2 d-flex justify-content-between align-items-center">
+                                    <div v-for="p in activeMission.attList" :key="p.personnel_id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
                                             <span class="fw-bold">{{p.name}}</span>
                                             <span v-if="p.g26_expired" class="text-danger fw-bold ms-2" style="font-size:0.75rem;"><i class="fa fa-warning"></i> G26 abgelaufen!</span>
                                         </div>
-                                        <div class="d-flex gap-2">
+                                        <div class="d-flex gap-2 flex-wrap">
                                             <select v-model="p.vehicle" class="form-select form-select-sm" style="width: auto;" :disabled="role === 'mannschaft'">
                                                 <option value="">Kein Fahrzeug</option>
                                                 <option v-for="v in vehicles" :value="v.name">{{v.name}}</option>
@@ -2168,8 +2165,11 @@
                                                 <option value="Entschuldigt">Entschuldigt / Abgemeldet</option>
                                                 <option value="Abgebrochen">Einsatzstorno / Abgebrochen</option>
                                             </select>
-                                            <button v-if="activeMission.id && p.is_present !== 'Nein'" class="btn btn-xs btn-outline-light border-0 p-1" @click="downloadEmployerCert(activeMission.id, p.personnel_id)" title="Arbeitgeberbescheinigung (PDF)"><i class="fa fa-file-invoice text-warning"></i></button>
+                                            <button v-if="activeMission.id && p.is_present !== 'Nein'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="downloadEmployerCert(activeMission.id, p.personnel_id)" title="Arbeitgeberbescheinigung als PDF öffnen"><i class="fa fa-file-invoice me-1"></i>Bescheinigung</button>
                                         </div>
+                                    </div>
+                                    <div v-if="!activeMission.id" class="list-group-item bg-transparent text-muted small border-secondary border-opacity-10 py-2">
+                                        <i class="fa fa-circle-info me-1"></i>Speichere den Einsatz zuerst, dann erscheint hier bei jedem anwesenden Kameraden der Button "Bescheinigung" für die Arbeitgeberbescheinigung.
                                     </div>
                                 </div>
                             </div>

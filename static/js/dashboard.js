@@ -2018,28 +2018,7 @@ const { createApp } = Vue;
                         await this.loadHvoData();
                     }
                 },
-                
-                // AI Mission summary generator draft trigger
-                async generateAiMissionDraft() {
-                    if (!this.activeMission) return;
-                    try {
-                        const res = await fetch('/api/missions/ai-draft', {
-                            method: 'POST',
-                            headers: {'Content-Type':'application/json'},
-                            credentials: 'include',
-                            body: JSON.stringify({
-                                stichwort: this.activeMission.stichwort || 'Bandeinsatz',
-                                adresse: this.activeMission.adresse || 'Musterstraße 1',
-                                meldung: this.activeMission.meldung || 'Rauchentwicklung'
-                            })
-                        });
-                        if (res.ok) {
-                            const d = await res.json();
-                            this.activeMission.description = d.draft;
-                        }
-                    } catch(err) { console.error(err); }
-                },
-                
+
                 async scanQrCodeSim() {
                     const code = this.qrScanInput.trim();
                     if (!code) return;

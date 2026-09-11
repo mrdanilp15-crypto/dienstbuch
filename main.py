@@ -188,6 +188,18 @@ def init_db_extensions():
         cur.execute("SELECT COUNT(*) FROM station_settings")
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text) VALUES (%s, 50.1109, 8.6821, 14, %s)", (TOWN_NAME, "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"))
+        else:
+            # Selbstheilung: Falls durch einen Redeploy-Timing-Zufall (zwei Container kurz
+            # gleichzeitig gestartet) mehrere Zeilen entstanden sind, behält NUR die älteste
+            # (niedrigste id) - das ist die, die über /api/settings/station tatsächlich laufend
+            # bearbeitet wird. Ohne das lieferte "SELECT ... LIMIT 1" ohne ORDER BY zufällig mal
+            # die alte Musterstadt-Default-Zeile, mal die echte - der Standort wirkte "instabil".
+            cur.execute("SELECT COUNT(*) FROM station_settings")
+            if cur.fetchone()[0] > 1:
+                cur.execute("""
+                    DELETE FROM station_settings
+                    WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM station_settings) AS keep_row)
+                """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS archive_files (
@@ -879,7 +891,7 @@ def get_manifest():
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
     except Exception:
         try:
             cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -891,7 +903,7 @@ def get_station_settings():
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
         return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": ""}
@@ -932,11 +944,20 @@ def update_station_settings(data: dict, request: Request):
     except Exception:
         pass
 
-    cur.execute("SELECT id FROM station_settings LIMIT 1")
+    # Duplikate (aus Redeploy-Race-Conditions) vor dem Speichern bereinigen, damit nicht
+    # wieder eine alte Default-Zeile irgendwo übrig bleibt und später zufällig zurückkommt.
+    cur.execute("SELECT COUNT(*) FROM station_settings")
+    if cur.fetchone()[0] > 1:
+        cur.execute("""
+            DELETE FROM station_settings
+            WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM station_settings) AS keep_row)
+        """)
+
+    cur.execute("SELECT id FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone()
     if row:
         cur.execute("""
-            UPDATE station_settings 
+            UPDATE station_settings
             SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s
             WHERE id = %s
         """, (station_name, lat, lng, zoom, ticker_text, iban, bic, row[0]))
