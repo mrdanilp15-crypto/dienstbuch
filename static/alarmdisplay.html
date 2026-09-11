@@ -18,16 +18,19 @@
 
     <style>
         :root {
-            --fire-red: #ef4444;
-            --dark-zinc: #09090b;
-            --card-zinc: #141416;
-            --border-zinc: #27272a;
+            /* Gleiche Palette wie dashboard.css - der Monitor soll wie ein Teil derselben
+               App wirken, nicht wie eine separate Anwendung. */
+            --primary: #b71c1c;
+            --alarm-red: #ff4d4d;
+            --bg-color: #121010;
+            --card-bg: rgba(30, 24, 24, 0.85);
+            --card-border: rgba(255, 255, 255, 0.12);
             --text-light: #ffffff;
-            --text-muted: #e4e4e7;
+            --text-muted: #e0d8d8;
         }
 
         body {
-            background-color: var(--dark-zinc);
+            background: radial-gradient(circle at 50% 50%, #201414 0%, var(--bg-color) 100%);
             font-family: 'Outfit', sans-serif;
             color: var(--text-light);
             height: 100vh;
@@ -40,26 +43,28 @@
 
         /* Widescreen Header Banner */
         .alarm-header {
-            background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
+            background: linear-gradient(135deg, #b71c1c 0%, #801313 100%);
             padding: 12px 24px;
-            box-shadow: 0 10px 35px rgba(239, 68, 68, 0.25);
+            box-shadow: 0 10px 35px rgba(183, 28, 28, 0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 3px solid var(--text-light);
+            border-bottom: 3px solid var(--alarm-red);
             animation: pulse-border 1.5s infinite alternate;
         }
 
         .alarm-header.no-alarm {
-            background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
-            border-bottom: 3px solid #3f3f46;
+            background: rgba(18, 14, 14, 0.9);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-bottom: 1px solid var(--card-border);
             animation: none;
             box-shadow: none;
         }
 
         @keyframes pulse-border {
-            0% { box-shadow: 0 5px 15px rgba(239, 68, 68, 0.2); }
-            100% { box-shadow: 0 15px 40px rgba(239, 68, 68, 0.5); }
+            0% { box-shadow: 0 5px 15px rgba(255, 77, 77, 0.25); }
+            100% { box-shadow: 0 15px 40px rgba(255, 77, 77, 0.55); }
         }
 
         .alarm-title {
@@ -75,10 +80,10 @@
             display: flex;
             align-items: center;
             gap: 16px;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--card-border);
             padding: 6px 16px;
-            border-radius: 12px;
+            border-radius: 14px;
             font-size: 0.85rem;
         }
 
@@ -92,10 +97,16 @@
             font-size: 2rem;
             font-weight: 800;
             font-family: monospace;
-            background: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.3);
             padding: 4px 18px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 14px;
+            border: 1px solid var(--card-border);
+        }
+
+        .hero-alarm-wrap {
+            padding: 16px 16px 0 16px;
+            box-sizing: border-box;
+            flex-shrink: 0;
         }
 
         /* 3-Column Command Center Grid */
@@ -167,13 +178,15 @@
             box-sizing: border-box !important;
         }
 
-        /* Card panels */
+        /* Card panels - gleiche Glassmorphism-Optik wie .premium-card im Dashboard */
         .command-card {
-            background-color: #18181b;
-            border: 1px solid #3f3f46;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
             border-radius: 20px;
             padding: 20px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
 
         .card-label {
@@ -186,22 +199,23 @@
             display: block;
         }
 
-        /* Tactical details */
+        /* Tactical details - jetzt in der vollbreiten Hero-Karte, darf aus der Distanz
+           gut lesbar sein; clamp() skaliert zwischen kleinem Monitor und großem TV. */
         .stichwort-val {
-            font-size: 2.8rem;
+            font-size: clamp(2.8rem, 5vw, 5rem);
             font-weight: 900;
             color: #ffffff;
-            line-height: 1.1;
+            line-height: 1.05;
             letter-spacing: -0.5px;
         }
 
         .stichwort-val.alert-active {
-            color: var(--fire-red);
-            text-shadow: 0 0 15px rgba(239, 68, 68, 0.35);
+            color: var(--alarm-red);
+            text-shadow: 0 0 20px rgba(255, 77, 77, 0.45);
         }
 
         .adresse-val {
-            font-size: 1.6rem;
+            font-size: clamp(1.6rem, 2.4vw, 2.4rem);
             font-weight: 700;
             color: #ffd700;
         }
@@ -220,18 +234,18 @@
             gap: 8px;
             font-size: 1.5rem;
             font-weight: 900;
-            color: var(--fire-red);
-            background: rgba(239,68,68,0.1);
-            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--alarm-red);
+            background: rgba(255,77,77,0.12);
+            border: 1px solid rgba(255,77,77,0.25);
             padding: 4px 14px;
-            border-radius: 10px;
+            border-radius: 14px;
         }
 
         /* AAO vehicle layout styling */
         .aao-badge {
-            background: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
             padding: 8px 14px;
             display: flex;
             align-items: center;
@@ -248,9 +262,9 @@
         }
 
         .quali-stat-box {
-            background: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
             padding: 8px;
             text-align: center;
         }
@@ -262,7 +276,7 @@
         }
 
         .quali-stat-num.low {
-            color: var(--fire-red);
+            color: var(--alarm-red);
         }
 
         .quali-stat-label {
@@ -280,9 +294,9 @@
         }
 
         .vehicle-status-item {
-            background: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
             padding: 10px 12px;
             display: flex;
             justify-content: space-between;
@@ -303,24 +317,28 @@
             box-shadow: 0 0 10px currentColor;
         }
 
-        .fms-1 { color: #3b82f6; background-color: #3b82f6; }
-        .fms-2 { color: #10b981; background-color: #10b981; }
-        .fms-3 { color: #f59e0b; background-color: #f59e0b; }
-        .fms-4 { color: #ef4444; background-color: #ef4444; }
-        .fms-6 { color: #6b7280; background-color: #6b7280; }
+        /* Gleiche FMS-Statusfarben wie im Dashboard (.status-1..6 in dashboard.css) -
+           damit ein Fahrzeugstatus überall in der App dieselbe Farbe hat. */
+        .fms-1 { color: #2563eb; background-color: #2563eb; }
+        .fms-2 { color: #16a34a; background-color: #16a34a; }
+        .fms-3 { color: #eab308; background-color: #eab308; }
+        .fms-4 { color: #dc2626; background-color: #dc2626; }
+        .fms-6 { color: #475569; background-color: #475569; }
 
         /* Map styling */
         #displayMap {
             height: 320px;
             border-radius: 20px;
-            border: 1px solid var(--border-zinc);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            border: 1px solid var(--card-border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
 
         /* Feedbacks list */
         .feedback-panel {
-            background-color: var(--card-zinc);
-            border: 1px solid var(--border-zinc);
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
             border-radius: 20px;
             padding: 16px;
             display: flex;
@@ -332,7 +350,7 @@
         .feedback-header {
             font-size: 1.05rem;
             font-weight: 800;
-            border-bottom: 1px solid var(--border-zinc);
+            border-bottom: 1px solid var(--card-border);
             padding-bottom: 8px;
             margin-bottom: 10px;
             display: flex;
@@ -350,21 +368,36 @@
             justify-content: space-between;
             align-items: center;
             padding: 8px 10px;
-            border-radius: 8px;
+            border-radius: 10px;
             margin-bottom: 4px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.04);
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
             font-size: 0.85rem;
         }
 
         .feedback-item.status-komme {
             border-left: 3px solid #10b981;
-            background: rgba(16, 185, 129, 0.04);
+            background: rgba(16, 185, 129, 0.06);
         }
 
         .feedback-item.status-nein {
-            border-left: 3px solid #ef4444;
-            background: rgba(239, 68, 68, 0.04);
+            border-left: 3px solid var(--alarm-red);
+            background: rgba(255, 77, 77, 0.06);
+        }
+
+        /* Gleicher Button-Stil wie .btn-premium im Dashboard */
+        .btn-premium {
+            background: linear-gradient(135deg, #b71c1c 0%, #801313 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(183, 28, 28, 0.4);
+        }
+        .btn-premium:hover {
+            background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(183, 28, 28, 0.6);
         }
 
         /* Print overrides */
@@ -405,43 +438,53 @@
                     <i class="fa fa-spinner fa-spin me-1"></i> Wetter laden...
                 </div>
                 
-                <button class="btn btn-light rounded-pill px-3 fw-bold print-btn btn-sm" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
+                <button class="btn btn-premium rounded-pill px-3 fw-bold print-btn btn-sm" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
+
+        <!-- Haupt-Alarm-Anzeige: volle Breite statt in eine Spalte gequetscht, damit
+             Stichwort & Adresse aus der Distanz gut lesbar sind. -->
+        <div class="hero-alarm-wrap">
+            <div class="command-card main-alarm-card">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                    <div>
+                        <span class="card-label">Einsatzstichwort</span>
+                        <div class="stichwort-val" :class="{'alert-active': isAlarmActive}">{{ lastAlarm.stichwort || 'BEREITSCHAFT' }}</div>
+                    </div>
+                    <div v-if="isAlarmActive" class="text-end">
+                        <span class="card-label">Alarmiert um</span>
+                        <div class="fw-bold text-white fs-4 mb-1">{{ formattedAlarmTime }} Uhr</div>
+                        <div class="timer-badge"><i class="fa fa-stopwatch fa-spin me-1"></i>{{ alarmElapsedMinutes }}:{{ alarmElapsedSeconds }}</div>
+                    </div>
+                </div>
+
+                <div class="mt-3" v-if="lastAlarm.adresse">
+                    <span class="card-label">Einsatzort / Adresse</span>
+                    <div class="adresse-val"><i class="fa fa-location-dot me-2 text-danger"></i>{{ lastAlarm.adresse }}</div>
+                </div>
+
+                <div class="mt-3" v-if="lastAlarm.meldung">
+                    <span class="card-label">Zusatzinformation / Meldung</span>
+                    <div class="meldung-val">{{ lastAlarm.meldung }}</div>
+                </div>
+            </div>
+        </div>
 
         <!-- 3-Column Command Center Grid -->
         <div class="main-grid">
             <!-- Left Column: Primary Dispatch & Operational Guides -->
             <div class="column-pane scrollable">
-                <!-- Main Alarm Information Card -->
-                <div class="command-card main-alarm-card d-flex flex-column">
-                    <div class="mb-3">
-                        <span class="card-label">Einsatzstichwort</span>
-                        <div class="stichwort-val" :class="{'alert-active': isAlarmActive}">{{ lastAlarm.stichwort || 'BEREITSCHAFT' }}</div>
-                    </div>
-
-                    <div class="mb-3" v-if="lastAlarm.adresse">
-                        <span class="card-label">Einsatzort / Adresse</span>
-                        <div class="adresse-val"><i class="fa fa-location-dot me-2 text-danger"></i>{{ lastAlarm.adresse }}</div>
-                    </div>
-
-                    <div v-if="lastAlarm.meldung">
-                        <span class="card-label">Zusatzinformation / Meldung</span>
-                        <div class="meldung-val">{{ lastAlarm.meldung }}</div>
-                    </div>
-                </div>
-
-                <!-- Alarm Elapsed Timer Widget -->
-                <div class="command-card" v-if="isAlarmActive">
-                    <span class="card-label">Alarmierungszeit & Dauer</span>
-                    <div class="d-flex align-items-center justify-content-between mt-2">
-                        <div>
-                            <div class="text-white small fw-semibold">Ausgelöst um:</div>
-                            <div class="fw-bold text-white fs-4">{{ formattedAlarmTime }} Uhr</div>
-                        </div>
-                        <div class="timer-badge">
-                            <i class="fa fa-stopwatch fa-spin me-1"></i> {{ alarmElapsedMinutes }}:{{ alarmElapsedSeconds }}
+                <!-- Alarm-Historie -->
+                <div class="command-card" v-if="recentAlarms && recentAlarms.length > 0">
+                    <span class="card-label"><i class="fa-solid fa-clock-rotate-left me-1"></i>Letzte Alarmierungen</span>
+                    <div class="d-flex flex-column gap-2 mt-2">
+                        <div v-for="a in recentAlarms" :key="a.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="text-white fw-bold small">{{ a.stichwort }}</div>
+                                <span class="text-muted flex-shrink-0" style="font-size:0.7rem;">vor {{ Math.round(a.diff_min) }} Min</span>
+                            </div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ a.adresse }}</div>
                         </div>
                     </div>
                 </div>
@@ -556,6 +599,7 @@
             data() {
                 return {
                     lastAlarm: { id: null, stichwort: '', adresse: '', meldung: '', created_at: '' },
+                    recentAlarms: [],
                     lastSpokenMinute: -1,
                     feedbacks: [],
                     vehicles: [],
@@ -800,22 +844,25 @@
                             if(logs && logs.length > 0) {
                                 const last = logs[0];
                                 const diffMin = last.diff_min !== undefined ? last.diff_min : 999.0;
-                                
+
                                 if(diffMin < 60) {
                                     this.isAlarmActive = true;
-                                    
+
                                     // Start the elapsed timer
                                     if(last.id !== this.lastAlarm.id) {
                                         this.lastSpokenMinute = -1;
                                         this.triggerAlarmSound(last);
                                         this.startAlarmTimer(last.created_at);
                                     }
-                                    
+
                                     if(last.adresse && last.adresse !== this.geocodedAddress) {
                                         this.geocodedAddress = last.adresse;
                                         this.geocodeAddress(last.adresse);
                                     }
                                     this.lastAlarm = last;
+                                    // Historie: die aktuelle Alarmierung wird oben groß angezeigt,
+                                    // hier nur die davor liegenden.
+                                    this.recentAlarms = logs.slice(1, 6);
                                 } else {
                                     this.isAlarmActive = false;
                                     this.lastAlarm = { id: last.id, stichwort: 'Bereitstellung / Standby', adresse: 'Keine aktiven Einsätze.', meldung: '' };
@@ -823,6 +870,7 @@
                                     if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
                                     this.geocodedAddress = '';
                                     clearInterval(this.timerInterval);
+                                    this.recentAlarms = logs.slice(0, 5);
                                 }
                             } else {
                                 this.isAlarmActive = false;
@@ -831,6 +879,7 @@
                                 if(this.routeLine) { map.removeLayer(this.routeLine); this.routeLine = null; }
                                 this.geocodedAddress = '';
                                 clearInterval(this.timerInterval);
+                                this.recentAlarms = [];
                             }
                         }
                         

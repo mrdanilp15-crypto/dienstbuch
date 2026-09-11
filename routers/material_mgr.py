@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
+import mysql.connector
 
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
@@ -106,11 +107,23 @@ def create_equipment(eq: EquipmentCreate, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
-    cur.execute("""
-        INSERT INTO equipment (name, barcode, category, image_url, manual_url, interval_months, last_inspection, next_inspection)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i))
-    conn.commit(); cur.close(); conn.close()
+    try:
+        cur.execute("""
+            INSERT INTO equipment (name, barcode, category, image_url, manual_url, interval_months, last_inspection, next_inspection)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i))
+        conn.commit()
+    except mysql.connector.Error as err:
+        # barcode ist UNIQUE NOT NULL - ohne diese Behandlung schlug das Anlegen bei einem
+        # bereits vergebenen Barcode mit einem unbehandelten 500-Fehler fehl. Das Frontend
+        # zeigte dabei keinerlei Meldung an, das Modal blieb einfach offen - für den Nutzer
+        # sah es so aus, als wäre das neu angelegte Gerät "verschwunden", obwohl es nie
+        # gespeichert wurde.
+        if err.errno == 1062:
+            raise HTTPException(status_code=400, detail=f"Barcode '{eq.barcode.strip()}' ist bereits einem anderen Gerät zugeordnet!")
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        cur.close(); conn.close()
     return {"status": "success"}
 
 @router.put("/equipment/{eq_id}")
@@ -119,12 +132,19 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
-    cur.execute("""
-        UPDATE equipment 
-        SET name=%s, barcode=%s, category=%s, image_url=%s, manual_url=%s, interval_months=%s, last_inspection=%s, next_inspection=%s
-        WHERE id=%s
-    """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i, eq_id))
-    conn.commit(); cur.close(); conn.close()
+    try:
+        cur.execute("""
+            UPDATE equipment
+            SET name=%s, barcode=%s, category=%s, image_url=%s, manual_url=%s, interval_months=%s, last_inspection=%s, next_inspection=%s
+            WHERE id=%s
+        """, (eq.name.strip(), eq.barcode.strip(), eq.category, eq.image_url, eq.manual_url, eq.interval_months, last_i, next_i, eq_id))
+        conn.commit()
+    except mysql.connector.Error as err:
+        if err.errno == 1062:
+            raise HTTPException(status_code=400, detail=f"Barcode '{eq.barcode.strip()}' ist bereits einem anderen Gerät zugeordnet!")
+        raise HTTPException(status_code=500, detail=str(err))
+    finally:
+        cur.close(); conn.close()
     return {"status": "success"}
 
 @router.delete("/equipment/{eq_id}")

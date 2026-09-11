@@ -41,6 +41,17 @@ def get_defect_reports(request: Request, status: str = "Offen"):
             LEFT JOIN equipment e ON dr.equipment_id = e.id
             ORDER BY dr.created_at DESC LIMIT 100
         """)
+    elif status == "Offen":
+        # "Offen" heißt hier "noch nicht erledigt" und umfasst bewusst auch "In Bearbeitung" -
+        # sonst verschwand ein Mangel beim Setzen auf "In Bearbeitung" sofort aus der
+        # Offen-Ansicht und war dort nicht mehr auffindbar, um ihn später als erledigt zu markieren.
+        cur.execute("""
+            SELECT dr.*, e.name as equipment_name, e.barcode
+            FROM equipment_defect_reports dr
+            LEFT JOIN equipment e ON dr.equipment_id = e.id
+            WHERE dr.status != 'Erledigt'
+            ORDER BY dr.created_at DESC LIMIT 100
+        """)
     else:
         cur.execute("""
             SELECT dr.*, e.name as equipment_name, e.barcode
