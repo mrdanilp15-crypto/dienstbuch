@@ -43,6 +43,28 @@ def _get_or_create_secret_key() -> str:
 
 SECRET_KEY = _get_or_create_secret_key()
 
+def get_station_name() -> str:
+    """
+    Liefert den Wehr-/Ortsnamen aus der in der Software gepflegten
+    Standortverwaltung (station_settings), nicht aus der TOWN_NAME-Umgebungsvariable.
+    So landet überall (Dashboard, Hallenmonitor, Dienstberichte, PDFs,
+    Arbeitgeberbescheinigung) derselbe Name, den ein Admin einmal in den
+    Einstellungen einträgt - TOWN_NAME wird dann nur noch als Startwert für die
+    allererste Installation gebraucht, nicht mehr für den laufenden Betrieb.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT station_name FROM station_settings ORDER BY id ASC LIMIT 1")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        print(f"Konnte station_name nicht laden: {e}")
+    return os.getenv("TOWN_NAME", "Deine Feuerwehr")
+
 def log_audit_action(username: str, action: str, details: str):
     try:
         conn = get_db_connection()

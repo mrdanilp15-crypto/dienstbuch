@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request, Response, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import mysql.connector
-import os
 import base64
 from datetime import date
 
@@ -155,9 +155,10 @@ def get_mission(mission_id: int, request: Request):
     m["attendance"] = att
     return m
 
-@router.get("/{mission_id}/pdf")
-def get_mission_pdf(mission_id: int, request: Request):
-    check_auth(request)
+def _prepare_mission_report_data(mission_id: int):
+    """Lädt einen Einsatz + Anwesenheit und bringt sie in die Form, die
+    generate_single_report() erwartet. Wird sowohl für die PDF- als auch
+    für die HTML-Berichtsansicht genutzt, damit beide identisch aussehen."""
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM missions WHERE id = %s", (mission_id,))
@@ -165,30 +166,30 @@ def get_mission_pdf(mission_id: int, request: Request):
     if not m:
         cur.close(); conn.close()
         raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
-    
+
     cur.execute("""
-        SELECT ma.is_present, ma.vehicle, p.name, p.signature 
-        FROM mission_attendance ma 
-        JOIN personnel p ON ma.personnel_id = p.id 
+        SELECT ma.is_present, ma.vehicle, p.name, p.signature
+        FROM mission_attendance ma
+        JOIN personnel p ON ma.personnel_id = p.id
         WHERE ma.mission_id = %s
     """, (mission_id,))
     att = cur.fetchall()
     cur.close(); conn.close()
-    
+
     if isinstance(m["date"], date):
         m["date"] = str(m["date"])
-    
+
     # We need to adapt `m` to fit `generate_single_report` which expects specific keys
     m['gname'] = "Feuerwehr"
     m['instructors'] = "Einsatzleiter"
     m['category'] = "Einsatz"
     if not m.get('description'):
         m['description'] = m.get('stichwort', 'Einsatz') + " - " + m.get('meldung', '')
-    
+
     sig = m.get("leader_signature")
     if sig:
         m["leader_signature"] = safe_decode(sig)
-    
+
     # Adapt persons
     persons = []
     for a in att:
@@ -199,20 +200,35 @@ def get_mission_pdf(mission_id: int, request: Request):
             'vehicle': a['vehicle'],
             'signature': safe_decode(a['signature'])
         })
-    
-    town_name = os.getenv("TOWN_NAME", "Deine Feuerwehr")
-    
+
+    from core.utils import get_station_name
+    town_name = get_station_name()
+    return m, persons, town_name
+
+@router.get("/{mission_id}/report", response_class=HTMLResponse)
+def get_mission_report(mission_id: int, request: Request):
+    check_auth(request)
+    m, persons, town_name = _prepare_mission_report_data(mission_id)
     from routers.reports import generate_single_report, get_report_styles
     html_content = generate_single_report(m, persons, town_name)
-    
+    return f"<html><head><meta charset='utf-8'><style>{get_report_styles()}</style></head><body>{html_content}</body></html>"
+
+@router.get("/{mission_id}/pdf")
+def get_mission_pdf(mission_id: int, request: Request):
+    check_auth(request)
+    m, persons, town_name = _prepare_mission_report_data(mission_id)
+
+    from routers.reports import generate_single_report, get_report_styles
+    html_content = generate_single_report(m, persons, town_name)
+
     full_html = f"<html><head><meta charset='utf-8'><style>{get_report_styles()}</style></head><body>{html_content}</body></html>"
-    
+
     import xhtml2pdf.pisa as pisa
     import io
     pdf_buf = io.BytesIO()
     pisa.CreatePDF(full_html, dest=pdf_buf)
     pdf_bytes = pdf_buf.getvalue()
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -242,13 +258,10 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
 
     cur.execute("SELECT is_present, vehicle FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
     att = cur.fetchone()
-
-    cur.execute("SELECT setting_key, setting_value FROM settings")
-    settings_rows = cur.fetchall()
     cur.close(); conn.close()
-    
-    s_map = {row['setting_key']: row['setting_value'] for row in settings_rows}
-    station_name = s_map.get("station_name") or os.getenv("TOWN_NAME", "Freiwillige Feuerwehr")
+
+    from core.utils import get_station_name
+    station_name = get_station_name()
 
     try:
         if isinstance(m["date"], date):
@@ -287,11 +300,6 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
         @page {{
             size: a4 portrait;
             margin: 2.5cm 2cm 2cm 2cm;
-            @bottom-right {{
-                content: "Seite " counter(page) " von " counter(pages);
-                font-size: 8pt;
-                color: #666;
-            }}
         }}
         body {{
             font-family: Helvetica, Arial, sans-serif;

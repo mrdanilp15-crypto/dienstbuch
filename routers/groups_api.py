@@ -6,10 +6,9 @@ from datetime import datetime, date
 import json
 
 from database import get_db_connection
-from core.utils import get_current_user, log_audit_action
+from core.utils import get_current_user, log_audit_action, get_station_name
 
 router = APIRouter()
-import main
 from core.models import safe_decode, PersonData, VehicleData, EntryDto, AttendanceUpload, GroupData
 from routers import reports
 
@@ -325,7 +324,7 @@ def single_report(session_id: int, request: Request):
     cur.execute("SELECT p.name, a.is_present, a.note, a.vehicle, a.signature FROM attendance a JOIN persons p ON a.person_id = p.id WHERE a.session_id=%s ORDER BY p.name", (session_id,))
     persons = cur.fetchall(); c.close()
     for p in persons: p['signature'] = safe_decode(p['signature'])
-    return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{reports.generate_single_report(s, persons, main.TOWN_NAME)}</body></html>"
+    return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{reports.generate_single_report(s, persons, get_station_name())}</body></html>"
 
 @router.get("/groups/{group_id}/print_view", response_class=HTMLResponse)
 def year_report(group_id: int, year: int, request: Request):
@@ -344,14 +343,14 @@ def year_report(group_id: int, year: int, request: Request):
         cur.execute("SELECT p.name, a.is_present, a.note, a.vehicle, a.signature FROM attendance a JOIN persons p ON a.person_id = p.id WHERE a.session_id=%s ORDER BY p.name", (s['id'],))
         persons = cur.fetchall()
         for p in persons: p['signature'] = safe_decode(p['signature'])
-        html_body += reports.generate_single_report(s, persons, main.TOWN_NAME)
+        html_body += reports.generate_single_report(s, persons, get_station_name())
         cat = s['category'] if s['category'] in cat_sums else "Sonstiges"
         cat_sums[cat] += float(s['duration'])
         for p in persons:
             if p['name'] not in p_stats: p_stats[p['name']] = {"Übung": 0.0, "Einsatz": 0.0, "Sonstiges": 0.0, "total_h": 0.0, "p": 0}
             if p['is_present']: p_stats[p['name']]["p"] += 1; p_stats[p['name']][cat] += float(s['duration']); p_stats[p['name']]["total_h"] += float(s['duration'])
     for n in p_stats: p_stats[n]['q'] = round((p_stats[n]['p'] / max_s) * 100) if max_s > 0 else 0
-    html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, main.TOWN_NAME)
+    html_body += reports.generate_year_report(gname, year, p_stats, cat_sums, get_station_name())
     c.close()
     return f"<html><head><meta charset='UTF-8'><style>{reports.get_report_styles()}</style></head><body>{html_body}</body></html>"
 
