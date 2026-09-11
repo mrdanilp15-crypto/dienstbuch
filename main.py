@@ -1,6 +1,8 @@
 import os
+import json
 import mysql.connector
 import time
+import asyncio
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -204,6 +206,10 @@ def init_db_extensions():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
+        try:
+            cur.execute("ALTER TABLE archive_files ADD COLUMN vehicle_id INT NULL")
+        except mysql.connector.Error as err:
+            if err.errno != 1060: raise
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -218,7 +224,7 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         
-        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL")]:
+        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL"), ("last_login", "DATETIME NULL")]:
             try: cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
@@ -229,7 +235,10 @@ def init_db_extensions():
             ("tuv_date", "DATE NULL"),
             ("sp_date", "DATE NULL"),
             ("milage", "INT DEFAULT 0"),
-            ("next_service", "DATE NULL")
+            ("next_service", "DATE NULL"),
+            ("required_license", "VARCHAR(10) NULL"),
+            ("purchase_value", "DECIMAL(10,2) NULL"),
+            ("insurance_policy", "VARCHAR(100) NULL")
         ]
         for col_name, col_type in required_veh_columns:
             try: cur.execute(f"ALTER TABLE vehicles ADD COLUMN {col_name} {col_type}")
@@ -356,6 +365,18 @@ def init_db_extensions():
         """)
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_reservations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT NOT NULL,
+                purpose VARCHAR(255) NOT NULL,
+                reserved_by VARCHAR(255) NOT NULL,
+                start_datetime DATETIME NOT NULL,
+                end_datetime DATETIME NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS equipment (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -368,6 +389,10 @@ def init_db_extensions():
                 next_inspection DATE NULL
             ) ENGINE=InnoDB;
         """)
+        for col_name, col_type in [("purchase_value", "DECIMAL(10,2) NULL"), ("insurance_policy", "VARCHAR(100) NULL")]:
+            try: cur.execute(f"ALTER TABLE equipment ADD COLUMN {col_name} {col_type}")
+            except mysql.connector.Error as err:
+                if err.errno != 1060: raise
 
 
         cur.execute("""
@@ -401,6 +426,10 @@ def init_db_extensions():
                 certificate_url TEXT
             ) ENGINE=InnoDB;
         """)
+        try:
+            cur.execute("ALTER TABLE lehrgaenge ADD COLUMN valid_until DATE NULL")
+        except mysql.connector.Error as err:
+            if err.errno != 1060: raise
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS billing_verursacher (
@@ -468,6 +497,23 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
 
+        # Eigene Tabelle statt schedule_attendance mitzunutzen: schedule_attendance wird von
+        # der Leitung NACH dem Termin komplett neu geschrieben (DELETE+INSERT für den ganzen
+        # Termin, siehe mission_mgr.py save_schedule_attendance) - eine Vorab-Zusage hier
+        # einzutragen würde beim nächsten "Anwesenheit eintragen" sang- und klanglos
+        # überschrieben, und die Status-Werte ('Ja'/'Nein'/'Vielleicht' vs. 'Anwesend'/
+        # 'Entschuldigt'/'Unentschuldigt') passen ohnehin nicht zusammen.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedule_rsvp (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                schedule_id INT NOT NULL,
+                personnel_id INT NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY sched_person (schedule_id, personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS apager_feedbacks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -514,6 +560,18 @@ def init_db_extensions():
                 resolved_by VARCHAR(255) NULL,
                 resolved_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS equipment_loans (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                equipment_id INT NOT NULL,
+                borrower_name VARCHAR(255) NOT NULL,
+                note VARCHAR(255) DEFAULT '',
+                checked_out_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                returned_at TIMESTAMP NULL,
+                FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         """)
 
@@ -568,6 +626,38 @@ def init_db_extensions():
         """)
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS membership_fees (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT NOT NULL,
+                year INT NOT NULL,
+                amount DECIMAL(8,2) DEFAULT 0,
+                paid_at DATE NULL,
+                note VARCHAR(255) DEFAULT '',
+                UNIQUE KEY person_year (personnel_id, year)
+            ) ENGINE=InnoDB;
+        """)
+        # Kein FOREIGN KEY auf personnel(id): die personnel-Basistabelle wird erst weiter unten
+        # von personnel_mgr.init_personnel_db() angelegt, das an dieser Stelle in
+        # init_db_extensions() noch nicht gelaufen ist - ein FK hierher würde beim allerersten
+        # Start (leere DB) mit einem Fehler fehlschlagen, weil die referenzierte Tabelle noch
+        # nicht existiert (bricht dann die komplette Funktion inkl. aller nachfolgenden
+        # CREATE TABLE-Aufrufe ab).
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS session_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                group_id INT NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                category VARCHAR(50) DEFAULT 'Übung',
+                duration DECIMAL(5,2) DEFAULT 2.0,
+                description VARCHAR(255) DEFAULT '',
+                instructors VARCHAR(255) DEFAULT '',
+                time VARCHAR(10) DEFAULT '',
+                end_time VARCHAR(10) DEFAULT ''
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS hvo_protocols (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 date DATE NOT NULL,
@@ -586,6 +676,40 @@ def init_db_extensions():
                 checked_at DATE NOT NULL,
                 status VARCHAR(50) DEFAULT 'OK',
                 checked_by VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hvo_material (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                quantity INT DEFAULT 1,
+                expiry_date DATE NULL,
+                note VARCHAR(255) DEFAULT ''
+            ) ENGINE=InnoDB;
+        """)
+
+        # Kein FOREIGN KEY auf vehicles(id): die vehicles-Basistabelle wird erst weiter unten in
+        # dieser Funktion angelegt (matcht das gleiche Muster wie vehicle_log/vehicle_reservations).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_maintenance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT NOT NULL,
+                date DATE NOT NULL,
+                description VARCHAR(255) NOT NULL,
+                workshop VARCHAR(255) DEFAULT '',
+                cost DECIMAL(10,2) DEFAULT 0
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS consumables (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                unit VARCHAR(50) DEFAULT 'Stk',
+                current_stock DECIMAL(10,2) DEFAULT 0,
+                min_stock DECIMAL(10,2) DEFAULT 0,
+                note VARCHAR(255) DEFAULT ''
             ) ENGINE=InnoDB;
         """)
 
@@ -807,6 +931,21 @@ def init_db():
 
 init_db()
 
+# --- AUTOMATISCHE PRÜF-/FRISTEN-ERINNERUNGEN ---
+# Läuft im Hintergrund alle 24h; check_due_reminders() selbst drosselt auf höchstens einmal
+# pro Woche eine tatsächliche Meldung, damit dieselbe Frist nicht täglich neu gemeldet wird.
+@app.on_event("startup")
+async def start_reminder_scheduler():
+    async def _reminder_loop():
+        from core.reminders import check_due_reminders
+        while True:
+            try:
+                check_due_reminders()
+            except Exception as e:
+                print(f"Reminder-Scheduler Fehler: {e}")
+            await asyncio.sleep(24 * 3600)
+    asyncio.create_task(_reminder_loop())
+
 class BroadcastCreateRequest(BaseModel):
     title: str
     content: str
@@ -879,7 +1018,7 @@ def get_manifest():
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id FROM station_settings ORDER BY id ASC LIMIT 1")
     except Exception:
         try:
             cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -891,16 +1030,23 @@ def get_station_settings():
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic FROM station_settings ORDER BY id ASC LIMIT 1")
+        try:
+            cur.execute("ALTER TABLE station_settings ADD COLUMN dwd_warncell_id VARCHAR(20) NULL")
+            conn.commit()
+        except Exception:
+            pass
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": ""}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": ""}
     if not row.get("ticker_text"):
         row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
     if not row.get("iban"):
         row["iban"] = ""
     if not row.get("bic"):
         row["bic"] = ""
+    if not row.get("dwd_warncell_id"):
+        row["dwd_warncell_id"] = ""
     return row
 
 @app.put("/api/settings/station")
@@ -913,6 +1059,7 @@ def update_station_settings(data: dict, request: Request):
     ticker_text = data.get("ticker_text", "").strip()
     iban = data.get("iban", "").strip()
     bic = data.get("bic", "").strip()
+    dwd_warncell_id = (data.get("dwd_warncell_id") or "").strip()
     try:
         lat = float(data.get("lat", 50.1109))
         lng = float(data.get("lng", 8.6821))
@@ -931,6 +1078,11 @@ def update_station_settings(data: dict, request: Request):
         conn.commit()
     except Exception:
         pass
+    try:
+        cur.execute("ALTER TABLE station_settings ADD COLUMN dwd_warncell_id VARCHAR(20) NULL")
+        conn.commit()
+    except Exception:
+        pass
 
     # Duplikate (aus Redeploy-Race-Conditions) vor dem Speichern bereinigen, damit nicht
     # wieder eine alte Default-Zeile irgendwo übrig bleibt und später zufällig zurückkommt.
@@ -946,17 +1098,69 @@ def update_station_settings(data: dict, request: Request):
     if row:
         cur.execute("""
             UPDATE station_settings
-            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s, dwd_warncell_id = %s
             WHERE id = %s
-        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, row[0]))
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None, row[0]))
     else:
         cur.execute("""
-            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (station_name, lat, lng, zoom, ticker_text, iban, bic))
+            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
     return {"status": "success"}
+
+# --- DWD UNWETTERWARNUNGEN ---
+# Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen,
+# genau wie /api/vehicles.
+@app.get("/api/weather/warnings")
+def get_weather_warnings():
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT dwd_warncell_id FROM station_settings ORDER BY id ASC LIMIT 1")
+        row = cur.fetchone()
+    except Exception:
+        row = None
+    finally:
+        cur.close(); conn.close()
+    warncell_id = (row or {}).get("dwd_warncell_id") if row else None
+    if not warncell_id:
+        return {"configured": False, "warnings": []}
+
+    # Öffentlicher, unauthentifizierter JSON-Feed des DWD (dieselbe Quelle, die auch die
+    # offizielle Warnkarte auf dwd.de nutzt) - liefert alle aktuell aktiven Warnungen für
+    # ganz Deutschland, gefiltert nach der hier hinterlegten Warncell-ID (Gemeindeschlüssel).
+    # Läuft der Abruf ins Leere (kein Internetzugriff aus dem Container, DWD down, Format
+    # geändert) wird das bewusst nur geloggt statt einen Fehler zu werfen - der Hallenmonitor
+    # soll dadurch nie komplett ausfallen, nur die Warnbox bleibt dann leer.
+    try:
+        import requests
+        resp = requests.get(
+            "https://www.dwd.de/DE/wetter/warnungen_gemeinden/json_warnings/warnungen_gemeinde_map.json",
+            timeout=8
+        )
+        text = resp.text.strip()
+        # Antwort ist JSONP (warnWetter.loadWarnings({...});) statt reinem JSON.
+        if text.startswith("warnWetter.loadWarnings("):
+            text = text[len("warnWetter.loadWarnings("):]
+            if text.endswith(");"):
+                text = text[:-2]
+        data = json.loads(text)
+        raw_warnings = data.get("warnings", {}).get(str(warncell_id), [])
+        warnings = []
+        for w in raw_warnings:
+            warnings.append({
+                "event": w.get("event") or w.get("headline") or "Warnung",
+                "headline": w.get("headline") or "",
+                "description": w.get("description") or "",
+                "severity": w.get("level"),
+                "start": w.get("start"),
+                "end": w.get("end")
+            })
+        return {"configured": True, "warnings": warnings}
+    except Exception as e:
+        print(f"DWD-Warnungsabruf fehlgeschlagen: {e}")
+        return {"configured": True, "warnings": [], "error": "Abruf fehlgeschlagen"}
 
 # --- DATEI UPLOAD SYSTEM ---
 @app.post("/api/upload")

@@ -19,8 +19,10 @@ def list_users(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, username, role, is_first_login, personnel_id FROM users ORDER BY username ASC")
+    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
+    for u in users:
+        u["last_login"] = str(u["last_login"]) if u["last_login"] else None
     return users
 
 @router.put("/api/users/{user_id}/reset-password")

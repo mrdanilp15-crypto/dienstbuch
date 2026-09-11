@@ -297,7 +297,16 @@
 
     <div class="main-content">
         <div class="editor-card">
-            <h5 class="fw-bold text-white mb-3"><i class="fa-regular fa-file-lines text-danger me-2"></i>Dienst-Stammdaten</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="fw-bold text-white m-0"><i class="fa-regular fa-file-lines text-danger me-2"></i>Dienst-Stammdaten</h5>
+                <div v-if="!isReadOnly" class="d-flex gap-2">
+                    <select v-if="templates.length" class="form-select form-select-sm" style="width:auto;" v-model="selectedTemplateId" @change="applyTemplate">
+                        <option value="">Vorlage anwenden...</option>
+                        <option v-for="t in templates" :key="t.id" :value="t.id">{{t.name}}</option>
+                    </select>
+                    <button class="btn btn-outline-light btn-sm rounded-pill px-3" @click="openSaveTemplateModal"><i class="fa fa-bookmark me-1"></i>Als Vorlage</button>
+                </div>
+            </div>
             <div class="row g-3">
                 <div class="col-12 col-md-4">
                     <label class="small text-white fw-bold mb-1"><i class="fa fa-calendar me-1 text-danger"></i>DATUM</label>
@@ -474,6 +483,34 @@
         </div>
     </div>
 
+    <!-- MODAL: SESSION TEMPLATES -->
+    <div class="modal fade" id="templateModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-secondary border-opacity-10">
+                    <h5 class="modal-title fw-bold">Als Vorlage speichern</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="small text-muted fw-bold mb-1">NAME DER VORLAGE</label>
+                    <input type="text" class="form-control mb-3" v-model="newTemplateName" placeholder="z.B. Standardübung Atemschutz">
+                    <div v-if="templates.length" class="border-top border-secondary border-opacity-10 pt-3">
+                        <label class="small text-muted fw-bold mb-2 d-block">VORHANDENE VORLAGEN</label>
+                        <div class="list-group list-group-flush">
+                            <div v-for="t in templates" :key="t.id" class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-10">
+                                <span>{{t.name}}</span>
+                                <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteTemplate(t.id)"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-10">
+                    <button type="button" class="btn btn-premium px-4" @click="saveTemplate">Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: SIGNATURE -->
     <div class="modal fade" id="sigModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
@@ -582,7 +619,8 @@
                 currentDate: localDateToday(),
                 saveState: 'idle', activeSigner: null,
                 isLoading: true,
-                cacheBuster: Date.now()
+                cacheBuster: Date.now(),
+                templates: [], selectedTemplateId: '', newTemplateName: '', templateModal: null
             }
         },
         computed: {
@@ -649,11 +687,13 @@
                     this.groupPersons = await gpRes.json();
                 } catch(e) {}
             })());
+            promises.push(this.loadTemplates());
 
             await Promise.all(promises);
             this.isLoading = false;
 
             sigModal = new bootstrap.Modal(document.getElementById('sigModal'));
+            this.templateModal = new bootstrap.Modal(document.getElementById('templateModal'));
 
             const canvas = document.getElementById('sigCanvas');
             if (canvas) {
@@ -839,6 +879,46 @@
             clearModal() { sigPad.clear(); },
             clearLeaderSig() { if(this.isReadOnly) return; this.leaderSignature = null; this.autoSave(); },
             clearP(p) { if(this.isReadOnly) return; p.signature = null; this.autoSave(); },
+            async loadTemplates() {
+                if (!this.groupId) return;
+                try {
+                    const res = await fetch(`/groups/${this.groupId}/templates`, { credentials: 'include' });
+                    this.templates = res.ok ? await res.json() : [];
+                } catch(e) { this.templates = []; }
+            },
+            applyTemplate() {
+                const t = this.templates.find(x => String(x.id) === String(this.selectedTemplateId));
+                if (!t) return;
+                this.category = t.category || 'Übung';
+                this.duration = t.duration || 2.0;
+                this.description = t.description || '';
+                this.instructors = t.instructors || '';
+                this.time = t.time || '';
+                this.endTime = t.end_time || '';
+                this.selectedTemplateId = '';
+                this.autoSave();
+            },
+            openSaveTemplateModal() {
+                this.newTemplateName = this.description || '';
+                this.templateModal.show();
+            },
+            async saveTemplate() {
+                const name = this.newTemplateName.trim();
+                if (!name) return;
+                try {
+                    await fetch(`/groups/${this.groupId}/templates`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ name, category: this.category, duration: this.duration, description: this.description, instructors: this.instructors, time: this.time, end_time: this.endTime })
+                    });
+                    await this.loadTemplates();
+                    this.templateModal.hide();
+                } catch(e) { await appAlert("Vorlage konnte nicht gespeichert werden."); }
+            },
+            async deleteTemplate(id) {
+                if (!await appConfirm("Vorlage löschen?")) return;
+                await fetch(`/templates/${id}`, { method: 'DELETE', credentials: 'include' });
+                await this.loadTemplates();
+            },
             goBack() { window.location.href = '/dashboard'; },
             saveAndExit() { 
                 if(this.isReadOnly) { this.goBack(); } 

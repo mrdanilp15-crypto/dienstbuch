@@ -914,3 +914,56 @@ def save_schedule_attendance(sch_id: int, data: List[ScheduleAttendanceEntry], r
         """, (sch_id, entry.personnel_id, entry.status))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
+
+# --- VORAB-RÜCKMELDUNG (RSVP) FÜR GEPLANTE TERMINE ---
+def _resolve_own_personnel_id(cur, username):
+    # Gleicher Verknüpfungs-/Fallback-Abgleich wie in users_mgr.py get_my_global_fire_stats()
+    # und personnel_mgr.py get_my_licenses().
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (username,))
+    row = cur.fetchone()
+    if row and row.get("personnel_id"):
+        return row["personnel_id"]
+    cur.execute("SELECT id FROM personnel WHERE LOWER(name) LIKE %s", (f"%{username.lower()}%",))
+    fallback = cur.fetchone()
+    if fallback:
+        cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], username))
+        return fallback["id"]
+    return None
+
+@router.get("/schedules/{sch_id}/rsvp")
+def get_schedule_rsvp(sch_id: int, request: Request):
+    user = check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT r.status, p.name FROM schedule_rsvp r JOIN personnel p ON r.personnel_id = p.id
+        WHERE r.schedule_id = %s ORDER BY p.name ASC
+    """, (sch_id,))
+    all_responses = cur.fetchall()
+
+    personnel_id = _resolve_own_personnel_id(cur, user["username"])
+    my_status = None
+    if personnel_id:
+        cur.execute("SELECT status FROM schedule_rsvp WHERE schedule_id = %s AND personnel_id = %s", (sch_id, personnel_id))
+        row = cur.fetchone()
+        my_status = row["status"] if row else None
+    conn.commit(); cur.close(); conn.close()
+    return {"my_status": my_status, "unlinked": personnel_id is None, "responses": all_responses}
+
+@router.post("/schedules/{sch_id}/rsvp")
+def set_schedule_rsvp(sch_id: int, data: dict, request: Request):
+    user = check_auth(request)
+    status = data.get("status")
+    if status not in ("Ja", "Nein", "Vielleicht"):
+        raise HTTPException(status_code=400, detail="Ungültiger Status")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    personnel_id = _resolve_own_personnel_id(cur, user["username"])
+    if not personnel_id:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Kein Kamerad mit diesem Login verknüpft.")
+    cur.execute(
+        "INSERT INTO schedule_rsvp (schedule_id, personnel_id, status) VALUES (%s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE status = VALUES(status)",
+        (sch_id, personnel_id, status)
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
