@@ -159,7 +159,7 @@ def init_db_extensions():
                 setting_value INT
             ) ENGINE=InnoDB;
         """)
-        default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12)]
+        default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12), ('reminder_window_days', 14), ('session_max_days', 30)]
         for key, val in default_settings:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
 
@@ -414,6 +414,13 @@ def init_db_extensions():
                 size VARCHAR(50) NOT NULL,
                 issue_date DATE NOT NULL,
                 return_date DATE NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lehrgang_types (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE
             ) ENGINE=InnoDB;
         """)
 
@@ -1018,7 +1025,7 @@ def get_manifest():
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id FROM station_settings ORDER BY id ASC LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate FROM station_settings ORDER BY id ASC LIMIT 1")
     except Exception:
         try:
             cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -1035,10 +1042,15 @@ def get_station_settings():
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id FROM station_settings ORDER BY id ASC LIMIT 1")
+        try:
+            cur.execute("ALTER TABLE station_settings ADD COLUMN impressum_text TEXT NULL, ADD COLUMN datenschutz_text TEXT NULL, ADD COLUMN default_hourly_rate DECIMAL(6,2) NULL")
+            conn.commit()
+        except Exception:
+            pass
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": ""}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": "", "impressum_text": "", "datenschutz_text": "", "default_hourly_rate": 15.0}
     if not row.get("ticker_text"):
         row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
     if not row.get("iban"):
@@ -1047,6 +1059,11 @@ def get_station_settings():
         row["bic"] = ""
     if not row.get("dwd_warncell_id"):
         row["dwd_warncell_id"] = ""
+    if not row.get("impressum_text"):
+        row["impressum_text"] = ""
+    if not row.get("datenschutz_text"):
+        row["datenschutz_text"] = ""
+    row["default_hourly_rate"] = float(row["default_hourly_rate"]) if row.get("default_hourly_rate") is not None else 15.0
     return row
 
 @app.put("/api/settings/station")
@@ -1060,13 +1077,16 @@ def update_station_settings(data: dict, request: Request):
     iban = data.get("iban", "").strip()
     bic = data.get("bic", "").strip()
     dwd_warncell_id = (data.get("dwd_warncell_id") or "").strip()
+    impressum_text = (data.get("impressum_text") or "").strip()
+    datenschutz_text = (data.get("datenschutz_text") or "").strip()
     try:
         lat = float(data.get("lat", 50.1109))
         lng = float(data.get("lng", 8.6821))
         zoom = int(data.get("zoom", 14))
+        default_hourly_rate = float(data.get("default_hourly_rate", 15.0) or 15.0)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Ungültige Koordinaten")
-        
+        raise HTTPException(status_code=400, detail="Ungültige Koordinaten oder Stundensatz")
+
     conn = get_db_connection(); cur = conn.cursor()
     try:
         cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -1080,6 +1100,11 @@ def update_station_settings(data: dict, request: Request):
         pass
     try:
         cur.execute("ALTER TABLE station_settings ADD COLUMN dwd_warncell_id VARCHAR(20) NULL")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        cur.execute("ALTER TABLE station_settings ADD COLUMN impressum_text TEXT NULL, ADD COLUMN datenschutz_text TEXT NULL, ADD COLUMN default_hourly_rate DECIMAL(6,2) NULL")
         conn.commit()
     except Exception:
         pass
@@ -1098,14 +1123,17 @@ def update_station_settings(data: dict, request: Request):
     if row:
         cur.execute("""
             UPDATE station_settings
-            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s, dwd_warncell_id = %s
+            SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s, dwd_warncell_id = %s,
+                impressum_text = %s, datenschutz_text = %s, default_hourly_rate = %s
             WHERE id = %s
-        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None, row[0]))
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None,
+              impressum_text or None, datenschutz_text or None, default_hourly_rate, row[0]))
     else:
         cur.execute("""
-            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None))
+            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None,
+              impressum_text or None, datenschutz_text or None, default_hourly_rate))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
     return {"status": "success"}

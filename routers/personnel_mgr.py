@@ -43,6 +43,8 @@ class GlobalSettings(BaseModel):
     int_g26: int
     int_belastung: int
     int_unterweisung: int
+    reminder_window_days: Optional[int] = 14
+    session_max_days: Optional[int] = 30
 
 class AvailabilityCreate(BaseModel):
     start_date: str
@@ -231,7 +233,7 @@ def get_avatar(member_id: int, request: Request):
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
 def add_member(m: PersonnelMember, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
         
@@ -282,11 +284,13 @@ def add_member(m: PersonnelMember, request: Request):
 
     # Sicherheits-Zweitprüfung anstoßen
     internal_sync_personnel_to_groups()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "PERSONAL_ANLEGEN", f"Mitglied '{clean_name}' neu angelegt.")
     return {"status": "success"}
 
 @router.post("/update/{member_id}")
 def update_member(member_id: int, m: PersonnelMember, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -326,16 +330,18 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
     conn.commit()
     cur.close()
     conn.close()
-    
+
     internal_sync_personnel_to_groups()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "PERSONAL_BEARBEITEN", f"Mitglied ID {member_id} ('{m.name.strip()}') aktualisiert.")
     return {"status": "updated"}
 
 @router.delete("/delete/{member_id}")
 def delete_member(member_id: int, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     # Vor dem Löschen den Namen holen, um ihn auch aus persons zu fegen
     cur.execute("SELECT name FROM personnel WHERE id = %s", (member_id,))
     name_row = cur.fetchone()
@@ -351,6 +357,8 @@ def delete_member(member_id: int, request: Request):
     conn.commit()
     cur.close()
     conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "PERSONAL_LOESCHEN", f"Mitglied ID {member_id} ('{name_row[0] if name_row else '?'}') gelöscht.")
     return {"status": "deleted"}
 
 @router.get("/settings")
@@ -364,7 +372,9 @@ def get_settings(request: Request):
     conn.close()
     res = {row['setting_key']: row['setting_value'] for row in rows}
     if not res:
-        return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12}
+        return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12, "reminder_window_days": 14, "session_max_days": 30}
+    res.setdefault("reminder_window_days", 14)
+    res.setdefault("session_max_days", 30)
     return res
 
 @router.post("/settings")
@@ -375,7 +385,9 @@ def save_settings(s: GlobalSettings, request: Request):
     settings = [
         ('int_g26', s.int_g26),
         ('int_belastung', s.int_belastung),
-        ('int_unterweisung', s.int_unterweisung)
+        ('int_unterweisung', s.int_unterweisung),
+        ('reminder_window_days', s.reminder_window_days or 14),
+        ('session_max_days', s.session_max_days or 30)
     ]
     for key, val in settings:
         cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (key, val, val))
@@ -384,11 +396,7 @@ def save_settings(s: GlobalSettings, request: Request):
     conn.close()
     return {"status": "settings updated"}
 
-@router.get("/anniversaries")
-def get_anniversaries(request: Request, year: Optional[int] = None):
-    check_auth(request)
-    target_year = year if year else date.today().year
-
+def _compute_anniversaries(target_year: int):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
@@ -490,6 +498,88 @@ def get_anniversaries(request: Request, year: Optional[int] = None):
         "birthday_anniversaries": birthday_anniversaries
     }
 
+@router.get("/anniversaries")
+def get_anniversaries(request: Request, year: Optional[int] = None):
+    check_auth(request)
+    target_year = year if year else date.today().year
+    return _compute_anniversaries(target_year)
+
+@router.get("/anniversaries/pdf")
+def get_anniversaries_pdf(request: Request, year: Optional[int] = None):
+    check_auth(request)
+    from core.utils import get_station_name
+    target_year = year if year else date.today().year
+    data = _compute_anniversaries(target_year)
+
+    service_rows = ""
+    for a in data["service_anniversaries"]:
+        service_rows += (f"<tr><td>{a['name']}</td><td>{a['rank']}</td><td>{a['years']} Jahre</td>"
+                          f"<td>{a['badge']}</td><td>{a['anniversary_date']}</td></tr>")
+    if not service_rows:
+        service_rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Keine Dienstjubiläen in diesem Jahr.</td></tr>"
+
+    birthday_rows = ""
+    for a in data["birthday_anniversaries"]:
+        birthday_rows += f"<tr><td>{a['name']}</td><td>{a['rank']}</td><td>{a['age']} Jahre</td><td>{a['birthday_date']}</td></tr>"
+    if not birthday_rows:
+        birthday_rows = "<tr><td colspan='4' style='text-align:center; color:#6b7280;'>Keine runden Geburtstage in diesem Jahr.</td></tr>"
+
+    today_fmt = date.today().strftime("%d.%m.%Y")
+    # WICHTIG: kein CSS-Flexbox (xhtml2pdf unterstützt das nicht, siehe reports.py). Anders als
+    # bei der Mitgliederliste (siehe get_personnel_roster_pdf) sind hier alle Zellwerte kurz
+    # und enthalten Leerzeichen (Name, Ehrungstext) - eine flache Tabelle ohne explizite
+    # Spaltenbreiten ist deshalb hier unproblematisch.
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{ size: a4 portrait; margin: 2cm; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1f2937; }}
+        .header-table {{ width: 100%; border-bottom: 2px solid #b91c1c; padding-bottom: 12px; margin-bottom: 20px; }}
+        .station-title {{ font-size: 16pt; font-weight: bold; color: #b91c1c; margin: 0; }}
+        .doc-title {{ font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 15px; color: #111827; }}
+        h3 {{ font-size: 12pt; color: #b91c1c; margin-top: 25px; margin-bottom: 8px; }}
+        table.list-table {{ width: 100%; border-collapse: collapse; }}
+        table.list-table th {{ background: #f8f9fa; border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 8.5pt; text-transform: uppercase; }}
+        table.list-table td {{ border: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; }}
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td><div class="station-title">{get_station_name()}</div></td>
+            <td style="text-align: right; vertical-align: bottom; font-size: 9pt; color: #4b5563;">Erstellt am: {today_fmt}</td>
+        </tr>
+    </table>
+    <div class="doc-title">Jubiläen &amp; runde Geburtstage {target_year}</div>
+
+    <h3>Dienstjubiläen</h3>
+    <table class="list-table">
+        <thead><tr><th>Name</th><th>Dienstgrad</th><th>Jahre</th><th>Ehrung</th><th>Datum</th></tr></thead>
+        <tbody>{service_rows}</tbody>
+    </table>
+
+    <h3>Runde Geburtstage</h3>
+    <table class="list-table">
+        <thead><tr><th>Name</th><th>Dienstgrad</th><th>Alter</th><th>Datum</th></tr></thead>
+        <tbody>{birthday_rows}</tbody>
+    </table>
+</body>
+</html>"""
+
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(html_content, dest=pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Jubilaeen_{target_year}.pdf"'}
+    )
+
 @router.get("/me/licenses")
 def get_my_licenses(request: Request):
     user = check_auth(request)
@@ -519,12 +609,28 @@ def get_personnel_roster_pdf(request: Request):
     cur.execute("SELECT name, rank, phone, email, address FROM personnel WHERE membership_status = 'Aktiv' ORDER BY name ASC")
     members = cur.fetchall(); cur.close(); conn.close()
 
-    rows = ""
+    # WICHTIG: KEINE flache mehrspaltige Tabelle (Name/Dienstgrad/Telefon/E-Mail/Adresse
+    # nebeneinander) - xhtml2pdf/reportlab berechnet Spaltenbreiten bei langen, nicht
+    # umbrechbaren Werten (E-Mail-Adressen!) unzuverlässig: mit expliziten Breiten (per
+    # <col>/<colgroup> oder CSS width auf <th>) stürzt die PDF-Erzeugung mit einem
+    # reportlab-internen "negative availWidth"-Fehler ab; ganz ohne Breitenvorgabe quetscht
+    # es die E-Mail-Spalte auf wenige Pixel zusammen und der Text überlappt die Adress-Spalte
+    # (siehe Nutzer-Screenshot). Stattdessen: pro Mitglied eine kompakte Label/Wert-Tabelle
+    # mit nur 2 Spalten (label ~28%, value ~72%) - dasselbe bewährte Muster wie die
+    # Kopf-Datentabelle im Geräte-Prüfnachweis (siehe material_mgr.py .data-table), das dort
+    # nie zu diesem Problem geführt hat.
+    cards = ""
     for m in members:
-        rows += (f"<tr><td>{m['name']}</td><td>{m.get('rank') or ''}</td>"
-                 f"<td>{m.get('phone') or ''}</td><td>{m.get('email') or ''}</td><td>{m.get('address') or ''}</td></tr>")
-    if not rows:
-        rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Keine aktiven Mitglieder gefunden.</td></tr>"
+        cards += f"""
+        <table class="member-card">
+            <tr><td class="label">Name</td><td class="value"><strong>{m['name']}</strong></td></tr>
+            <tr><td class="label">Dienstgrad</td><td class="value">{m.get('rank') or '-'}</td></tr>
+            <tr><td class="label">Telefon</td><td class="value">{m.get('phone') or '-'}</td></tr>
+            <tr><td class="label">E-Mail</td><td class="value">{m.get('email') or '-'}</td></tr>
+            <tr><td class="label">Adresse</td><td class="value">{m.get('address') or '-'}</td></tr>
+        </table>"""
+    if not cards:
+        cards = "<p style='text-align:center; color:#6b7280;'>Keine aktiven Mitglieder gefunden.</p>"
 
     today_fmt = date.today().strftime("%d.%m.%Y")
     # WICHTIG: kein CSS-Flexbox (xhtml2pdf unterstützt das nicht, siehe reports.py) -
@@ -539,9 +645,10 @@ def get_personnel_roster_pdf(request: Request):
         .header-table {{ width: 100%; border-bottom: 2px solid #b91c1c; padding-bottom: 12px; margin-bottom: 20px; }}
         .station-title {{ font-size: 16pt; font-weight: bold; color: #b91c1c; margin: 0; }}
         .doc-title {{ font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 15px; color: #111827; }}
-        table.list-table {{ width: 100%; border-collapse: collapse; }}
-        table.list-table th {{ background: #f8f9fa; border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 8.5pt; text-transform: uppercase; }}
-        table.list-table td {{ border: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; }}
+        table.member-card {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+        table.member-card td {{ border: 1px solid #ddd; padding: 5px 8px; font-size: 9.5pt; }}
+        table.member-card td.label {{ width: 28%; background: #f8f9fa; font-weight: bold; color: #4b5563; font-size: 8.5pt; text-transform: uppercase; }}
+        table.member-card td.value {{ width: 72%; }}
     </style>
 </head>
 <body>
@@ -552,10 +659,7 @@ def get_personnel_roster_pdf(request: Request):
         </tr>
     </table>
     <div class="doc-title">Mitgliederliste (Aktive Mitglieder)</div>
-    <table class="list-table">
-        <thead><tr><th>Name</th><th>Dienstgrad</th><th>Telefon</th><th>E-Mail</th><th>Adresse</th></tr></thead>
-        <tbody>{rows}</tbody>
-    </table>
+    {cards}
 </body>
 </html>"""
 

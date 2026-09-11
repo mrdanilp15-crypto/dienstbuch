@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 
 from database import get_db_connection
-from core.utils import log_audit_action, verify_password, hash_password, create_session_token, get_current_user, invalidate_role_cache
+from core.utils import log_audit_action, verify_password, hash_password, create_session_token, get_current_user, invalidate_role_cache, get_session_max_days
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ def api_login(data: LoginRequest, response: Response, request: Request):
             # Proxy Manager). Fest auf True zu setzen würde den Login komplett brechen, sobald
             # die App (wie aktuell) auch per reinem HTTP im lokalen Netz erreichbar ist.
             is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
-            response.set_cookie(key="session_token", value=token, httponly=True, max_age=30*24*60*60, samesite="lax", secure=is_https)
+            response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400 * get_session_max_days(), samesite="lax", secure=is_https)
             log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
             return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
         else:

@@ -11,7 +11,7 @@ REMINDER_WINDOW_DAYS = 14
 REMINDER_CHECK_INTERVAL_DAYS = 7
 
 
-def get_due_items(window_days: int = REMINDER_WINDOW_DAYS):
+def get_due_items(window_days: int = None):
     """Liefert alle Geräte-, Fahrzeug- (TÜV/SP) und G26.3-Fristen, die innerhalb der
     nächsten window_days Tage fällig sind oder bereits überfällig sind - als strukturierte
     Liste. Wird sowohl von check_due_reminders() (Broadcast-Text) als auch vom
@@ -19,6 +19,14 @@ def get_due_items(window_days: int = REMINDER_WINDOW_DAYS):
     dieselben Fristen zeigen."""
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
+
+    if window_days is None:
+        # Kein fester Wert übergeben (der Normalfall) - die in den Einstellungen
+        # konfigurierte Vorlaufzeit verwenden statt des früher fest einprogrammierten
+        # REMINDER_WINDOW_DAYS-Werts.
+        cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'reminder_window_days'")
+        row = cur.fetchone()
+        window_days = row["setting_value"] if row and row["setting_value"] else REMINDER_WINDOW_DAYS
 
     today = datetime.date.today()
     window_end = today + datetime.timedelta(days=window_days)
@@ -130,8 +138,8 @@ def check_due_reminders():
                 lines.append(f"{icons.get(it['type'], '•')} {it['name']} ({it['detail']}): {status}")
 
             content = (
-                "Folgende Fristen sind in den nächsten "
-                f"{REMINDER_WINDOW_DAYS} Tagen fällig oder bereits überfällig:\n\n" + "\n".join(lines)
+                "Folgende Fristen sind in Kürze fällig oder bereits überfällig "
+                "(Vorlaufzeit siehe Einstellungen):\n\n" + "\n".join(lines)
             )
             cur.execute(
                 "INSERT INTO system_broadcasts (username, title, content, role_target, is_mandatory) "

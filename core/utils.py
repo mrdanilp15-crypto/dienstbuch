@@ -104,6 +104,32 @@ def create_session_token(username: str, role: str) -> str:
 _role_cache = {}  # username -> ((role, is_first_login) | None, cached_at) - None = Konto existiert nicht (mehr)
 _ROLE_CACHE_TTL = 15  # Sekunden
 
+_session_max_days_cache = None  # (value, cached_at) - vermeidet einen DB-Query pro Request
+_SESSION_MAX_DAYS_CACHE_TTL = 300  # Sekunden
+
+def get_session_max_days() -> int:
+    """Liest die konfigurierbare Sitzungsdauer (Einstellungen -> 'session_max_days') mit
+    kurzem Cache, da get_current_user() das bei praktisch jedem Request aufruft. Wird sowohl
+    beim Login (Cookie max_age) als auch bei jeder Token-Prüfung (Ablauf-Check) verwendet -
+    beide MÜSSEN denselben Wert nutzen, sonst könnte das Cookie länger leben als der Token
+    gültig ist (oder umgekehrt vorzeitig ablaufen, obwohl das Cookie noch da ist)."""
+    global _session_max_days_cache
+    now = time.time()
+    if _session_max_days_cache and now - _session_max_days_cache[1] < _SESSION_MAX_DAYS_CACHE_TTL:
+        return _session_max_days_cache[0]
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'session_max_days'")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        value = row[0] if row and row[0] else 30
+    except Exception:
+        value = _session_max_days_cache[0] if _session_max_days_cache else 30
+    _session_max_days_cache = (value, now)
+    return value
+
 def invalidate_role_cache(username: str):
     """Vom Admin-Bereich aufrufen, wenn Rolle/Passwort geändert oder Konto gelöscht wird,
     damit das sofort greift statt bis zu _ROLE_CACHE_TTL Sekunden zu warten."""
@@ -148,7 +174,7 @@ def get_current_user(request: Request) -> Optional[dict]:
         if not hmac.compare_digest(signature, expected_sig):
             return None
         data = json.loads(base64.b64decode(payload_b64.encode()).decode())
-        if time.time() - data.get("ts", 0) > 86400 * 30:
+        if time.time() - data.get("ts", 0) > 86400 * get_session_max_days():
             return None
 
         # WICHTIG: Rolle live gegen die DB prüfen statt dem (bis zu 30 Tage alten)

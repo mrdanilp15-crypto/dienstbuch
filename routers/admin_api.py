@@ -309,14 +309,6 @@ def delete_archive_file(file_id: int, request: Request):
     log_audit_action(user["username"], "ARCHIV_DATEI_GELOESCHT", f"Datei '{row['filename']}' gelöscht.")
     return {"status": "success"}
 
-@router.get("/api/audit/logs")
-def get_audit_logs(request: Request):
-    user = get_current_user(request)
-    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as date_formatted, username, action, details FROM audit_log ORDER BY id DESC LIMIT 150")
-    logs = cur.fetchall(); cur.close(); conn.close()
-    return logs
 @router.get("/api/admin/stats")
 def get_admin_stats(request: Request):
     user = get_current_user(request)

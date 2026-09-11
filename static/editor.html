@@ -191,6 +191,15 @@
             color: #ffffff !important;
             border-radius: 12px;
         }
+        /* Einheitliche Feldhöhe über Feldtypen hinweg (Datum/Zeit-Inputs bringen browserseitig
+           eigenes Icon-UI mit und rendern sonst höher als Text-/Zahlen-Felder daneben). */
+        input.form-control, select.form-select {
+            line-height: 1.5;
+            min-height: calc(1.5em + 0.75rem + 2px);
+        }
+        input[type="date"], input[type="time"], input[type="datetime-local"] {
+            color-scheme: dark;
+        }
         .form-check-input {
             width: 22px !important;
             height: 22px !important;
