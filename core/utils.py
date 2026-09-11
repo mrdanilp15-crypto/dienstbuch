@@ -9,7 +9,61 @@ from fastapi import Request
 from typing import Optional
 from database import get_db_connection
 
-SECRET_KEY = os.getenv("SECRET_KEY", "feuerwehr-dienstbuch-geheimschluessel-112")
+def _get_or_create_secret_key() -> str:
+    """
+    Liefert den Signier-Schlüssel für Session-Tokens.
+    Wird SECRET_KEY nicht per Umgebungsvariable gesetzt, generiert und
+    persistiert das System automatisch einen zufälligen Schlüssel (statt eines
+    im Quellcode sichtbaren, für jede Installation identischen Fallback-Werts).
+    So bleiben Sessions über Neustarts hinweg gültig, aber der Schlüssel ist
+    nicht mehr öffentlich bekannt/rätbar.
+    """
+    env_key = os.getenv("SECRET_KEY")
+    if env_key:
+        return env_key
+
+    # Im persistenten Docker-Volume ablegen (/app/data, siehe docker-compose.yml),
+    # sonst würde jeder Redeploy den Schlüssel neu würfeln und alle Logins invalidieren.
+    data_dir = "/app/data" if os.path.exists("/app/data") else os.getcwd()
+    key_path = os.path.join(data_dir, "secret.key")
+    try:
+        if os.path.exists(key_path):
+            with open(key_path, "r") as f:
+                existing = f.read().strip()
+                if existing:
+                    return existing
+        new_key = secrets.token_hex(32)
+        with open(key_path, "w") as f:
+            f.write(new_key)
+        return new_key
+    except Exception as e:
+        print(f"WARNUNG: Konnte secret.key nicht lesen/schreiben ({e}). Nutze einen nur für diesen Prozesslauf gültigen Schlüssel.")
+        return secrets.token_hex(32)
+
+
+SECRET_KEY = _get_or_create_secret_key()
+
+def get_station_name() -> str:
+    """
+    Liefert den Wehr-/Ortsnamen aus der in der Software gepflegten
+    Standortverwaltung (station_settings), nicht aus der TOWN_NAME-Umgebungsvariable.
+    So landet überall (Dashboard, Hallenmonitor, Dienstberichte, PDFs,
+    Arbeitgeberbescheinigung) derselbe Name, den ein Admin einmal in den
+    Einstellungen einträgt - TOWN_NAME wird dann nur noch als Startwert für die
+    allererste Installation gebraucht, nicht mehr für den laufenden Betrieb.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT station_name FROM station_settings ORDER BY id ASC LIMIT 1")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        print(f"Konnte station_name nicht laden: {e}")
+    return os.getenv("TOWN_NAME", "Deine Feuerwehr")
 
 def log_audit_action(username: str, action: str, details: str):
     try:

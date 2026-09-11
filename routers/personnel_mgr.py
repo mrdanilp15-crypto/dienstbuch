@@ -64,13 +64,15 @@ def internal_sync_personnel_to_groups():
         print(f"Hintergrund-Synchronisationsfehler: {e}")
 
 # --- SICHERHEITS-HELFER ---
-def check_auth(request: Request, require_admin: bool = False) -> dict:
+def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
     from core.utils import get_current_user
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
     if require_admin and user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    if allowed_roles and user["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
     return user
 
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
@@ -159,7 +161,7 @@ def get_avatar(member_id: int, request: Request):
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
 def add_member(m: PersonnelMember, request: Request):
-    check_auth(request, require_admin=True)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
         
@@ -190,7 +192,7 @@ def add_member(m: PersonnelMember, request: Request):
 
 @router.post("/update/{member_id}")
 def update_member(member_id: int, m: PersonnelMember, request: Request):
-    check_auth(request, require_admin=True)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -232,7 +234,7 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
 
 @router.delete("/delete/{member_id}")
 def delete_member(member_id: int, request: Request):
-    check_auth(request, require_admin=True)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -269,7 +271,7 @@ def get_settings(request: Request):
 
 @router.post("/settings")
 def save_settings(s: GlobalSettings, request: Request):
-    check_auth(request, require_admin=True)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor()
     settings = [
@@ -283,6 +285,110 @@ def save_settings(s: GlobalSettings, request: Request):
     cur.close()
     conn.close()
     return {"status": "settings updated"}
+
+@router.get("/anniversaries")
+def get_anniversaries(request: Request, year: Optional[int] = None):
+    check_auth(request)
+    target_year = year if year else date.today().year
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT id, name, rank, membership_status, entry_date, birth_date, honors
+        FROM personnel
+        WHERE (entry_date IS NOT NULL AND entry_date != '') 
+           OR (birth_date IS NOT NULL AND birth_date != '')
+        ORDER BY name ASC
+    """)
+    members = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    service_honors_map = {
+        10: "10 Jahre Dienstzeit (z. B. Ehrenurkunde / Treueabzeichen)",
+        20: "20 Jahre Dienstzeit",
+        25: "25 Jahre Dienstzeit (Feuerwehr-Ehrenzeichen in Silber)",
+        30: "30 Jahre Dienstzeit",
+        40: "40 Jahre Dienstzeit (Feuerwehr-Ehrenzeichen in Gold)",
+        50: "50 Jahre Dienstzeit (Großes Feuerwehr-Ehrenzeichen)",
+        60: "60 Jahre Dienstzeit (Große Ehrenurkunde LFV)",
+        70: "70 Jahre Dienstzeit (Große Ehrenurkunde LFV)"
+    }
+    round_birthdays = [50, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+
+    service_anniversaries = []
+    birthday_anniversaries = []
+
+    for m in members:
+        # Dienstjubiläen
+        if m.get("entry_date"):
+            try:
+                e_val = m["entry_date"]
+                if isinstance(e_val, date):
+                    e_year = e_val.year
+                    e_month = e_val.month
+                    e_day = e_val.day
+                    e_str = str(e_val)
+                else:
+                    parts = str(e_val).split("-")
+                    e_year = int(parts[0])
+                    e_month = int(parts[1]) if len(parts) > 1 else 1
+                    e_day = int(parts[2]) if len(parts) > 2 else 1
+                    e_str = str(e_val)
+
+                years_diff = target_year - e_year
+                if years_diff > 0 and years_diff in service_honors_map:
+                    service_anniversaries.append({
+                        "personnel_id": m["id"],
+                        "name": m["name"],
+                        "rank": m.get("rank") or "Kamerad/in",
+                        "status": m.get("membership_status") or "Aktiv",
+                        "entry_date": e_str,
+                        "years": years_diff,
+                        "badge": service_honors_map[years_diff],
+                        "anniversary_date": f"{target_year}-{e_month:02d}-{e_day:02d}"
+                    })
+            except Exception:
+                pass
+
+        # Runde Geburtstage
+        if m.get("birth_date"):
+            try:
+                b_val = m["birth_date"]
+                if isinstance(b_val, date):
+                    b_year = b_val.year
+                    b_month = b_val.month
+                    b_day = b_val.day
+                    b_str = str(b_val)
+                else:
+                    parts = str(b_val).split("-")
+                    b_year = int(parts[0])
+                    b_month = int(parts[1]) if len(parts) > 1 else 1
+                    b_day = int(parts[2]) if len(parts) > 2 else 1
+                    b_str = str(b_val)
+
+                age = target_year - b_year
+                if age in round_birthdays:
+                    birthday_anniversaries.append({
+                        "personnel_id": m["id"],
+                        "name": m["name"],
+                        "rank": m.get("rank") or "Kamerad/in",
+                        "status": m.get("membership_status") or "Aktiv",
+                        "birth_date": b_str,
+                        "age": age,
+                        "birthday_date": f"{target_year}-{b_month:02d}-{b_day:02d}"
+                    })
+            except Exception:
+                pass
+
+    service_anniversaries.sort(key=lambda x: (x["years"], x["anniversary_date"]))
+    birthday_anniversaries.sort(key=lambda x: (x["age"], x["birthday_date"]))
+
+    return {
+        "year": target_year,
+        "service_anniversaries": service_anniversaries,
+        "birthday_anniversaries": birthday_anniversaries
+    }
 
 def init_personnel_db():
     try:

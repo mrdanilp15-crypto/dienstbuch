@@ -18,8 +18,7 @@ class VehicleData(BaseModel):
 
 @router.get("/api/vehicles")
 def get_vehicles(request: Request):
-    user = get_current_user(request)
-    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service FROM vehicles ORDER BY name")
     r = cur.fetchall(); c.close()
@@ -32,7 +31,7 @@ def get_vehicles(request: Request):
 @router.post("/api/vehicles")
 def create_vehicle(v: VehicleData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("""
         INSERT INTO vehicles (name, radio_name, status, tuv_date, sp_date, milage, next_service) 
@@ -45,7 +44,7 @@ def create_vehicle(v: VehicleData, request: Request):
 @router.put("/api/vehicles/{id}")
 def update_vehicle(id: int, v: VehicleData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("""
         UPDATE vehicles 
@@ -58,7 +57,7 @@ def update_vehicle(id: int, v: VehicleData, request: Request):
 @router.put("/api/vehicles/{id}/status")
 def update_vehicle_status(id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     new_status = data.get("status", 2)
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE vehicles SET status=%s WHERE id=%s", (new_status, id))
@@ -69,7 +68,7 @@ def update_vehicle_status(id: int, data: dict, request: Request):
 @router.delete("/api/vehicles/{id}")
 def delete_vehicle(id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] == "mannschaft": raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
     c.commit(); c.close()

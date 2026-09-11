@@ -15,9 +15,13 @@ except ImportError:
 router = APIRouter(prefix="/api/push", tags=["Push"])
 
 # Auto-Generierung der VAPID Keys falls sie fehlen
+# WICHTIG: im persistenten Docker-Volume (/app/data, siehe docker-compose.yml) ablegen,
+# nicht im flüchtigen Container-Dateisystem - sonst werden bei jedem Redeploy neue
+# Schlüssel generiert und ALLE bestehenden Push-Abos der Handys werden ungültig.
+_DATA_DIR = "/app/data" if os.path.exists("/app/data") else os.getcwd()
 VAPID_PUBLIC_KEY = ""
-private_key_path = os.path.join(os.getcwd(), "private_key.pem")
-public_key_txt_path = os.path.join(os.getcwd(), "public_key.txt")
+private_key_path = os.path.join(_DATA_DIR, "private_key.pem")
+public_key_txt_path = os.path.join(_DATA_DIR, "public_key.txt")
 
 if not os.path.exists(private_key_path) or not os.path.exists(public_key_txt_path):
     print("VAPID Keys fehlen. Generiere automatisch neue Schlüssel für diesen Server...")
@@ -97,8 +101,8 @@ def send_push_to_all(payload_dict: dict):
     conn.close()
     
     payload = json.dumps(payload_dict)
-    private_key_path = os.path.join(os.getcwd(), "private_key.pem")
-    
+    # Nutzt den module-weiten (persistenten) Pfad, nicht neu aus cwd bauen.
+
     success_count = 0
     for sub in subs:
         sub_info = {
