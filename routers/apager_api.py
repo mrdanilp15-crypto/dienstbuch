@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from database import get_db_connection
-from core.utils import get_current_user, log_audit_action
+from core.utils import get_current_user, log_audit_action, check_display_access
 from routers import ws_mgr
 
 router = APIRouter()
@@ -38,7 +38,10 @@ def regenerate_apager_key(request: Request):
 
 @router.get("/api/apager/logs")
 def get_apager_logs(request: Request):
-    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen -
+    # braucht dafür aber einen gültigen Display-Token (siehe check_display_access), damit diese
+    # Einsatzdaten nicht komplett offen im Internet stehen.
+    check_display_access(request)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM apager_logs ORDER BY created_at DESC LIMIT 50")
     r = cur.fetchall(); cur.close(); conn.close()
@@ -239,7 +242,10 @@ async def generic_alarm_webhook(req: Request, api_key: Optional[str] = None):
 
 @router.get("/api/apager/feedbacks")
 def get_apager_feedbacks(request: Request):
-    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen -
+    # braucht dafür aber einen gültigen Display-Token (siehe check_display_access), sonst wären
+    # Klarnamen der Rückmeldenden komplett offen im Internet einsehbar.
+    check_display_access(request)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT af.*, p.name, p.is_agt, p.is_maschinist, p.is_gf, p.is_tf

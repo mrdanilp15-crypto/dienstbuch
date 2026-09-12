@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db_connection
-from core.utils import get_current_user, log_audit_action
+from core.utils import get_current_user, log_audit_action, check_display_access
 
 router = APIRouter()
 
@@ -24,9 +24,16 @@ class VehicleReservationCreate(BaseModel):
     start_datetime: str
     end_datetime: str
 
+_VEHICLE_PUBLIC_FIELDS = {"id", "name", "radio_name", "status"}
+
 @router.get("/api/vehicles")
 def get_vehicles(request: Request):
-    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
+    # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen -
+    # braucht dafür aber einen gültigen Display-Token (siehe check_display_access). Zusätzlich
+    # bekommen nicht angemeldete Aufrufer nur die für die Anzeige nötigen Felder zurück, nicht
+    # Anschaffungswert/Versicherungs-Policennummer.
+    check_display_access(request)
+    is_authenticated = bool(get_current_user(request))
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service, required_license, purchase_value, insurance_policy FROM vehicles ORDER BY name")
     r = cur.fetchall(); c.close()
@@ -34,6 +41,8 @@ def get_vehicles(request: Request):
         if v['tuv_date']: v['tuv_date'] = str(v['tuv_date'])
         if v['sp_date']: v['sp_date'] = str(v['sp_date'])
         if v['next_service']: v['next_service'] = str(v['next_service'])
+    if not is_authenticated:
+        r = [{k: v[k] for k in _VEHICLE_PUBLIC_FIELDS} for v in r]
     return r
 
 @router.post("/api/vehicles")

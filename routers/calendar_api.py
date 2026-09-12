@@ -1,13 +1,21 @@
-from fastapi import APIRouter, Response
+import hmac
+from fastapi import APIRouter, Response, Request, HTTPException
 
 from database import get_db_connection
+from core.utils import get_or_create_token
 
 router = APIRouter()
 
 
 # --- ICAL / central calendar CENTRAL EXPORT ---
+# Kalender-Apps (Outlook, Google Kalender, ...) können beim automatischen Abrufen keine
+# Session-Cookies mitschicken - Login ist hier technisch nicht möglich. Wie bei jedem "privaten
+# iCal-Link" braucht es stattdessen einen geheimen Token in der URL selbst (sonst waren alle
+# geplanten Dienste/Übungen bisher komplett offen im Internet abrufbar).
 @router.get("/api/calendar/feed.ics", response_class=Response)
-def export_calendar_ical():
+def export_calendar_ical(request: Request, token: str = ""):
+    if not token or not hmac.compare_digest(token, get_or_create_token("calendar_token")):
+        raise HTTPException(status_code=401, detail="Ungültiger oder fehlender Kalender-Token.")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM schedules")
     schedules = cur.fetchall(); cur.close(); conn.close()

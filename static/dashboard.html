@@ -1262,7 +1262,7 @@
                             <button class="nav-link" :class="verwaltungTab === 'verein' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'verein'; loadClubData()"><i class="fa fa-building-columns me-1"></i>Vereinskasse & Inventar</button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
+                            <button class="nav-link" :class="verwaltungTab === 'kalender' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'kalender'; loadAccessTokens()"><i class="fa fa-calendar-check me-1"></i>Kalender</button>
                         </li>
                     </ul>
 
@@ -1386,7 +1386,7 @@
                                         </div>
                                         <div class="mb-3" v-if="!editingUserId">
                                             <label class="form-label">Passwort</label>
-                                            <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 6 Zeichen" minlength="6" autocomplete="new-password">
+                                            <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 8 Zeichen" minlength="8" autocomplete="new-password">
                                         </div>
 
                                         <!-- Info banner in edit mode -->
@@ -1497,13 +1497,14 @@
                                 <div class="col-12 col-lg-6">
                                     <div class="card premium-card p-4">
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
-                                        <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL:</p>
+                                        <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
                                         <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
-                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">http://{{serverHost}}/api/calendar/feed.ics</code>
+                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ calendarFeedUrl }}</code>
                                         </div>
-                                        <div class="d-flex gap-2">
-                                            <button class="btn btn-outline-light rounded-pill" onclick="navigator.clipboard.writeText(window.location.protocol+'//'+window.location.host+'/api/calendar/feed.ics')"><i class="fa fa-copy me-1"></i>URL kopieren</button>
-                                            <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics'" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <button class="btn btn-outline-light rounded-pill" @click="navigator.clipboard.writeText(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics?token='+accessTokens.calendar_token" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                            <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('calendar')" title="Alte Links werden damit ungültig"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1516,6 +1517,20 @@
                                             <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Google Kalender</strong> – Andere Kalender → Per URL hinzufügen</li>
                                             <li><i class="fa fa-mobile text-success me-2"></i><strong class="text-white">iOS / Android</strong> – Link direkt öffnen → Kalender-App öffnet automatisch</li>
                                         </ul>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-desktop text-danger me-2"></i>Hallen-Display (Kiosk-Bildschirm)</h5>
+                                        <p class="text-muted small">Auf einem Bildschirm im Gerätehaus, der dauerhaft ohne Anmeldung laufen soll, diesen Link EINMAL öffnen - der Browser merkt sich den Zugang danach von selbst. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                            <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ displayUrl }}</code>
+                                        </div>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <button class="btn btn-outline-light rounded-pill" @click="navigator.clipboard.writeText(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <a :href="displayUrl" target="_blank" class="btn btn-premium rounded-pill"><i class="fa fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
+                                            <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('display')" title="Bisherige Kiosk-Bildschirme müssen den Link dann neu öffnen"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2646,7 +2661,7 @@
                                 <label class="form-label">Funkrufname <i class="fa fa-question-circle text-muted" title="BOS Funkkennung, z.B. Florian Neustadt 40/1"></i></label>
                                 <input type="text" v-model="activeVehicle.radio_name" class="form-control" placeholder="z. B. Florian Neustadt 40/1">
                             </div>
-                            <div class="row g-2 mb-3">
+                            <div class="row g-2 mb-3 align-items-end">
                                 <div class="col-6">
                                     <label class="form-label">TÜV Datum</label>
                                     <input type="date" v-model="activeVehicle.tuv_date" class="form-control">
@@ -2656,7 +2671,7 @@
                                     <input type="date" v-model="activeVehicle.sp_date" class="form-control">
                                 </div>
                             </div>
-                            <div class="row g-2 mb-3">
+                            <div class="row g-2 mb-3 align-items-end">
                                 <div class="col-6">
                                     <label class="form-label">Kilometerstand</label>
                                     <input type="number" v-model="activeVehicle.milage" class="form-control">
@@ -2686,7 +2701,7 @@
                                     <option value="CE">Klasse CE</option>
                                 </select>
                             </div>
-                            <div class="row g-2 mb-4">
+                            <div class="row g-2 mb-4 align-items-end">
                                 <div class="col-6">
                                     <label class="form-label">Anschaffungswert (€)</label>
                                     <input type="number" step="0.01" v-model.number="activeVehicle.purchase_value" class="form-control">
@@ -2794,9 +2809,12 @@
                     <div class="modal-body p-0">
                         <div class="list-group list-group-flush">
                             <div v-for="chk in vehicleCheckHistory" :key="chk.id" class="list-group-item bg-transparent text-white border-secondary">
-                                <div class="d-flex justify-content-between">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
                                     <strong>{{chk.date}} - {{chk.checker_name}}</strong>
-                                    <span :class="chk.status === 'Mängel' ? 'text-danger fw-bold' : 'text-success'">{{chk.status}}</span>
+                                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                        <span :class="chk.status === 'Mängel' ? 'text-danger fw-bold' : 'text-success'">{{chk.status}}</span>
+                                        <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicleCheck(chk.id)" title="Check löschen"><i class="fa fa-trash"></i></button>
+                                    </div>
                                 </div>
                                 <small class="text-muted d-block mt-1" v-if="chk.notes">{{chk.notes}}</small>
                             </div>
@@ -3673,7 +3691,7 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort</label>
-                                <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 6 Zeichen" required minlength="6" autocomplete="new-password">
+                                <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 8 Zeichen" required minlength="8" autocomplete="new-password">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort bestätigen</label>

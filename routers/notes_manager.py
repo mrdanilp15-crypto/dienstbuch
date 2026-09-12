@@ -4,6 +4,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/notes", tags=["Notes"])
 
 from database import get_db_connection
+from core.utils import check_auth as get_user_from_request
 
 def init_notes_db():
     conn = get_db_connection()
@@ -27,12 +28,6 @@ class NoteCreate(BaseModel):
     content: str
     visibility: str # 'private', 'public', 'admin', 'geratewart'
 
-def get_user_from_request(request: Request):
-    from core.utils import get_current_user
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    return user
 
 @router.get("")
 def list_notes(request: Request):

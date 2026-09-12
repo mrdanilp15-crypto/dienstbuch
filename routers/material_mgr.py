@@ -6,17 +6,7 @@ import mysql.connector
 
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
-
-def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
-    from core.utils import get_current_user
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if require_admin and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
-    if allowed_roles and user["role"] not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    return user
+from core.utils import check_auth
 
 class EquipmentCreate(BaseModel):
     name: str
@@ -585,6 +575,14 @@ def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
         INSERT INTO vehicle_checks (vehicle_id, date, checker_name, status, items_checked, notes)
         VALUES (%s, %s, %s, %s, %s, %s)
     """, (veh_id, check.date, check.checker_name, check.status, json.dumps(check.items_checked), check.notes))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/vehicles/checks/{check_id}")
+def delete_vehicle_check(check_id: int, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung", "geratewart", "gruppenfuehrer"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM vehicle_checks WHERE id = %s", (check_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

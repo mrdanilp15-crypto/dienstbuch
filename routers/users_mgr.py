@@ -45,21 +45,6 @@ def unlock_user_account(user_id: int, request: Request):
     log_audit_action(user["username"], "KONTO_ENTSPERRT", f"Login-Sperre für '{target_user['username']}' manuell aufgehoben.")
     return {"status": "success", "message": f"Sperre für '{target_user['username']}' aufgehoben."}
 
-@router.put("/api/users/{user_id}/reset-password")
-def admin_reset_user_password(user_id: int, request: Request):
-    user = get_current_user(request)
-    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
-    target_user = cur.fetchone()
-    if not target_user: cur.close(); conn.close(); raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
-    
-    p_hash = hash_password("admin123")
-    cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
-    conn.commit(); cur.close(); conn.close()
-    invalidate_role_cache(target_user["username"])
-    log_audit_action(user["username"], "PASSWORT_RESET", f"Passwort für '{target_user['username']}' auf 'admin123' zurückgesetzt.")
-    return {"status": "success", "message": "Passwort auf 'admin123' zurückgesetzt. Erstanmeldung erforderlich."}
 
 @router.post("/api/users/add")
 def add_user(data: UserCreateRequest, request: Request):
@@ -68,8 +53,8 @@ def add_user(data: UserCreateRequest, request: Request):
     username_clean = data.username.strip()
     if not username_clean:
         raise HTTPException(status_code=400, detail="Benutzername darf nicht leer sein!")
-    if len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen lang sein!")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
     conn = get_db_connection(); cur = conn.cursor()
     try:
         p_hash = hash_password(data.password)
@@ -92,7 +77,9 @@ def update_user_role(user_id: int, data: dict, request: Request):
     row = cur.fetchone()
     cur.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
     conn.commit(); cur.close(); conn.close()
-    if row: invalidate_role_cache(row[0])
+    if row:
+        invalidate_role_cache(row[0])
+        log_audit_action(user["username"], "ROLLE_GEÄNDERT", f"Rolle von '{row[0]}' auf '{new_role}' geändert.")
     return {"status": "success"}
 
 @router.put("/api/users/{user_id}/personnel")
@@ -112,15 +99,17 @@ def change_user_password(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_pw = (data.get("password") or "").strip()
-    if len(new_pw) < 6:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen lang sein!")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
     p_hash = hash_password(new_pw)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
     target_user = cur.fetchone()
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
     conn.commit(); cur.close(); conn.close()
-    if target_user: invalidate_role_cache(target_user["username"])
+    if target_user:
+        invalidate_role_cache(target_user["username"])
+        log_audit_action(user["username"], "PASSWORT_GESETZT", f"Passwort für '{target_user['username']}' durch Admin gesetzt.")
     return {"status": "success"}
 
 @router.delete("/api/users/{user_id}")
@@ -132,7 +121,9 @@ def delete_user(user_id: int, request: Request):
     row = cur.fetchone()
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit(); cur.close(); conn.close()
-    if row: invalidate_role_cache(row[0])
+    if row:
+        invalidate_role_cache(row[0])
+        log_audit_action(user["username"], "KONTO_GELÖSCHT", f"System-Login '{row[0]}' gelöscht.")
     return {"status": "success"}
 
 @router.get("/api/users/me/stats")
@@ -256,7 +247,21 @@ def bind_self_personnel(data: dict, request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     pid = data.get("personnel_id")
-    conn = get_db_connection(); cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    # Ohne diese beiden Prüfungen konnte sich jeder angemeldete Nutzer (auch niedrigste Rolle)
+    # mit einer BELIEBIGEN personnel_id verknüpfen - auch mit der eines anderen Kameraden. Die
+    # "Meine Stunden/Statistik"-Ansicht löst die Identität über personnel_id auf, das hätte also
+    # fremde Dienststunden/Historie unter dem eigenen Account sichtbar gemacht (Identitätsverwechslung).
+    cur.execute("SELECT id FROM personnel WHERE id = %s", (pid,))
+    if not cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Person nicht gefunden")
+    cur.execute("SELECT username FROM users WHERE personnel_id = %s AND username != %s", (pid, user["username"]))
+    conflict = cur.fetchone()
+    if conflict:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=409, detail="Diese Person ist bereits mit einem anderen Login verknüpft.")
     cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (pid, user["username"]))
     conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "SELBST_VERKNÜPFUNG", f"Eigenes Konto mit Personal-ID {pid} verknüpft.")
     return {"status": "success"}

@@ -515,7 +515,7 @@
                     <i class="fa fa-spinner fa-spin me-1"></i> Wetter laden...
                 </div>
                 
-                <button class="btn btn-premium rounded-pill px-3 fw-bold print-btn btn-sm" @click="printDepesche"><i class="fa fa-print me-1"></i>Depesche drucken</button>
+                <button class="btn btn-premium rounded-pill px-3 fw-bold print-btn btn-sm" :disabled="!isAlarmActive" :title="isAlarmActive ? '' : 'Kein aktiver Einsatz - im Standby gibt es keine Depesche zum Drucken.'" @click="printDepesche"><i class="fa fa-print me-1"></i>Depesche drucken</button>
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
@@ -703,6 +703,24 @@
         let map = null;
         let mapMarkers = [];
 
+        // Dieses Display läuft ohne Login (Kiosk-Wandmonitor) - die Einsatzdaten-Endpunkte
+        // verlangen deshalb einen geheimen Token statt einer Session (siehe check_display_access
+        // in core/utils.py). Der Admin öffnet diese Seite EINMAL über einen Link mit ?token=...
+        // aus der Verwaltung; ab dann merkt sich dieser Browser den Token dauerhaft, auch nach
+        // einem Neuladen ohne den Query-Parameter (z.B. wenn der Kiosk sich selbst neu lädt).
+        const urlToken = new URLSearchParams(window.location.search).get('token');
+        if (urlToken) {
+            try { localStorage.setItem('display_token', urlToken); } catch(e) {}
+        }
+        function getDisplayToken() {
+            try { return urlToken || localStorage.getItem('display_token') || ''; } catch(e) { return urlToken || ''; }
+        }
+        function withToken(url) {
+            const sep = url.includes('?') ? '&' : '?';
+            const t = getDisplayToken();
+            return t ? `${url}${sep}token=${encodeURIComponent(t)}` : url;
+        }
+
         createApp({
             data() {
                 return {
@@ -827,7 +845,7 @@
                 },
                 initWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+                    const ws = new WebSocket(withToken(`${protocol}//${window.location.host}/ws`));
                     ws.onmessage = async (event) => {
                         try {
                             const data = JSON.parse(event.data);
@@ -974,9 +992,9 @@
                     try {
                         const cacheBuster = `?_=${new Date().getTime()}`;
                         const [aRes, fRes, vRes] = await Promise.all([
-                            fetch('/api/apager/logs' + cacheBuster),
-                            fetch('/api/apager/feedbacks' + cacheBuster),
-                            fetch('/api/vehicles' + cacheBuster)
+                            fetch(withToken('/api/apager/logs' + cacheBuster)),
+                            fetch(withToken('/api/apager/feedbacks' + cacheBuster)),
+                            fetch(withToken('/api/vehicles' + cacheBuster))
                         ]);
                         
                         if(aRes.ok) {

@@ -1,3 +1,4 @@
+import time
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -11,8 +12,37 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+# Die bestehende Konto-Sperre (5 Fehlversuche -> 15 Min) schützt nur PRO BENUTZERNAME - jemand,
+# der von einer Adresse aus viele VERSCHIEDENE Benutzernamen durchprobiert (Enumeration/verteilter
+# Brute-Force), würde davon nie erfasst. Zusätzliche, IP-basierte Bremse dagegen. Bewusst ein
+# einfacher In-Memory-Zähler statt einer neuen Abhängigkeit (Redis/slowapi) - reicht für diese
+# Single-Instance-Installation, setzt sich bei jedem Neustart zurück (kein Problem, da es nur ein
+# zusätzliches Bremsschild ist, kein alleiniger Schutzmechanismus).
+_ip_login_attempts = {}  # ip -> [Zeitstempel fehlgeschlagener Versuche]
+_IP_RATE_LIMIT_WINDOW = 900  # 15 Minuten
+_IP_RATE_LIMIT_MAX = 20  # Fehlversuche pro IP in diesem Zeitfenster
+
+def _get_client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def _ip_rate_limited(ip: str) -> bool:
+    now = time.time()
+    attempts = [t for t in _ip_login_attempts.get(ip, []) if now - t < _IP_RATE_LIMIT_WINDOW]
+    _ip_login_attempts[ip] = attempts
+    return len(attempts) >= _IP_RATE_LIMIT_MAX
+
+def _record_ip_failure(ip: str):
+    _ip_login_attempts.setdefault(ip, []).append(time.time())
+
 @router.post("/api/login")
 def api_login(data: LoginRequest, response: Response, request: Request):
+    client_ip = _get_client_ip(request)
+    if _ip_rate_limited(client_ip):
+        log_audit_action("SYSTEM", "LOGIN_IP_GESPERRT", f"Zu viele Fehlversuche von IP '{client_ip}' - vorübergehend blockiert.")
+        raise HTTPException(status_code=429, detail="Zu viele Anmeldeversuche von dieser Adresse. Bitte später erneut versuchen.")
     username_clean = data.username.strip()
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -40,6 +70,7 @@ def api_login(data: LoginRequest, response: Response, request: Request):
             log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
             return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
         else:
+            _record_ip_failure(client_ip)
             failed = user["failed_logins"] + 1
             lockout = datetime.now() + timedelta(minutes=15) if failed >= 5 else None
             cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE id = %s", (failed, lockout, user["id"],))
@@ -48,11 +79,21 @@ def api_login(data: LoginRequest, response: Response, request: Request):
                 log_audit_action("SYSTEM", "KONTO_GESPERRT", f"Konto '{username_clean}' wegen zu vieler Fehllogins für 15 Min. gesperrt.")
                 raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
             log_audit_action("SYSTEM", "LOGIN_FEHLVERSUCH", f"Falsches Passwort für Benutzer '{username_clean}' ({failed}/5).")
-            raise HTTPException(status_code=401, detail=f"Passwort falsch! ({failed}/5)")
+            # Bewusst dieselbe generische Meldung wie im "Benutzername existiert nicht"-Zweig
+            # unten (siehe dort für die Begründung) - nur die Zähler-Info bleibt drin, die
+            # verrät nichts über die Existenz eines Kontos.
+            raise HTTPException(status_code=401, detail=f"Benutzername oder Passwort falsch! ({failed}/5)")
     else:
         cur.close(); conn.close()
+        # Absichtlich dieselbe Meldung wie "falsches Passwort" oben (statt z.B. "Benutzername
+        # existiert nicht") UND dieselbe PBKDF2-Rechenzeit wie eine echte Passwortprüfung
+        # (siehe verify_password-Dummy-Aufruf) - sonst ließe sich über Fehlertext und/oder
+        # Antwortzeit-Unterschied durchprobieren, welche Benutzernamen im System existieren
+        # (OWASP Authentication Cheat Sheet: User Enumeration Prevention).
+        verify_password("0" * 32 + ":" + "0" * 64, data.password)
+        _record_ip_failure(client_ip)
         log_audit_action("SYSTEM", "LOGIN_BENUTZER_UNBEKANNT", f"Anmeldeversuch mit nicht existierendem Namen '{username_clean}'.")
-        raise HTTPException(status_code=401, detail="Benutzername existiert nicht!")
+        raise HTTPException(status_code=401, detail="Benutzername oder Passwort falsch!")
 
 @router.get("/api/auth/me")
 def api_auth_me(request: Request):
@@ -86,8 +127,8 @@ def user_change_self_password(data: dict, request: Request):
     old_pw = data.get("old_password")
     new_pw = data.get("new_password")
     
-    if not old_pw or not new_pw or len(new_pw.strip()) < 6:
-        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz (mind. 6 Zeichen)!")
+    if not old_pw or not new_pw or len(new_pw.strip()) < 8:
+        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz (mind. 8 Zeichen)!")
         
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)

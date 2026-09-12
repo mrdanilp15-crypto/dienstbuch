@@ -6,6 +6,7 @@ from datetime import date
 
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
+from core.utils import check_auth
 
 def safe_decode(val):
     if not val: return None
@@ -22,17 +23,6 @@ def format_time_val(t_val):
     if isinstance(t_val, str):
         return t_val[:5] if len(t_val) >= 5 else t_val
     return str(t_val)[:5]
-
-def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
-    from core.utils import get_current_user
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if require_admin and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
-    if allowed_roles and user["role"] not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    return user
 
 class MissionAttendanceEntry(BaseModel):
     personnel_id: int
@@ -349,8 +339,12 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
     else:
         stamp_html = '<div style="height: 60px; border: 1px dashed #d1d5db; border-radius: 4px; margin-top: 5px;"></div>'
     if signature_data_url:
+        # Das Bild wird jetzt bereits im Browser (SignaturePad-Export) auf den tatsächlich
+        # gezeichneten Bereich zugeschnitten (siehe trimSignatureDataUrl in dashboard.js/editor.html),
+        # statt der kompletten, größtenteils leeren Zeichenfläche - dadurch reicht hier eine feste,
+        # moderate Höhe ohne negativen Rand, die Unterschrift sitzt direkt über der Linie.
         signature_html = (
-            f'<img src="{signature_data_url}" style="height:45px; margin-bottom:-10px;">'
+            f'<img src="{signature_data_url}" style="height:40px; max-width:180px;">'
             '<div class="sig-line">(Unterschrift Feuerwehrkommandant / Einsatzleiter)</div>'
         )
     else:
@@ -392,7 +386,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
     <style>
         @page {{
             size: a4 portrait;
-            margin: 2.5cm 2cm 2cm 2cm;
+            margin: 2cm 2cm 1.5cm 2cm;
         }}
         body {{
             font-family: Helvetica, Arial, sans-serif;
@@ -404,7 +398,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
             width: 100%;
             border-bottom: 2px solid #b91c1c;
             padding-bottom: 12px;
-            margin-bottom: 25px;
+            margin-bottom: 14px;
         }}
         .station-title {{
             font-size: 16pt;
@@ -430,19 +424,19 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
             font-size: 10pt;
             text-align: center;
             color: #4b5563;
-            margin-bottom: 25px;
+            margin-bottom: 14px;
         }}
         .box {{
             background-color: #f9fafb;
             border: 1px solid #e5e7eb;
             border-radius: 4px;
             padding: 12px 16px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }}
         .data-table {{
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 10px 0;
         }}
         .data-table td {{
             padding: 6px 8px;
@@ -464,13 +458,13 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
             padding: 10px 14px;
             font-size: 8.5pt;
             color: #4b5563;
-            margin-top: 25px;
-            margin-bottom: 25px;
+            margin-top: 12px;
+            margin-bottom: 14px;
             line-height: 1.4;
         }}
         .signature-table {{
             width: 100%;
-            margin-top: 45px;
+            margin-top: 20px;
         }}
         .signature-table td {{
             vertical-align: top;
@@ -478,7 +472,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
         }}
         .sig-line {{
             border-top: 1px solid #374151;
-            margin-top: 40px;
+            margin-top: 25px;
             padding-top: 5px;
             font-size: 8.5pt;
             color: #4b5563;

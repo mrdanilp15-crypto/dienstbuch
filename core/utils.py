@@ -5,7 +5,7 @@ import base64
 import json
 import time
 import os
-from fastapi import Request
+from fastapi import Request, HTTPException
 from typing import Optional
 from database import get_db_connection
 
@@ -79,15 +79,25 @@ def log_audit_action(username: str, action: str, details: str):
     except Exception as e:
         print(f"Logbuch-Fehler: {e}")
 
+_LEGACY_PBKDF2_ITERATIONS = 100_000  # Format alter Hashes ("salt:hash"), implizit diese Rundenzahl
+_PBKDF2_ITERATIONS = 600_000  # OWASP Password Storage Cheat Sheet (2023): PBKDF2-HMAC-SHA256 >= 600.000
+
 def hash_password(password: str) -> str:
     salt = secrets.token_hex(16)
-    hash_value = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-    return f"{salt}:{hash_value.hex()}"
+    hash_value = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), _PBKDF2_ITERATIONS)
+    # Format "iterations:salt:hash" statt nur "salt:hash": macht die Rundenzahl selbst-beschreibend,
+    # damit sie sich künftig wieder erhöhen lässt, ohne alte Passwort-Hashes ungültig zu machen (die
+    # ohne "iterations:"-Präfix bleiben abwärtskompatibel gültig, siehe verify_password).
+    return f"{_PBKDF2_ITERATIONS}:{salt}:{hash_value.hex()}"
 
 def verify_password(stored_password: str, provided_password: str) -> bool:
     try:
-        salt, stored_hash = stored_password.split(":")
-        hash_value = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt.encode(), 100000)
+        parts = stored_password.split(":")
+        if len(parts) == 3:
+            iterations, salt, stored_hash = int(parts[0]), parts[1], parts[2]
+        else:
+            iterations, salt, stored_hash = _LEGACY_PBKDF2_ITERATIONS, parts[0], parts[1]
+        hash_value = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt.encode(), iterations)
         # hmac.compare_digest statt "==": zeitkonstanter Vergleich, verhindert Timing-Angriffe
         # (bei "==" bricht der String-Vergleich beim ersten abweichenden Zeichen ab, wodurch die
         # Antwortzeit theoretisch Rückschlüsse auf korrekte Hash-Präfixe zulassen könnte).
@@ -199,3 +209,72 @@ def get_current_user(request: Request) -> Optional[dict]:
         return data
     except Exception:
         return None
+
+def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
+    """Gemeinsamer Auth+Rollen-Prüfhelfer - war zuvor identisch in material_mgr.py, mission_mgr.py
+    und personnel_mgr.py dupliziert (3 unabhängige Kopien, Risiko dass ein künftiger Fix nicht
+    überall ankommt). Jetzt eine gemeinsame Stelle, die drei Router importieren nur noch von hier."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if require_admin and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    if allowed_roles and user["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    return user
+
+# Zwei Geräte-/Feed-Zugänge müssen OHNE Login funktionieren (Hallen-Display-Kiosk, externe
+# Kalender-Apps können keine Session-Cookies senden), lieferten ihre Daten deshalb bisher komplett
+# offen für jeden im Internet aus (Einsatz-Rückmeldungen mit Klarnamen, Fahrzeugstatus, geplante
+# Dienste). Statt echtem Login ein geheimer, zufälliger Token pro Zweck - wie beim "geheimen
+# iCal-Link" von Google Kalender: wer den Link/Token nicht kennt, kommt nicht rein; wer angemeldet
+# ist, braucht ihn gar nicht erst (siehe check_display_access).
+_TOKEN_COLUMNS = {"display_token", "calendar_token"}
+
+def get_or_create_token(token_name: str) -> str:
+    if token_name not in _TOKEN_COLUMNS:
+        raise ValueError(f"Unbekannter Token-Name: {token_name}")
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute(f"SELECT id, {token_name} FROM station_settings ORDER BY id ASC LIMIT 1")
+    except Exception:
+        conn.rollback()
+        cur.execute(f"ALTER TABLE station_settings ADD COLUMN {token_name} VARCHAR(64) NULL")
+        conn.commit()
+        cur.execute(f"SELECT id, {token_name} FROM station_settings ORDER BY id ASC LIMIT 1")
+    row = cur.fetchone()
+    token = row.get(token_name) if row else None
+    if not token:
+        token = secrets.token_urlsafe(32)
+        if row:
+            cur.execute(f"UPDATE station_settings SET {token_name} = %s WHERE id = %s", (token, row["id"]))
+        else:
+            cur.execute(f"INSERT INTO station_settings (station_name, lat, lng, zoom, {token_name}) VALUES (%s, 50.1109, 8.6821, 14, %s)", ("Feuerwehr", token))
+        conn.commit()
+    cur.close(); conn.close()
+    return token
+
+def regenerate_token(token_name: str) -> str:
+    """Für den 'Link/Token neu erzeugen'-Button in der Verwaltung - z.B. falls ein Hallen-Display-
+    Link mal in falsche Hände geraten ist. Macht alle bisher ausgegebenen Links für diesen Zweck
+    sofort ungültig."""
+    if token_name not in _TOKEN_COLUMNS:
+        raise ValueError(f"Unbekannter Token-Name: {token_name}")
+    new_token = secrets.token_urlsafe(32)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(f"UPDATE station_settings SET {token_name} = %s ORDER BY id ASC LIMIT 1", (new_token,))
+    conn.commit(); cur.close(); conn.close()
+    return new_token
+
+def check_display_access(request: Request) -> None:
+    """Für Endpunkte, die sowohl vom (angemeldeten) Dashboard als auch vom nicht angemeldeten
+    Hallen-Display-Kiosk aufgerufen werden: lässt entweder eine gültige Session ODER einen
+    gültigen ?token=... Query-Parameter durch. Wirft 401, wenn keins von beidem passt."""
+    if get_current_user(request):
+        return
+    token = request.query_params.get("token")
+    if token and hmac.compare_digest(token, get_or_create_token("display_token")):
+        return
+    raise HTTPException(status_code=401, detail="Nicht angemeldet und kein gültiger Display-Token.")
