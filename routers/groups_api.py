@@ -547,7 +547,7 @@ def get_calendar_events(request: Request, year: int, month: int):
     """, (year, month))
     for row in cur.fetchall():
         events.append({
-            "date": str(row["date"]), "type": "termin",
+            "date": str(row["date"]), "type": "termin", "schedule_id": row["id"],
             "title": row["title"], "subtitle": row["type"], "time": str(row["time"]) if row["time"] else None
         })
     c.close()

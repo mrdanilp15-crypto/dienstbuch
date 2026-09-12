@@ -540,10 +540,10 @@
             position: relative; 
             touch-action: none; 
         }
-        #sigCanvas, #missionSigCanvas { 
-            width: 100% !important; 
-            height: 100% !important; 
-            border-radius: 20px; 
+        #sigCanvas, #missionSigCanvas, #certSigCanvas {
+            width: 100% !important;
+            height: 100% !important;
+            border-radius: 20px;
             touch-action: none !important;
         }
 
@@ -914,6 +914,8 @@
 .calendar-event-reservierung { background: rgba(255,193,7,0.55); color: #000; }
 .calendar-event-jubilaeum { background: rgba(25,135,84,0.55); }
 .calendar-event-termin { background: rgba(168,85,247,0.55); }
+.calendar-event-editable { cursor: pointer; }
+.calendar-event-editable:hover { background: rgba(168,85,247,0.85); outline: 1px solid rgba(255,255,255,0.5); }
 
 @media (max-width: 768px) {
     .calendar-cell { min-height: 60px; }

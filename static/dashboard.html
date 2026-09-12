@@ -460,7 +460,7 @@
                             <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
                             <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday, 'calendar-cell-clickable': cell.inMonth && canManageDienste}" @click="cell.inMonth && canManageDienste && openCalendarDayModal(cell.key)" :title="cell.inMonth && canManageDienste ? 'Klicken, um einen Termin an diesem Tag anzulegen' : ''">
                                 <div class="calendar-cell-num">{{ cell.day }}</div>
-                                <div v-for="ev in cell.events" :key="ev.type + ev.title + ev.date" class="calendar-event" :class="'calendar-event-' + ev.type" :title="ev.title + (ev.subtitle ? ' — ' + ev.subtitle : '')">
+                                <div v-for="ev in cell.events" :key="ev.type + ev.title + ev.date" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin' && canManageDienste}]" :title="(ev.type === 'termin' && canManageDienste ? 'Klicken zum Bearbeiten — ' : '') + ev.title + (ev.subtitle ? ' — ' + ev.subtitle : '')" @click="ev.type === 'termin' && canManageDienste ? editCalendarTermin(ev, $event) : null">
                                     {{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
                                 </div>
                             </div>
@@ -2462,7 +2462,7 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-secondary border-opacity-10">
-                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-calendar-plus text-danger me-2"></i>Termin planen</h5>
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-calendar-plus text-danger me-2"></i>{{ newSchedule.id ? 'Termin bearbeiten' : 'Termin planen' }}</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
@@ -2493,7 +2493,10 @@
                                 <label class="form-label">Details</label>
                                 <textarea v-model="newSchedule.description" class="form-control" rows="3"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Termin eintragen</button>
+                            <div class="d-flex gap-2">
+                                <button v-if="newSchedule.id" type="button" class="btn btn-outline-danger rounded-pill px-4" @click="deleteScheduleFromModal"><i class="fa fa-trash me-1"></i>Löschen</button>
+                                <button type="submit" class="btn btn-premium flex-fill rounded-pill">{{ newSchedule.id ? 'Speichern' : 'Termin eintragen' }}</button>
+                            </div>
                         </form>
                     </div>
                 </div>
