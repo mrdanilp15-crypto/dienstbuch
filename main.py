@@ -1321,6 +1321,69 @@ def get_weather_warnings():
         print(f"DWD-Warnungsabruf fehlgeschlagen: {e}")
         return {"configured": True, "warnings": [], "error": "Abruf fehlgeschlagen"}
 
+# --- AKTUELLES WETTER (Hallenmonitor) ---
+# Bewusst ueber den eigenen Server statt direkt aus dem Browser: der Hallenmonitor rief
+# api.open-meteo.com frueher selbst auf und uebertrug damit die IP-Adresse JEDES
+# Anzeigegeraets an einen Drittanbieter - ohne Einwilligung und bei jedem Neuladen sowie
+# alle 5 Minuten erneut. Das ist dieselbe Begruendung, aus der Vue/Bootstrap/Font Awesome
+# und die Schriftarten hier bereits selbst gehostet werden (siehe Kommentar in
+# dashboard.html zum Google-Fonts-Urteil). Jetzt spricht nur noch der Server mit dem
+# Wetterdienst, die Anzeigegeraete bleiben gegenueber Dritten unsichtbar.
+# Kein Login-Zwang, genau wie /api/weather/warnings: der Hallenmonitor liest ohne Session,
+# und es sind reine oeffentliche Wetterdaten ohne Personenbezug.
+_WEATHER_CACHE = {"ts": 0.0, "data": None}
+_WEATHER_TTL_SECONDS = 300  # entspricht dem Abfrageintervall des Monitors
+
+@app.get("/api/weather/current")
+def get_current_weather():
+    now = time.time()
+    # Ohne diesen Zwischenspeicher wuerde jedes Anzeigegeraet und jedes Neuladen einzeln
+    # beim Wetterdienst anfragen. So bleibt es bei einem Abruf alle 5 Minuten, egal wie
+    # viele Monitore haengen.
+    if _WEATHER_CACHE["data"] is not None and (now - _WEATHER_CACHE["ts"]) < _WEATHER_TTL_SECONDS:
+        return _WEATHER_CACHE["data"]
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT lat, lng FROM station_settings ORDER BY id ASC LIMIT 1")
+        row = cur.fetchone()
+    except Exception:
+        row = None
+    finally:
+        cur.close(); conn.close()
+
+    # Rueckfallwerte identisch mit den Spalten-Standardwerten von station_settings, damit
+    # eine noch nicht eingerichtete Wache genau wie bisher trotzdem Wetter anzeigt.
+    lat = (row or {}).get("lat") or 50.1109
+    lng = (row or {}).get("lng") or 8.6821
+
+    # Wie beim DWD-Abruf: ein Fehlschlag (kein Internet aus dem Container, Dienst gestoert,
+    # Format geaendert) darf den Hallenmonitor NIE mitreissen - er zeigt dann weiter
+    # "Wetter laden..." und versucht es beim naechsten Durchlauf erneut.
+    try:
+        import requests
+        resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={"latitude": lat, "longitude": lng, "current_weather": "true"},
+            timeout=8, headers={"Accept": "application/json"}
+        )
+        resp.raise_for_status()
+        cw = (resp.json() or {}).get("current_weather") or {}
+        if not isinstance(cw.get("temperature"), (int, float)):
+            return {"available": False}
+        result = {"available": True, "current_weather": {
+            "temperature": cw.get("temperature"),
+            "windspeed": cw.get("windspeed"),
+            "winddirection": cw.get("winddirection"),
+            "weathercode": cw.get("weathercode"),
+        }}
+        _WEATHER_CACHE["data"] = result
+        _WEATHER_CACHE["ts"] = now
+        return result
+    except Exception as e:
+        print(f"Wetterabruf fehlgeschlagen: {e}")
+        return {"available": False}
+
 # --- DATEI UPLOAD SYSTEM ---
 # Erlaubte Dateiendungen für Archiv-Anhänge/Fotos/Dokumente. Bewusst OHNE .html/.svg/.htm/.xml:
 # hochgeladene Dateien werden unverändert unter /static/uploads/ ausgeliefert - ein .svg oder

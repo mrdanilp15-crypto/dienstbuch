@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v50';
+const CACHE_NAME = 'fw-app-cache-v51';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -52,7 +52,39 @@ self.addEventListener('fetch', event => {
       event.respondWith(fetch(event.request));
       return;
   }
-  
+
+  // Der EIGENE Anwendungscode (dashboard.js/.css) MUSS netzwerk-zuerst laufen, nicht cache-zuerst.
+  // Grund: die HTML-Seite selbst ist ein Navigations-Request und kommt oben IMMER frisch vom
+  // Server, dashboard.js kam hier unten dagegen aus dem Cache - und zwar ohne jede Rückfrage,
+  // solange CACHE_NAME gleich blieb. Nach einem Deploy lief auf dem Gerät deshalb NEUES HTML
+  // gegen ALTE JS-Datei: Vorlagen verweisen dann auf Methoden/Daten, die die alte Datei noch
+  // gar nicht kennt - Listen bleiben leer, Schaltflächen tun nichts, behobene Fehler sind
+  // weiterhin da. Auch F5 half nicht, weil F5 zwar das HTML neu holt, die JS-Datei aber
+  // weiterhin aus dem Cache des Service Workers kam. Die Vendor-Dateien bleiben bewusst
+  // cache-zuerst: deren Pfad enthält die Version (.../vue-3.5.42/...), sie können also gar
+  // nicht veralten, und genau sie machen den Offline-Start schnell.
+  const url = new URL(event.request.url);
+  const isOwnAppCode = url.origin === self.location.origin &&
+                       (url.pathname.startsWith('/static/js/') || url.pathname.startsWith('/static/css/'));
+
+  if (isOwnAppCode) {
+      event.respondWith(
+        fetch(event.request).then(response => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+          }
+          return response;
+        }).catch(err => {
+          // Offline/Netzwerkfehler: dann ist die zuletzt zwischengespeicherte Fassung immer
+          // noch besser als eine gar nicht ladende Seite.
+          console.error('SW: Anwendungscode nicht erreichbar, nutze Cache für', event.request.url, err);
+          return caches.match(event.request).then(cached => cached || Promise.reject(err));
+        })
+      );
+      return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {
