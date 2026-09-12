@@ -537,6 +537,19 @@ def get_calendar_events(request: Request, year: int, month: int):
             "title": f"{row['vname']}: {row['purpose']}",
             "subtitle": None, "time": str(row["start_datetime"])[11:16]
         })
+
+    # Geplante Termine (Dienst- & Übungsplaner) - bisher fehlte diese Abfrage komplett, ein
+    # dort eingetragener Termin (z.B. über den Kalender-Tagesklick angelegt) tauchte im
+    # gemeinsamen Kalender nie auf.
+    cur.execute("""
+        SELECT id, date, time, title, type FROM schedules
+        WHERE YEAR(date) = %s AND MONTH(date) = %s
+    """, (year, month))
+    for row in cur.fetchall():
+        events.append({
+            "date": str(row["date"]), "type": "termin",
+            "title": row["title"], "subtitle": row["type"], "time": str(row["time"]) if row["time"] else None
+        })
     c.close()
 
     from routers import personnel_mgr

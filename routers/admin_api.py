@@ -23,6 +23,9 @@ ALLOWED_ARCHIVE_EXTENSIONS = {
     ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods",
     ".txt", ".csv", ".zip",
 }
+# Jeder angemeldete Nutzer (jede Rolle) darf hier hochladen - ohne Obergrenze könnte ein
+# einzelner Upload (oder viele wiederholte) die Festplatte des Servers füllen (DoS).
+_MAX_ARCHIVE_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
 
 @router.get("/api/admin/backup/export")
 def export_database_backup(request: Request):
@@ -237,9 +240,21 @@ async def upload_archive_file(request: Request, file: UploadFile = File(...), is
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
 
-    with open(filepath, "wb") as buffer:
-        content = await file.read()
-        buffer.write(content)
+    size = 0
+    try:
+        with open(filepath, "wb") as buffer:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _MAX_ARCHIVE_UPLOAD_SIZE:
+                    raise HTTPException(status_code=413, detail="Datei zu groß (max. 25 MB).")
+                buffer.write(chunk)
+    except HTTPException:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise
 
     url = f"/static/uploads/{filename}"
 

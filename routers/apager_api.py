@@ -292,7 +292,8 @@ async def send_test_alarm(data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Nur Admins/Leitung/Gerätewarte können Test-Alarme senden.")
-    stichwort = "[TEST] " + (data.get("stichwort") or "Probealarm")
+    prefix = "[TEST] " if data.get("prefix_test", True) else ""
+    stichwort = prefix + (data.get("stichwort") or "Probealarm")
     adresse = data.get("adresse") or "Übungsgelände"
     meldung = data.get("meldung") or "Dies ist ein Test-Alarm – keine echte Gefahr!"
     now_dt = datetime.now()

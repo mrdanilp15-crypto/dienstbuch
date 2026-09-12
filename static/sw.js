@@ -1,18 +1,39 @@
-const CACHE_NAME = 'fw-app-cache-v38';
+const CACHE_NAME = 'fw-app-cache-v43';
+// Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
+// dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
+// schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
+// CORS-Eigenheit bei Opaque Responses), bricht die KOMPLETTE Installation dieses Service Workers
+// ab. Gleiche-Origin-Anfragen gegen den eigenen Server sind dagegen zuverlässig.
 const urlsToCache = [
   '/static/manifest.json',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://unpkg.com/vue@3/dist/vue.global.prod.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  '/static/vendor/bootstrap-5.3.0/css/bootstrap.min.css',
+  '/static/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js',
+  '/static/vendor/fontawesome-6.4.0/css/all.min.css',
+  '/static/vendor/fontawesome-6.4.0/webfonts/fa-solid-900.woff2',
+  '/static/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
+  '/static/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2',
+  '/static/vendor/vue-3.5.42/vue.global.prod.js',
+  '/static/vendor/leaflet-1.9.4/leaflet.css',
+  '/static/vendor/leaflet-1.9.4/leaflet.js',
+  '/static/vendor/fonts-outfit/outfit.css',
+  '/static/vendor/fonts-outfit/outfit-latin.woff2',
+  '/static/vendor/fonts-outfit/outfit-latin-ext.woff2',
+  '/static/js/dashboard.js',
+  '/static/css/dashboard.css'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        return cache.addAll(urlsToCache);
+        // Einzeln statt addAll(): addAll() ist atomar und würde die KOMPLETTE Installation
+        // abbrechen, wenn auch nur eine einzige Datei aus der Liste fehlschlägt (z.B. während
+        // eines Deploys kurzzeitig nicht erreichbar) - dann bliebe die App für immer auf der
+        // alten Service-Worker-Version hängen. Mit allSettled() schlägt höchstens die einzelne
+        // Datei fehl, der Rest wird trotzdem zwischengespeichert und der neue Worker aktiviert.
+        return Promise.allSettled(urlsToCache.map(url => cache.add(url).catch(err => {
+          console.error('SW precache fehlgeschlagen für', url, err);
+        })));
       })
   );
   self.skipWaiting();
@@ -45,7 +66,16 @@ self.addEventListener('fetch', event => {
             });
             return response;
           }
-        );
+        ).catch(err => {
+          // Ohne dieses catch() landete ein reiner Netzwerkfehler (WLAN-Aussetzer im
+          // Gerätehaus, DNS-Hänger) als unbehandelte Promise-Ablehnung in respondWith() -
+          // der betroffene <script>/<link> lud dann lautlos gar nicht, ohne jede Fehlermeldung
+          // ("nach dem Login passiert nichts"). Seit alle Bibliotheken gleiche-Origin liegen,
+          // versuchen wir hier zumindest noch einmal den (ggf. leeren) Cache, bevor wir den
+          // Fehler sauber durchreichen statt ihn unbehandelt zu lassen.
+          console.error('SW fetch fehlgeschlagen für', event.request.url, err);
+          return caches.match(event.request).then(cached => cached || Promise.reject(err));
+        });
       })
   );
 });
