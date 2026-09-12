@@ -22,8 +22,17 @@
         // dieser Watchdog in beiden Fällen eine sichtbare, klickbare Fehlermeldung.
         (function() {
             var shown = false;
+            // Nur relevant, solange die App noch nicht sichtbar ist (v-show="ready" noch nicht
+            // aktiv). Ist #app einmal sichtbar, war der Start erfolgreich - ein späterer, davon
+            // unabhängiger Laufzeitfehler irgendwo in der App (z.B. beim Speichern eines einzelnen
+            // Formulars) soll dann NICHT mehr den ganzen Bildschirm mit diesem "Neu laden"-Overlay
+            // überdecken, das wäre für einen kleinen Folgefehler völlig überzogen.
+            function stillBooting() {
+                var app = document.getElementById('app');
+                return !app || getComputedStyle(app).display === 'none';
+            }
             function showBootFallback(reason) {
-                if (shown) return;
+                if (shown || !stillBooting()) return;
                 shown = true;
                 var el = document.getElementById('bootFallback');
                 if (!el) return;
@@ -42,10 +51,7 @@
             });
             window.addEventListener('load', function() {
                 setTimeout(function() {
-                    var app = document.getElementById('app');
-                    if (!app || getComputedStyle(app).display === 'none') {
-                        showBootFallback('Zeitüberschreitung beim Laden');
-                    }
+                    if (stillBooting()) showBootFallback('Zeitüberschreitung beim Laden');
                 }, 15000);
             });
         })();
