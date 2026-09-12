@@ -8,6 +8,7 @@ from datetime import date
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
 from database import get_db_connection
+from core.utils import check_auth
 
 class PersonnelMember(BaseModel):
     name: str
@@ -73,18 +74,6 @@ def internal_sync_personnel_to_groups():
         conn.close()
     except Exception as e:
         print(f"Hintergrund-Synchronisationsfehler: {e}")
-
-# --- SICHERHEITS-HELFER ---
-def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
-    from core.utils import get_current_user
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if require_admin and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
-    if allowed_roles and user["role"] not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    return user
 
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
 @router.get("/list")

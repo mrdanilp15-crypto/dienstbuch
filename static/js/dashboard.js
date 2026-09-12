@@ -40,6 +40,42 @@ applyChartTheme();
             }
         }
 
+        // Ein SignaturePad-Canvas exportiert immer die KOMPLETTE Zeichenfläche (z.B. 600x250px),
+        // auch wenn jemand nur eine kleine, flache Unterschrift in einer Ecke gezeichnet hat.
+        // Eingebettet in PDFs (Arbeitsbescheinigung) wirkte die Unterschrift dadurch winzig/dünn
+        // und "schwebte" mit großem Leerraum über der Unterschriftslinie. Schneidet die leeren
+        // Ränder auf das tatsächlich gezeichnete Rechteck (plus etwas Puffer) zu, bevor das Bild
+        // gespeichert wird - der PDF-Generator bekommt so direkt eine knapp zugeschnittene
+        // Unterschrift statt der vollen, größtenteils leeren Canvas.
+        function trimSignatureDataUrl(padInstance) {
+            const sourceCanvas = padInstance.canvas;
+            const ctx = sourceCanvas.getContext('2d');
+            const { width, height } = sourceCanvas;
+            const data = ctx.getImageData(0, 0, width, height).data;
+            let minX = width, minY = height, maxX = 0, maxY = 0, found = false;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const alpha = data[(y * width + x) * 4 + 3];
+                    if (alpha > 10) {
+                        found = true;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (!found) return padInstance.toDataURL();
+            const pad = 12;
+            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+            maxX = Math.min(width, maxX + pad); maxY = Math.min(height, maxY + pad);
+            const w = maxX - minX, h = maxY - minY;
+            const out = document.createElement('canvas');
+            out.width = w; out.height = h;
+            out.getContext('2d').drawImage(sourceCanvas, minX, minY, w, h, 0, 0, w, h);
+            return out.toDataURL('image/png');
+        }
+
         // In-App-Ersatz für window.alert()/confirm()/prompt(): die nativen Browser-Dialoge
         // zeigen die Host-Adresse an und wirken wie eine Systembenachrichtigung statt eines
         // echten App-Fensters. Diese Varianten rendern stattdessen ein normales, zum Rest der
@@ -164,6 +200,7 @@ applyChartTheme();
                     apagerLogs: [],
                     apagerFeedbacks: [],
                     serverHost: window.location.host,
+                    accessTokens: { display_token: '', calendar_token: '' },
                     
                     // Schedules / Dienstplanung
                     schedules: [],
@@ -352,6 +389,8 @@ applyChartTheme();
                 }
             },
             computed: {
+                calendarFeedUrl() { return `${window.location.protocol}//${this.serverHost}/api/calendar/feed.ics?token=${this.accessTokens.calendar_token}`; },
+                displayUrl() { return `${window.location.protocol}//${this.serverHost}/static/alarmdisplay.html?token=${this.accessTokens.display_token}`; },
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
@@ -1225,7 +1264,7 @@ applyChartTheme();
                                 tension: 0.2
                             }]
                         },
-                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } }
+                        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: false } } }
                     });
                 },
                 openLogRideModal() {
@@ -1304,7 +1343,7 @@ applyChartTheme();
                 },
                 async saveMissionSig() {
                     if(!missionSigPad || missionSigPad.isEmpty()) return await appAlert("Bitte unterschreiben!");
-                    const sigData = missionSigPad.toDataURL();
+                    const sigData = trimSignatureDataUrl(missionSigPad);
                     let url = `/api/missions/${this.activeS.id}/signature`;
                     if (this.activeS.isNewMission === false) {
                         url = `/sessions/${this.activeS.id}/leader_signature`;
@@ -1625,7 +1664,7 @@ applyChartTheme();
                 },
                 clearCertSig() { if (certSigPad) certSigPad.clear(); },
                 saveCertSig() {
-                    if (certSigPad && !certSigPad.isEmpty()) { this.newCertSignature = certSigPad.toDataURL(); }
+                    if (certSigPad && !certSigPad.isEmpty()) { this.newCertSignature = trimSignatureDataUrl(certSigPad); }
                     certSigModal.hide();
                 },
                 async submitEmployerCertificate() {
@@ -2530,6 +2569,15 @@ applyChartTheme();
                         if(res.ok) this.vehicleCheckHistory = await res.json();
                     } catch(e) { console.error(e); }
                 },
+                async deleteVehicleCheck(checkId) {
+                    if (!await appConfirm("Diesen Fahrzeug-Check unwiderruflich löschen?")) return;
+                    const res = await fetch(`/api/material/vehicles/checks/${checkId}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) {
+                        await this.loadCheckHistory(this.activeVehicleForCheck.id);
+                    } else {
+                        await appAlert("Löschen fehlgeschlagen.");
+                    }
+                },
                 async submitChecklist() {
                     // Check if any items are unchecked
                     const allChecked = Object.values(this.currentChecklist.items_checked).every(v => v);
@@ -2858,7 +2906,7 @@ applyChartTheme();
                 },
                 async saveSig() {
                     if (!sigPad || sigPad.isEmpty()) { await appAlert("Bitte unterschreiben!"); return; }
-                    const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: sigPad.toDataURL()}) });
+                    const r = await fetch(`/sessions/${this.activeS.id}/leader_signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({signature: trimSignatureDataUrl(sigPad)}) });
                     if (r.ok) {
                         sigModal.hide();
                         await this.loadData();
@@ -3021,6 +3069,26 @@ applyChartTheme();
                         }
                     } catch(e) { console.error("Error loading station settings", e); }
                 },
+                async loadAccessTokens() {
+                    try {
+                        const res = await fetch('/api/settings/access-tokens', { credentials: 'include' });
+                        if (res.ok) this.accessTokens = await res.json();
+                    } catch(e) { console.error("Error loading access tokens", e); }
+                },
+                async regenerateAccessToken(type) {
+                    const label = type === 'display' ? 'Hallen-Display' : 'Kalender-Feed';
+                    if (!await appConfirm(`${label}-Token wirklich neu erzeugen? Bisherige Links (${type === 'display' ? 'auf Kiosk-Bildschirmen' : 'in Kalender-Apps'}) funktionieren danach nicht mehr.`)) return;
+                    const res = await fetch('/api/settings/access-tokens/regenerate', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ type })
+                    });
+                    if (res.ok) {
+                        await this.loadAccessTokens();
+                        await appAlert(`${label}-Token wurde erneuert.`);
+                    } else {
+                        await appAlert("Token konnte nicht erneuert werden.");
+                    }
+                },
                 async saveStationSettings() {
                     try {
                         const res = await fetch('/api/settings/station', {
@@ -3176,7 +3244,7 @@ applyChartTheme();
                                             borderWidth: 1
                                         }]
                                     },
-                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                                    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
                                 });
                             }
                             
@@ -3195,7 +3263,7 @@ applyChartTheme();
                                             borderWidth: 1
                                         }]
                                     },
-                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                                    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
                                 });
                             }
 
@@ -3225,7 +3293,7 @@ applyChartTheme();
                                                 borderWidth: 1
                                             }]
                                         },
-                                        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true } } }
+                                        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { beginAtZero: true } } }
                                     });
                                 }
                             }

@@ -51,6 +51,42 @@ async def add_cache_control_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
     return response
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Grundlegende Sicherheits-Header, die bisher komplett fehlten. Bewusst nur die Header, die
+    OHNE Risiko für die bestehende App gesetzt werden können (die App nutzt an vielen Stellen
+    Inline-<script>/onclick, eine vollständige Content-Security-Policy mit script-src-Sperre würde
+    das brechen und braucht ein eigenes Nonce/Hash-Refactoring - hier nur frame-ancestors, das
+    NICHTS am Skript-Verhalten ändert, nur das Einbetten der Seite in ein fremdes <iframe> verbietet
+    (Clickjacking-Schutz, besonders relevant für die Login-Seite)."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+    if is_https:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# Ohne Obergrenze könnte JEDER angemeldete Nutzer (unabhängig von Rolle) den Server mit einem
+# beliebig großen JSON-Body lahmlegen (Speicherverbrauch, da Pydantic den kompletten Body erst
+# einlesen muss, bevor er das Modell validiert) - anders als bei den echten Datei-Uploads gab es
+# dafür bisher gar keine Grenze. 8 MB deckt den größten bekannten Fall (Profilbild/Dienstsiegel/
+# Unterschrift als Base64 direkt im JSON-Body) mit Puffer ab. Die drei Endpunkte mit eigener,
+# höherer Grenze (Datei-Uploads, Datenbank-Import) sind ausgenommen.
+_MAX_JSON_BODY_BYTES = 8 * 1024 * 1024
+_BODY_LIMIT_EXEMPT_PATHS = {"/api/upload", "/api/archive/upload", "/api/admin/backup/import"}
+
+@app.middleware("http")
+async def limit_request_body_size(request: Request, call_next):
+    if request.url.path not in _BODY_LIMIT_EXEMPT_PATHS:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_JSON_BODY_BYTES:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=413, content={"detail": "Anfrage zu groß."})
+    return await call_next(request)
+
 # Statische Ordnerstruktur absichern
 if os.path.exists("/app/data") or os.name != 'nt':
     UPLOAD_DIR = "/app/data/uploads"
@@ -1036,8 +1072,16 @@ def get_manifest():
 # users_mgr routes for add, update role/personnel/password, delete have been moved
 
 # --- FEUERWACHE STANDORT EINSTELLUNGEN ---
+# Öffentlich ohne Anmeldung erreichbar, da sowohl die Login-Seite (Impressum/Datenschutz -
+# mittlerweile über /api/legal) als auch das nicht angemeldete Hallen-Display (Standortkarte,
+# Wach-Ticker) einige dieser Felder vor jedem Login brauchen. iban/bic/stamp_image sind aber
+# sensible Finanz-/Dokumentendaten (Bankverbindung, Dienstsiegel) und gehörten hier NIE in eine
+# öffentlich lesbare Antwort - wurden bisher versehentlich immer mit ausgeliefert. Nicht
+# angemeldete Aufrufer bekommen jetzt nur noch die tatsächlich öffentlich benötigte Teilmenge.
+_STATION_SETTINGS_PUBLIC_FIELDS = {"station_name", "lat", "lng", "zoom", "ticker_text", "dwd_warncell_id"}
+
 @app.get("/api/settings/station")
-def get_station_settings():
+def get_station_settings(request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate, stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
@@ -1069,8 +1113,10 @@ def get_station_settings():
             pass
         cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate, stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
+    is_authenticated = bool(get_current_user(request))
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": "", "impressum_text": "", "datenschutz_text": "", "default_hourly_rate": 15.0, "stamp_image": ""}
+        full = {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": "", "impressum_text": "", "datenschutz_text": "", "default_hourly_rate": 15.0, "stamp_image": ""}
+        return full if is_authenticated else {k: v for k, v in full.items() if k in _STATION_SETTINGS_PUBLIC_FIELDS}
     if not row.get("ticker_text"):
         row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
     if not row.get("iban"):
@@ -1086,6 +1132,8 @@ def get_station_settings():
     if not row.get("stamp_image"):
         row["stamp_image"] = ""
     row["default_hourly_rate"] = float(row["default_hourly_rate"]) if row.get("default_hourly_rate") is not None else 15.0
+    if not is_authenticated:
+        return {k: v for k, v in row.items() if k in _STATION_SETTINGS_PUBLIC_FIELDS}
     return row
 
 @app.put("/api/settings/station")
@@ -1193,6 +1241,30 @@ def update_stamp_image(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "STEMPEL_AKTUALISIERT", "Dienstsiegel/Stempel-Bild aktualisiert.")
     return {"status": "success"}
+
+# --- ZUGANGS-TOKEN FÜR HALLEN-DISPLAY & KALENDER-FEED ---
+# Beide Consumer (Kiosk-Display, externe Kalender-Apps) können sich nicht per Login anmelden,
+# siehe check_display_access()/calendar_token in core/utils.py und routers/calendar_api.py.
+@app.get("/api/settings/access-tokens")
+def get_access_tokens(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.utils import get_or_create_token
+    return {"display_token": get_or_create_token("display_token"), "calendar_token": get_or_create_token("calendar_token")}
+
+@app.post("/api/settings/access-tokens/regenerate")
+def regenerate_access_token(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    token_type = data.get("type")
+    if token_type not in ("display", "calendar"):
+        raise HTTPException(status_code=400, detail="Ungültiger Token-Typ")
+    from core.utils import regenerate_token
+    new_token = regenerate_token(f"{token_type}_token")
+    log_audit_action(user["username"], "TOKEN_ERNEUERT", f"{'Hallen-Display' if token_type == 'display' else 'Kalender-Feed'}-Token neu erzeugt (alte Links funktionieren nicht mehr).")
+    return {"status": "success", "token": new_token}
 
 # --- DWD UNWETTERWARNUNGEN ---
 # Kein Login-Zwang: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen,
