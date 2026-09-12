@@ -359,11 +359,24 @@
             };
 
             try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                // Ohne Timeout blieb der "Anmelden"-Button bei einem Netzwerk-Hänger auf dem Handy
+                // (z.B. WLAN<->Mobilfunk-Wechsel mitten in der Anfrage) für immer im Lade-Zustand
+                // hängen, ganz ohne Fehlermeldung - genau das gemeldete "kommt nicht weiter als die
+                // Login-Seite"-Problem. Nach 15s wird die Anfrage abgebrochen und ein echter Fehler
+                // angezeigt, statt endlos zu warten.
+                const timeoutController = new AbortController();
+                const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
+                let response;
+                try {
+                    response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: timeoutController.signal
+                    });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
 
                 const data = await response.json();
 
@@ -393,7 +406,10 @@
                 }
 
             } catch (error) {
-                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
+                const msg = error.name === 'AbortError'
+                    ? 'Zeitüberschreitung - Server antwortet nicht. Bitte Internetverbindung prüfen.'
+                    : 'Verbindung zum Server fehlgeschlagen!';
+                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${msg}`;
                 errorBox.style.display = 'block';
                 btn.disabled = false;
                 btnText.style.display = 'inline-block';

@@ -9,6 +9,47 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="manifest" href="/manifest.json">
     <title>Digitales Dienstbuch</title>
+
+    <script>
+        // Boot-Watchdog: läuft VOR allen anderen Skripten und hängt von nichts ab (kein Vue,
+        // keine Vendor-Datei), damit er auch dann noch funktioniert, wenn genau eine dieser
+        // Dateien auf dem Handy (z.B. Netzwerkwechsel WLAN<->Mobilfunk mitten im Laden) nur
+        // kaputt/unvollständig ankam. #app bleibt bis "ready=true" per v-show unsichtbar - schlägt
+        // irgendwo beim Start ein Fehler auf (z.B. "Vue is not defined", weil vue.global.prod.js
+        // nicht sauber geladen wurde) oder dauert der Start ungewöhnlich lange (Server-Hänger,
+        // instabiles Netz), sah man bisher NUR den dunklen Hintergrund, ganz ohne jeden Hinweis -
+        // das war exakt das gemeldete "leere schwarze Seite nach dem Login"-Problem. Jetzt zeigt
+        // dieser Watchdog in beiden Fällen eine sichtbare, klickbare Fehlermeldung.
+        (function() {
+            var shown = false;
+            function showBootFallback(reason) {
+                if (shown) return;
+                shown = true;
+                var el = document.getElementById('bootFallback');
+                if (!el) return;
+                var msgEl = document.getElementById('bootFallbackMsg');
+                if (msgEl && reason) {
+                    msgEl.textContent = 'Der Start ist fehlgeschlagen oder dauert ungewöhnlich lange. Das kann an einer instabilen Internetverbindung liegen. Technische Meldung: ' + reason;
+                }
+                el.style.display = 'flex';
+            }
+            window.addEventListener('error', function(e) {
+                showBootFallback(e.message || 'Unbekannter Fehler');
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+                var reason = e.reason && (e.reason.message || String(e.reason));
+                showBootFallback(reason || 'Unbekannter Fehler (Promise)');
+            });
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    var app = document.getElementById('app');
+                    if (!app || getComputedStyle(app).display === 'none') {
+                        showBootFallback('Zeitüberschreitung beim Laden');
+                    }
+                }, 15000);
+            });
+        })();
+    </script>
     
     <!-- Premium Fonts & Icons -->
     <!-- Alle Drittanbieter-Bibliotheken werden lokal ausgeliefert (static/vendor/) statt live von
@@ -36,6 +77,11 @@
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
 <body>
+    <div id="bootFallback" style="display:none; position:fixed; inset:0; z-index:99999; background:radial-gradient(circle at 50% 50%, #201414 0%, #100a0a 100%); color:#fff; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; font-family:'Outfit', sans-serif;">
+        <i class="fa fa-triangle-exclamation" style="font-size:2.5rem; color:#ff5252; margin-bottom:16px;"></i>
+        <div id="bootFallbackMsg" style="max-width:420px; margin-bottom:20px; line-height:1.5; color:rgba(255,255,255,0.85);">Der Start ist fehlgeschlagen. Bitte neu laden.</div>
+        <button onclick="location.reload()" style="background:#b71c1c; color:#fff; border:none; border-radius:12px; padding:12px 28px; font-weight:600; cursor:pointer;"><i class="fa fa-rotate-right me-1"></i> Neu laden</button>
+    </div>
     <div id="app" v-cloak v-show="ready">
         <!-- Offline Banner -->
         <div v-if="!isOnline" class="bg-warning text-dark text-center fw-bold py-1 w-100" style="position: fixed; top: 0; z-index: 9999; left: 0;">

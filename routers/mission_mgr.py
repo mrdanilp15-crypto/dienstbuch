@@ -114,6 +114,30 @@ def list_missions(request: Request):
             row["status"] = "Freigegeben"
     return res
 
+@router.get("/employer-certificates")
+def list_employer_certificates(request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT ec.id, ec.mission_id, ec.personnel_id, ec.created_by, ec.created_at,
+               (ec.signature IS NOT NULL) as has_signature,
+               p.name as personnel_name, m.date as mission_date, m.stichwort as mission_stichwort
+        FROM employer_certificates ec
+        JOIN personnel p ON ec.personnel_id = p.id
+        JOIN missions m ON ec.mission_id = m.id
+        ORDER BY ec.created_at DESC
+    """)
+    res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        r["created_at"] = str(r["created_at"])
+        r["mission_date"] = str(r["mission_date"])
+        r["has_signature"] = bool(r["has_signature"])
+    return res
+
+# WICHTIG: Diese Route MUSS vor "/{mission_id}" stehen - sonst matcht FastAPI
+# "GET /employer-certificates" faelschlich gegen "/{mission_id}" (Routen werden in
+# Registrierungsreihenfolge geprueft), versucht "employer-certificates" als int zu
+# parsen und wirft 422 Unprocessable Entity, noch bevor diese Route ueberhaupt greift.
 @router.get("/{mission_id}")
 def get_mission(mission_id: int, request: Request):
     check_auth(request)
@@ -230,26 +254,6 @@ def get_mission_pdf(mission_id: int, request: Request):
         # Download-Benachrichtigung anzuzeigen.
         headers={"Content-Disposition": f"inline; filename=Einsatzbericht_{mission_id}.pdf"}
     )
-
-@router.get("/employer-certificates")
-def list_employer_certificates(request: Request):
-    check_auth(request)
-    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT ec.id, ec.mission_id, ec.personnel_id, ec.created_by, ec.created_at,
-               (ec.signature IS NOT NULL) as has_signature,
-               p.name as personnel_name, m.date as mission_date, m.stichwort as mission_stichwort
-        FROM employer_certificates ec
-        JOIN personnel p ON ec.personnel_id = p.id
-        JOIN missions m ON ec.mission_id = m.id
-        ORDER BY ec.created_at DESC
-    """)
-    res = cur.fetchall(); cur.close(); conn.close()
-    for r in res:
-        r["created_at"] = str(r["created_at"])
-        r["mission_date"] = str(r["mission_date"])
-        r["has_signature"] = bool(r["has_signature"])
-    return res
 
 @router.post("/{mission_id}/employer-certificate/{personnel_id}")
 def create_employer_certificate(mission_id: int, personnel_id: int, cert: EmployerCertCreate, request: Request):
