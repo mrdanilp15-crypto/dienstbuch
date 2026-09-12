@@ -182,22 +182,22 @@
                     <div class="sidebar-section-header">Organisation & Personal</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; loadJugendData(); showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; loadNotes(); showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; loadCalendar(); showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
 
                     <div class="sidebar-section-header">Einsatz & Taktik</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; loadMissions(); showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; initMap(); showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; loadHvoData(); showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
 
                     <div class="sidebar-section-header">Logistik & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; loadEmployerCertificates(); showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
 
                     
                     <div class="sidebar-section-header d-lg-none">Aktionen</div>
@@ -208,7 +208,7 @@
 
                     <div class="sidebar-section-header">System</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Verwaltung & VB</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; loadStats(); showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
 
                     <div class="sidebar-section-header">Unterstützung</div>
                     <button class="sidebar-btn text-warning" data-bs-toggle="modal" data-bs-target="#donationModal"><i class="fa fa-mug-hot"></i> Entwickler unterstützen</button>
@@ -3397,8 +3397,17 @@
                             </div>
 </div>
                     </div>
-                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between" v-if="canManagePersonnel">
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between flex-wrap gap-2" v-if="canManagePersonnel">
                         <button type="button" class="btn btn-link text-danger fw-bold border-0" @click="deletePersonnel"><i class="fa fa-trash me-1"></i> Löschen</button>
+                        <div class="d-flex align-items-center gap-2 flex-wrap" v-if="activePersonnel && activePersonnel.id">
+                            <span class="text-muted small">Nachweis:</span>
+                            <select v-model.number="certYear" class="form-select form-select-sm" style="width:auto;" title="Berichtsjahr">
+                                <option v-for="y in certYears" :key="y" :value="y">{{y}}</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('dienstzeit')" title="Dienstzeitnachweis (Dienste und Einsätze des Jahres) als PDF"><i class="fa fa-clock me-1"></i>Dienstzeit</button>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('lehrgaenge')" title="Lehrgangsübersicht (vollständige Historie) als PDF"><i class="fa fa-graduation-cap me-1"></i>Lehrgänge</button>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('atemschutz')" title="Atemschutznachweis des Jahres als PDF"><i class="fa fa-mask-face me-1"></i>Atemschutz</button>
+                        </div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
                             <button type="button" class="btn btn-premium rounded-pill px-5 fw-bold" @click="savePersonnel">Speichern</button>
