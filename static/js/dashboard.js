@@ -492,7 +492,8 @@ applyChartTheme();
                     if (!this.equipment) return [];
                     return this.equipment.filter(eq => eq && (eq.category === 'Funk' || eq.category === 'Funkgerät' || eq.category === 'TETRA')).map(eq => {
                         let type = 'HRT (Handfunkgerät)';
-                        if (eq.name.toLowerCase().includes('mrt') || eq.name.toLowerCase().includes('fahrzeug')) {
+                        const name = eq.name || '';
+                        if (name.toLowerCase().includes('mrt') || name.toLowerCase().includes('fahrzeug')) {
                             type = 'MRT (Fahrzeugfunk)';
                         }
                         return {
@@ -869,14 +870,27 @@ applyChartTheme();
                         { facingMode: "environment" },
                         { fps: 10, qrbox: { width: 250, height: 250 } },
                         async (decodedText, decodedResult) => {
-                            const eq = this.equipment.find(e => e.barcode === decodedText || String(e.id) === decodedText);
+                            // Der auf dem Geräte-Label ausgedruckte QR-Code kodiert bewusst eine volle
+                            // URL (.../dashboard?eq_barcode=112), damit auch eine normale Handy-Kamera-App
+                            // (ohne unseren In-App-Scanner) direkt zum Gerät springt. Der In-App-Scanner
+                            // bekommt beim Scannen denselben Text zurück - verglich den bisher aber 1:1 mit
+                            // dem gespeicherten (nackten) Barcode, weshalb JEDER Scan hier fehlschlug,
+                            // obwohl das Gerät korrekt erfasst war. Erst den eq_barcode-Parameter aus der
+                            // URL extrahieren, falls der Scan wie eine URL aussieht.
+                            let scannedValue = decodedText;
+                            try {
+                                const url = new URL(decodedText);
+                                const param = url.searchParams.get('eq_barcode');
+                                if (param) scannedValue = param;
+                            } catch (e) { /* kein URL-Format, decodedText bleibt wie es ist */ }
+                            const eq = this.equipment.find(e => e.barcode === scannedValue || String(e.id) === scannedValue);
                             this.stopQrScanner();
                             const modalEl = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
                             if (modalEl) modalEl.hide();
                             if (eq) {
                                 this.addInspection(eq);
                             } else {
-                                await appAlert("Kein Gerät mit Barcode '" + decodedText + "' gefunden.");
+                                await appAlert("Kein Gerät mit Barcode '" + scannedValue + "' gefunden.");
                             }
                         },
                         (err) => { /* ignore */ }
