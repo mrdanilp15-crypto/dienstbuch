@@ -78,14 +78,68 @@ async def add_security_headers(request: Request, call_next):
 _MAX_JSON_BODY_BYTES = 8 * 1024 * 1024
 _BODY_LIMIT_EXEMPT_PATHS = {"/api/upload", "/api/archive/upload", "/api/admin/backup/import"}
 
-@app.middleware("http")
-async def limit_request_body_size(request: Request, call_next):
-    if request.url.path not in _BODY_LIMIT_EXEMPT_PATHS:
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > _MAX_JSON_BODY_BYTES:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=413, content={"detail": "Anfrage zu groß."})
-    return await call_next(request)
+
+class BodySizeLimitMiddleware:
+    """Begrenzt die tatsächlich gelesene Körpergröße.
+
+    Eine reine Content-Length-Prüfung genügt nicht: der Header ist freiwillig. Ein Client darf
+    ihn weglassen und den Körper stattdessen gestückelt senden (chunked transfer encoding) -
+    dann stünde wieder keinerlei Grenze dagegen. Zusätzlich zur schnellen Header-Prüfung werden
+    deshalb die tatsächlich empfangenen Bytes mitgezählt und der Empfang abgebrochen, sobald die
+    Grenze überschritten ist.
+    """
+
+    def __init__(self, app, max_bytes: int, exempt_paths: set):
+        self.app = app
+        self.max_bytes = max_bytes
+        self.exempt_paths = exempt_paths
+
+    async def _reject(self, send):
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"application/json; charset=utf-8")],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": '{"detail":"Anfrage zu groß."}'.encode("utf-8"),
+        })
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("path") in self.exempt_paths:
+            return await self.app(scope, receive, send)
+
+        for key, value in scope.get("headers") or []:
+            if key == b"content-length":
+                try:
+                    if int(value) > self.max_bytes:
+                        return await self._reject(send)
+                except ValueError:
+                    # Unbrauchbarer Header: hier NICHT abstürzen (das war vorher ein 500er) -
+                    # die Byte-Zählung unten greift ohnehin.
+                    pass
+                break
+
+        total = 0
+
+        async def counting_receive():
+            nonlocal total
+            message = await receive()
+            if message.get("type") == "http.request":
+                total += len(message.get("body") or b"")
+                if total > self.max_bytes:
+                    # Abbruch signalisieren, statt weiter Speicher zu füllen. Die Anwendung
+                    # beendet das Lesen daraufhin von selbst; eine eigene Antwort wird hier
+                    # bewusst nicht gesendet, weil die Anwendung bereits antworten könnte.
+                    return {"type": "http.disconnect"}
+            return message
+
+        await self.app(scope, counting_receive, send)
+
+
+app.add_middleware(BodySizeLimitMiddleware,
+                   max_bytes=_MAX_JSON_BODY_BYTES,
+                   exempt_paths=_BODY_LIMIT_EXEMPT_PATHS)
 
 # Statische Ordnerstruktur absichern
 if os.path.exists("/app/data") or os.name != 'nt':
@@ -1003,6 +1057,48 @@ async def start_reminder_scheduler():
                 print(f"Reminder-Scheduler Fehler: {e}")
             await asyncio.sleep(24 * 3600)
     asyncio.create_task(_reminder_loop())
+
+
+# --- AUTOMATISCHE SICHERUNG ---
+# Der Endpunkt /api/admin/backup/auto existierte zwar, wurde aber von NIEMANDEM aufgerufen -
+# es gab faktisch keine automatische Sicherung, nur den manuellen Export. Hier läuft sie
+# jetzt im laufenden Betrieb mit. Bewusst über asyncio statt über ein zusätzliches
+# Scheduler-Paket, um keine weitere Abhängigkeit einzuführen.
+# Abschaltbar/einstellbar über die Umgebungsvariablen BACKUP_ENABLED, BACKUP_INTERVAL_HOURS,
+# BACKUP_DIR und BACKUP_KEEP (siehe routers/admin_api.py).
+try:
+    _BACKUP_INTERVAL_HOURS = max(1.0, float(os.getenv("BACKUP_INTERVAL_HOURS", "24")))
+except ValueError:
+    _BACKUP_INTERVAL_HOURS = 24.0
+
+
+@app.on_event("startup")
+async def start_backup_scheduler():
+    if os.getenv("BACKUP_ENABLED", "1").lower() in ("0", "false", "nein"):
+        print("[AUTO-BACKUP] per BACKUP_ENABLED deaktiviert")
+        return
+
+    async def _backup_loop():
+        from routers.admin_api import run_auto_backup
+        # Nach dem Start kurz warten: beim Hochfahren ist die Datenbank oft noch nicht
+        # erreichbar, und der erste Start soll nicht mit einem Dump zusammenfallen.
+        await asyncio.sleep(300)
+        while True:
+            try:
+                # WICHTIG: in einem eigenen Thread. mysqldump und das Schreiben der Datei
+                # blockieren; direkt im Loop aufgerufen stünde der komplette Server so lange
+                # still - bei einer grossen Datenbank wären das Sekunden bis Minuten, in
+                # denen keine Alarmierung durchkäme.
+                result = await asyncio.to_thread(run_auto_backup, "system (automatisch)")
+                print(f"[AUTO-BACKUP] {result.get('status')}: "
+                      f"{result.get('sql_dump') or result.get('json_fallback') or '-'}")
+            except Exception as e:
+                # Eine fehlgeschlagene Sicherung darf den Server niemals mitreissen.
+                print(f"[AUTO-BACKUP] fehlgeschlagen: {e}")
+            await asyncio.sleep(_BACKUP_INTERVAL_HOURS * 3600)
+
+    asyncio.create_task(_backup_loop())
+
 
 class BroadcastCreateRequest(BaseModel):
     title: str

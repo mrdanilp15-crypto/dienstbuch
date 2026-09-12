@@ -569,6 +569,250 @@ def get_anniversaries_pdf(request: Request, year: Optional[int] = None):
         headers={"Content-Disposition": f'inline; filename="Jubilaeen_{target_year}.pdf"'}
     )
 
+# --- NACHWEISE / BESCHEINIGUNGEN ---------------------------------------------------------
+# Gemeinsame Dokumenthülle für die personenbezogenen Nachweise. Bewusst eine Stelle statt
+# dreimal dasselbe CSS: xhtml2pdf ist bei Rändern und Tabellen empfindlich, und genau daran
+# ist die Arbeitgeberbescheinigung schon einmal über zwei Seiten gerutscht.
+def _certificate_document(doc_title: str, person: dict, meta_rows: str, body_html: str) -> str:
+    from core.utils import get_station_name
+    from html import escape
+    today_fmt = date.today().strftime("%d.%m.%Y")
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{ size: a4 portrait; margin: 1.8cm; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1f2937; }}
+        .header-table {{ width: 100%; border-bottom: 2px solid #b91c1c; padding-bottom: 10px; margin-bottom: 16px; }}
+        .station-title {{ font-size: 16pt; font-weight: bold; color: #b91c1c; margin: 0; }}
+        .doc-title {{ font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; color: #111827; }}
+        .doc-subtitle {{ font-size: 9.5pt; color: #4b5563; margin-bottom: 14px; }}
+        table.meta {{ width: 100%; margin-bottom: 14px; }}
+        table.meta td {{ font-size: 10pt; padding: 2px 0; }}
+        table.list-table {{ width: 100%; border-collapse: collapse; }}
+        table.list-table th {{ background: #f8f9fa; border: 1px solid #ddd; padding: 5px 7px; text-align: left; font-size: 8.5pt; text-transform: uppercase; }}
+        table.list-table td {{ border: 1px solid #ddd; padding: 5px 7px; font-size: 9.5pt; }}
+        .summary {{ margin-top: 14px; padding: 8px 10px; background: #f8f9fa; border: 1px solid #e5e7eb; font-size: 10pt; }}
+        .sig-table {{ width: 100%; margin-top: 34px; }}
+        .sig-line {{ border-top: 1px solid #6b7280; padding-top: 4px; font-size: 8.5pt; color: #4b5563; }}
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td><div class="station-title">{escape(get_station_name())}</div></td>
+            <td style="text-align: right; vertical-align: bottom; font-size: 9pt; color: #4b5563;">Erstellt am: {today_fmt}</td>
+        </tr>
+    </table>
+    <div class="doc-title">{escape(doc_title)}</div>
+    <div class="doc-subtitle">Hiermit wird bescheinigt, dass die nachfolgend aufgef&uuml;hrten Angaben
+        dem im Digitalen Dienstbuch dokumentierten Stand entsprechen.</div>
+
+    <table class="meta">
+        <tr><td style="width:32%;"><b>Name</b></td><td>{escape(str(person.get('name') or '-'))}</td></tr>
+        <tr><td><b>Dienstgrad</b></td><td>{escape(str(person.get('rank') or '-'))}</td></tr>
+        {meta_rows}
+    </table>
+
+    {body_html}
+
+    <table class="sig-table">
+        <tr>
+            <td style="width:48%;"><div class="sig-line">Ort, Datum</div></td>
+            <td style="width:4%;"></td>
+            <td style="width:48%;"><div class="sig-line">Unterschrift Wehrf&uuml;hrung / Kommandant</div></td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+
+def _certificate_response(html_content: str, filename: str) -> Response:
+    import xhtml2pdf.pisa as pisa
+    import io
+    pdf_buf = io.BytesIO()
+    pisa.CreatePDF(html_content, dest=pdf_buf)
+    return Response(
+        content=pdf_buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+
+def _load_person(cur, member_id: int) -> dict:
+    cur.execute("SELECT * FROM personnel WHERE id = %s", (member_id,))
+    person = cur.fetchone()
+    if not person:
+        raise HTTPException(status_code=404, detail="Kamerad nicht gefunden")
+    return person
+
+
+def _safe_filename(value: str) -> str:
+    return "".join(c for c in (value or "Unbekannt") if c.isalnum() or c in ("-", "_")) or "Unbekannt"
+
+
+@router.get("/{member_id}/certificate/dienstzeit/pdf")
+def get_service_time_certificate(member_id: int, request: Request, year: Optional[int] = None):
+    """Dienstzeit-/Taetigkeitsnachweis: alle Dienste und Einsaetze einer Person in einem Jahr."""
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    from html import escape
+    target_year = year or date.today().year
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    person = _load_person(cur, member_id)
+
+    # Dienste haengen (historisch) ueber persons.name am Namen, Einsaetze direkt an der
+    # personnel_id - deshalb zwei Zweige. Exakter Namensabgleich, kein LIKE: sonst wuerden
+    # "Max" und "Maximilian" zusammengezaehlt (gleiche Begruendung wie in users_mgr.py).
+    cur.execute("""
+        SELECT d, art, bezeichnung, dauer FROM (
+            SELECT s.date AS d, 'Dienst' AS art,
+                   COALESCE(NULLIF(s.description, ''), s.category, 'Dienst') AS bezeichnung,
+                   s.duration AS dauer
+            FROM attendance a
+            JOIN sessions s ON a.session_id = s.id
+            JOIN persons pe ON a.person_id = pe.id
+            WHERE pe.name = %s AND YEAR(s.date) = %s AND a.is_present = 1
+            UNION ALL
+            SELECT m.date AS d, 'Einsatz' AS art,
+                   COALESCE(NULLIF(m.stichwort, ''), 'Einsatz') AS bezeichnung,
+                   m.duration AS dauer
+            FROM mission_attendance ma
+            JOIN missions m ON ma.mission_id = m.id
+            WHERE ma.personnel_id = %s AND YEAR(m.date) = %s
+              AND ma.is_present IS NOT NULL
+              AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '')
+        ) AS eintraege
+        ORDER BY d ASC
+    """, (person["name"], target_year, member_id, target_year))
+    entries = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows, total_hours, count_dienst, count_einsatz = "", 0.0, 0, 0
+    for e in entries:
+        hours = float(e["dauer"] or 0)
+        total_hours += hours
+        if e["art"] == "Einsatz":
+            count_einsatz += 1
+        else:
+            count_dienst += 1
+        d = e["d"].strftime("%d.%m.%Y") if hasattr(e["d"], "strftime") else str(e["d"])
+        rows += (f"<tr><td>{d}</td><td>{escape(str(e['art']))}</td>"
+                 f"<td>{escape(str(e['bezeichnung'] or '-'))}</td>"
+                 f"<td style='text-align:right;'>{hours:.2f} h</td></tr>")
+    if not rows:
+        rows = ("<tr><td colspan='4' style='text-align:center; color:#6b7280;'>"
+                "Keine Eintr&auml;ge in diesem Jahr.</td></tr>")
+
+    body = f"""
+    <table class="list-table">
+        <thead><tr><th style="width:18%;">Datum</th><th style="width:16%;">Art</th>
+        <th>Bezeichnung</th><th style="width:16%; text-align:right;">Dauer</th></tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+    <div class="summary">
+        Gesamt: <b>{total_hours:.2f} Stunden</b> &nbsp;&bull;&nbsp;
+        {count_dienst} Dienste &nbsp;&bull;&nbsp; {count_einsatz} Eins&auml;tze
+    </div>"""
+
+    html_content = _certificate_document(
+        f"Dienstzeitnachweis {target_year}", person,
+        f"<tr><td><b>Berichtszeitraum</b></td><td>01.01.{target_year} &ndash; 31.12.{target_year}</td></tr>",
+        body)
+    return _certificate_response(
+        html_content, f"Dienstzeitnachweis_{_safe_filename(person['name'])}_{target_year}.pdf")
+
+
+@router.get("/{member_id}/certificate/lehrgaenge/pdf")
+def get_courses_certificate(member_id: int, request: Request):
+    """Lehrgangs- und Qualifikationsuebersicht einer Person (vollstaendige Historie)."""
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    from html import escape
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    person = _load_person(cur, member_id)
+    cur.execute("""SELECT course_name, date FROM lehrgaenge
+                   WHERE personnel_id = %s ORDER BY date ASC""", (member_id,))
+    courses = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for c in courses:
+        d = c["date"].strftime("%d.%m.%Y") if hasattr(c["date"], "strftime") else str(c["date"] or "-")
+        rows += f"<tr><td>{escape(str(c['course_name'] or '-'))}</td><td style='width:22%;'>{d}</td></tr>"
+    if not rows:
+        rows = ("<tr><td colspan='2' style='text-align:center; color:#6b7280;'>"
+                "Keine Lehrg&auml;nge erfasst.</td></tr>")
+
+    body = f"""
+    <table class="list-table">
+        <thead><tr><th>Lehrgang / Qualifikation</th><th>Abgeschlossen am</th></tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+    <div class="summary">Erfasste Lehrg&auml;nge: <b>{len(courses)}</b></div>"""
+
+    html_content = _certificate_document("Lehrgangs&uuml;bersicht", person, "", body)
+    return _certificate_response(
+        html_content, f"Lehrgaenge_{_safe_filename(person['name'])}.pdf")
+
+
+@router.get("/{member_id}/certificate/atemschutz/pdf")
+def get_respiratory_certificate(member_id: int, request: Request, year: Optional[int] = None):
+    """Atemschutz-Nachweis: dokumentierte Einsaetze/Uebungen unter Atemschutz je Jahr."""
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    from html import escape
+    target_year = year or date.today().year
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    person = _load_person(cur, member_id)
+    cur.execute("""
+        SELECT m.date AS d, m.stichwort, r.dauer, r.druck_start, r.druck_ende, r.fit_ok
+        FROM respiration_log r
+        JOIN missions m ON r.mission_id = m.id
+        WHERE r.personnel_id = %s AND YEAR(m.date) = %s
+        ORDER BY m.date ASC
+    """, (member_id, target_year))
+    entries = cur.fetchall()
+    cur.close(); conn.close()
+
+    rows = ""
+    for e in entries:
+        d = e["d"].strftime("%d.%m.%Y") if hasattr(e["d"], "strftime") else str(e["d"])
+        fit = "ja" if e["fit_ok"] else "nein"
+        rows += (f"<tr><td>{d}</td><td>{escape(str(e['stichwort'] or '-'))}</td>"
+                 f"<td style='text-align:right;'>{escape(str(e['dauer'] or '-'))}</td>"
+                 f"<td style='text-align:right;'>{escape(str(e['druck_start'] or '-'))}</td>"
+                 f"<td style='text-align:right;'>{escape(str(e['druck_ende'] or '-'))}</td>"
+                 f"<td style='text-align:center;'>{fit}</td></tr>")
+    if not rows:
+        rows = ("<tr><td colspan='6' style='text-align:center; color:#6b7280;'>"
+                "Keine Atemschutz-Eins&auml;tze in diesem Jahr dokumentiert.</td></tr>")
+
+    body = f"""
+    <table class="list-table">
+        <thead><tr><th style="width:16%;">Datum</th><th>Anlass</th>
+        <th style="width:12%; text-align:right;">Dauer</th>
+        <th style="width:13%; text-align:right;">Druck Start</th>
+        <th style="width:13%; text-align:right;">Druck Ende</th>
+        <th style="width:10%; text-align:center;">Fit</th></tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+    <div class="summary">
+        Dokumentierte Eins&auml;tze unter Atemschutz: <b>{len(entries)}</b>
+        <br><span style="font-size:8.5pt; color:#4b5563;">Hinweis: Dieser Nachweis ersetzt weder
+        die arbeitsmedizinische Vorsorge (G26) noch den Nachweis der j&auml;hrlichen
+        Belastungs&uuml;bung.</span>
+    </div>"""
+
+    html_content = _certificate_document(
+        f"Atemschutznachweis {target_year}", person,
+        f"<tr><td><b>Berichtszeitraum</b></td><td>01.01.{target_year} &ndash; 31.12.{target_year}</td></tr>",
+        body)
+    return _certificate_response(
+        html_content, f"Atemschutznachweis_{_safe_filename(person['name'])}_{target_year}.pdf")
+
+
 @router.get("/me/licenses")
 def get_my_licenses(request: Request):
     user = check_auth(request)

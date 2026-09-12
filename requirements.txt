@@ -1,14 +1,24 @@
-fastapi
-uvicorn
-mysql-connector-python
-pydantic
-python-multipart
-websockets
+# Obergrenzen, damit ein spaeterer Rebuild nicht ungefragt eine Version mit
+# geaenderten Interna zieht. Hintergrund: FastAPI hat im 0.13x-Bereich die
+# Routen-Aufloesung umgebaut - ohne Obergrenze kann ein Rebuild die Wache lahmlegen,
+# ohne dass sich am eigenen Code etwas geaendert hat.
+#
+# Fuer exakte Pins (empfohlen, sobald der laufende Stand bekannt ist):
+#   docker exec attendance_api pip freeze > requirements.txt
+# Die hier eingetragenen Obergrenzen sind gegen den aktuellen Stand geprueft
+# (App-Import und Routen-Tabelle erfolgreich).
 
-xhtml2pdf
+fastapi<0.140
+uvicorn<0.51
+mysql-connector-python<10.0
+pydantic<3.0
+python-multipart<0.1
+websockets<18.0
 
-pywebpush
+xhtml2pdf<0.3
 
-py-vapid
+pywebpush<3.0
 
-requests
+py-vapid<2.0
+
+requests<3.0

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from typing import Optional
 import json
 import os
@@ -27,29 +28,28 @@ ALLOWED_ARCHIVE_EXTENSIONS = {
 # einzelner Upload (oder viele wiederholte) die Festplatte des Servers füllen (DoS).
 _MAX_ARCHIVE_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
 
-@router.get("/api/admin/backup/export")
-def export_database_backup(request: Request):
-    user = get_current_user(request)
-    if not user or user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+BACKUP_TABLES = [
+    "users", "personnel", "groups_table", "persons", "sessions", "attendance",
+    "vehicles", "vehicle_log", "vehicle_checks", "hvo_protocols", "hvo_equipment_checks",
+    "equipment", "equipment_inspections", "equipment_defect_reports", "notes",
+    "archive_files", "youth_sessions", "youth_attendance", "settings",
+    "station_settings", "audit_log", "apager_config", "apager_logs",
+    "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
+    "schedule_attendance", "missions", "mission_attendance", "respiration_log",
+    "billing_verursacher", "personal_inventar", "lehrgaenge", "hydrants", "bma",
+    "drone_images", "push_subscriptions", "club_inventory", "club_donations"
+]
 
-    tables_to_export = [
-        "users", "personnel", "groups_table", "persons", "sessions", "attendance",
-        "vehicles", "vehicle_log", "vehicle_checks", "hvo_protocols", "hvo_equipment_checks",
-        "equipment", "equipment_inspections", "equipment_defect_reports", "notes",
-        "archive_files", "youth_sessions", "youth_attendance", "settings",
-        "station_settings", "audit_log", "apager_config", "apager_logs",
-        "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
-        "schedule_attendance", "missions", "mission_attendance", "respiration_log",
-        "billing_verursacher", "personal_inventar", "lehrgaenge", "hydrants", "bma",
-        "drone_images", "push_subscriptions", "club_inventory", "club_donations"
-    ]
 
+def build_backup_payload(exported_by: str) -> dict:
+    """Baut die vollstaendige JSON-Sicherung. Bewusst ohne Request-Objekt, damit auch die
+    automatische Sicherung (ohne angemeldeten Nutzer) dieselben Daten erzeugt - das Ergebnis
+    laesst sich ueber den vorhandenen Import wieder einspielen."""
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     backup_tables = {}
 
-    for table in tables_to_export:
+    for table in BACKUP_TABLES:
         try:
             cur.execute(f"SELECT * FROM `{table}`")
             rows = cur.fetchall()
@@ -73,14 +73,23 @@ def export_database_backup(request: Request):
     conn.close()
 
     from main import CURRENT_VERSION
-    filename = f"dienstbuch_backup_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')}.json"
-    backup_data = {
+    return {
         "app_name": "Dienstbuch",
         "version": CURRENT_VERSION,
         "exported_at": datetime.datetime.now().isoformat(),
-        "exported_by": user["username"],
+        "exported_by": exported_by,
         "tables": backup_tables
     }
+
+
+@router.get("/api/admin/backup/export")
+def export_database_backup(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+
+    filename = f"dienstbuch_backup_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')}.json"
+    backup_data = build_backup_payload(user["username"])
 
     log_audit_action(user["username"], "DATENBANK-BACKUP", f"Datenbank-Sicherung '{filename}' erstellt.")
 
@@ -176,23 +185,59 @@ async def import_database_backup(request: Request, file: UploadFile = File(...))
 
     return {"status": "success", "imported_rows": imported_count}
 
-@router.post("/api/admin/backup/auto")
-def auto_backup(request: Request):
-    user = get_current_user(request)
-    if not user or user.get("role") not in ["admin", "leitung"]:
-        raise HTTPException(status_code=403, detail="Nicht berechtigt")
-    
-    backup_dir = os.path.join(os.getcwd(), "auto_backups")
-    os.makedirs(backup_dir, exist_ok=True)
-    
+# Sicherungen müssen einen Neuaufbau des Containers überstehen. Das Arbeitsverzeichnis
+# (/app) ist NICHT gemountet - dort abgelegte Sicherungen wären nach dem nächsten
+# "docker compose up -d --build" spurlos weg, also genau dann, wenn man sie braucht.
+# /app/data hängt dagegen am benannten Volume notes_data (siehe docker-compose.yml).
+BACKUP_DIR = os.getenv("BACKUP_DIR", "/app/data/backups")
+try:
+    BACKUP_KEEP = max(1, int(os.getenv("BACKUP_KEEP", "14")))
+except ValueError:
+    BACKUP_KEEP = 14
+
+
+def _backup_dir() -> str:
+    """Beschreibbares Sicherungsverzeichnis. Fällt auf ./auto_backups zurück, wenn das
+    Volume nicht existiert (lokale Entwicklung ausserhalb von Docker)."""
+    for candidate in (BACKUP_DIR, os.path.join(os.getcwd(), "auto_backups")):
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            return candidate
+        except Exception:
+            continue
+    raise RuntimeError("Kein beschreibbares Sicherungsverzeichnis gefunden")
+
+
+def _prune_backups(backup_dir: str, keep: int) -> int:
+    """Ältere Sicherungen entfernen, damit das Volume nicht unbemerkt vollläuft. Die
+    Dateinamen enthalten einen sortierbaren Zeitstempel, neueste zuerst."""
+    removed = 0
+    for prefix in ("db_backup_", "uploads_backup_", "dienstbuch_backup_"):
+        try:
+            files = sorted((f for f in os.listdir(backup_dir) if f.startswith(prefix)), reverse=True)
+        except Exception:
+            continue
+        for old in files[keep:]:
+            try:
+                os.remove(os.path.join(backup_dir, old))
+                removed += 1
+            except Exception as e:
+                print(f"Backup-Aufräumen fehlgeschlagen für {old}: {e}")
+    return removed
+
+
+def run_auto_backup(username: str = "system") -> dict:
+    """Erzeugt eine Sicherung. Bewusst ohne Request-Objekt, damit auch der Zeitplan im
+    Hintergrund (siehe main.py) dieselbe Funktion nutzen kann."""
+    backup_dir = _backup_dir()
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     db_dump_path = os.path.join(backup_dir, f"db_backup_{ts}.sql")
-    
+
     db_host = os.getenv("DB_HOST", os.getenv("MYSQL_HOST", "db"))
     db_user = os.getenv("DB_USER", os.getenv("MYSQL_USER", "app_user"))
     db_pass = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or os.getenv("MYSQL_PASSWORD") or "dein_app_passwort"
     db_name = os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "attendance_system"))
-    
+
     sql_dump_ok = False
     sql_dump_error = None
     try:
@@ -211,20 +256,97 @@ def auto_backup(request: Request):
         print(f"Error during mysqldump: {e}")
         sql_dump_error = str(e)
 
-    zip_filename = f"backup_{ts}"
-    zip_path = os.path.join(backup_dir, zip_filename)
-    shutil.make_archive(zip_path, 'zip', "static/uploads")
+    uploads_file = None
+    try:
+        uploads_file = shutil.make_archive(os.path.join(backup_dir, f"uploads_backup_{ts}"),
+                                           'zip', "static/uploads")
+    except Exception as e:
+        print(f"Upload-Sicherung fehlgeschlagen: {e}")
 
+    # Rückfallebene: schlägt mysqldump fehl, darf eine AUTOMATISCHE Sicherung nicht
+    # einfach ohne Datenbankstand zurückbleiben - das merkt sonst niemand. Der JSON-Stand
+    # ist reines Python (kein externes Programm nötig) und lässt sich über den bereits
+    # vorhandenen Import wieder einspielen.
+    json_file = None
     if not sql_dump_ok:
-        log_audit_action(user["username"], "AUTO_BACKUP_SQL_FEHLGESCHLAGEN", f"mysqldump nicht verfügbar oder fehlgeschlagen: {sql_dump_error or 'leere Ausgabe'}")
-        return {
-            "status": "partial",
-            "backup_file": f"{zip_path}.zip",
-            "sql_dump": None,
-            "warning": "Der SQL-Datenbank-Dump konnte nicht erstellt werden (mysqldump fehlt oder ist fehlgeschlagen). Nur die Datei-Uploads wurden gesichert. Bitte nutze zusätzlich den JSON-Export unter 'Datenbank-Sicherung'."
-        }
+        try:
+            os.remove(db_dump_path)
+        except Exception:
+            pass
+        try:
+            json_file = os.path.join(backup_dir, f"dienstbuch_backup_{ts}.json")
+            with open(json_file, "w", encoding="utf-8") as f:
+                json.dump(build_backup_payload(username), f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"JSON-Rückfallsicherung fehlgeschlagen: {e}")
+            json_file = None
 
-    return {"status": "success", "backup_file": f"{zip_path}.zip", "sql_dump": db_dump_path}
+    _prune_backups(backup_dir, BACKUP_KEEP)
+
+    if sql_dump_ok:
+        log_audit_action(username, "AUTO_BACKUP",
+                         f"Automatische Sicherung erstellt: {os.path.basename(db_dump_path)}")
+        return {"status": "success", "directory": backup_dir,
+                "sql_dump": db_dump_path, "uploads": uploads_file, "json_fallback": None}
+
+    if json_file:
+        log_audit_action(username, "AUTO_BACKUP_JSON",
+                         f"mysqldump fehlgeschlagen ({sql_dump_error or 'leere Ausgabe'}), "
+                         f"stattdessen JSON-Sicherung erstellt: {os.path.basename(json_file)}")
+        return {"status": "success", "directory": backup_dir, "sql_dump": None,
+                "uploads": uploads_file, "json_fallback": json_file,
+                "warning": "mysqldump war nicht verfügbar - es wurde eine JSON-Sicherung "
+                           "erstellt, die sich über den Import wieder einspielen lässt."}
+
+    log_audit_action(username, "AUTO_BACKUP_FEHLGESCHLAGEN",
+                     f"Weder mysqldump noch JSON-Sicherung möglich: {sql_dump_error or 'unbekannt'}")
+    return {"status": "error", "directory": backup_dir, "sql_dump": None,
+            "uploads": uploads_file, "json_fallback": None,
+            "warning": "Die Sicherung ist fehlgeschlagen. Bitte Server-Protokoll prüfen."}
+
+
+@router.post("/api/admin/backup/auto")
+def auto_backup(request: Request):
+    user = get_current_user(request)
+    if not user or user.get("role") not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Nicht berechtigt")
+    return run_auto_backup(user["username"])
+
+
+@router.get("/api/admin/backups")
+def list_auto_backups(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    backup_dir = _backup_dir()
+    files = []
+    for name in sorted(os.listdir(backup_dir), reverse=True):
+        path = os.path.join(backup_dir, name)
+        if not os.path.isfile(path):
+            continue
+        st = os.stat(path)
+        files.append({
+            "name": name,
+            "size": st.st_size,
+            "created_at": datetime.datetime.fromtimestamp(st.st_mtime).isoformat()
+        })
+    return {"directory": backup_dir, "keep": BACKUP_KEEP, "files": files}
+
+
+@router.get("/api/admin/backups/{name}")
+def download_auto_backup(name: str, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    backup_dir = _backup_dir()
+    # Pfad-Ausbruch verhindern: nur Dateien direkt in diesem Verzeichnis herausgeben,
+    # niemals etwas wie "../../etc/passwd" oder einen Symlink nach draussen.
+    safe_name = os.path.basename(name)
+    full_path = os.path.realpath(os.path.join(backup_dir, safe_name))
+    if os.path.dirname(full_path) != os.path.realpath(backup_dir) or not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="Sicherung nicht gefunden")
+    log_audit_action(user["username"], "BACKUP_DOWNLOAD", f"Sicherung '{safe_name}' heruntergeladen.")
+    return FileResponse(full_path, filename=safe_name, media_type="application/octet-stream")
 
 @router.post("/api/archive/upload")
 async def upload_archive_file(request: Request, file: UploadFile = File(...), is_public: bool = False, vehicle_id: Optional[int] = Form(None)):

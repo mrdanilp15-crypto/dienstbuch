@@ -369,6 +369,7 @@ applyChartTheme();
                     activeLegalTab: 'impressum',
                     lehrgangTypes: [],
                     newLehrgangType: '',
+                    certYear: new Date().getFullYear(),
                     employerCertificates: [],
                     newCertMissionId: null,
                     newCertPersonnelId: null,
@@ -593,6 +594,10 @@ applyChartTheme();
                     return list;
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
+                certYears() {
+                    const now = new Date().getFullYear();
+                    return [0, 1, 2, 3, 4, 5].map(offset => now - offset);
+                },
                 filteredEquipment() {
                     // eq &&/optional chaining: ein einzelner unerwartet unvollständiger
                     // Datensatz (z.B. name/barcode fehlt) durfte diesen ganzen computed vorher
@@ -642,9 +647,12 @@ applyChartTheme();
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
                     }
-                    if (newTab === 'stats') {
-                        this.loadStats();
-                    }
+                    // Einziger Ort, an dem beim Reiterwechsel Daten nachgeladen werden. Vorher
+                    // hingen die Ladeaufrufe an den @click-Handlern der Menü-Schaltflächen - wer
+                    // den Reiter auf anderem Weg wechselte (globale Suche, Sprung nach einem
+                    // Barcode-Scan, Sprung nach dem Anlegen eines Einsatzes), bekam deshalb einen
+                    // leeren Reiter zu sehen. Über den Watcher greift es für JEDEN Weg.
+                    this.loadDataForActiveTab(newTab);
                 }
             },
             async mounted() {
@@ -719,10 +727,6 @@ applyChartTheme();
                     const results = await Promise.allSettled(loadTasks);
                     results.forEach((r, i) => { if (r.status === 'rejected') console.error('Fehler beim initialen Laden (Task ' + i + '):', r.reason); });
 
-                    if (this.activeTab === 'stats') {
-                        this.loadStats();
-                    }
-
                     if (window.location.hash === '#new_mission') {
                         window.location.hash = ''; // clear it
                         this.goToNewMission();
@@ -766,6 +770,12 @@ applyChartTheme();
                 } finally {
                     this.ready = true;
                 }
+
+                // Bewusst ERST hier, nach ready=true und dem nächsten Render-Durchlauf: vorher ist
+                // #app per v-show noch komplett ausgeblendet, eine Karte oder ein Diagramm würde
+                // dann auf eine Fläche von 0x0 gezeichnet.
+                this.$nextTick(() => this.loadDataForActiveTab());
+
                 if (this.isFirstLoginBlock) {
                     setTimeout(() => {
                         const el = document.getElementById('selfPasswordModal');
@@ -885,11 +895,21 @@ applyChartTheme();
                             } catch (e) { /* kein URL-Format, decodedText bleibt wie es ist */ }
                             const eq = this.equipment.find(e => e.barcode === scannedValue || String(e.id) === scannedValue);
                             this.stopQrScanner();
-                            const modalEl = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
-                            if (modalEl) modalEl.hide();
+                            const qrEl = document.getElementById('qrScannerModal');
+                            const modalEl = qrEl ? bootstrap.Modal.getInstance(qrEl) : null;
                             if (eq) {
-                                this.addInspection(eq);
+                                // Das Prüf-Fenster darf erst aufgehen, NACHDEM das Scanner-Fenster
+                                // fertig ausgeblendet ist. Öffnet man es sofort, entfernt die noch
+                                // laufende Schliess-Animation danach die "modal-open"-Markierung vom
+                                // body - die Seite ist dann nach dem Schliessen nicht mehr scrollbar.
+                                if (modalEl && qrEl) {
+                                    qrEl.addEventListener('hidden.bs.modal', () => this.openAddInspectionModal(eq), { once: true });
+                                    modalEl.hide();
+                                } else {
+                                    this.openAddInspectionModal(eq);
+                                }
                             } else {
+                                if (modalEl) modalEl.hide();
                                 await appAlert("Kein Gerät mit Barcode '" + scannedValue + "' gefunden.");
                             }
                         },
@@ -1407,6 +1427,34 @@ applyChartTheme();
                         this.dueSoonItems = res.ok ? await res.json() : [];
                     } catch(e) { this.dueSoonItems = []; }
                 },
+                // Einzige Stelle, die weiss, welcher Reiter welche Daten braucht. Aufgerufen aus
+                // dem activeTab-Watcher (jeder Reiterwechsel) und aus mounted() (Seitenstart, wo
+                // der zuletzt benutzte Reiter aus dem localStorage wiederhergestellt wird und der
+                // Watcher deshalb nicht anspringt). Reiter, deren Daten bereits in mounted()
+                // geladen werden (Dienste, Personal, Fahrzeuge, aPager, Verwaltung), brauchen
+                // hier keinen Eintrag.
+                loadDataForActiveTab(tab) {
+                    const loaders = {
+                        jugend: () => this.loadJugendData(),
+                        notizen: () => this.loadNotes(),
+                        kalender: () => this.loadCalendar(),
+                        einsaetze: () => this.loadMissions(),
+                        lagekarte: () => this.initMap(),
+                        hvo: () => this.loadHvoData(),
+                        material: () => this.loadEquipment(),
+                        abrechnung: () => { this.loadBills(); this.calculateCompensations(); },
+                        arbeitsbescheinigung: () => this.loadEmployerCertificates(),
+                        archiv: () => this.loadArchiveFiles(),
+                        stats: () => this.loadStats()
+                    };
+                    const load = loaders[tab || this.activeTab];
+                    if (!load) return;
+                    try {
+                        load();
+                    } catch (e) {
+                        console.error('Laden des aktiven Reiters fehlgeschlagen:', e);
+                    }
+                },
                 // WICHTIG: In Vue-Vorlagen ist NUR eine feste Liste von Browser-Globals verfügbar
                 // (Math, JSON, console, Date, ...). 'navigator', 'window' und 'localStorage' gehören
                 // NICHT dazu - ein @click="navigator.clipboard.writeText(...)" direkt in der Vorlage
@@ -1436,6 +1484,13 @@ applyChartTheme();
                 },
                 openEquipmentReportPdf(eq) {
                     window.open('/api/material/equipment/' + eq.id + '/report/pdf', '_blank');
+                },
+                openPersonnelCertificate(kind) {
+                    if (!this.activePersonnel || !this.activePersonnel.id) return;
+                    const base = `/api/personnel/${this.activePersonnel.id}/certificate/${kind}/pdf`;
+                    // Die Lehrgangsübersicht ist bewusst die vollständige Historie und kennt
+                    // daher kein Berichtsjahr.
+                    window.open(kind === 'lehrgaenge' ? base : `${base}?year=${this.certYear}`, '_blank');
                 },
                 openEquipmentModal() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null, purchase_value: null, insurance_policy: '' };
