@@ -887,10 +887,22 @@
                 },
                 async fetchWeather() {
                     try {
-                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${this.stationLat}&longitude=${this.stationLng}&current_weather=true`);
+                        // Geht bewusst ueber den eigenen Server (/api/weather/current) statt direkt
+                        // zu api.open-meteo.com: sonst uebertraegt JEDES Anzeigegeraet seine
+                        // IP-Adresse an einen Drittanbieter. Die Koordinaten kommen dort aus den
+                        // Standort-Einstellungen, muessen also nicht mehr mitgeschickt werden.
+                        const res = await fetch('/api/weather/current');
                         if (res.ok) {
                             const data = await res.json();
                             const cw = data.current_weather;
+                            // Ohne diese Prüfung reichte EINE unvollständige Antwort des Wetterdienstes
+                            // (fehlendes current_weather oder temperature: null), um das gesamte
+                            // Alarm-Display lahmzulegen: loaded wurde trotzdem auf true gesetzt, und
+                            // die Vorlage ruft dann weather.temp.toFixed(1) auf einem null-Wert auf -
+                            // der Render-Fehler reisst die komplette Anzeige mit, nicht nur das
+                            // Wetter-Feld. Bei unbrauchbarer Antwort bleibt das Widget lieber im
+                            // Ladezustand und versucht es beim nächsten Durchlauf erneut.
+                            if (!cw || typeof cw.temperature !== 'number') return;
                             this.weather.temp = cw.temperature;
                             this.weather.windspeed = cw.windspeed;
                             this.weather.windDirection = cw.winddirection;

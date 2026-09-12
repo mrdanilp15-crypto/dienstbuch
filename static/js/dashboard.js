@@ -1407,6 +1407,36 @@ applyChartTheme();
                         this.dueSoonItems = res.ok ? await res.json() : [];
                     } catch(e) { this.dueSoonItems = []; }
                 },
+                // WICHTIG: In Vue-Vorlagen ist NUR eine feste Liste von Browser-Globals verfügbar
+                // (Math, JSON, console, Date, ...). 'navigator', 'window' und 'localStorage' gehören
+                // NICHT dazu - ein @click="navigator.clipboard.writeText(...)" direkt in der Vorlage
+                // löst 'navigator' gegen die Vue-Instanz auf, findet nichts und wirft beim Klick
+                // "Cannot read properties of undefined". Solche Aufrufe müssen deshalb hier in einer
+                // Methode stehen, wo der normale Browser-Kontext gilt.
+                async copyToClipboard(text) {
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(text);
+                        } else {
+                            // Rückfallebene für nicht-sichere Kontexte (z.B. Aufruf über nackte
+                            // IP statt HTTPS), wo navigator.clipboard gar nicht bereitsteht.
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            ta.style.position = 'fixed';
+                            ta.style.opacity = '0';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            ta.remove();
+                        }
+                        await appAlert('In die Zwischenablage kopiert.');
+                    } catch (e) {
+                        await appAlert('Kopieren nicht möglich. Bitte den Link von Hand markieren und kopieren.');
+                    }
+                },
+                openEquipmentReportPdf(eq) {
+                    window.open('/api/material/equipment/' + eq.id + '/report/pdf', '_blank');
+                },
                 openEquipmentModal() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Schläuche', interval_months: 12, last_inspection: null, next_inspection: null, purchase_value: null, insurance_policy: '' };
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();

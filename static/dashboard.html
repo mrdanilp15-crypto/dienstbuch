@@ -54,6 +54,23 @@
                     if (stillBooting()) showBootFallback('Zeitüberschreitung beim Laden');
                 }, 15000);
             });
+
+            // Ein neu ausgerollter Service Worker übernimmt die Kontrolle erst, NACHDEM diese Seite
+            // bereits geladen ist - die laufende Seite arbeitet dann noch mit der alten dashboard.js
+            // weiter, und erst der übernächste Start zeigte den neuen Stand. Genau deshalb wirkten
+            // ausgerollte Korrekturen oft "gar nicht". Sobald die Übernahme passiert, einmal neu
+            // laden. Beim allerersten Besuch (noch gar kein Service Worker aktiv) ist das nicht
+            // nötig - das "hadController"-Flag verhindert dort den überflüssigen Reload, das
+            // "reloading"-Flag eine Reload-Schleife.
+            if ('serviceWorker' in navigator) {
+                var hadController = !!navigator.serviceWorker.controller;
+                var reloading = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    if (!hadController || reloading) return;
+                    reloading = true;
+                    window.location.reload();
+                });
+            }
         })();
     </script>
     
@@ -765,7 +782,7 @@
                                         <button v-if="!eq.loaned_to" class="btn btn-sm btn-outline-info rounded-pill" @click.stop="openLoanModal(eq)" title="Ausleihen"><i class="fa fa-hand-holding"></i></button>
                                         <button v-else class="btn btn-sm btn-info rounded-pill text-dark" @click.stop="returnEquipmentLoan(eq)" title="Zurückgeben"><i class="fa fa-rotate-left"></i></button>
                                         <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
-                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click.stop="window.open('/api/material/equipment/' + eq.id + '/report/pdf', '_blank')" title="Prüf- und Mängelnachweis als PDF"><i class="fa fa-file-pdf"></i></button>
+                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click.stop="openEquipmentReportPdf(eq)" title="Prüf- und Mängelnachweis als PDF"><i class="fa fa-file-pdf"></i></button>
                                         <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger rounded-pill" @click.stop="deleteEquipmentFromSubtab(eq.id)" title="Gerät löschen"><i class="fa fa-trash"></i></button>
                                     </div>
                                 </div>
@@ -1554,7 +1571,7 @@
                                             <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ calendarFeedUrl }}</code>
                                         </div>
                                         <div class="d-flex gap-2 flex-wrap">
-                                            <button class="btn btn-outline-light rounded-pill" @click="navigator.clipboard.writeText(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
                                             <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics?token='+accessTokens.calendar_token" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
                                             <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('calendar')" title="Alte Links werden damit ungültig"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
                                         </div>
@@ -1579,7 +1596,7 @@
                                             <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ displayUrl }}</code>
                                         </div>
                                         <div class="d-flex gap-2 flex-wrap">
-                                            <button class="btn btn-outline-light rounded-pill" @click="navigator.clipboard.writeText(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                            <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
                                             <a :href="displayUrl" target="_blank" class="btn btn-premium rounded-pill"><i class="fa fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
                                             <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('display')" title="Bisherige Kiosk-Bildschirme müssen den Link dann neu öffnen"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
                                         </div>
