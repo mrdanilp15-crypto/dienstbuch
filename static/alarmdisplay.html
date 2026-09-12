@@ -413,15 +413,79 @@
             box-shadow: 0 8px 25px rgba(183, 28, 28, 0.6);
         }
 
-        /* Print overrides */
+        /* Print overrides: die Live-Ansicht ist für einen fest ausgefüllten Kiosk-Monitor gebaut
+           (feste Höhe, überall overflow:hidden/scroll) - 1:1 gedruckt blieb davon praktisch nur
+           die Stichwort/Adresse-Karte übrig, alles andere (Ausrückreihenfolge, Rückmeldungen)
+           wurde einfach ausgeblendet und der Rest der Seite blieb leer. Für eine brauchbare
+           Alarmdepesche jetzt gezielt die wirklich einsatzrelevanten Blöcke einblenden, in
+           normalen Dokumentenfluss (kein festes Grid/Scroll-Layout) bringen und in
+           druckfreundlichen Farben (schwarz auf weiß, aber Status-Akzentfarben erhalten) zeigen. */
+        .print-only-header { display: none; }
         @media print {
-            body { background: white; color: black; }
-            .alarm-header, .feedback-panel, .print-btn, #displayMap, .command-card:not(.main-alarm-card), .weather-banner, .weather-warning-strip { display: none !important; }
-            .main-grid { grid-template-columns: 1fr; padding: 0; }
-            .main-alarm-card { border: none; box-shadow: none; padding: 0; }
-            .stichwort-val { color: black; font-size: 3rem; }
-            .adresse-val { color: black; font-size: 2rem; }
-            .meldung-val { color: black; font-size: 1.2rem; }
+            @page { margin: 14mm; }
+            body {
+                background: white; color: #000;
+                height: auto !important; overflow: visible !important;
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+            #app { height: auto !important; overflow: visible !important; display: block !important; }
+
+            .alarm-header, .print-btn, #displayMap, .weather-banner, .weather-warning-strip,
+            .w-100.bg-black.bg-opacity-80 { display: none !important; } /* Wach-Ticker-Leiste */
+            /* "Letzte Alarmierungen", "Nächste Ausbildungen" und der Fahrzeugstatus (FMS) sind
+               für DIESE Depesche nicht einsatzrelevant - gezielt über ein Icon in der jeweiligen
+               Karte ausblenden statt per Reihenfolge, damit es robust bleibt, falls die Karten
+               mal umsortiert werden. */
+            .command-card:has(.fa-clock-rotate-left),
+            .command-card:has(.fa-calendar-days),
+            .command-card:has(.vehicle-grid) { display: none !important; }
+
+            /* Fängt JEDEN Text ab, der bisher nur als helle Schrift für den dunklen
+               Kiosk-Hintergrund gedacht war (viele Stellen setzen die Farbe direkt per
+               style="color:#fff" statt per Klasse) - ohne diesen Fangnetz-Reset blieb einzelnes
+               weißes Inline-gestyltes Textgut trotz aller Klassen-Overrides weiß auf weiß und
+               damit auf dem Ausdruck unsichtbar. Akzentfarben (Status, Kartentitel) werden
+               danach gezielt wiederhergestellt.
+            */
+            .hero-alarm-wrap, .hero-alarm-wrap *,
+            .main-grid, .main-grid * { color: #000 !important; text-shadow: none !important; }
+
+            .print-only-header {
+                display: block !important;
+                margin: 0 0 14px 0; padding-bottom: 10px;
+                border-bottom: 2px solid #000;
+            }
+
+            .hero-alarm-wrap { padding: 0; margin-bottom: 14px; }
+            .main-alarm-card {
+                background: none !important; border: none !important; box-shadow: none !important;
+                backdrop-filter: none !important; padding: 0 !important;
+            }
+            .stichwort-val { font-size: 2.6rem; }
+            .adresse-val { font-size: 1.5rem; }
+            .meldung-val { font-size: 1rem; }
+            .card-label, .timer-badge { color: #b71c1c !important; }
+            .timer-badge { background: none !important; border-color: #b71c1c !important; }
+
+            .main-grid {
+                display: block !important; padding: 0 !important; overflow: visible !important;
+                height: auto !important; gap: 0 !important;
+            }
+            .column-pane {
+                display: block !important; height: auto !important; overflow: visible !important;
+                gap: 0 !important;
+            }
+            .command-card, .feedback-panel {
+                background: none !important; backdrop-filter: none !important;
+                border: 1px solid #999 !important; box-shadow: none !important;
+                border-radius: 6px; padding: 12px; margin-bottom: 14px;
+                break-inside: avoid;
+            }
+            .aao-badge, .feedback-item { background: none !important; border-color: #ccc !important; }
+            .feedback-item.status-komme { border-left: 3px solid #10b981 !important; }
+            .feedback-item.status-nein { border-left: 3px solid #dc2626 !important; }
+            .feedback-item .text-success { color: #10b981 !important; }
+            .feedback-item .text-danger { color: #dc2626 !important; }
         }
     </style>
 </head>
@@ -451,7 +515,7 @@
                     <i class="fa fa-spinner fa-spin me-1"></i> Wetter laden...
                 </div>
                 
-                <button class="btn btn-premium rounded-pill px-3 fw-bold print-btn btn-sm" onclick="window.print()"><i class="fa fa-print me-1"></i>Depesche drucken</button>
+                <button class="btn btn-premium rounded-pill px-3 fw-bold print-btn btn-sm" @click="printDepesche"><i class="fa fa-print me-1"></i>Depesche drucken</button>
                 <div class="clock-container">{{ timeStr }}</div>
             </div>
         </header>
@@ -462,6 +526,12 @@
             <span v-for="(w, i) in weatherWarnings" :key="i" class="me-4">
                 <strong>{{ w.event }}</strong><span v-if="w.headline"> – {{ w.headline }}</span>
             </span>
+        </div>
+
+        <!-- Nur für den Ausdruck sichtbarer Depeschen-Briefkopf (siehe @media print) -->
+        <div class="print-only-header">
+            <div class="fw-bold" style="font-size:1.3rem;">{{ stationName }} &bull; Alarmdepesche</div>
+            <div style="font-size:0.85rem;">Ausgedruckt: {{ printTimestamp }}</div>
         </div>
 
         <!-- Haupt-Alarm-Anzeige: volle Breite statt in eine Spalte gequetscht, damit
@@ -673,6 +743,7 @@
                     timerInterval: null,
 
                     legalTexts: { impressum: '', datenschutz: '' },
+                    printTimestamp: '',
                     activeLegalTab: 'impressum'
                 }
             },
@@ -748,6 +819,11 @@
                         } catch(e) {}
                     }
                     new bootstrap.Modal(document.getElementById('legalModal')).show();
+                },
+                printDepesche() {
+                    const now = new Date();
+                    this.printTimestamp = now.toLocaleDateString('de-DE') + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) + ' Uhr';
+                    this.$nextTick(() => window.print());
                 },
                 initWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

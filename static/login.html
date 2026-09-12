@@ -180,31 +180,26 @@
         .loader { display: none; }
 
         .footer-links {
-            position: fixed;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            z-index: 10;
-        }
-        .footer-links-inner {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 8px 18px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.1);
+            justify-content: center;
+            gap: 16px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
         .footer-links a {
-            color: rgba(255,255,255,0.8);
-            font-size: 0.85rem;
-            font-weight: 600;
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 700;
             text-decoration: none;
             cursor: pointer;
         }
+        .footer-links a i {
+            color: var(--primary-color);
+        }
         .footer-links a:hover {
-            color: #ffffff;
+            color: #ff6b6b;
             text-decoration: underline;
         }
         .legal-modal-backdrop {
@@ -298,13 +293,11 @@
                 <span id="btnSpinner" class="spinner-border spinner-border-sm loader" role="status"></span>
             </button>
         </form>
-    </div>
 
-    <div class="footer-links">
-        <div class="footer-links-inner">
-            <a onclick="openLegalModal('impressum')"><i class="fa fa-circle-info me-1"></i>Impressum</a>
+        <div class="footer-links">
+            <a class="footer-link-item" onclick="openLegalModal('impressum')"><i class="fa fa-circle-info me-1"></i>Impressum</a>
             <span style="color:rgba(255,255,255,0.2);">&bull;</span>
-            <a onclick="openLegalModal('datenschutz')"><i class="fa fa-shield-halved me-1"></i>Datenschutz</a>
+            <a class="footer-link-item" onclick="openLegalModal('datenschutz')"><i class="fa fa-shield-halved me-1"></i>Datenschutz</a>
         </div>
     </div>
 

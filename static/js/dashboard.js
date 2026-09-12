@@ -6,15 +6,20 @@ const { createApp } = Vue;
         let globalSearchTimer = null;
 
 // Chart.js rendert per Default für helle Seiten (dunkelgraue Achsenbeschriftung, fast
-// unsichtbare Gitterlinien) - auf dem dunklen App-Hintergrund waren Diagramme dadurch
-// praktisch leer/unlesbar (nur die farbigen Balken selbst waren zu erahnen). Einmalig
-// global auf helle Schrift/Gitterlinien umstellen, statt das in jedem einzelnen Chart
-// separat zu wiederholen.
-if (window.Chart) {
-    Chart.defaults.color = 'rgba(255, 255, 255, 0.75)';
-    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.15)';
-    Chart.defaults.plugins.legend.labels.color = 'rgba(255, 255, 255, 0.85)';
+// unsichtbare Gitterlinien). Das hier war früher fest auf helle Schrift für dunklen
+// Hintergrund gesetzt - seit es zusätzlich einen Hell/Dunkel-Umschalter (toggleTheme) gibt,
+// blieben Diagramme dadurch in EINEM der beiden Modi unlesbar (weiße Schrift auf hellem
+// Kartenhintergrund bzw. umgekehrt), je nachdem welcher Modus beim Erstmal-Laden gerade
+// aktiv war. Jetzt themenabhängig statt fest verdrahtet, und wird sowohl beim initialen
+// Laden als auch bei jedem Theme-Wechsel (siehe toggleTheme()) neu angewendet.
+function applyChartTheme() {
+    if (!window.Chart) return;
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    Chart.defaults.color = isLight ? 'rgba(33, 37, 41, 0.75)' : 'rgba(255, 255, 255, 0.75)';
+    Chart.defaults.borderColor = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+    Chart.defaults.plugins.legend.labels.color = isLight ? 'rgba(33, 37, 41, 0.85)' : 'rgba(255, 255, 255, 0.85)';
 }
+applyChartTheme();
 
         function initResponsiveCanvas(canvasId, padInstance, existingSignatureDataUrl) {
             const canvas = document.getElementById(canvasId);
@@ -750,6 +755,7 @@ if (window.Chart) {
                     this.isDarkMode = false;
                     document.documentElement.setAttribute('data-theme', 'light');
                 }
+                applyChartTheme();
             },
             methods: {
                 async loadNotes() {
@@ -966,6 +972,11 @@ if (window.Chart) {
                     this.isDarkMode = !this.isDarkMode;
                     document.documentElement.setAttribute('data-theme', this.isDarkMode ? 'dark' : 'light');
                     localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+                    // Bereits gezeichnete Chart.js-Diagramme übernehmen einen geänderten
+                    // Chart.defaults-Wert NICHT automatisch (der wird nur beim Erstellen einer
+                    // neuen Chart-Instanz gelesen) - ohne dieses Neuzeichnen blieb die
+                    // Statistik-Seite bis zum nächsten Tab-Wechsel im alten (unlesbaren) Theme.
+                    if (this.activeTab === 'stats') this.loadStats();
                 },
                 async fullLogout() { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/login'; },
                 
@@ -1036,11 +1047,17 @@ if (window.Chart) {
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async submitSchedule() {
-                    const res = await fetch('/api/missions/schedules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newSchedule) });
+                    const isEdit = !!this.newSchedule.id;
+                    const url = isEdit ? `/api/missions/schedules/${this.newSchedule.id}` : '/api/missions/schedules';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const { title, date, time, description, type, group_id } = this.newSchedule;
+                    const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ title, date, time, description, type, group_id }) });
                     if(res.ok) {
                         bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
                         await this.loadSchedules();
                         if (this.activeTab === 'kalender') await this.loadCalendar();
+                    } else {
+                        await appAlert("Speichern fehlgeschlagen.");
                     }
                 },
                 async deleteSchedule(id) {
@@ -2670,6 +2687,22 @@ if (window.Chart) {
                     this.newSchedule = { title: '', date: dateStr, time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id || null };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
+                editCalendarTermin(ev, domEvent) {
+                    if (domEvent) domEvent.stopPropagation();
+                    const full = this.schedules.find(s => s.id === ev.schedule_id);
+                    if (!full) return;
+                    this.newSchedule = { id: full.id, title: full.title, date: full.date, time: full.time || '19:00', description: full.description || '', type: full.type, group_id: full.group_id || null };
+                    new bootstrap.Modal(document.getElementById('scheduleModal')).show();
+                },
+                async deleteScheduleFromModal() {
+                    if (!this.newSchedule.id) return;
+                    const id = this.newSchedule.id;
+                    if (!await appConfirm("Termin wirklich löschen?")) return;
+                    await fetch(`/api/missions/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
+                    bootstrap.Modal.getInstance(document.getElementById('scheduleModal'))?.hide();
+                    await this.loadSchedules();
+                    if (this.activeTab === 'kalender') await this.loadCalendar();
+                },
                 async loadVehicleDocuments(vehicleId) {
                     try {
                         const res = await fetch(`/api/vehicles/${vehicleId}/documents`, { credentials: 'include' });
@@ -3121,6 +3154,7 @@ if (window.Chart) {
                     // obwohl die Daten da sind - Diagramme wirkten komplett leer).
                     // requestAnimationFrame wartet zusätzlich auf den nächsten Paint-Zyklus.
                     await new Promise(resolve => this.$nextTick(() => requestAnimationFrame(resolve)));
+                    applyChartTheme();
                     try {
                         const res = await fetch('/api/admin/stats', { credentials: 'include' });
                         if (res.ok) {
