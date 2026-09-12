@@ -1,6 +1,7 @@
 const { createApp } = Vue;
         let sigPad = null, sigModal = null, selfPasswordModal = null;
         let missionSigPad = null, missionSigModal = null;
+        let certSigPad = null, certSigModal = null;
         let map = null, hydrantMarkers = [];
         let globalSearchTimer = null;
 
@@ -169,9 +170,7 @@ if (window.Chart) {
                     isSaving: false,
                     missions: [],
                     missionGroupFilter: 'all',
-                    activeMission: null,
-                    newRespi: { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true },
-                    
+
                     // Equipment
                     equipment: [],
                     eqSearch: '',
@@ -264,7 +263,7 @@ if (window.Chart) {
                     newDefect: { equipment_id: null, description: '', severity: 'Mittel', assigned_to: '', priority: 'Mittel', image_url: '' },
                     
                     // Test Alarm
-                    testAlarm: { stichwort: '', adresse: '', meldung: '' },
+                    testAlarm: { stichwort: '', adresse: '', meldung: '', prefix_test: true },
                     
                     // User Edit State
                     editingUserId: null,
@@ -272,8 +271,7 @@ if (window.Chart) {
                     editUserRole: 'mannschaft',
                     editUserPersonnelId: null,
                     showMobileSidebar: false,
-                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14, dwd_warncell_id: '', default_hourly_rate: 15.0, impressum_text: '', datenschutz_text: '' },
-                    uploadedMissionFiles: [],
+                    stationConfig: { station_name: 'Feuerwehr', lat: 50.1109, lng: 8.6821, zoom: 14, dwd_warncell_id: '', default_hourly_rate: 15.0, impressum_text: '', datenschutz_text: '', stamp_image: '' },
                     archiveFiles: [],
                     newArchiveFile: { is_public: false },
                     archiveSearch: '',
@@ -323,8 +321,17 @@ if (window.Chart) {
                     consumables: [],
                     newConsumable: { name: '', unit: 'Stk', current_stock: 0, min_stock: 0, note: '' },
                     scheduleRsvpMap: {},
+                    activeRsvpSchedule: null,
+                    activeRsvpResponses: [],
+                    legalTexts: { impressum: '', datenschutz: '' },
+                    activeLegalTab: 'impressum',
                     lehrgangTypes: [],
                     newLehrgangType: '',
+                    employerCertificates: [],
+                    newCertMissionId: null,
+                    newCertPersonnelId: null,
+                    newCertSignature: null,
+                    certMissionAttendees: [],
                     
                     werkstattTab: 'pruefungen',
 
@@ -562,6 +569,9 @@ if (window.Chart) {
                 activeFeedbacksCount() {
                     return this.apagerFeedbacks.filter(f => f.status === 'Komme').length;
                 },
+                latestAlarmLog() {
+                    return this.apagerLogs && this.apagerLogs.length > 0 ? this.apagerLogs[0] : null;
+                },
                 filteredArchiveFiles() {
                     return this.archiveFiles.filter(f => {
                         const mSearch = f.filename.toLowerCase().includes(this.archiveSearch.toLowerCase()) || f.uploaded_by.toLowerCase().includes(this.archiveSearch.toLowerCase());
@@ -669,9 +679,8 @@ if (window.Chart) {
                     }
 
                     if (window.location.hash === '#new_mission') {
-                        this.activeTab = 'einsaetze';
-                        this.openNewMissionModal();
                         window.location.hash = ''; // clear it
+                        this.goToNewMission();
                     }
 
                     const canvas = document.getElementById('sigCanvas');
@@ -682,6 +691,10 @@ if (window.Chart) {
                     const mCanvas = document.getElementById('missionSigCanvas');
                     if(mCanvas) { missionSigPad = new SignaturePad(mCanvas, { backgroundColor: 'white' }); }
                     missionSigModal = new bootstrap.Modal(document.getElementById('missionSigModal'));
+
+                    const certCanvas = document.getElementById('certSigCanvas');
+                    if(certCanvas) { certSigPad = new SignaturePad(certCanvas, { backgroundColor: 'white' }); }
+                    certSigModal = new bootstrap.Modal(document.getElementById('certSigModal'));
 
                     // Kamera zuverlässig stoppen, egal wie der Scanner-Dialog geschlossen wird
                     // (X-Button, Klick auf den Hintergrund, Escape-Taste) - nur der X-Button rief
@@ -1013,6 +1026,11 @@ if (window.Chart) {
                         await appAlert(d.detail || "Rückmeldung konnte nicht gespeichert werden.");
                     }
                 },
+                openRsvpListModal(schedule, rsvpData) {
+                    this.activeRsvpSchedule = schedule;
+                    this.activeRsvpResponses = rsvpData.responses || [];
+                    new bootstrap.Modal(document.getElementById('rsvpListModal')).show();
+                },
                 openScheduleModal() {
                     this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
@@ -1230,7 +1248,7 @@ if (window.Chart) {
 
                 handleIncidentClick(m) {
                     if (m.isNewMission) {
-                        this.editMission(m);
+                        window.location.href = `/editor?mission_id=${m.id}`;
                     } else {
                         this.loadSession(m.rawSession);
                     }
@@ -1242,97 +1260,12 @@ if (window.Chart) {
                         if(res.ok) this.missions = await res.json();
                     } catch(e) { console.error("Error loading missions", e); }
                 },
-                openNewMissionModal() {
-                    const now = new Date();
-                    const nowStr = now.toTimeString().slice(0, 5);
-                    const laterStr = new Date(now.getTime() + 2 * 3600 * 1000).toTimeString().slice(0, 5);
-                    this.activeMission = { 
-                        id: null, 
-                        date: new Date().toISOString().split('T')[0], 
-                        time: nowStr, 
-                        end_time: laterStr,
-                        stichwort: '', 
-                        adresse: '', 
-                        meldung: '', 
-                        description: '', 
-                        duration: 2.0, 
-                        status: 'Entwurf', 
-                        group_id: (this.missionGroupFilter !== 'all' ? parseInt(this.missionGroupFilter) : (this.selectedGroup ? this.selectedGroup.id : null)),
-                        attList: [], 
-                        respiList: [] 
-                    };
-                    this.uploadedMissionFiles = [];
-                    this.initActiveMissionAttendance();
-                    new bootstrap.Modal(document.getElementById('missionModal')).show();
-                },
-                calcMissionDuration() {
-                    if (this.activeMission && this.activeMission.time && this.activeMission.end_time) {
-                        const [h1, m1] = this.activeMission.time.split(':').map(Number);
-                        const [h2, m2] = this.activeMission.end_time.split(':').map(Number);
-                        let diffMins = (h2 * 60 + m2) - (h1 * 60 + m1);
-                        if (diffMins < 0) diffMins += 24 * 60;
-                        if (!isNaN(diffMins) && diffMins > 0) {
-                            this.activeMission.duration = Math.round((diffMins / 60) * 10) / 10;
-                        }
-                    }
-                },
-                async initActiveMissionAttendance() {
-                    const res = await fetch('/api/personnel/list', { credentials: 'include' });
-                    const pList = await res.json();
-                    this.activeMission.attList = pList.map(p => ({ personnel_id: p.id, name: p.name, is_present: 'Nein', vehicle: '', g26_expired: p.g26_expired }));
-                },
-                async editMission(m) {
-                    const res = await fetch(`/api/missions/${m.id}`, { credentials: 'include' });
-                    if(res.ok) {
-                        const detail = await res.json();
-                        this.uploadedMissionFiles = detail.media_files ? JSON.parse(detail.media_files) : [];
-                        const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
-                        const pList = await pRes.json();
-                        
-                        detail.attList = pList.map(p => {
-                            const match = detail.attendance.find(x => x.personnel_id === p.id);
-                            return { personnel_id: p.id, name: p.name, is_present: match ? match.is_present : 'Nein', vehicle: match ? match.vehicle : '', g26_expired: p.g26_expired };
-                        });
-                        
-                        // Load respiration
-                        const rRes = await fetch(`/api/missions/${m.id}/respiration`, { credentials: 'include' });
-                        detail.respiList = rRes.ok ? await rRes.json() : [];
-                        detail.end_time = detail.end_time || '';
-                        
-                        this.activeMission = detail;
-                        new bootstrap.Modal(document.getElementById('missionModal')).show();
-                    }
-                },
-                async saveMission() {
-                    if (this.isSaving) return;
-                    this.isSaving = true;
-                    try {
-                        let mStatus = this.activeMission.status;
-                        if (this.activeMission.leader_signature && mStatus === 'Entwurf') {
-                            mStatus = 'Freigegeben';
-                        }
-                        const payload = {
-                            date: this.activeMission.date, time: this.activeMission.time, end_time: this.activeMission.end_time || '', stichwort: this.activeMission.stichwort, adresse: this.activeMission.adresse,
-                            meldung: this.activeMission.meldung, description: this.activeMission.description, duration: parseFloat(this.activeMission.duration), status: mStatus,
-                            group_id: this.activeMission.group_id ? parseInt(this.activeMission.group_id) : null,
-                            media_files: JSON.stringify(this.uploadedMissionFiles),
-                            attendance: this.activeMission.attList.filter(x => x.is_present !== 'Nein')
-                        };
-                        const isEdit = this.activeMission.id !== null;
-                        const url = isEdit ? `/api/missions/${this.activeMission.id}` : '/api/missions';
-                        const method = isEdit ? 'PUT' : 'POST';
-                        
-                        const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
-                        if(res.ok) {
-                            bootstrap.Modal.getInstance(document.getElementById('missionModal')).hide();
-                            await Promise.all([this.loadMissions(), this.loadData()]);
-                        } else {
-                            const err = await res.json().catch(() => ({}));
-                            await appAlert("Speichern fehlgeschlagen: " + (err.detail || "Unbekannter Fehler."));
-                        }
-                    } finally {
-                        this.isSaving = false;
-                    }
+                goToNewMission() {
+                    // Einsätze werden seit der Editor-Vereinheitlichung nur noch im gemeinsamen
+                    // Editor (static/editor.html, Route /editor) angelegt/bearbeitet - kein
+                    // eigenständiges missionModal mehr, siehe [[editor-vereinheitlichung]].
+                    const groupId = (this.missionGroupFilter !== 'all' ? parseInt(this.missionGroupFilter) : (this.selectedGroup ? this.selectedGroup.id : null));
+                    window.location.href = `/editor?new_type=Einsatz${groupId ? '&group_id=' + groupId : ''}`;
                 },
                 async deleteMission(id) {
                     if(await appConfirm("Einsatzbericht unwiderruflich löschen?")) {
@@ -1375,30 +1308,6 @@ if (window.Chart) {
                     }
                 },
                 clearMissionSig() { if(missionSigPad) missionSigPad.clear(); },
-
-                // Respiration Atemschutz
-                async submitRespi() {
-                    if(!this.activeMission || !this.activeMission.id) return await appAlert("Speichere den Einsatz zuerst, bevor du Atemschutz-Einträge hinzufügen kannst.");
-                    if(!this.newRespi.personnel_id) return await appAlert("Träger wählen!");
-                    const res = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newRespi) });
-                    if(res.ok) {
-                        this.newRespi = { personnel_id: null, druck_start: 300, druck_10: 270, druck_20: 240, druck_ende: 80, dauer: 30, fit_ok: true };
-                        const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
-                        this.activeMission.respiList = await rRes.json();
-                    } else {
-                        const err = await res.json().catch(() => ({}));
-                        await appAlert("Eintrag konnte nicht gespeichert werden: " + (err.detail || "Unbekannter Fehler."));
-                    }
-                },
-                async deleteRespi(id) {
-                    const res = await fetch(`/api/missions/respiration/${id}`, { method: 'DELETE', credentials: 'include' });
-                    if(res.ok) {
-                        const rRes = await fetch(`/api/missions/${this.activeMission.id}/respiration`, { credentials: 'include' });
-                        this.activeMission.respiList = await rRes.json();
-                    } else {
-                        await appAlert("Eintrag konnte nicht gelöscht werden.");
-                    }
-                },
 
                 // Equipment
                 async loadEquipment() {
@@ -1671,6 +1580,60 @@ if (window.Chart) {
                         const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
                         this.activePersonnel.courses = await cRes.json();
                     }
+                },
+                async loadEmployerCertificates() {
+                    try {
+                        const res = await fetch('/api/missions/employer-certificates', { credentials: 'include' });
+                        this.employerCertificates = res.ok ? await res.json() : [];
+                    } catch(e) { this.employerCertificates = []; }
+                },
+                async loadCertMissionAttendees() {
+                    this.newCertPersonnelId = null;
+                    this.certMissionAttendees = [];
+                    if (!this.newCertMissionId) return;
+                    try {
+                        const res = await fetch(`/api/missions/${this.newCertMissionId}`, { credentials: 'include' });
+                        if (!res.ok) return;
+                        const detail = await res.json();
+                        const present = (detail.attendance || []).filter(a => a.is_present && !['Nein','0','false','False'].includes(String(a.is_present)));
+                        this.certMissionAttendees = present.map(a => {
+                            const p = this.personnel.find(p => p.id === a.personnel_id);
+                            return { personnel_id: a.personnel_id, name: p ? p.name : `ID ${a.personnel_id}` };
+                        }).sort((a, b) => a.name.localeCompare(b.name));
+                    } catch(e) { this.certMissionAttendees = []; }
+                },
+                openCertSigModal() {
+                    certSigModal.show();
+                    setTimeout(() => { initResponsiveCanvas('certSigCanvas', certSigPad, this.newCertSignature); }, 250);
+                },
+                clearCertSig() { if (certSigPad) certSigPad.clear(); },
+                saveCertSig() {
+                    if (certSigPad && !certSigPad.isEmpty()) { this.newCertSignature = certSigPad.toDataURL(); }
+                    certSigModal.hide();
+                },
+                async submitEmployerCertificate() {
+                    if (!this.newCertMissionId || !this.newCertPersonnelId) return;
+                    const res = await fetch(`/api/missions/${this.newCertMissionId}/employer-certificate/${this.newCertPersonnelId}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ signature: this.newCertSignature })
+                    });
+                    if (res.ok) {
+                        const result = await res.json();
+                        window.open(`/api/missions/${this.newCertMissionId}/employer-certificate/${this.newCertPersonnelId}?cert_id=${result.id}`, '_blank');
+                        this.newCertMissionId = null; this.newCertPersonnelId = null; this.newCertSignature = null; this.certMissionAttendees = [];
+                        await this.loadEmployerCertificates();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Bescheinigung konnte nicht erstellt werden.");
+                    }
+                },
+                viewEmployerCertificate(c) {
+                    window.open(`/api/missions/${c.mission_id}/employer-certificate/${c.personnel_id}?cert_id=${c.id}`, '_blank');
+                },
+                async deleteEmployerCertificate(id) {
+                    if (!await appConfirm("Bescheinigung aus der Liste löschen? Das erstellte PDF bleibt davon unberührt, sofern es bereits heruntergeladen wurde.")) return;
+                    await fetch(`/api/missions/employer-certificates/${id}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadEmployerCertificates();
                 },
                 async loadLehrgangTypes() {
                     try {
@@ -2509,6 +2472,26 @@ if (window.Chart) {
                         }
                     }
                 },
+                async openLegalModal(which) {
+                    this.activeLegalTab = which;
+                    if (!this.legalTexts.impressum && !this.legalTexts.datenschutz) {
+                        try {
+                            const res = await fetch('/api/legal');
+                            if (res.ok) this.legalTexts = await res.json();
+                        } catch(e) {}
+                    }
+                    new bootstrap.Modal(document.getElementById('legalModal')).show();
+                },
+                async unlockUserAccount(usr) {
+                    if (!await appConfirm(`Login-Sperre für '${usr.username}' sofort aufheben?`)) return;
+                    const res = await fetch(`/api/users/${usr.id}/unlock`, { method: 'PUT', credentials: 'include' });
+                    if (res.ok) {
+                        await this.loadSystemUsers();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert("Fehler: " + (err.detail || "Unbekannter Fehler"));
+                    }
+                },
                 async resetUserPassword(usr) {
                     const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}':`);
                     if (newPw) {
@@ -2639,11 +2622,9 @@ if (window.Chart) {
                     this.activeTab = 'notizen'; this.notesActiveFilter = 'all'; this.showMobileSidebar = false;
                     this.loadNotes();
                 },
-                async goToSearchMission(item) {
+                goToSearchMission(item) {
                     this.globalSearchOpen = false; this.globalSearchQuery = '';
-                    this.activeTab = 'einsaetze'; this.showMobileSidebar = false;
-                    await this.loadMissions();
-                    await this.editMission({ id: item.id });
+                    window.location.href = `/editor?mission_id=${item.id}`;
                 },
                 goToSearchBma(item) {
                     this.globalSearchOpen = false; this.globalSearchQuery = '';
@@ -2773,10 +2754,10 @@ if (window.Chart) {
                     }
                 },
                 createNew() { if(!this.selectedGroup) return; window.location.href = `/editor?group_id=${this.selectedGroup.id}`; },
-                loadSession(s) { 
+                loadSession(s) {
                     if (s.is_mission || (typeof s.id === 'string' && s.id.startsWith('m_'))) {
                         const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
-                        this.editMission({ id: realId });
+                        window.location.href = `/editor?mission_id=${realId}`;
                     } else {
                         window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`;
                     }
@@ -2792,13 +2773,6 @@ if (window.Chart) {
                     } else {
                         await appAlert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
                     }
-                },
-                async downloadEmployerCert(missionId, personnelId) {
-                    if (!missionId || !personnelId) {
-                        await appAlert("Einsatz oder Kamerad nicht ausgewählt.");
-                        return;
-                    }
-                    window.open(`/api/missions/${missionId}/employer-certificate/${personnelId}`, '_blank');
                 },
                 async openQualMatrixModal() {
                     if (this.personnel.length === 0) await this.loadPersonnel();
@@ -2909,6 +2883,9 @@ if (window.Chart) {
                 },
                 
                 // === TEST ALARM METHODS ===
+                isTestAlarmLog(log) {
+                    return !!(log && log.stichwort && log.stichwort.startsWith('[TEST]'));
+                },
                 async sendTestAlarm() {
                     if (!await appConfirm('Test-Alarm wirklich auslösen? Dies erscheint im Protokoll.')) return;
                     const res = await fetch('/api/apager/test-alarm', {
@@ -2917,7 +2894,7 @@ if (window.Chart) {
                     });
                     if (res.ok) {
                         await appAlert('✅ Test-Alarm wurde im Protokoll eingetragen!');
-                        this.testAlarm = { stichwort: '', adresse: '', meldung: '' };
+                        this.testAlarm = { stichwort: '', adresse: '', meldung: '', prefix_test: this.testAlarm.prefix_test };
                         await this.loadApagerConfig();
                     } else { const d = await res.json(); await appAlert(d.detail || 'Fehler beim Test-Alarm.'); }
                 },
@@ -3032,6 +3009,32 @@ if (window.Chart) {
                         await appAlert("Verbindung fehlgeschlagen.");
                     }
                 },
+                async uploadStampImage(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const res = await fetch('/api/settings/stamp', {
+                            method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                            body: JSON.stringify({ stamp_image: e.target.result })
+                        });
+                        if (res.ok) {
+                            this.stationConfig.stamp_image = e.target.result;
+                        } else {
+                            await appAlert("Stempel konnte nicht gespeichert werden.");
+                        }
+                        if (this.$refs.stampFileInput) this.$refs.stampFileInput.value = '';
+                    };
+                    reader.readAsDataURL(file);
+                },
+                async removeStampImage() {
+                    if (!await appConfirm("Stempel-Bild entfernen?")) return;
+                    const res = await fetch('/api/settings/stamp', {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ stamp_image: null })
+                    });
+                    if (res.ok) this.stationConfig.stamp_image = '';
+                },
                 async lookupStationCoordinates() {
                     const query = this.stationConfig.station_name.trim();
                     if (!query) {
@@ -3060,32 +3063,6 @@ if (window.Chart) {
                         console.error(e);
                         await appAlert("Fehler beim Suchen der Koordinaten.");
                     }
-                },
-                async uploadMissionFile(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    try {
-                        const res = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData,
-                            credentials: 'include'
-                        });
-                        if (res.ok) {
-                            const data = await res.json();
-                            this.uploadedMissionFiles.push({ name: data.filename, url: data.url });
-                            this.$refs.missionFile.value = ''; // clear input
-                        } else {
-                            await appAlert('Fehler beim Datei-Upload.');
-                        }
-                    } catch(e) {
-                        console.error(e);
-                        await appAlert('Fehler beim Datei-Upload.');
-                    }
-                },
-                 removeMissionFile(index) {
-                    this.uploadedMissionFiles.splice(index, 1);
                 },
                 async loadArchiveFiles() {
                     try {

@@ -94,6 +94,9 @@ class ScheduleAttendanceEntry(BaseModel):
     personnel_id: int
     status: str # 'Anwesend', 'Entschuldigt', 'Unentschuldigt'
 
+class EmployerCertCreate(BaseModel):
+    signature: Optional[str] = None  # Base64 Data-URL aus dem SignaturePad, optional
+
 # --- 🚨 EINSÄTZE ENDPUNKTE ---
 @router.get("")
 def list_missions(request: Request):
@@ -238,12 +241,62 @@ def get_mission_pdf(mission_id: int, request: Request):
         headers={"Content-Disposition": f"inline; filename=Einsatzbericht_{mission_id}.pdf"}
     )
 
+@router.get("/employer-certificates")
+def list_employer_certificates(request: Request):
+    check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT ec.id, ec.mission_id, ec.personnel_id, ec.created_by, ec.created_at,
+               (ec.signature IS NOT NULL) as has_signature,
+               p.name as personnel_name, m.date as mission_date, m.stichwort as mission_stichwort
+        FROM employer_certificates ec
+        JOIN personnel p ON ec.personnel_id = p.id
+        JOIN missions m ON ec.mission_id = m.id
+        ORDER BY ec.created_at DESC
+    """)
+    res = cur.fetchall(); cur.close(); conn.close()
+    for r in res:
+        r["created_at"] = str(r["created_at"])
+        r["mission_date"] = str(r["mission_date"])
+        r["has_signature"] = bool(r["has_signature"])
+    return res
+
+@router.post("/{mission_id}/employer-certificate/{personnel_id}")
+def create_employer_certificate(mission_id: int, personnel_id: int, cert: EmployerCertCreate, request: Request):
+    user = check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id FROM missions WHERE id = %s", (mission_id,))
+    if not cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+    cur.execute("SELECT is_present FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
+    att = cur.fetchone()
+    if not att or att["is_present"] in (None, "", "Nein", "0", "false", "False"):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Keine erfasste Anwesenheit dieser Person bei diesem Einsatz - Bescheinigung kann nicht erstellt werden.")
+    cur2 = conn.cursor()
+    cur2.execute(
+        "INSERT INTO employer_certificates (mission_id, personnel_id, signature, created_by) VALUES (%s, %s, %s, %s)",
+        (mission_id, personnel_id, cert.signature, user["username"])
+    )
+    new_id = cur2.lastrowid
+    conn.commit(); cur.close(); cur2.close(); conn.close()
+    return {"status": "success", "id": new_id}
+
+@router.delete("/employer-certificates/{cert_id}")
+def delete_employer_certificate(cert_id: int, request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM employer_certificates WHERE id = %s", (cert_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
 @router.get("/{mission_id}/employer-certificate/{personnel_id}")
-def get_employer_certificate(mission_id: int, personnel_id: int, request: Request):
+def get_employer_certificate(mission_id: int, personnel_id: int, request: Request, cert_id: Optional[int] = None):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    
+
     cur.execute("SELECT * FROM missions WHERE id = %s", (mission_id,))
     m = cur.fetchone()
     if not m:
@@ -258,6 +311,26 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
 
     cur.execute("SELECT is_present, vehicle FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
     att = cur.fetchone()
+
+    # Gespeicherte Unterschrift (falls über das neue "Arbeitsbescheinigungen"-Menü bereits
+    # erstellt) sowie das einmal hinterlegte Dienstsiegel/Stempel-Bild laden, um sie direkt
+    # in die PDF einzubetten statt einer leeren Signaturzeile/gestrichelten Box.
+    signature_data_url = None
+    if cert_id:
+        cur.execute("SELECT signature FROM employer_certificates WHERE id = %s AND mission_id = %s AND personnel_id = %s", (cert_id, mission_id, personnel_id))
+    else:
+        cur.execute("SELECT signature FROM employer_certificates WHERE mission_id = %s AND personnel_id = %s ORDER BY created_at DESC LIMIT 1", (mission_id, personnel_id))
+    sig_row = cur.fetchone()
+    if sig_row and sig_row.get("signature"):
+        signature_data_url = sig_row["signature"]
+
+    try:
+        cur.execute("SELECT stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
+        stamp_row = cur.fetchone()
+        stamp_image = stamp_row["stamp_image"] if stamp_row else None
+    except Exception:
+        stamp_image = None
+
     cur.close(); conn.close()
 
     # Serverseitig erzwingen, dass die Person auch tatsächlich als anwesend erfasst wurde -
@@ -270,6 +343,18 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
 
     from core.utils import get_station_name
     station_name = get_station_name()
+
+    if stamp_image:
+        stamp_html = f'<img src="{stamp_image}" style="height:60px; margin-top:5px;">'
+    else:
+        stamp_html = '<div style="height: 60px; border: 1px dashed #d1d5db; border-radius: 4px; margin-top: 5px;"></div>'
+    if signature_data_url:
+        signature_html = (
+            f'<img src="{signature_data_url}" style="height:45px; margin-bottom:-10px;">'
+            '<div class="sig-line">(Unterschrift Feuerwehrkommandant / Einsatzleiter)</div>'
+        )
+    else:
+        signature_html = '<div class="sig-line">(Unterschrift Feuerwehrkommandant / Einsatzleiter)</div>'
 
     try:
         if isinstance(m["date"], date):
@@ -463,12 +548,10 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
         <tr>
             <td style="padding-right: 25px;">
                 <div style="font-size: 9pt; color: #4b5563;">Dienstsiegel / Stempel:</div>
-                <div style="height: 60px; border: 1px dashed #d1d5db; border-radius: 4px; margin-top: 5px;"></div>
+                {stamp_html}
             </td>
             <td style="padding-left: 25px;">
-                <div class="sig-line">
-                    (Unterschrift Feuerwehrkommandant / Einsatzleiter)
-                </div>
+                {signature_html}
             </td>
         </tr>
     </table>

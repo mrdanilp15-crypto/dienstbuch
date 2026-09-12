@@ -1,5 +1,4 @@
 import os
-import json
 import mysql.connector
 import time
 import asyncio
@@ -27,6 +26,7 @@ from routers import hvo_api
 from routers import missions_api
 from routers import calendar_api
 from routers import push_api
+from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
 CURRENT_VERSION = "2.50"
@@ -83,6 +83,7 @@ app.include_router(hvo_api.router)
 app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
 app.include_router(push_api.router)
+app.include_router(legal_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
@@ -698,6 +699,20 @@ def init_db_extensions():
 
         # Kein FOREIGN KEY auf vehicles(id): die vehicles-Basistabelle wird erst weiter unten in
         # dieser Funktion angelegt (matcht das gleiche Muster wie vehicle_log/vehicle_reservations).
+        # Kein FOREIGN KEY auf missions(id)/personnel(id): missions wird zwar in DIESER
+        # Funktion angelegt, aber personnel erst weiter unten über personnel_mgr.init_personnel_db()
+        # (gleiches Muster wie membership_fees/vehicle_maintenance).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS employer_certificates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                mission_id INT NOT NULL,
+                personnel_id INT NOT NULL,
+                signature LONGTEXT NULL,
+                created_by VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vehicle_maintenance (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1025,7 +1040,7 @@ def get_manifest():
 def get_station_settings():
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate FROM station_settings ORDER BY id ASC LIMIT 1")
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate, stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
     except Exception:
         try:
             cur.execute("ALTER TABLE station_settings ADD COLUMN ticker_text TEXT NULL")
@@ -1047,10 +1062,15 @@ def get_station_settings():
             conn.commit()
         except Exception:
             pass
-        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate FROM station_settings ORDER BY id ASC LIMIT 1")
+        try:
+            cur.execute("ALTER TABLE station_settings ADD COLUMN stamp_image LONGTEXT NULL")
+            conn.commit()
+        except Exception:
+            pass
+        cur.execute("SELECT station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate, stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone(); cur.close(); conn.close()
     if not row:
-        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": "", "impressum_text": "", "datenschutz_text": "", "default_hourly_rate": 15.0}
+        return {"station_name": TOWN_NAME, "lat": 50.1109, "lng": 8.6821, "zoom": 14, "ticker_text": "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten", "iban": "", "bic": "", "dwd_warncell_id": "", "impressum_text": "", "datenschutz_text": "", "default_hourly_rate": 15.0, "stamp_image": ""}
     if not row.get("ticker_text"):
         row["ticker_text"] = "Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten"
     if not row.get("iban"):
@@ -1063,6 +1083,8 @@ def get_station_settings():
         row["impressum_text"] = ""
     if not row.get("datenschutz_text"):
         row["datenschutz_text"] = ""
+    if not row.get("stamp_image"):
+        row["stamp_image"] = ""
     row["default_hourly_rate"] = float(row["default_hourly_rate"]) if row.get("default_hourly_rate") is not None else 15.0
     return row
 
@@ -1108,6 +1130,11 @@ def update_station_settings(data: dict, request: Request):
         conn.commit()
     except Exception:
         pass
+    try:
+        cur.execute("ALTER TABLE station_settings ADD COLUMN stamp_image LONGTEXT NULL")
+        conn.commit()
+    except Exception:
+        pass
 
     # Duplikate (aus Redeploy-Race-Conditions) vor dem Speichern bereinigen, damit nicht
     # wieder eine alte Default-Zeile irgendwo übrig bleibt und später zufällig zurückkommt.
@@ -1118,24 +1145,53 @@ def update_station_settings(data: dict, request: Request):
             WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM station_settings) AS keep_row)
         """)
 
-    cur.execute("SELECT id FROM station_settings ORDER BY id ASC LIMIT 1")
+    cur.execute("SELECT id, stamp_image FROM station_settings ORDER BY id ASC LIMIT 1")
     row = cur.fetchone()
+    # stamp_image wird nur ersetzt, wenn im Request tatsächlich ein neues Bild mitgeschickt
+    # wurde - sonst würde jedes normale Speichern der Standort-Einstellungen (die den
+    # Stempel gar nicht anzeigen/mitsenden) den einmal hochgeladenen Stempel wieder löschen.
+    stamp_image = data.get("stamp_image") or (row[1] if row else None)
     if row:
         cur.execute("""
             UPDATE station_settings
             SET station_name = %s, lat = %s, lng = %s, zoom = %s, ticker_text = %s, iban = %s, bic = %s, dwd_warncell_id = %s,
-                impressum_text = %s, datenschutz_text = %s, default_hourly_rate = %s
+                impressum_text = %s, datenschutz_text = %s, default_hourly_rate = %s, stamp_image = %s
             WHERE id = %s
         """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None,
-              impressum_text or None, datenschutz_text or None, default_hourly_rate, row[0]))
+              impressum_text or None, datenschutz_text or None, default_hourly_rate, stamp_image, row[0]))
     else:
         cur.execute("""
-            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO station_settings (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id, impressum_text, datenschutz_text, default_hourly_rate, stamp_image)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (station_name, lat, lng, zoom, ticker_text, iban, bic, dwd_warncell_id or None,
-              impressum_text or None, datenschutz_text or None, default_hourly_rate))
+              impressum_text or None, datenschutz_text or None, default_hourly_rate, stamp_image))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "WACHE_EINSTELLUNGEN", f"Standort-Einstellungen aktualisiert: {station_name}")
+    return {"status": "success"}
+
+@app.put("/api/settings/stamp")
+def update_stamp_image(data: dict, request: Request):
+    """Eigener, schlanker Endpunkt nur für das Dienstsiegel/Stempel-Bild (Base64 Data-URL) -
+    getrennt vom großen Standort-Formular, damit nicht bei jedem normalen Speichern dort das
+    ggf. mehrere hundert KB große Bild mitgeschickt werden muss."""
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    stamp_image = (data.get("stamp_image") or "").strip() or None
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE station_settings ADD COLUMN stamp_image LONGTEXT NULL")
+        conn.commit()
+    except Exception:
+        pass
+    cur.execute("SELECT id FROM station_settings ORDER BY id ASC LIMIT 1")
+    row = cur.fetchone()
+    if row:
+        cur.execute("UPDATE station_settings SET stamp_image = %s WHERE id = %s", (stamp_image, row[0]))
+    else:
+        cur.execute("INSERT INTO station_settings (station_name, stamp_image) VALUES (%s, %s)", ("Feuerwehr", stamp_image))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "STEMPEL_AKTUALISIERT", "Dienstsiegel/Stempel-Bild aktualisiert.")
     return {"status": "success"}
 
 # --- DWD UNWETTERWARNUNGEN ---
@@ -1155,35 +1211,38 @@ def get_weather_warnings():
     if not warncell_id:
         return {"configured": False, "warnings": []}
 
-    # Öffentlicher, unauthentifizierter JSON-Feed des DWD (dieselbe Quelle, die auch die
-    # offizielle Warnkarte auf dwd.de nutzt) - liefert alle aktuell aktiven Warnungen für
-    # ganz Deutschland, gefiltert nach der hier hinterlegten Warncell-ID (Gemeindeschlüssel).
-    # Läuft der Abruf ins Leere (kein Internetzugriff aus dem Container, DWD down, Format
-    # geändert) wird das bewusst nur geloggt statt einen Fehler zu werfen - der Hallenmonitor
-    # soll dadurch nie komplett ausfallen, nur die Warnbox bleibt dann leer.
+    # HINWEIS: Der früher hier verwendete DWD-eigene JSONP-Feed
+    # (warnungen_gemeinde_map.json) existiert nicht mehr (liefert nur noch 404) - vermutlich
+    # im Zuge eines Relaunchs der DWD-Warnkarte abgeschaltet. Stattdessen jetzt die offizielle
+    # Schnittstelle von warnung.bund.de (Bevölkerungsschutzportal von Bund/Ländern, betreibt
+    # u.a. die NINA-App) - liefert dieselben DWD-Wetterwarnungen (Provider "DWD" im Ergebnis),
+    # zusätzlich zu anderen Warnquellen wie MOWAS, die hier herausgefiltert werden. Erwartet
+    # als ID den amtlichen Gemeinde-/Kreisschlüssel, 12-stellig mit Nullen aufgefüllt (siehe
+    # Hinweistext im Frontend) - NICHT die alte 9-stellige DWD-Warncell-ID.
+    # Läuft der Abruf ins Leere (kein Internetzugriff aus dem Container, Dienst down, Format
+    # geändert, ungültige/unbekannte ID -> 404) wird das bewusst nur geloggt statt einen
+    # Fehler zu werfen - der Hallenmonitor soll dadurch nie komplett ausfallen, nur die
+    # Warnbox bleibt dann leer.
     try:
         import requests
         resp = requests.get(
-            "https://www.dwd.de/DE/wetter/warnungen_gemeinden/json_warnings/warnungen_gemeinde_map.json",
-            timeout=8
+            f"https://warnung.bund.de/api31/dashboard/{warncell_id}.json",
+            timeout=8, headers={"Accept": "application/json"}
         )
-        text = resp.text.strip()
-        # Antwort ist JSONP (warnWetter.loadWarnings({...});) statt reinem JSON.
-        if text.startswith("warnWetter.loadWarnings("):
-            text = text[len("warnWetter.loadWarnings("):]
-            if text.endswith(");"):
-                text = text[:-2]
-        data = json.loads(text)
-        raw_warnings = data.get("warnings", {}).get(str(warncell_id), [])
+        resp.raise_for_status()
+        raw_warnings = resp.json()
         warnings = []
         for w in raw_warnings:
+            data = (w.get("payload") or {}).get("data") or {}
+            if data.get("provider") != "DWD":
+                continue
             warnings.append({
-                "event": w.get("event") or w.get("headline") or "Warnung",
-                "headline": w.get("headline") or "",
-                "description": w.get("description") or "",
-                "severity": w.get("level"),
-                "start": w.get("start"),
-                "end": w.get("end")
+                "event": data.get("headline") or w.get("i18nTitle", {}).get("de") or "Warnung",
+                "headline": data.get("headline") or "",
+                "description": data.get("description") or "",
+                "severity": data.get("severity"),
+                "start": data.get("onset") or w.get("sent"),
+                "end": data.get("expires")
             })
         return {"configured": True, "warnings": warnings}
     except Exception as e:
@@ -1191,20 +1250,46 @@ def get_weather_warnings():
         return {"configured": True, "warnings": [], "error": "Abruf fehlgeschlagen"}
 
 # --- DATEI UPLOAD SYSTEM ---
+# Erlaubte Dateiendungen für Archiv-Anhänge/Fotos/Dokumente. Bewusst OHNE .html/.svg/.htm/.xml:
+# hochgeladene Dateien werden unverändert unter /static/uploads/ ausgeliefert - ein .svg oder
+# .html mit eingebettetem <script> würde im Browser eines anderen Nutzers (z.B. beim Öffnen
+# eines Archiv-Anhangs) mit voller Herkunft der eigenen Domain ausgeführt (gespeicherter XSS),
+# und das Upload-Recht hat jeder angemeldete Nutzer unabhängig von der Rolle.
+_ALLOWED_UPLOAD_EXTENSIONS = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic",
+    ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv"
+}
+_MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
+
 @app.post("/api/upload")
 async def upload_file(request: Request, file: UploadFile = File(...)):
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    
-    ext = os.path.splitext(file.filename)[1]
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Dateityp '{ext or 'unbekannt'}' ist nicht erlaubt. Erlaubt: {', '.join(sorted(_ALLOWED_UPLOAD_EXTENSIONS))}")
+
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
-    
-    with open(filepath, "wb") as buffer:
-        content = await file.read()
-        buffer.write(content)
-        
+
+    size = 0
+    try:
+        with open(filepath, "wb") as buffer:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _MAX_UPLOAD_SIZE:
+                    raise HTTPException(status_code=413, detail="Datei zu groß (max. 25 MB).")
+                buffer.write(chunk)
+    except HTTPException:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise
+
     url = f"/static/uploads/{filename}"
     return {"url": url, "filename": file.filename}
 

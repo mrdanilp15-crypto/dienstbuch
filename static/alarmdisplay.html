@@ -6,15 +6,17 @@
     <title>Einsatz-Alarmdisplay - Command Center</title>
     
     <!-- Premium Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
+    <!-- Lokal ausgeliefert statt live von CDNs (static/vendor/) - siehe Begründung in dashboard.html -->
+    <link href="/static/vendor/fonts-outfit/outfit.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
+
     <!-- Leaflet Map CSS/JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css" />
+    <script src="/static/vendor/leaflet-1.9.4/leaflet.js"></script>
+
+    <script src="/static/vendor/vue-3.5.42/vue.global.prod.js"></script>
+    <script src="/static/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
 
     <style>
         :root {
@@ -606,6 +608,23 @@
         <div class="w-100 bg-black bg-opacity-80 py-2 px-3 border-top border-secondary border-opacity-25 d-flex align-items-center overflow-hidden" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;">
             <span class="badge bg-danger me-3 px-2 py-1 flex-shrink-0"><i class="fa fa-bullhorn me-1"></i>WACH-TICKER</span>
             <marquee class="text-white fw-semibold small m-0" scrollamount="4">{{ stationTickerText || 'Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten' }}</marquee>
+            <div class="d-flex gap-2 flex-shrink-0 ms-3">
+                <a class="text-white-50 text-decoration-none" style="font-size:0.65rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
+                <a class="text-white-50 text-decoration-none" style="font-size:0.65rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
+            </div>
+        </div>
+
+        <!-- MODAL: IMPRESSUM & DATENSCHUTZ -->
+        <div class="modal fade" id="legalModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold">{{ activeLegalTab === 'impressum' ? 'Impressum' : 'Datenschutzerklärung' }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 text-white" style="white-space: pre-wrap; max-height: 65vh; overflow-y: auto; font-size: 0.9rem; line-height: 1.6;">{{ legalTexts[activeLegalTab] || 'Wird geladen...' }}</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -651,7 +670,10 @@
                     formattedAlarmTime: '00:00',
                     alarmElapsedMinutes: '00',
                     alarmElapsedSeconds: '00',
-                    timerInterval: null
+                    timerInterval: null,
+
+                    legalTexts: { impressum: '', datenschutz: '' },
+                    activeLegalTab: 'impressum'
                 }
             },
             computed: {
@@ -717,6 +739,16 @@
                 setInterval(this.fetchWeatherWarnings, 600000); // DWD-Warnungen alle 10 Min neu laden
             },
             methods: {
+                async openLegalModal(which) {
+                    this.activeLegalTab = which;
+                    if (!this.legalTexts.impressum && !this.legalTexts.datenschutz) {
+                        try {
+                            const res = await fetch('/api/legal');
+                            if (res.ok) this.legalTexts = await res.json();
+                        } catch(e) {}
+                    }
+                    new bootstrap.Modal(document.getElementById('legalModal')).show();
+                },
                 initWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);

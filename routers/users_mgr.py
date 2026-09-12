@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 import mysql.connector
 
 from database import get_db_connection
@@ -19,11 +20,30 @@ def list_users(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login FROM users ORDER BY username ASC")
+    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login, failed_logins, lockout_until FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
     for u in users:
         u["last_login"] = str(u["last_login"]) if u["last_login"] else None
+        u["is_locked"] = bool(u["lockout_until"] and u["lockout_until"] > datetime.now())
+        u["lockout_until"] = str(u["lockout_until"]) if u["lockout_until"] else None
     return users
+
+@router.put("/api/users/{user_id}/unlock")
+def unlock_user_account(user_id: int, request: Request):
+    """Hebt die automatische Konto-Sperre (nach 5 Fehlversuchen, siehe auth_mgr.py) vorzeitig
+    auf. Ohne das musste ein ausgesperrter Nutzer bisher die volle Sperrzeit (15 Min.) abwarten,
+    selbst wenn ein Admin sofort daneben stand und die Ursache (z.B. Zahlendreher) klären konnte."""
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    target_user = cur.fetchone()
+    if not target_user: cur.close(); conn.close(); raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+
+    cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id = %s", (user_id,))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "KONTO_ENTSPERRT", f"Login-Sperre für '{target_user['username']}' manuell aufgehoben.")
+    return {"status": "success", "message": f"Sperre für '{target_user['username']}' aufgehoben."}
 
 @router.put("/api/users/{user_id}/reset-password")
 def admin_reset_user_password(user_id: int, request: Request):

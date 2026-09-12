@@ -11,21 +11,28 @@
     <title>Digitales Dienstbuch</title>
     
     <!-- Premium Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Leaflet Map CSS/JS for Hydrants -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Alle Drittanbieter-Bibliotheken werden lokal ausgeliefert (static/vendor/) statt live von
+         CDNs geladen: das behebt sowohl das "nach dem Login passiert manchmal nichts" Problem
+         (ein einzelner blockierender CDN-Ausfall/Netzwerk-Hänger ließ Vue nie starten, siehe Chat)
+         als auch das Sicherheitsrisiko unversionierter "@latest"-Fremdskripte (Vue, html5-qrcode,
+         Chart.js liefen zuvor ungepinnt) und das DSGVO-Problem beim Live-Nachladen von Google Fonts
+         (Übertragung der Besucher-IP an Google ohne Einwilligung, siehe LG München Google-Fonts-Urteil).
+    -->
+    <link href="/static/vendor/fonts-outfit/outfit.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+    <!-- Leaflet Map CSS/JS for Hydrants -->
+    <link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css" />
+    <script src="/static/vendor/leaflet-1.9.4/leaflet.js"></script>
+
+    <script src="/static/vendor/vue-3.5.42/vue.global.prod.js"></script>
+    <script src="/static/vendor/signature_pad-4.0.0/signature_pad.umd.min.js"></script>
+    <script src="/static/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/qrious-4.0.2/qrious.min.js"></script>
+    <script src="/static/vendor/html5-qrcode-2.3.8/html5-qrcode.min.js"></script>
+    <script src="/static/vendor/chartjs-4.5.1/chart.umd.js"></script>
+
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
 <body>
@@ -120,6 +127,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; loadEquipment(); showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; loadBills(); calculateCompensations(); showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; loadEmployerCertificates(); showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; loadArchiveFiles(); showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
 
                     
@@ -142,6 +150,11 @@
                     <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
                         <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
                         <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-center mt-2 pt-2 border-top border-secondary border-opacity-10">
+                        <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
+                        <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
+                        <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
                     </div>
                 </div>
             </div>
@@ -233,7 +246,8 @@
                                                         <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Vielleicht' ? 'btn-warning' : 'btn-outline-warning'" @click="submitScheduleRsvp(s.id, 'Vielleicht')" title="Vielleicht">?</button>
                                                         <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Nein' ? 'btn-danger' : 'btn-outline-danger'" @click="submitScheduleRsvp(s.id, 'Nein')" title="Absagen">Nein</button>
                                                     </div>
-                                                    <small v-if="scheduleRsvpMap[s.id]" class="text-muted d-block mt-1">{{ scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Ja').length }} Zusage(n)</small>
+                                                    <small v-if="scheduleRsvpMap[s.id] && scheduleRsvpMap[s.id].responses.length" class="d-block mt-1" style="cursor:pointer;text-decoration:underline;" @click="openRsvpListModal(s, scheduleRsvpMap[s.id])"><span class="text-success">{{ scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Ja').length }} Zusage(n)</span> <span v-if="scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Vielleicht').length" class="text-warning">&bull; {{ scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Vielleicht').length }} vielleicht</span> <span v-if="scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Nein').length" class="text-danger">&bull; {{ scheduleRsvpMap[s.id].responses.filter(r => r.status === 'Nein').length }} Absage(n)</span></small>
+                                                    <small v-else-if="scheduleRsvpMap[s.id]" class="text-muted d-block mt-1">Noch keine Rückmeldungen</small>
                                                 </td>
                                                 <td class="text-end">
                                                     <button v-if="canManageDienste" class="btn btn-sm btn-outline-light rounded-pill me-1" @click="openScheduleAttendance(s)"><i class="fa fa-clipboard-user me-1"></i>Anwesenheit</button>
@@ -438,6 +452,7 @@
                         <div class="d-flex flex-wrap gap-3 small mb-2">
                             <span><i class="fa fa-circle text-primary me-1"></i>Dienst</span>
                             <span><i class="fa fa-circle text-danger me-1"></i>Einsatz</span>
+                            <span><i class="fa fa-circle" style="color:#a855f7;"></i> Geplanter Termin</span>
                             <span><i class="fa fa-circle text-warning me-1"></i>Fahrzeug-Reservierung</span>
                             <span><i class="fa fa-circle text-success me-1"></i>Jubiläum</span>
                         </div>
@@ -465,7 +480,7 @@
                                 <option value="all">Alle Gruppen / Einheiten</option>
                                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
                             </select>
-                            <button v-if="canManageMissions" class="btn btn-premium rounded-pill fw-bold" @click="openNewMissionModal"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                            <button v-if="canManageMissions" class="btn btn-premium rounded-pill fw-bold" @click="goToNewMission"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
                         </div>
                     </div>
 
@@ -984,54 +999,30 @@
                 <div v-show="activeTab === 'apager'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-bell text-danger me-2"></i>aPagerPro Alarmierung & Webhook</h2>
-                            <small class="text-muted">Echtzeit-Schnittstelle zur Einsatzübernahme</small>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-bell text-danger me-2"></i>Alarmierung</h2>
+                            <small class="text-muted">Echtzeit-Schnittstelle zur Einsatzübernahme &bull; aPagerPro / Webhook</small>
+                        </div>
+                    </div>
+
+                    <!-- Status-Hero: zeigt die letzte (echte oder Test-)Alarmierung groß an -->
+                    <div class="alarm-hero-banner mb-4" :class="{'alarm-hero-active': latestAlarmLog && !isTestAlarmLog(latestAlarmLog), 'alarm-hero-test': latestAlarmLog && isTestAlarmLog(latestAlarmLog)}">
+                        <div class="alarm-hero-icon">
+                            <i class="fa" :class="latestAlarmLog && !isTestAlarmLog(latestAlarmLog) ? 'fa-triangle-exclamation fa-beat' : (latestAlarmLog ? 'fa-flask' : 'fa-shield-halved')"></i>
+                        </div>
+                        <div class="alarm-hero-content">
+                            <div class="alarm-hero-label">{{ latestAlarmLog ? (isTestAlarmLog(latestAlarmLog) ? 'Letzter Test-Alarm' : 'Letzte Alarmierung') : 'Bereitschaft' }}</div>
+                            <div class="alarm-hero-title">{{ latestAlarmLog ? latestAlarmLog.stichwort : 'Keine aktuelle Alarmierung' }}</div>
+                            <div class="alarm-hero-meta" v-if="latestAlarmLog"><i class="fa fa-location-dot me-1"></i>{{latestAlarmLog.adresse}} &bull; <i class="fa fa-clock me-1"></i>{{latestAlarmLog.created_at}}</div>
+                        </div>
+                        <div class="alarm-hero-count" v-if="latestAlarmLog && !isTestAlarmLog(latestAlarmLog)">
+                            <div class="alarm-hero-count-num">{{activeFeedbacksCount}}</div>
+                            <div class="alarm-hero-count-label">Zusage(n)</div>
                         </div>
                     </div>
 
                     <div class="row g-4">
-                        <!-- Schnittstellen-Daten -->
-                        <div class="col-12 col-md-5">
-                            <div class="card premium-card p-4 mb-4">
-                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-plug text-danger me-2"></i>Alarmierungs-Schnittstellen (Webhooks)</h5>
-                                <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10">
-                                    <div class="text-muted small mb-1"><strong>Offene Webhook-URL (AlarmDispatcher, aPager, GroupAlarm, Divera, cURL):</strong></div>
-                                    <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
-                                    <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>URL kopieren</button>
-                                </div>
-                                <div class="small text-muted mb-3 bg-black bg-opacity-30 p-3 rounded border border-secondary border-opacity-10">
-                                    <strong class="text-white d-block mb-1"><i class="fa fa-code me-1 text-warning"></i>Unterstützte Datenfelder (JSON/Form/GET):</strong>
-                                    <code>stichwort</code> / <code>title</code> / <code>keyword</code><br>
-                                    <code>adresse</code> / <code>address</code> / <code>location</code><br>
-                                    <code>meldung</code> / <code>description</code> / <code>text</code>
-                                </div>
-                                <button v-if="isAdmin" class="btn btn-premium w-100 rounded-pill" @click="generateApiKey"><i class="fa fa-key me-2"></i>Neuen API-Key generieren</button>
-                            </div>
-
-                            <!-- Test-Alarm -->
-                            <div class="card premium-card p-4 border border-warning border-opacity-25" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
-                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-flask text-warning me-2"></i>Test-Alarmierung</h5>
-                                <p class="text-muted small mb-3">Erzeugt einen Testeintrag im Protokoll. <strong class="text-warning">Kein echter Alarm!</strong></p>
-                                <div class="mb-3">
-                                    <label class="form-label">Stichwort</label>
-                                    <input type="text" v-model="testAlarm.stichwort" class="form-control" placeholder="z. B. TH – Probealarm">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Einsatzort</label>
-                                    <input type="text" v-model="testAlarm.adresse" class="form-control" placeholder="z. B. Feuerwehrhaus">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Meldung</label>
-                                    <textarea v-model="testAlarm.meldung" class="form-control" rows="2" placeholder="Freitext..."></textarea>
-                                </div>
-                                <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="sendTestAlarm">
-                                    <i class="fa fa-bolt me-2"></i>Test-Alarm auslösen
-                                </button>
-                            </div>
-                        </div>
-
                         <!-- Protokoll & Rückmeldungen -->
-                        <div class="col-12 col-md-7">
+                        <div class="col-12 col-lg-7 order-lg-1">
                             <!-- Rückmeldungen zum letzten Alarm -->
                             <div class="card premium-card p-4 mb-4">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1064,26 +1055,81 @@
                                         <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadApagerConfig"><i class="fa fa-refresh me-1"></i>Aktualisieren</button>
                                     </div>
                                 </div>
-                                <div class="list-group list-group-flush">
-                                    <div v-for="log in apagerLogs" :key="log.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <span class="badge" :class="log.stichwort && log.stichwort.startsWith('[TEST]') ? 'bg-warning text-dark' : 'bg-danger'">{{log.stichwort && log.stichwort.startsWith('[TEST]') ? 'TEST' : 'ALARM'}}</span>
-                                                <small class="text-muted">{{log.created_at}}</small>
+                                <div class="alarm-timeline">
+                                    <div v-for="log in apagerLogs" :key="log.id" class="alarm-timeline-item" :class="isTestAlarmLog(log) ? 'alarm-timeline-test' : 'alarm-timeline-real'">
+                                        <div class="alarm-timeline-dot"><i class="fa" :class="isTestAlarmLog(log) ? 'fa-flask' : 'fa-triangle-exclamation'"></i></div>
+                                        <div class="alarm-timeline-content">
+                                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge" :class="isTestAlarmLog(log) ? 'bg-warning text-dark' : 'bg-danger'">{{isTestAlarmLog(log) ? 'TEST' : 'ALARM'}}</span>
+                                                    <small class="text-muted">{{log.created_at}}</small>
+                                                </div>
+                                                <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                                    <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                        <i class="fa fa-edit text-primary"></i>
+                                                    </button>
+                                                    <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="deleteApagerLog(log.id)" title="Eintrag löschen" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                        <i class="fa fa-trash-alt text-danger"></i>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
-                                                <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
-                                                    <i class="fa fa-edit text-primary"></i>
-                                                </button>
-                                                <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="deleteApagerLog(log.id)" title="Eintrag löschen" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
-                                                    <i class="fa fa-trash-alt text-danger"></i>
-                                                </button>
-                                            </div>
+                                            <h6 class="fw-bold text-white mb-1">{{log.stichwort}} <span class="text-muted fw-normal">&bull; {{log.adresse}}</span></h6>
+                                            <p class="text-muted mb-0 small">{{log.meldung}}</p>
                                         </div>
-                                        <h6 class="fw-bold text-white mb-1">{{log.stichwort}} &bull; {{log.adresse}}</h6>
-                                        <p class="text-muted mb-0 small">{{log.meldung}}</p>
                                     </div>
                                     <div v-if="apagerLogs.length === 0" class="text-center py-4 text-muted">Keine Alarmierungen im Protokoll.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Test-Alarm & technische Einstellungen -->
+                        <div class="col-12 col-lg-5 order-lg-2">
+                            <!-- Test-Alarm -->
+                            <div class="card premium-card p-4 mb-4 alarm-test-card" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-flask text-warning me-2"></i>Test-Alarmierung</h5>
+                                <p class="text-muted small mb-3">Erzeugt einen Testeintrag im Protokoll. <strong class="text-warning">Kein echter Alarm!</strong></p>
+                                <div class="mb-3">
+                                    <label class="form-label">Stichwort</label>
+                                    <input type="text" v-model="testAlarm.stichwort" class="form-control" placeholder="z. B. TH – Probealarm">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Einsatzort</label>
+                                    <input type="text" v-model="testAlarm.adresse" class="form-control" placeholder="z. B. Feuerwehrhaus">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Meldung</label>
+                                    <textarea v-model="testAlarm.meldung" class="form-control" rows="2" placeholder="Freitext..."></textarea>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" class="form-check-input" id="testAlarmPrefixCheck" v-model="testAlarm.prefix_test">
+                                    <label class="form-check-label small" for="testAlarmPrefixCheck">"[TEST]" automatisch vor das Stichwort setzen</label>
+                                </div>
+                                <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="sendTestAlarm">
+                                    <i class="fa fa-bolt me-2"></i>Test-Alarm auslösen
+                                </button>
+                            </div>
+
+                            <!-- Schnittstellen-Daten: technisch, seltener gebraucht -> eingeklappt -->
+                            <div class="card premium-card p-0 overflow-hidden">
+                                <button class="btn w-100 text-start p-4 d-flex justify-content-between align-items-center text-white" type="button" data-bs-toggle="collapse" data-bs-target="#apagerWebhookCollapse">
+                                    <span class="fw-bold"><i class="fa fa-plug text-danger me-2"></i>Alarmierungs-Schnittstellen (Webhooks)</span>
+                                    <i class="fa fa-chevron-down text-muted"></i>
+                                </button>
+                                <div class="collapse" id="apagerWebhookCollapse">
+                                    <div class="p-4 pt-0">
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10">
+                                            <div class="text-muted small mb-1"><strong>Offene Webhook-URL (AlarmDispatcher, aPager, GroupAlarm, Divera, cURL):</strong></div>
+                                            <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
+                                            <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                        </div>
+                                        <div class="small text-muted mb-3 bg-black bg-opacity-30 p-3 rounded border border-secondary border-opacity-10">
+                                            <strong class="text-white d-block mb-1"><i class="fa fa-code me-1 text-warning"></i>Unterstützte Datenfelder (JSON/Form/GET):</strong>
+                                            <code>stichwort</code> / <code>title</code> / <code>keyword</code><br>
+                                            <code>adresse</code> / <code>address</code> / <code>location</code><br>
+                                            <code>meldung</code> / <code>description</code> / <code>text</code>
+                                        </div>
+                                        <button v-if="isAdmin" class="btn btn-premium w-100 rounded-pill" @click="generateApiKey"><i class="fa fa-key me-2"></i>Neuen API-Key generieren</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1305,11 +1351,13 @@
                                                         </td>
                                                         <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                         <td>
-                                                            <span v-if="isDormantAccount(usr)" class="badge bg-warning text-dark" :title="usr.last_login ? ('Letzter Login: ' + usr.last_login) : 'Noch nie eingeloggt'"><i class="fa fa-moon me-1"></i>Ruhend</span>
+                                                            <span v-if="usr.is_locked" class="badge bg-danger" title="Nach 5 Fehlversuchen automatisch für 15 Min. gesperrt."><i class="fa fa-lock me-1"></i>Gesperrt</span>
+                                                            <span v-else-if="isDormantAccount(usr)" class="badge bg-warning text-dark" :title="usr.last_login ? ('Letzter Login: ' + usr.last_login) : 'Noch nie eingeloggt'"><i class="fa fa-moon me-1"></i>Ruhend</span>
                                                             <small v-else class="text-muted">{{ usr.last_login ? usr.last_login.split(' ')[0] : '—' }}</small>
                                                         </td>
                                                         <td>
                                                             <div class="d-flex gap-1 flex-wrap">
+                                                                <button v-if="usr.is_locked" class="btn btn-xs btn-outline-success rounded-pill" @click="unlockUserAccount(usr)" style="font-size:0.65rem;"><i class="fa fa-unlock me-1"></i>Sperre aufheben</button>
                                                                 <button class="btn btn-xs btn-outline-primary rounded-pill" @click="startUserEdit(usr)" style="font-size:0.65rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
                                                                 <button class="btn btn-xs btn-outline-warning rounded-pill" @click="resetUserPassword(usr)" style="font-size:0.65rem;">PW Reset</button>
                                                                 <button class="btn btn-xs btn-outline-danger rounded-pill" @click="deleteUserAccount(usr.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
@@ -1508,8 +1556,8 @@
                                             <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>DWD Warncell-ID (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Gemeindeschlüssel für Wetterwarnungen des Deutschen Wetterdienstes. Zu finden in der Warncell-ID-Liste auf dwd.de/DE/leistungen/opendata/help/warnungen"></i></label>
-                                            <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 105515000000">
+                                            <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>Gemeindeschlüssel (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Amtlicher Gemeindeschlüssel (AGS) deiner Gemeinde/deines Landkreises, mit Nullen auf 12 Stellen aufgefüllt. Zu finden z.B. im Wikipedia-Artikel deiner Gemeinde unter 'Gemeindeschlüssel' (8-stellig - dann mit 0000 auf 12 Stellen auffüllen). Falls für die einzelne Gemeinde keine Warnung angezeigt wird, den Schlüssel des Landkreises probieren (5-stellig + 0000000)."></i></label>
+                                            <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 066310050000">
                                         </div>
                                         <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
                                     </div>
@@ -1531,18 +1579,24 @@
                                 <div class="col-12">
                                     <div class="card premium-card p-4">
                                         <h5 class="fw-bold text-white mb-3"><i class="fa fa-scale-balanced text-danger me-2"></i>Rechtliches (Impressum & Datenschutz)</h5>
-                                        <p class="text-muted small">Wird auf der Login-Seite als Link angezeigt, sobald hier Text hinterlegt ist.</p>
-                                        <div class="row g-3">
-                                            <div class="col-12 col-md-6">
-                                                <label class="form-label text-white">Impressum</label>
-                                                <textarea v-model="stationConfig.impressum_text" class="form-control bg-dark border-secondary text-white" rows="6" placeholder="Verantwortlich für den Inhalt:&#10;Name, Anschrift, Kontakt..."></textarea>
-                                            </div>
-                                            <div class="col-12 col-md-6">
-                                                <label class="form-label text-white">Datenschutzerklärung</label>
-                                                <textarea v-model="stationConfig.datenschutz_text" class="form-control bg-dark border-secondary text-white" rows="6" placeholder="Hinweise zur Verarbeitung personenbezogener Daten..."></textarea>
-                                            </div>
+                                        <p class="text-muted small mb-3"><i class="fa fa-lock me-1"></i>Aus rechtlichen Gründen (§ 5 DDG: verantwortlich ist eine konkret benannte Person) fest im Quellcode hinterlegt und hier nicht änderbar. Angezeigt auf jeder Seite der Anwendung (Login, Dashboard, Editor, Hallen-Display, Personalverwaltung).</p>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-light rounded-pill btn-sm" @click="openLegalModal('impressum')"><i class="fa fa-eye me-1"></i>Impressum ansehen</button>
+                                            <button class="btn btn-outline-light rounded-pill btn-sm" @click="openLegalModal('datenschutz')"><i class="fa fa-eye me-1"></i>Datenschutzerklärung ansehen</button>
                                         </div>
-                                        <button class="btn btn-premium rounded-pill fw-bold mt-3" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Speichern</button>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="card premium-card p-4">
+                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-stamp text-danger me-2"></i>Dienstsiegel / Stempel</h5>
+                                        <p class="text-muted small">Wird automatisch in jede neu erstellte Arbeitsbescheinigung eingefügt, statt einer leeren Box zum manuellen Aufstempeln.</p>
+                                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                                            <div v-if="stationConfig.stamp_image" class="p-2 bg-white rounded-3 border border-secondary border-opacity-25">
+                                                <img :src="stationConfig.stamp_image" style="height:70px;">
+                                            </div>
+                                            <input type="file" ref="stampFileInput" accept="image/*" class="form-control bg-dark border-secondary text-white" style="max-width:320px;" @change="uploadStampImage">
+                                            <button v-if="stationConfig.stamp_image" class="btn btn-outline-danger rounded-pill btn-sm" @click="removeStampImage"><i class="fa fa-trash me-1"></i>Entfernen</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1748,6 +1802,69 @@
                         </div>
                     </div>
                 </div>
+                <!-- TAB: ARBEITSBESCHEINIGUNGEN -->
+                <div v-show="activeTab === 'arbeitsbescheinigung'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-file-signature text-danger me-2"></i>Arbeitsbescheinigungen</h2>
+                            <small class="text-muted">Bescheinigung über die Einsatzteilnahme zur Vorlage beim Arbeitgeber erstellen und verwalten</small>
+                        </div>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Neue Bescheinigung erstellen</h5>
+                                <div class="mb-3">
+                                    <label class="form-label">Einsatz</label>
+                                    <select v-model="newCertMissionId" class="form-select" @change="loadCertMissionAttendees">
+                                        <option :value="null">-- Einsatz wählen --</option>
+                                        <option v-for="m in missions" :key="m.id" :value="m.id">{{formatDateDay(m.date)}}.{{formatDateMonth(m.date)}} – {{m.stichwort}}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Person <i class="fa fa-question-circle text-muted" title="Nur Personen, die für diesen Einsatz als anwesend erfasst wurden, können ausgewählt werden."></i></label>
+                                    <select v-model="newCertPersonnelId" class="form-select" :disabled="!newCertMissionId">
+                                        <option :value="null">-- Person wählen --</option>
+                                        <option v-for="a in certMissionAttendees" :key="a.personnel_id" :value="a.personnel_id">{{a.name}}</option>
+                                    </select>
+                                    <small v-if="newCertMissionId && certMissionAttendees.length === 0" class="text-muted">Keine anwesenden Personen für diesen Einsatz erfasst.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label d-block">Unterschrift (Einsatzleiter/Kommandant)</label>
+                                    <div class="sig-box-preview border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center" style="height:90px; background:#fff; cursor:pointer;" @click="openCertSigModal">
+                                        <img v-if="newCertSignature" :src="newCertSignature" style="max-height:80px; max-width:100%;">
+                                        <span v-else class="text-muted small"><i class="fa fa-signature me-1"></i>Zum Unterschreiben klicken</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Optional – kann auch später direkt im PDF nachgetragen werden. Das Dienstsiegel wird automatisch eingefügt, falls unter Verwaltung → Standort hinterlegt.</small>
+                                </div>
+                                <button class="btn btn-premium w-100 rounded-pill" :disabled="!newCertMissionId || !newCertPersonnelId" @click="submitEmployerCertificate"><i class="fa fa-file-export me-1"></i>Bescheinigung erstellen & öffnen</button>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-list text-danger me-2"></i>Erstellte Bescheinigungen</h5>
+                                <div class="table-responsive" style="max-height:520px; overflow-y:auto;">
+                                    <table class="table table-dark table-hover align-middle small">
+                                        <thead><tr class="text-muted"><th>Person</th><th>Einsatz</th><th>Erstellt</th><th class="text-end">Aktion</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="c in employerCertificates" :key="c.id">
+                                                <td class="fw-bold text-white">{{c.personnel_name}}</td>
+                                                <td>{{c.mission_stichwort}} <small class="text-muted d-block">{{c.mission_date}}</small></td>
+                                                <td class="text-muted small">{{c.created_at}}<span v-if="c.has_signature" class="badge bg-success ms-1" title="Mit Unterschrift"><i class="fa fa-signature"></i></span></td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-sm btn-outline-light rounded-pill me-1" @click="viewEmployerCertificate(c)" title="PDF öffnen"><i class="fa fa-file-pdf"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteEmployerCertificate(c.id)"><i class="fa fa-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="employerCertificates.length === 0"><td colspan="4" class="text-center py-4 text-muted">Noch keine Bescheinigungen erstellt.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB 9: DOCUMENT ARCHIVE -->
                 <div v-show="activeTab === 'archiv'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -2411,166 +2528,36 @@
             </div>
         </div>
 
-        <!-- MODAL: MISSION EDIT / DETAILS -->
-        <div class="modal fade" id="missionModal" tabindex="-1" data-bs-backdrop="static">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
+        <!-- MODAL: RSVP-LISTE (WER KOMMT ZU EINEM GEPLANTEN TERMIN) -->
+        <div class="modal fade" id="rsvpListModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-secondary border-opacity-10">
-                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzbericht</h5>
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-user-check text-danger me-2"></i>Rückmeldungen<span v-if="activeRsvpSchedule"> – {{activeRsvpSchedule.title}}</span></h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body p-4" v-if="activeMission" style="max-height: 70vh; overflow-y: auto;">
-                        <ul class="nav nav-tabs mb-4 border-0" role="tablist">
-                            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#m-tab-base">Stammdaten</button></li>
-                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#m-tab-att">Personal & Fahrzeuge</button></li>
-                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#m-tab-agt">Atemschutz-Log</button></li>
-                        </ul>
-
-                        <div class="tab-content">
-                            <!-- MISSION BASE DATA -->
-                            <div class="tab-pane fade show active" id="m-tab-base">
-                                <div class="row g-3">
-                                    <div class="col-md-6"><label class="form-label">Einsatzstichwort</label><input type="text" v-model="activeMission.stichwort" class="form-control" required :disabled="!canManageMissions"></div>
-                                    <div class="col-md-6"><label class="form-label">Einsatzort / Adresse</label><input type="text" v-model="activeMission.adresse" class="form-control" required :disabled="!canManageMissions"></div>
-                                    <div class="col-md-6"><label class="form-label">Einsatzdatum</label><input type="date" v-model="activeMission.date" class="form-control" required :disabled="!canManageMissions"></div>
-                                    <div class="col-md-3"><label class="form-label">Alarm/Beginn (Uhrzeit)</label><input type="time" v-model="activeMission.time" class="form-control" @input="calcMissionDuration" required :disabled="!canManageMissions"></div>
-                                    <div class="col-md-3"><label class="form-label">Ende (Uhrzeit)</label><input type="time" v-model="activeMission.end_time" class="form-control" @input="calcMissionDuration" :disabled="!canManageMissions"></div>
-                                    <div class="col-md-12"><label class="form-label text-warning fw-bold">Einsatzdauer (Std)</label><input type="number" step="0.5" v-model="activeMission.duration" class="form-control text-center fw-bold" required :disabled="!canManageMissions"></div>
-                                    <div class="col-md-12"><label class="form-label">Alarmierungsmeldung</label><textarea v-model="activeMission.meldung" class="form-control" rows="3" :disabled="!canManageMissions"></textarea></div>
-                                    <div class="col-md-12">
-                                        <label class="form-label mb-0">Schadensablauf / Bericht</label>
-                                        <textarea v-model="activeMission.description" class="form-control" rows="4" :disabled="!canManageMissions"></textarea>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <label class="form-label">Berichtsstatus</label>
-                                        <select v-model="activeMission.status" class="form-select" :disabled="!canManageMissions">
-                                            <option value="Entwurf">Entwurf</option>
-                                            <option value="In Prüfung">In Prüfung</option>
-                                            <option value="Freigegeben">Freigegeben (Sperrung)</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <label class="form-label">Zugeordnete Gruppe / Einheit</label>
-                                        <select v-model="activeMission.group_id" class="form-select" :disabled="!canManageMissions">
-                                            <option :value="null">Alle Einheiten / Gesamtwehr</option>
-                                            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-12 mt-3">
-                                        <label class="form-label text-white"><i class="fa fa-paperclip me-2 text-danger"></i>Archiv-Anhänge (Berichte, Fotos, Dokumente)</label>
-                                        <div class="d-flex gap-2 mb-2" v-if="canManageMissions">
-                                            <input type="file" ref="missionFile" class="form-control bg-dark border-secondary text-white" @change="uploadMissionFile">
-                                        </div>
-                                        <!-- Display list of attached files -->
-                                        <div v-if="uploadedMissionFiles.length > 0" class="list-group list-group-flush bg-transparent mt-2">
-                                            <div v-for="(file, index) in uploadedMissionFiles" :key="index" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
-                                                <a :href="file.url" target="_blank" class="small text-danger text-decoration-underline"><i class="fa fa-file-alt me-2"></i>{{ file.name }}</a>
-                                                <button v-if="canManageMissions" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="removeMissionFile(index)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
-                                            </div>
-                                        </div>
-                                        <div v-else class="text-muted small">Keine Anhänge vorhanden.</div>
-                                    </div>
-                                </div>
+                    <div class="modal-body p-4">
+                        <div class="list-group list-group-flush">
+                            <div v-for="r in activeRsvpResponses" :key="r.name" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                <span class="fw-bold">{{r.name}}</span>
+                                <span class="badge rounded-pill" :class="r.status === 'Ja' ? 'bg-success' : r.status === 'Vielleicht' ? 'bg-warning text-dark' : 'bg-danger'">{{r.status}}</span>
                             </div>
-
-                            <!-- MISSION DISPATCH / ATTENDANCE -->
-                            <div class="tab-pane fade" id="m-tab-att">
-                                <label class="form-label mb-2 d-block">Einsatzbeteiligung Personal</label>
-                                <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto mb-4" style="max-height: 250px;">
-                                    <div v-for="p in activeMission.attList" :key="p.personnel_id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                        <div>
-                                            <span class="fw-bold">{{p.name}}</span>
-                                            <span v-if="p.g26_expired" class="text-danger fw-bold ms-2" style="font-size:0.75rem;"><i class="fa fa-warning"></i> G26 abgelaufen!</span>
-                                        </div>
-                                        <div class="d-flex gap-2 flex-wrap">
-                                            <select v-model="p.vehicle" class="form-select form-select-sm" style="width: auto;" :disabled="!canManageMissions">
-                                                <option value="">Kein Fahrzeug</option>
-                                                <option v-for="v in vehicles" :value="v.name">{{v.name}}</option>
-                                            </select>
-                                            <select v-model="p.is_present" class="form-select form-select-sm" style="width: auto;" :disabled="!canManageMissions">
-                                                <option value="Nein">Nein / Nicht anwesend</option>
-                                                <option value="Abgerückt">Abgerückt (Einsatzfahrt)</option>
-                                                <option value="Bereitstellung">Bereitstellung (Einsatzstelle)</option>
-                                                <option value="Gerätehaus">Wache / Gerätehaus</option>
-                                                <option value="Entschuldigt">Entschuldigt / Abgemeldet</option>
-                                                <option value="Abgebrochen">Einsatzstorno / Abgebrochen</option>
-                                            </select>
-                                            <button v-if="activeMission.id && p.is_present !== 'Nein'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="downloadEmployerCert(activeMission.id, p.personnel_id)" title="Arbeitgeberbescheinigung als PDF öffnen"><i class="fa fa-file-invoice me-1"></i>Bescheinigung</button>
-                                        </div>
-                                    </div>
-                                    <div v-if="!activeMission.id" class="list-group-item bg-transparent text-muted small border-secondary border-opacity-10 py-2">
-                                        <i class="fa fa-circle-info me-1"></i>Speichere den Einsatz zuerst, dann erscheint hier bei jedem anwesenden Kameraden der Button "Bescheinigung" für die Arbeitgeberbescheinigung.
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- ATEMSCHUTZ LOG -->
-                            <div class="tab-pane fade" id="m-tab-agt">
-                                <div v-if="canManageMissions && !activeMission.id" class="list-group-item bg-transparent text-muted small border-secondary border-opacity-10 py-2 mb-3">
-                                    <i class="fa fa-circle-info me-1"></i>Speichere den Einsatz zuerst, bevor du Atemschutz-Einträge hinzufügen kannst.
-                                </div>
-                                <div v-if="canManageMissions && activeMission.id" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
-                                    <h6 class="fw-bold text-white mb-3">AGT-Eintrag hinzufügen</h6>
-                                    <div class="row g-2 align-items-end">
-                                        <div class="col-md-4">
-                                            <label class="small text-muted fw-bold mb-1">Kamerad (Atemschutz)</label>
-                                            <select v-model="newRespi.personnel_id" class="form-select form-select-sm">
-                                                <option v-for="p in activeMission.attList.filter(x => x.is_present !== 'Nein')" :value="p.personnel_id">{{p.name}}</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="small text-muted fw-bold mb-1">Druck Start</label>
-                                            <input type="number" v-model="newRespi.druck_start" class="form-control form-control-sm" placeholder="bar">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="small text-muted fw-bold mb-1">Druck 10m</label>
-                                            <input type="number" v-model="newRespi.druck_10" class="form-control form-control-sm" placeholder="bar">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="small text-muted fw-bold mb-1">Druck 20m</label>
-                                            <input type="number" v-model="newRespi.druck_20" class="form-control form-control-sm" placeholder="bar">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="small text-muted fw-bold mb-1">Druck Ende</label>
-                                            <input type="number" v-model="newRespi.druck_ende" class="form-control form-control-sm" placeholder="bar">
-                                        </div>
-                                        <div class="col-md-3 mt-2">
-                                            <label class="small text-muted fw-bold mb-1">Dauer (Min)</label>
-                                            <input type="number" v-model="newRespi.dauer" class="form-control form-control-sm" placeholder="min">
-                                        </div>
-                                        <div class="col-md-9 text-end mt-2">
-                                            <button class="btn btn-premium btn-sm" @click="submitRespi"><i class="fa fa-plus me-1"></i>Hinzufügen</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-dark table-hover mb-0 align-middle small">
-                                        <thead><tr class="text-muted"><th>GERÄTETRÄGER</th><th>START</th><th>10 MIN</th><th>20 MIN</th><th>ENDE</th><th>DAUER</th><th>Aktion</th></tr></thead>
-                                        <tbody>
-                                            <tr v-for="res in activeMission.respiList" :key="res.id">
-                                                <td class="fw-bold text-white">{{res.name}}</td>
-                                                <td>{{res.druck_start}} bar</td>
-                                                <td>{{res.druck_10}} bar</td>
-                                                <td>{{res.druck_20}} bar</td>
-                                                <td>{{res.druck_ende}} bar</td>
-                                                <td>{{res.dauer}} min</td>
-                                                <td>
-                                                    <button v-if="canManageMissions" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteRespi(res.id)"><i class="fa fa-trash"></i></button>
-                                                </td>
-                                            </tr>
-                                            <tr v-if="activeMission.respiList.length === 0">
-                                                <td colspan="7" class="text-center text-muted py-3">Keine Atemschutzeinträge</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                            <div v-if="activeRsvpResponses.length === 0" class="text-center text-muted py-3">Noch keine Rückmeldungen.</div>
                         </div>
                     </div>
-                    <div class="modal-footer border-secondary border-opacity-10 justify-content-end" v-if="canManageMissions">
-                        <button class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
-                        <button class="btn btn-premium rounded-pill px-5 fw-bold" @click="saveMission">Einsatzbericht speichern</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: IMPRESSUM & DATENSCHUTZ -->
+        <div class="modal fade" id="legalModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">{{ activeLegalTab === 'impressum' ? 'Impressum' : 'Datenschutzerklärung' }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
+                    <div class="modal-body p-4 text-white" style="white-space: pre-wrap; max-height: 65vh; overflow-y: auto; font-size: 0.9rem; line-height: 1.6;">{{ legalTexts[activeLegalTab] || 'Wird geladen...' }}</div>
                 </div>
             </div>
         </div>
@@ -2611,6 +2598,27 @@
                         <div class="d-flex gap-2">
                             <button class="btn btn-outline-light flex-fill rounded-pill" @click="clearMissionSig">Löschen</button>
                             <button class="btn btn-premium flex-fill rounded-pill" @click="saveMissionSig">Freigeben</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ARBEITSBESCHEINIGUNG SIGNATUR -->
+        <div class="modal fade" id="certSigModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Unterschrift (Einsatzleiter/Kommandant)</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="sig-wrapper shadow-inner mb-3">
+                            <canvas id="certSigCanvas"></canvas>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-light flex-fill rounded-pill" @click="clearCertSig">Löschen</button>
+                            <button class="btn btn-premium flex-fill rounded-pill" @click="saveCertSig">Übernehmen</button>
                         </div>
                     </div>
                 </div>
