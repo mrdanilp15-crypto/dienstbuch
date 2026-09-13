@@ -265,3 +265,32 @@ def bind_self_personnel(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "SELBST_VERKNÜPFUNG", f"Eigenes Konto mit Personal-ID {pid} verknüpft.")
     return {"status": "success"}
+
+# --- "WAS IST NEU" -----------------------------------------------------------------------
+# Bewusst nur für Admins: die Änderungen betreffen überwiegend Verwaltungsfunktionen, und ein
+# ungefragtes Popup für jeden Nutzer bei jedem Update wäre für die normale Mannschaft eher
+# störend als hilfreich.
+@router.get("/api/users/me/changelog")
+def get_changelog(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Nur für Admins")
+    from core.changelog import CHANGELOG, latest_changelog_id
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT last_seen_changelog_id FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    last_seen = (row or {}).get("last_seen_changelog_id") or 0
+    return {"entries": CHANGELOG, "unseen": last_seen < latest_changelog_id()}
+
+@router.post("/api/users/me/changelog/seen")
+def mark_changelog_seen(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Nur für Admins")
+    from core.changelog import latest_changelog_id
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE users SET last_seen_changelog_id = %s WHERE username = %s",
+               (latest_changelog_id(), user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}

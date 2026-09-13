@@ -188,6 +188,8 @@ applyChartTheme();
                     activeBroadcasts: [],
                     newBroadcast: { title: '', content: '', is_mandatory: false },
                     isFirstLoginBlock: false,
+                    changelogEntries: [],
+                    changelogUnseen: false,
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
                     activeTab: localStorage.getItem('activeDashboardTab') || 'dienste',
@@ -785,6 +787,16 @@ applyChartTheme();
                             m.show();
                         }
                     }, 400);
+                }
+
+                // "Was ist neu": nur für Admins. Immer laden (auch bei erzwungenem
+                // Passwortwechsel), damit der manuelle Button in der Kopfzeile sofort Inhalt
+                // hat - automatisch AUFPOPPEN aber nur, wenn nicht ohnehin schon der
+                // Passwort-Dialog aufgeht (der hat Vorrang, zwei Modals gleichzeitig wären
+                // verwirrend). Läuft im Hintergrund, ein Fehlschlag (z.B. offline) darf den
+                // Dashboard-Start nicht stören.
+                if (this.isAdmin) {
+                    this.loadChangelog(!this.isFirstLoginBlock);
                 }
 
                 // Register Service Worker for PWA
@@ -1484,6 +1496,34 @@ applyChartTheme();
                 },
                 openEquipmentReportPdf(eq) {
                     window.open('/api/material/equipment/' + eq.id + '/report/pdf', '_blank');
+                },
+                async loadChangelog(autoShowIfUnseen) {
+                    try {
+                        const res = await fetch('/api/users/me/changelog', { credentials: 'include' });
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        this.changelogEntries = data.entries || [];
+                        this.changelogUnseen = !!data.unseen;
+                        if (autoShowIfUnseen && this.changelogUnseen) {
+                            this.$nextTick(() => {
+                                setTimeout(() => this.openChangelogModal(), 600);
+                            });
+                        }
+                    } catch (e) { /* offline o.ä. - kein Grund, den Nutzer zu stören */ }
+                },
+                openChangelogModal() {
+                    const el = document.getElementById('changelogModal');
+                    if (!el) return;
+                    let m = bootstrap.Modal.getInstance(el);
+                    if (!m) m = new bootstrap.Modal(el);
+                    m.show();
+                    // Erst beim tatsächlichen Anzeigen als gesehen markieren, nicht schon beim
+                    // Laden - sonst hätte ein Admin, der offline war, den Hinweis verpasst, ohne
+                    // ihn je gesehen zu haben.
+                    if (this.changelogUnseen) {
+                        this.changelogUnseen = false;
+                        fetch('/api/users/me/changelog/seen', { method: 'POST', credentials: 'include' }).catch(() => {});
+                    }
                 },
                 openPersonnelCertificate(kind) {
                     if (!this.activePersonnel || !this.activePersonnel.id) return;

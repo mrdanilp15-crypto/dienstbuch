@@ -29,7 +29,7 @@ from routers import push_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.50"
+CURRENT_VERSION = "2.51"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -315,7 +315,7 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         
-        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL"), ("last_login", "DATETIME NULL")]:
+        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL"), ("last_login", "DATETIME NULL"), ("last_seen_changelog_id", "INT DEFAULT 0")]:
             try: cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass

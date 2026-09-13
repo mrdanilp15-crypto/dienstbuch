@@ -161,6 +161,9 @@
                     </button>
                     <a href="/static/alarmdisplay.html" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill"><i class="fa fa-desktop me-1"></i>Hallen-Display</a>
                     <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span>
+                    <button v-if="isAdmin" class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-bold position-relative" @click="openChangelogModal" title="Was ist neu"><i class="fa fa-gift me-1"></i>Was ist neu
+                        <span v-if="changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Ungelesen</span></span>
+                    </button>
                     <button class="btn btn-outline-info btn-sm rounded-pill px-3 fw-bold me-2" @click="requestPushPermission"><i class="fa fa-bell me-1"></i>Push-Alarm</button>
                     <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i>Logout</button>
                 </div>
@@ -203,6 +206,7 @@
                     <div class="sidebar-section-header d-lg-none">Aktionen</div>
                     <button class="sidebar-btn d-lg-none" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i> Theme wechseln</button>
                     <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop"></i> Hallen-Display</a>
+                    <button v-if="isAdmin" class="sidebar-btn d-lg-none text-warning" @click="openChangelogModal(); showMobileSidebar = false"><i class="fa fa-gift"></i> Was ist neu <span v-if="changelogUnseen" class="badge bg-danger rounded-circle ms-1" style="width:8px; height:8px; padding:0;"></span></button>
                     <button class="sidebar-btn d-lg-none text-info" @click="requestPushPermission"><i class="fa fa-bell"></i> Push-Alarm Test</button>
                     <button class="sidebar-btn d-lg-none text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i> Logout</button>
 
@@ -3412,6 +3416,52 @@
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
                             <button type="button" class="btn btn-premium rounded-pill px-5 fw-bold" @click="savePersonnel">Speichern</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: WAS IST NEU (nur Admins) -->
+        <div class="modal fade" id="changelogModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-gift text-warning me-2"></i>Was ist neu</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+                        <div v-if="changelogEntries.length === 0" class="text-center text-muted py-4">Noch keine Einträge.</div>
+                        <div v-for="entry in changelogEntries" :key="entry.id" class="mb-4">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <span class="fw-bold text-white">Version {{entry.version}}</span>
+                                <span class="text-muted small">{{entry.date}}</span>
+                            </div>
+
+                            <div v-if="entry.items.some(i => i.type === 'new')" class="mb-3">
+                                <h6 class="fw-bold text-danger mb-2"><i class="fa fa-star me-2"></i>Neue Funktionen</h6>
+                                <div v-for="(item, idx) in entry.items.filter(i => i.type === 'new')" :key="'new'+idx" class="ps-3 mb-2 border-start border-danger border-opacity-50">
+                                    <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-1">
+                                        <span class="fw-bold text-white small">{{item.title}}</span>
+                                        <span class="text-muted" style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em;">{{item.tag}}</span>
+                                    </div>
+                                    <div class="text-muted small">{{item.text}}</div>
+                                </div>
+                            </div>
+
+                            <div v-if="entry.items.some(i => i.type === 'fix')">
+                                <h6 class="fw-bold text-warning mb-2"><i class="fa fa-circle-check me-2"></i>Behobene Fehler</h6>
+                                <div v-for="(item, idx) in entry.items.filter(i => i.type === 'fix')" :key="'fix'+idx" class="ps-3 mb-2 border-start border-warning border-opacity-50">
+                                    <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-1">
+                                        <span class="fw-bold text-white small">{{item.title}}</span>
+                                        <span class="text-muted" style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em;">{{item.tag}}</span>
+                                    </div>
+                                    <div class="text-muted small">{{item.text}}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20">
+                        <button type="button" class="btn btn-premium rounded-pill px-4" data-bs-dismiss="modal">Verstanden</button>
                     </div>
                 </div>
             </div>
