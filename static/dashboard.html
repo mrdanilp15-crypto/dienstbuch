@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Sagt dem Browser: diese Seite steuert Hell-/Dunkelmodus selbst (siehe dashboard.css,
+         color-scheme). Ohne das greifen manche Android-Browser mit einem eigenen erzwungenen
+         Dunkelmodus-Filter ein - das ergibt "gleiche Farben, aber dunkler mit hellem Schein",
+         unabhängig vom eigenen Umschalter der App. -->
+    <meta name="color-scheme" content="dark light">
     <meta name="apple-mobile-web-app-title" content="Dienstbuch">
     <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="/static/favicon.svg">

@@ -1,6 +1,17 @@
-:root { 
-            --primary: #b71c1c; 
-            --bg-color: #121010; 
+:root {
+            /* Ohne diese Deklaration weiß der Browser nicht, dass die Seite Hell-/Dunkelmodus
+               SELBST steuert - manche Android-Browser (Samsung Internet, teils Chrome je nach
+               Geräteeinstellung "Dunkles Design erzwingen") malen die Seite sonst zusätzlich mit
+               einem eigenen Verdunklungsfilter um, unabhängig vom hauseigenen Umschalter oben.
+               Das erzeugt exakt das gemeldete Bild: "gleiche Farben, aber dunkler, mit einem
+               hellen Schein dahinter" - der Effekt entsteht typischerweise an Stellen mit
+               backdrop-filter/Transparenz, wo der browsereigene Filter mit unseren eigenen
+               Farben kollidiert. color-scheme sagt dem Browser: beide Modi werden von der Seite
+               selbst abgedeckt, bitte nicht zusätzlich eingreifen. */
+            color-scheme: dark;
+            --primary: #b71c1c;
+            --bg-color: #121010;
+            --bg-glow: #201414;
             --text-color: #f1f1f1;
             --card-bg: rgba(30, 24, 24, 0.85);
             --card-border: rgba(255, 255, 255, 0.12);
@@ -19,7 +30,9 @@
         }
 
         [data-theme="light"] body, [data-theme="light"] {
+            color-scheme: light;
             --bg-color: #f8f9fa;
+            --bg-glow: #f8f9fa;
             --text-color: #212529;
             --card-bg: #ffffff;
             --card-border: rgba(0, 0, 0, 0.12);
@@ -128,9 +141,13 @@
         * {
             -webkit-tap-highlight-color: transparent;
         }
-        body { 
-            background: radial-gradient(circle at 50% 50%, #201414 0%, var(--bg-color) 100%); 
-            font-family: 'Outfit', sans-serif; 
+        body {
+            /* --bg-glow statt fest verdrahtetem #201414: dieser dunkelrote Farbton stand hier
+               unabhängig vom Theme, im Hellmodus wurde --bg-color zwar korrekt auf ein helles
+               Grau umgeschaltet, aber die Mitte des radialen Verlaufs blieb dunkel - sichtbar als
+               dunkler Fleck mit hellem "Schein" drumherum, genau das gemeldete Symptom. */
+            background: radial-gradient(circle at 50% 50%, var(--bg-glow) 0%, var(--bg-color) 100%);
+            font-family: 'Outfit', sans-serif;
             height: 100vh; 
             overflow: hidden; 
             color: var(--text-primary);
