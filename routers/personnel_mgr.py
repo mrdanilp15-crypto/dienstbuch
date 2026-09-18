@@ -327,27 +327,68 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
 
 @router.delete("/delete/{member_id}")
 def delete_member(member_id: int, request: Request):
+    """Löscht ein Mitglied NUR dann wirklich, wenn keinerlei archivpflichtige Historie
+    (Einsätze, Atemschutzprotokolle, Lehrgänge, Dienste) daran hängt - z.B. ein versehentlich
+    doppelt angelegter Eintrag. Sobald Historie existiert, wird stattdessen deaktiviert:
+    persönliche Kontaktdaten werden geleert (Datenminimierung, Art. 5 DSGVO), Name und ID
+    bleiben aber erhalten, weil sonst per ON DELETE CASCADE JEDE Anwesenheits- und
+    Atemschutz-Aufzeichnung aus JEDEM Einsatz dieser Person rückwirkend mitgelöscht würde -
+    das verletzt sowohl die Dokumentationspflicht für Einsatzberichte als auch DGUV-
+    Nachweispflichten für Atemschutzeinsätze. Art. 17 Abs. 3 lit. b DSGVO deckt genau diesen
+    Fall: kein Recht auf Löschung, soweit die Verarbeitung zur Erfüllung einer rechtlichen
+    Pflicht (hier: Dokumentations-/Aufbewahrungspflicht) erforderlich ist."""
     user = check_auth(request, allowed_roles=("admin", "leitung"))
+    from core.utils import log_audit_action
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(dictionary=True)
 
-    # Vor dem Löschen den Namen holen, um ihn auch aus persons zu fegen
     cur.execute("SELECT name FROM personnel WHERE id = %s", (member_id,))
     name_row = cur.fetchone()
-    
-    cur.execute("DELETE FROM mission_attendance WHERE personnel_id = %s", (member_id,))
-    cur.execute("DELETE FROM respiration_log WHERE personnel_id = %s", (member_id,))
-    cur.execute("DELETE FROM schedule_attendance WHERE personnel_id = %s", (member_id,))
-    
+    if not name_row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Kamerad nicht gefunden")
+    name = name_row["name"]
+
+    cur.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM mission_attendance WHERE personnel_id = %s) AS missions,
+            (SELECT COUNT(*) FROM respiration_log WHERE personnel_id = %s) AS atemschutz,
+            (SELECT COUNT(*) FROM lehrgaenge WHERE personnel_id = %s) AS lehrgaenge,
+            (SELECT COUNT(*) FROM schedule_attendance WHERE personnel_id = %s) AS dienste
+    """, (member_id, member_id, member_id, member_id))
+    counts = cur.fetchone()
+    has_history = any(counts.values())
+
+    if has_history:
+        cur.execute("""
+            UPDATE personnel SET
+                membership_status = 'Ausgeschieden',
+                phone = NULL, email = NULL, address = NULL,
+                emergency_contact_name = NULL, emergency_contact_phone = NULL,
+                profile_picture = NULL
+            WHERE id = %s
+        """, (member_id,))
+        conn.commit()
+        cur.close(); conn.close()
+        log_audit_action(user["username"], "PERSONAL_DEAKTIVIERT",
+            f"Mitglied ID {member_id} ('{name}') deaktiviert statt gelöscht - hat "
+            f"{counts['missions']} Einsatz-, {counts['atemschutz']} Atemschutz- und "
+            f"{counts['lehrgaenge']} Lehrgangseinträge, die archivpflichtig sind.")
+        return {
+            "status": "deactivated",
+            "detail": "Dieses Mitglied hat Einsatz-, Atemschutz- oder Lehrgangs-Historie und "
+                      "wurde deshalb deaktiviert statt gelöscht, um bestehende Einsatzberichte "
+                      "und Nachweise nicht zu zerstören. Kontaktdaten wurden entfernt, der "
+                      "Name bleibt für die Historie erhalten."
+        }
+
     cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
-    if name_row:
-        cur.execute("DELETE FROM persons WHERE name = %s", (name_row[0],))
-        
+    cur.execute("DELETE FROM persons WHERE name = %s", (name,))
     conn.commit()
     cur.close()
     conn.close()
-    from core.utils import log_audit_action
-    log_audit_action(user["username"], "PERSONAL_LOESCHEN", f"Mitglied ID {member_id} ('{name_row[0] if name_row else '?'}') gelöscht.")
+    log_audit_action(user["username"], "PERSONAL_LOESCHEN",
+                     f"Mitglied ID {member_id} ('{name}') gelöscht (keine Historie vorhanden).")
     return {"status": "deleted"}
 
 @router.get("/settings")

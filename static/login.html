@@ -294,6 +294,21 @@
             </button>
         </form>
 
+        <!-- Zweiter Schritt: nur sichtbar, wenn das Konto Zwei-Faktor-Authentifizierung aktiv
+             hat (siehe handleLogin: Antwort status "2fa_required" blendet dies ein). -->
+        <form id="twoFaForm" style="display:none;">
+            <p class="subtitle mb-3 text-start"><i class="fa fa-shield-halved me-1"></i>Code aus deiner Authenticator-App eingeben (oder ein Wiederherstellungscode).</p>
+            <div class="mb-4 text-start">
+                <label class="form-label">Code</label>
+                <input type="text" id="twoFaCodeInput" class="form-control text-center" style="letter-spacing:0.3em; font-size:1.3rem;" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" maxlength="12" autofocus>
+            </div>
+            <button type="submit" id="twoFaSubmitBtn" class="btn btn-submit w-100 shadow">
+                <span id="twoFaBtnText"><i class="fa fa-check me-1"></i> Bestätigen</span>
+                <span id="twoFaBtnSpinner" class="spinner-border spinner-border-sm loader" role="status"></span>
+            </button>
+            <button type="button" class="btn btn-link text-white-50 w-100 mt-2" onclick="cancelTwoFa()">Zurück</button>
+        </form>
+
         <div class="footer-links">
             <a class="footer-link-item" onclick="openLegalModal('impressum')"><i class="fa fa-circle-info me-1"></i>Impressum</a>
             <span style="color:rgba(255,255,255,0.2);">&bull;</span>
@@ -393,6 +408,20 @@
                     return;
                 }
 
+                if (data.status === '2fa_required') {
+                    // Benutzername + Passwort waren richtig, das Konto hat aber Zwei-Faktor
+                    // aktiv - zweiten Schritt einblenden statt umzuleiten. temp_token bestätigt
+                    // dem Server im zweiten Schritt, dass der erste bereits bestanden wurde.
+                    pendingTwoFaToken = data.temp_token;
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('twoFaForm').style.display = 'block';
+                    document.getElementById('twoFaCodeInput').focus();
+                    btn.disabled = false;
+                    btnText.style.display = 'inline-block';
+                    spinner.style.display = 'none';
+                    return;
+                }
+
                 localStorage.setItem('isLoggedIn', 'true');
                 localStorage.setItem('userRole', data.role);
                 localStorage.setItem('userName', data.username);
@@ -418,6 +447,66 @@
         }
         
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
+
+        let pendingTwoFaToken = null;
+
+        function cancelTwoFa() {
+            pendingTwoFaToken = null;
+            document.getElementById('twoFaCodeInput').value = '';
+            document.getElementById('twoFaForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+        }
+
+        async function handleTwoFa(event) {
+            event.preventDefault();
+            const codeInput = document.getElementById('twoFaCodeInput');
+            const errorBox = document.getElementById('errorBox');
+            const btn = document.getElementById('twoFaSubmitBtn');
+            const btnText = document.getElementById('twoFaBtnText');
+            const spinner = document.getElementById('twoFaBtnSpinner');
+
+            if (!pendingTwoFaToken) { cancelTwoFa(); return; }
+
+            errorBox.style.display = 'none';
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/login/2fa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temp_token: pendingTwoFaToken, code: codeInput.value.trim() })
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${data.detail || 'Code falsch.'}`;
+                    errorBox.style.display = 'block';
+                    codeInput.value = '';
+                    codeInput.focus();
+                    btn.disabled = false;
+                    btnText.style.display = 'inline-block';
+                    spinner.style.display = 'none';
+                    return;
+                }
+
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userRole', data.role);
+                localStorage.setItem('userName', data.username);
+                window.location.href = data.redirect;
+            } catch (error) {
+                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
+                errorBox.style.display = 'block';
+                btn.disabled = false;
+                btnText.style.display = 'inline-block';
+                spinner.style.display = 'none';
+            }
+        }
+
+        document.getElementById('twoFaForm').addEventListener('submit', handleTwoFa);
 
         // Register ServiceWorker for PWA installation
         if ('serviceWorker' in navigator) {

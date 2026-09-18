@@ -138,7 +138,7 @@ applyChartTheme();
             });
         }
 
-        function appPrompt(message, defaultValue = '', title = 'Eingabe') {
+        function appPrompt(message, defaultValue = '', title = 'Eingabe', inputType = 'text') {
             return new Promise((resolve) => {
                 const { el, modal } = _appDialogShow(`
                     <div class="modal-dialog modal-dialog-centered">
@@ -159,6 +159,7 @@ applyChartTheme();
                     </div>`, 'appPromptModal');
                 el.querySelector('.modal-title').textContent = title;
                 el.querySelector('.modal-body label').textContent = message;
+                el.querySelector('#appPromptInput').type = inputType;
                 const input = el.querySelector('#appPromptInput');
                 input.value = defaultValue || '';
                 let result = null;
@@ -190,6 +191,10 @@ applyChartTheme();
                     isFirstLoginBlock: false,
                     changelogEntries: [],
                     changelogUnseen: false,
+                    twoFaEnabled: null,
+                    twoFaSetup: null,
+                    twoFaConfirmCode: '',
+                    twoFaRecoveryCodes: null,
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
                     activeTab: localStorage.getItem('activeDashboardTab') || 'dienste',
@@ -2615,13 +2620,64 @@ applyChartTheme();
                 },
                 openSelfPasswordModal() {
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
+                    this.twoFaSetup = null; this.twoFaConfirmCode = ''; this.twoFaRecoveryCodes = null;
                     this.fetchPersonalStats();
+                    this.loadTwoFaStatus();
                     const el = document.getElementById('selfPasswordModal');
                     if (el) {
                         let m = bootstrap.Modal.getInstance(el);
                         if (!m) m = new bootstrap.Modal(el);
                         m.show();
                     }
+                },
+                async loadTwoFaStatus() {
+                    try {
+                        const res = await fetch('/api/auth/2fa/status', { credentials: 'include' });
+                        this.twoFaEnabled = res.ok ? (await res.json()).enabled : false;
+                    } catch(e) { this.twoFaEnabled = false; }
+                },
+                async startSetup2fa() {
+                    const res = await fetch('/api/auth/2fa/setup', { method: 'POST', credentials: 'include' });
+                    if (!res.ok) { await appAlert("Einrichtung konnte nicht gestartet werden."); return; }
+                    this.twoFaSetup = await res.json();
+                    this.twoFaConfirmCode = '';
+                    // Erst NACH dem Rendern des Canvas (v-if oben) existiert das Element im DOM.
+                    this.$nextTick(() => {
+                        const canvas = document.getElementById('twoFaQrCanvas');
+                        if (canvas && window.QRious) {
+                            new QRious({ element: canvas, value: this.twoFaSetup.otpauth_url, size: 180 });
+                        }
+                    });
+                },
+                async confirmSetup2fa() {
+                    if (!this.twoFaConfirmCode || this.twoFaConfirmCode.length < 6) { await appAlert("Bitte den 6-stelligen Code eingeben."); return; }
+                    const res = await fetch('/api/auth/2fa/confirm', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ code: this.twoFaConfirmCode })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Code falsch.");
+                        return;
+                    }
+                    const data = await res.json();
+                    this.twoFaEnabled = true;
+                    this.twoFaRecoveryCodes = data.recovery_codes;
+                },
+                async startDisable2fa() {
+                    const password = await appPrompt("Zur Bestätigung dein aktuelles Passwort eingeben:", '', 'Passwort bestätigen', 'password');
+                    if (!password) return;
+                    const res = await fetch('/api/auth/2fa/disable', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ password })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Deaktivieren fehlgeschlagen.");
+                        return;
+                    }
+                    this.twoFaEnabled = false;
+                    await appAlert("Zwei-Faktor-Authentifizierung wurde deaktiviert.");
                 },
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { await appAlert("Die neuen Passwörter stimmen nicht überein!"); return; }
@@ -2949,7 +3005,7 @@ applyChartTheme();
                     return `${parts[1]}.${parts[0].substring(2)}`;
                 },
                 isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
-                getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; return 'ehren'; },
+                getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; if(status === 'Ausgeschieden') return 'ausgeschieden'; return 'ehren'; },
                 
                 // Group methods
                 async addGroup() { const name = await appPrompt("Name der neuen Gruppe:"); if (name) { await fetch('/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({name: name}) }); await this.loadGroups(); } },

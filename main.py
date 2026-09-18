@@ -29,7 +29,7 @@ from routers import push_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.51"
+CURRENT_VERSION = "2.52"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -315,7 +315,13 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         
-        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL"), ("last_login", "DATETIME NULL"), ("last_seen_changelog_id", "INT DEFAULT 0")]:
+        for col_name, col_type in [("is_first_login", "BOOLEAN DEFAULT TRUE"), ("failed_logins", "INT DEFAULT 0"), ("lockout_until", "DATETIME NULL"), ("personnel_id", "INT NULL"), ("last_login", "DATETIME NULL"), ("last_seen_changelog_id", "INT DEFAULT 0"),
+                                   # Zwei-Faktor-Authentifizierung (TOTP, RFC 6238). totp_secret ist
+                                   # NULL/ungenutzt, solange nicht bestätigt - erst nach dem Bestätigungs-
+                                   # code in /api/auth/2fa/confirm wird totp_enabled wahr und der Login
+                                   # verlangt den zweiten Faktor. totp_recovery_codes: JSON-Liste
+                                   # gehashter Einmal-Codes für den Fall eines verlorenen Geräts.
+                                   ("totp_secret", "VARCHAR(64) NULL"), ("totp_enabled", "BOOLEAN DEFAULT FALSE"), ("totp_recovery_codes", "TEXT NULL")]:
             try: cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
@@ -442,6 +448,27 @@ def init_db_extensions():
             cur.execute("ALTER TABLE respiration_log ADD CONSTRAINT fk_rl_personnel FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE CASCADE")
         except:
             pass
+
+        # Verteidigung in der Tiefe (Compliance-Prüfung 2026-09): personnel_mgr.py verhindert
+        # jetzt selbst, dass ein Mitglied mit Einsatz-/Atemschutzhistorie hart gelöscht wird -
+        # diese beiden Fremdschlüssel setzen dieselbe Regel zusätzlich auf Datenbankebene durch.
+        # RESTRICT statt CASCADE lässt MariaDB das Löschen selbst verweigern, solange noch
+        # verknüpfte Einsatz-/Atemschutzzeilen existieren - unabhängig davon, ob ein künftiger
+        # Programmierfehler die Prüfung in der Anwendung umgeht. Nur ändern, wenn die
+        # Datenbank die Regel noch nicht auf RESTRICT stehen hat (sonst bei jedem Start
+        # unnötig DROP+ADD).
+        for table, fk_name in (("mission_attendance", "fk_ma_personnel"), ("respiration_log", "fk_rl_personnel")):
+            try:
+                cur.execute("""
+                    SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS
+                    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = %s AND CONSTRAINT_NAME = %s
+                """, (table, fk_name))
+                row = cur.fetchone()
+                if row and row[0] == "CASCADE":
+                    cur.execute(f"ALTER TABLE {table} DROP FOREIGN KEY {fk_name}")
+                    cur.execute(f"ALTER TABLE {table} ADD CONSTRAINT {fk_name} FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE RESTRICT")
+            except Exception as e:
+                print(f"[MIGRATION] Konnte {fk_name} nicht auf RESTRICT umstellen: {e}")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vehicle_log (
@@ -925,7 +952,13 @@ def init_db_extensions():
         for tbl, col_name, col_def in [
             ("missions", "end_time", "VARCHAR(50) DEFAULT ''"),
             ("sessions", "time", "VARCHAR(50) DEFAULT ''"),
-            ("sessions", "end_time", "VARCHAR(50) DEFAULT ''")
+            ("sessions", "end_time", "VARCHAR(50) DEFAULT ''"),
+            # FwDV 100 verlangt für die Einsatzauswertung getrennte Zeitstempel: 'time' war
+            # bisher die einzige Zeitangabe (Alarmzeit) neben 'end_time' (Einsatzende) - die
+            # dazwischenliegenden, für die Hilfsfrist/Auswertung entscheidenden Zeitpunkte
+            # Ausrücken und Eintreffen an der Einsatzstelle fehlten komplett.
+            ("missions", "ausrueck_zeit", "VARCHAR(50) DEFAULT ''"),
+            ("missions", "eintreff_zeit", "VARCHAR(50) DEFAULT ''"),
         ]:
             try:
                 cur.execute(f"SHOW COLUMNS FROM {tbl} LIKE '{col_name}'")

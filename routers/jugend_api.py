@@ -129,14 +129,37 @@ def update_youth_member(m_id: int, data: dict, request: Request):
 
 @router.delete("/api/jugend/members/{m_id}")
 def delete_youth_member(m_id: int, request: Request):
+    """Derselbe Fall wie bei der Personalverwaltung (siehe personnel_mgr.py:delete_member):
+    ein hartes Löschen hätte per ON DELETE CASCADE die komplette Anwesenheitshistorie in
+    youth_attendance mitgerissen. Bei vorhandener Historie deshalb deaktivieren statt löschen."""
     user = get_current_user(request)
     if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection(); cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT name FROM personnel WHERE id = %s", (m_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Jugendmitglied nicht gefunden")
+
+    cur.execute("SELECT COUNT(*) AS n FROM youth_attendance WHERE member_id = %s", (m_id,))
+    has_history = cur.fetchone()["n"] > 0
+
+    if has_history:
+        cur.execute("UPDATE personnel SET membership_status = 'Ausgeschieden', "
+                   "phone = NULL, email = NULL, address = NULL, "
+                   "emergency_contact_name = NULL, emergency_contact_phone = NULL "
+                   "WHERE id = %s", (m_id,))
+        conn.commit(); cur.close(); conn.close()
+        log_audit_action(user["username"], "JUGEND_DEAKTIVIERT",
+                         f"Jugendmitglied ID {m_id} ('{row['name']}') deaktiviert statt gelöscht - hat Anwesenheitshistorie.")
+        return {"status": "deactivated",
+               "detail": "Dieses Mitglied hat Anwesenheitshistorie und wurde deshalb deaktiviert statt gelöscht."}
+
     cur.execute("DELETE FROM personnel WHERE id = %s", (m_id,))
     conn.commit(); cur.close(); conn.close()
-    log_audit_action(user["username"], "JUGEND_GELOESCHT", f"Jugendmitglied ID {m_id} gelöscht.")
-    return {"status": "success"}
+    log_audit_action(user["username"], "JUGEND_GELOESCHT", f"Jugendmitglied ID {m_id} ('{row['name']}') gelöscht (keine Historie vorhanden).")
+    return {"status": "deleted"}
 
 # --- JUGEND-DIENSTBERICHTE ---
 @router.get("/api/jugend/sessions")

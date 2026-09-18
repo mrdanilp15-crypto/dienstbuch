@@ -367,6 +367,18 @@
                     <label class="small text-white fw-bold mb-1"><i class="fa fa-clock me-1 text-danger"></i>ENDE (Uhrzeit)</label>
                     <input type="time" class="form-control text-center" v-model="endTime" @input="calcDuration" :disabled="isReadOnly">
                 </div>
+                <!-- Getrennt von Alarm-/Endzeit: für die Einsatzauswertung (FwDV 100, Hilfsfrist)
+                     zählen Ausrücken und Eintreffen an der Einsatzstelle als eigene Zeitpunkte. -->
+                <template v-if="mode === 'mission'">
+                    <div class="col-6 col-md-4">
+                        <label class="small text-white fw-bold mb-1"><i class="fa fa-truck-fast me-1 text-danger"></i>AUSGERÜCKT</label>
+                        <input type="time" class="form-control text-center" v-model="ausrueckZeit" @input="autoSaveMission" :disabled="isReadOnly">
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="small text-white fw-bold mb-1"><i class="fa fa-location-crosshairs me-1 text-danger"></i>EINGETROFFEN</label>
+                        <input type="time" class="form-control text-center" v-model="eintreffZeit" @input="autoSaveMission" :disabled="isReadOnly">
+                    </div>
+                </template>
                 <div class="col-12">
                     <label class="small text-white fw-bold mb-1"><i class="fa fa-hourglass-half me-1 text-danger"></i>DAUER (Std.)</label>
                     <input type="number" step="0.5" class="form-control text-center fw-bold text-warning" v-model="duration" @input="autoSave" :disabled="isReadOnly">
@@ -890,6 +902,11 @@
                 topicOptions: [], instrOptions: [],
                 q: '', poolSearch: '', category: 'Übung', duration: 2.0,
                 time: '', endTime: '',
+                // Nur für Einsätze (mode === 'mission') relevant - FwDV 100 verlangt für die
+                // Auswertung getrennte Zeitstempel zwischen Alarmierung (time) und Einsatzende
+                // (endTime): wann ist die Mannschaft ausgerückt, wann an der Einsatzstelle
+                // eingetroffen.
+                ausrueckZeit: '', eintreffZeit: '',
                 description: '', instructors: '', leaderSignature: null,
                 currentDate: localDateToday(),
                 saveState: 'idle', activeSigner: null,
@@ -1232,6 +1249,8 @@
                     this.currentDate = detail.date || this.currentDate;
                     this.time = detail.time || '';
                     this.endTime = detail.end_time || '';
+                    this.ausrueckZeit = detail.ausrueck_zeit || '';
+                    this.eintreffZeit = detail.eintreff_zeit || '';
                     this.duration = detail.duration || 2.0;
                     this.leaderSignature = detail.leader_signature || null;
                     this.uploadedFiles = detail.media_files ? JSON.parse(detail.media_files) : [];
@@ -1266,6 +1285,7 @@
                 if (this.leaderSignature && status === 'Entwurf') { status = 'Freigegeben'; }
                 const payload = {
                     date: this.currentDate, time: this.time, end_time: this.endTime || '',
+                    ausrueck_zeit: this.ausrueckZeit || '', eintreff_zeit: this.eintreffZeit || '',
                     stichwort: this.stichwort, adresse: this.adresse, meldung: this.meldung,
                     description: this.description, duration: parseFloat(this.duration) || 0, status: status,
                     group_id: this.missionGroupId ? parseInt(this.missionGroupId) : null,

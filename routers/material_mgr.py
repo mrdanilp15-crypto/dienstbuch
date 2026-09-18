@@ -580,10 +580,19 @@ def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
 
 @router.delete("/vehicles/checks/{check_id}")
 def delete_vehicle_check(check_id: int, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung", "geratewart", "gruppenfuehrer"))
-    conn = get_db_connection(); cur = conn.cursor()
+    """Prüfprotokolle sind ein DGUV-Nachweis - das Löschen (z.B. Korrektur eines Fehleintrags)
+    muss deshalb im Audit-Log nachvollziehbar bleiben, auch wenn der Eintrag selbst weg ist."""
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart", "gruppenfuehrer"))
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT v.name, c.date, c.checker_name FROM vehicle_checks c "
+               "JOIN vehicles v ON c.vehicle_id = v.id WHERE c.id = %s", (check_id,))
+    row = cur.fetchone()
     cur.execute("DELETE FROM vehicle_checks WHERE id = %s", (check_id,))
     conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    detail = (f"Fahrzeugkontrolle vom {row['date']} ({row['name']}, geprüft von {row['checker_name']}) gelöscht."
+              if row else f"Fahrzeugkontrolle ID {check_id} gelöscht (Details nicht mehr auffindbar).")
+    log_audit_action(user["username"], "FAHRZEUGKONTROLLE_GELOESCHT", detail)
     return {"status": "success"}
 
 # --- VERBRAUCHSMATERIAL / BESTANDSALARM ---

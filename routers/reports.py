@@ -39,12 +39,23 @@ def generate_single_report(s, persons, town_name):
     l_sig_data = s.get('leader_signature')
     l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data and len(str(l_sig_data)) > 100 else "<div style='height:75px;'></div>"
     cat = s.get('category', 'Übung'); cat_class = f"bg-{cat.lower()}"
+    # Ausrück-/Eintreffzeit gibt es nur bei Einsätzen (FwDV 100) und nur, wenn tatsächlich
+    # erfasst - ein leeres "Ausgerückt: Uhr" bei Dienstberichten oder alten Einsätzen ohne
+    # diese Angabe wäre nur verwirrend.
+    zeiten_zeile = ""
+    if cat == 'Einsatz' and (s.get('ausrueck_zeit') or s.get('eintreff_zeit')):
+        teile = []
+        if s.get('ausrueck_zeit'):
+            teile.append(f"Ausgerückt: {s['ausrueck_zeit']} Uhr")
+        if s.get('eintreff_zeit'):
+            teile.append(f"Eingetroffen: {s['eintreff_zeit']} Uhr")
+        zeiten_zeile = f"<br>{' &bull; '.join(teile)}"
     html = f"""
     <div class="session-page">
         <div class="main-title">Dienstbericht</div>
         <div class="info-box clearfix">
             <div class="info-left"><strong>Einheit:</strong> {s.get('gname', '---')}<br><strong>Leitung:</strong> {s.get('instructors') or '---'}</div>
-            <div class="info-right"><strong>Datum:</strong> {sign_date}<br><strong>Dauer:</strong> {float(s['duration']):g} h</div>
+            <div class="info-right"><strong>Datum:</strong> {sign_date}<br><strong>Dauer:</strong> {float(s['duration']):g} h{zeiten_zeile}</div>
         </div>
         <div class="topic-box {cat_class}"><span style="font-size:10px; font-weight:bold; text-transform:uppercase; opacity:0.8;">{cat}</span><div style="font-size:16px; font-weight:bold;">{s['description']}</div></div>
         <table>

@@ -82,16 +82,36 @@ def log_audit_action(username: str, action: str, details: str):
 _LEGACY_PBKDF2_ITERATIONS = 100_000  # Format alter Hashes ("salt:hash"), implizit diese Rundenzahl
 _PBKDF2_ITERATIONS = 600_000  # OWASP Password Storage Cheat Sheet (2023): PBKDF2-HMAC-SHA256 >= 600.000
 
+def _get_argon2_hasher():
+    from argon2 import PasswordHasher
+    # Parametrisierung entspricht den OWASP-Empfehlungen (2023) für Argon2id auf einem
+    # gewöhnlichen Server ohne dedizierte GPU-Härtung: 19 MiB waren der alte PasswordHasher-
+    # Standard, das hier folgt stattdessen den aktuell empfohlenen Mindestwerten.
+    return PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    hash_value = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), _PBKDF2_ITERATIONS)
-    # Format "iterations:salt:hash" statt nur "salt:hash": macht die Rundenzahl selbst-beschreibend,
-    # damit sie sich künftig wieder erhöhen lässt, ohne alte Passwort-Hashes ungültig zu machen (die
-    # ohne "iterations:"-Präfix bleiben abwärtskompatibel gültig, siehe verify_password).
-    return f"{_PBKDF2_ITERATIONS}:{salt}:{hash_value.hex()}"
+    # Argon2id ist seit 2023 der von OWASP empfohlene Standard für Passwort-Hashing (gewinnt
+    # gegen GPU-/ASIC-gestützte Angriffe, wo PBKDF2 rein rechenzeitbasiert bleibt). Neue Hashes
+    # verwenden deshalb Argon2id; alte PBKDF2-Hashes bleiben über verify_password() weiterhin
+    # gültig und werden beim nächsten erfolgreichen Login automatisch umgestellt (siehe
+    # needs_password_rehash() + deren Verwendung in routers/auth_mgr.py).
+    return _get_argon2_hasher().hash(password)
+
+def needs_password_rehash(stored_password: str) -> bool:
+    """True, wenn stored_password noch im alten PBKDF2-Format vorliegt und beim nächsten
+    erfolgreichen Login durch einen frischen Argon2id-Hash ersetzt werden sollte."""
+    return not stored_password.startswith("$argon2id$")
 
 def verify_password(stored_password: str, provided_password: str) -> bool:
     try:
+        if stored_password.startswith("$argon2id$"):
+            from argon2 import PasswordHasher
+            from argon2.exceptions import VerifyMismatchError, InvalidHash
+            try:
+                return _get_argon2_hasher().verify(stored_password, provided_password)
+            except (VerifyMismatchError, InvalidHash):
+                return False
+
         parts = stored_password.split(":")
         if len(parts) == 3:
             iterations, salt, stored_hash = int(parts[0]), parts[1], parts[2]
@@ -110,6 +130,37 @@ def create_session_token(username: str, role: str) -> str:
     payload_b64 = base64.b64encode(json.dumps(payload).encode()).decode()
     signature = hmac.new(SECRET_KEY.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
     return f"{payload_b64}.{signature}"
+
+_PENDING_2FA_TTL_SECONDS = 300  # 5 Minuten, um den zweiten Faktor einzugeben
+
+def create_pending_2fa_token(username: str) -> str:
+    """Zwischen-Token für den zweiten Anmeldeschritt (TOTP-Code): bestätigt, dass Benutzername
+    UND Passwort bereits korrekt waren, aber NOCH KEINE Session - dieses Token landet nie in
+    einem Cookie und wird von get_current_user() nicht akzeptiert (eigenes 'purpose'-Feld),
+    kann also nicht mit einer echten Session verwechselt werden. Kurze Gültigkeit, damit ein
+    abgefangenes Zwischen-Token nicht beliebig lange für Brute-Force gegen den TOTP-Code
+    nutzbar ist."""
+    payload = {"purpose": "2fa_pending", "username": username, "ts": time.time()}
+    payload_b64 = base64.b64encode(json.dumps(payload).encode()).decode()
+    signature = hmac.new(SECRET_KEY.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{signature}"
+
+def verify_pending_2fa_token(token: str) -> Optional[str]:
+    """Prüft ein Zwischen-Token aus create_pending_2fa_token() und liefert den Benutzernamen
+    zurück, oder None bei ungültiger Signatur, falschem 'purpose' oder Ablauf."""
+    try:
+        payload_b64, signature = token.split(".", 1)
+        expected = hmac.new(SECRET_KEY.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        payload = json.loads(base64.b64decode(payload_b64))
+        if payload.get("purpose") != "2fa_pending":
+            return None
+        if time.time() - payload.get("ts", 0) > _PENDING_2FA_TTL_SECONDS:
+            return None
+        return payload.get("username")
+    except Exception:
+        return None
 
 _role_cache = {}  # username -> ((role, is_first_login) | None, cached_at) - None = Konto existiert nicht (mehr)
 _ROLE_CACHE_TTL = 15  # Sekunden
