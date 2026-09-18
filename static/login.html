@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Ohne das greifen manche Android-Browser mit einem eigenen erzwungenen Dunkelmodus-
+         Filter ein, obwohl die Seite schon dunkel ist - sichtbar als "gleiche Farben, aber
+         dunkler mit hellem Schein". Diese Seite ist bewusst immer dunkel, siehe :root unten. -->
+    <meta name="color-scheme" content="dark">
     <title>Login - Digitales Dienstbuch</title>
     <link rel="manifest" href="/static/manifest.json">
     
@@ -19,8 +23,9 @@
     <link href="/static/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        :root { 
-            --primary-color: #b71c1c; 
+        :root {
+            color-scheme: dark;
+            --primary-color: #b71c1c;
             --glow-color: rgba(183, 28, 28, 0.4);
             --bg-gradient: radial-gradient(circle at 50% 50%, #221414 0%, #0d0a0a 100%);
         }
