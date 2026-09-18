@@ -6,6 +6,27 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 2,
+        "version": "2.52",
+        "date": "2026-09-17",
+        "items": [
+            {"type": "new", "tag": "Sicherheit", "title": "Zwei-Faktor-Authentifizierung",
+             "text": "Optional aktivierbar unter „Mein Profil“ - Login dann zusätzlich mit Code aus einer Authenticator-App."},
+            {"type": "new", "tag": "Personalakte", "title": "Meine Daten exportieren",
+             "text": "Jeder kann jetzt unter „Mein Profil“ alle eigenen gespeicherten Daten als Datei herunterladen."},
+            {"type": "new", "tag": "Einsatzberichte", "title": "Ausrück- und Eintreffzeit",
+             "text": "Einsätze erfassen jetzt zusätzlich zu Alarm- und Endzeit, wann ausgerückt und wann eingetroffen wurde."},
+            {"type": "new", "tag": "Rollen", "title": "Atemschutzwart",
+             "text": "Neue Rolle mit Zugriff auf Atemschutz-Einsatzprotokolle, ohne volle Verwaltungsrechte."},
+            {"type": "fix", "tag": "Personalverwaltung", "title": "Austritt löschte Einsatzhistorie",
+             "text": "Ein gelöschtes Mitglied riss bisher alle eigenen Einträge aus vergangenen Einsatz- und Atemschutzprotokollen mit heraus. Mitglieder mit Historie werden jetzt deaktiviert statt gelöscht."},
+            {"type": "fix", "tag": "Jugendfeuerwehr", "title": "Derselbe Fehler bei Jugendmitgliedern",
+             "text": "Betraf auch die Anwesenheitshistorie in der Jugendfeuerwehr - gleiche Korrektur."},
+            {"type": "fix", "tag": "Sicherheit", "title": "Passwort-Speicherung erneuert",
+             "text": "Neue Passwörter werden jetzt mit Argon2id gespeichert (aktueller Sicherheitsstandard), bestehende Konten werden beim nächsten Login automatisch umgestellt."},
+        ],
+    },
+    {
         "id": 1,
         "version": "2.51",
         "date": "2026-09-13",

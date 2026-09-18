@@ -22,3 +22,7 @@ pywebpush<3.0
 py-vapid<2.0
 
 requests<3.0
+
+pyotp<3.0
+
+argon2-cffi<25.0

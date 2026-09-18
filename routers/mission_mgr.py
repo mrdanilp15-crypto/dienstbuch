@@ -33,6 +33,8 @@ class MissionCreate(BaseModel):
     date: str
     time: str
     end_time: Optional[str] = ""
+    ausrueck_zeit: Optional[str] = ""
+    eintreff_zeit: Optional[str] = ""
     stichwort: str
     adresse: str
     meldung: str
@@ -47,6 +49,8 @@ class MissionUpdate(BaseModel):
     date: str
     time: str
     end_time: Optional[str] = ""
+    ausrueck_zeit: Optional[str] = ""
+    eintreff_zeit: Optional[str] = ""
     stichwort: str
     adresse: str
     meldung: str
@@ -93,7 +97,7 @@ def list_missions(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, date, time, end_time, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
+    cur.execute("SELECT id, date, time, end_time, ausrueck_zeit, eintreff_zeit, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
@@ -104,6 +108,10 @@ def list_missions(request: Request):
             row["time"] = format_time_val(row["time"])
         if "end_time" in row:
             row["end_time"] = format_time_val(row["end_time"])
+        if "ausrueck_zeit" in row:
+            row["ausrueck_zeit"] = format_time_val(row["ausrueck_zeit"])
+        if "eintreff_zeit" in row:
+            row["eintreff_zeit"] = format_time_val(row["eintreff_zeit"])
         sig = row.get("leader_signature")
         if sig:
             decoded_sig = safe_decode(sig)
@@ -159,6 +167,10 @@ def get_mission(mission_id: int, request: Request):
         m["time"] = format_time_val(m["time"])
     if "end_time" in m:
         m["end_time"] = format_time_val(m["end_time"])
+    if "ausrueck_zeit" in m:
+        m["ausrueck_zeit"] = format_time_val(m["ausrueck_zeit"])
+    if "eintreff_zeit" in m:
+        m["eintreff_zeit"] = format_time_val(m["eintreff_zeit"])
     sig = m.get("leader_signature")
     if sig:
         decoded_sig = safe_decode(sig)
@@ -578,9 +590,9 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
-        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (m.date, m.time, m.end_time or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
+        INSERT INTO missions (date, time, end_time, ausrueck_zeit, eintreff_zeit, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (m.date, m.time, m.end_time or "", m.ausrueck_zeit or "", m.eintreff_zeit or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, m.status, m.media_files, m.group_id))
     mission_id = cur.lastrowid
     
     if m.attendance:
@@ -620,10 +632,10 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
 
     # 1. Update Stammdaten
     cur.execute("""
-        UPDATE missions 
-        SET date=%s, time=%s, end_time=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
+        UPDATE missions
+        SET date=%s, time=%s, end_time=%s, ausrueck_zeit=%s, eintreff_zeit=%s, stichwort=%s, adresse=%s, meldung=%s, description=%s, duration=%s, status=%s, media_files=%s, group_id=%s
         WHERE id=%s
-    """, (m.date, m.time, m.end_time or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
+    """, (m.date, m.time, m.end_time or "", m.ausrueck_zeit or "", m.eintreff_zeit or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
     
     # 2. Update Personnel/Vehicles Attendance
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
@@ -683,7 +695,7 @@ def list_respiration_log(mission_id: int, request: Request):
 @router.post("/{mission_id}/respiration")
 def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer", "atemschutzwart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -696,7 +708,7 @@ def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request
 @router.delete("/respiration/{entry_id}")
 def delete_respiration_entry(entry_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if user["role"] not in ("admin", "leitung", "gruppenfuehrer", "atemschutzwart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM respiration_log WHERE id = %s", (entry_id,))

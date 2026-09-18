@@ -1,16 +1,36 @@
 import time
+import hashlib
+import json
+import secrets
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 
 from database import get_db_connection
-from core.utils import log_audit_action, verify_password, hash_password, create_session_token, get_current_user, invalidate_role_cache, get_session_max_days
+from core.utils import (log_audit_action, verify_password, hash_password, needs_password_rehash,
+                        create_session_token, get_current_user, invalidate_role_cache,
+                        get_session_max_days, create_pending_2fa_token, verify_pending_2fa_token)
 
 router = APIRouter()
+
+# Für die Timing-Angriff-Prävention bei unbekannten Benutzernamen (siehe api_login unten) -
+# ein fest vorberechneter Argon2id-Hash eines beliebigen Platzhalter-Passworts, NICHT das
+# Passwort eines echten Kontos.
+_DUMMY_ARGON2_HASH = "$argon2id$v=19$m=65536,t=3,p=4$WywStsVMq8DmjLcR1ka19w$pyMguHHW9K6BLyMGqvyrfUlbaOYRkV/A7llm6hECBX8"
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+def _issue_session(user: dict, response: Response, request: Request) -> dict:
+    """Setzt das Session-Cookie und liefert die Login-Antwort - gemeinsam genutzt vom
+    direkten Login (kein 2FA) und von /api/login/2fa (nach erfolgreichem zweiten Faktor),
+    damit beide Wege exakt dieselbe Session erzeugen."""
+    token = create_session_token(user['username'], user['role'])
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+    response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400 * get_session_max_days(), samesite="lax", secure=is_https)
+    log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
+    return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
 
 # Die bestehende Konto-Sperre (5 Fehlversuche -> 15 Min) schützt nur PRO BENUTZERNAME - jemand,
 # der von einer Adresse aus viele VERSCHIEDENE Benutzernamen durchprobiert (Enumeration/verteilter
@@ -57,18 +77,24 @@ def api_login(data: LoginRequest, response: Response, request: Request):
             raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
             
         if verify_password(user['password_hash'], data.password):
-            cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s", (user["id"],))
+            # Stilles Umstellen auf Argon2id, sobald das Konto sich das nächste Mal erfolgreich
+            # anmeldet - der alte PBKDF2-Hash bleibt bis dahin über verify_password() gültig,
+            # niemand muss sein Passwort deswegen ändern.
+            if needs_password_rehash(user['password_hash']):
+                cur.execute("UPDATE users SET password_hash = %s, failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s",
+                           (hash_password(data.password), user["id"]))
+            else:
+                cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s", (user["id"],))
             conn.commit(); cur.close(); conn.close()
-            
-            token = create_session_token(user['username'], user['role'])
-            # "Secure"-Flag: nur setzen, wenn die Verbindung tatsächlich über HTTPS lief (direkt
-            # oder über einen Reverse Proxy, der das per X-Forwarded-Proto meldet, z.B. Nginx
-            # Proxy Manager). Fest auf True zu setzen würde den Login komplett brechen, sobald
-            # die App (wie aktuell) auch per reinem HTTP im lokalen Netz erreichbar ist.
-            is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
-            response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400 * get_session_max_days(), samesite="lax", secure=is_https)
-            log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
-            return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
+
+            if user.get("totp_enabled"):
+                # Passwort war richtig, aber der zweite Faktor fehlt noch - bewusst NOCH KEIN
+                # Session-Cookie setzen (siehe create_pending_2fa_token: das Zwischen-Token ist
+                # ausdrücklich NICHT als Session verwendbar).
+                log_audit_action(user['username'], "LOGIN_2FA_AUSSTEHEND", "Passwort korrekt, warte auf TOTP-Code.")
+                return {"status": "2fa_required", "temp_token": create_pending_2fa_token(user['username'])}
+
+            return _issue_session(user, response, request)
         else:
             _record_ip_failure(client_ip)
             failed = user["failed_logins"] + 1
@@ -90,10 +116,136 @@ def api_login(data: LoginRequest, response: Response, request: Request):
         # (siehe verify_password-Dummy-Aufruf) - sonst ließe sich über Fehlertext und/oder
         # Antwortzeit-Unterschied durchprobieren, welche Benutzernamen im System existieren
         # (OWASP Authentication Cheat Sheet: User Enumeration Prevention).
-        verify_password("0" * 32 + ":" + "0" * 64, data.password)
+        # Fest vorberechneter Argon2id-Hash statt eines PBKDF2-Platzhalters: seit hash_password()
+        # standardmäßig Argon2id verwendet (siehe core/utils.py), hätte ein PBKDF2-Dummy hier
+        # eine ANDERE Rechenzeit als eine echte Prüfung gegen ein modernes Konto - genau der
+        # Timing-Unterschied, den dieser Aufruf eigentlich verhindern soll.
+        verify_password(_DUMMY_ARGON2_HASH, data.password)
         _record_ip_failure(client_ip)
         log_audit_action("SYSTEM", "LOGIN_BENUTZER_UNBEKANNT", f"Anmeldeversuch mit nicht existierendem Namen '{username_clean}'.")
         raise HTTPException(status_code=401, detail="Benutzername oder Passwort falsch!")
+
+def _hash_recovery_code(code: str) -> str:
+    return hashlib.sha256(code.strip().upper().replace("-", "").replace(" ", "").encode()).hexdigest()
+
+def _generate_recovery_codes(n: int = 8):
+    """8-stellige Einmal-Codes für den Fall, dass das Zweitgerät verloren geht oder kaputt
+    ist. Rückgabe: (Klartext-Liste zum einmaligen Anzeigen, gehashte Liste zum Speichern)."""
+    raw = [secrets.token_hex(4).upper() for _ in range(n)]
+    formatted = [f"{c[:4]}-{c[4:]}" for c in raw]
+    return formatted, [_hash_recovery_code(c) for c in formatted]
+
+@router.post("/api/login/2fa")
+def api_login_2fa(data: dict, response: Response, request: Request):
+    """Zweiter Anmeldeschritt: Benutzername+Passwort waren in /api/login bereits korrekt
+    (siehe temp_token), hier kommt nur noch der TOTP- oder ein Wiederherstellungscode."""
+    client_ip = _get_client_ip(request)
+    if _ip_rate_limited(client_ip):
+        raise HTTPException(status_code=429, detail="Zu viele Versuche von dieser Adresse. Bitte später erneut versuchen.")
+
+    username = verify_pending_2fa_token(data.get("temp_token") or "")
+    code = (data.get("code") or "").strip()
+    if not username:
+        _record_ip_failure(client_ip)
+        raise HTTPException(status_code=401, detail="Anmeldevorgang abgelaufen. Bitte erneut mit Benutzername und Passwort anmelden.")
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+    user = cur.fetchone()
+    if not user or not user.get("totp_enabled") or not user.get("totp_secret"):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Zwei-Faktor-Authentifizierung ist für dieses Konto nicht aktiv.")
+
+    import pyotp
+    # valid_window=1: akzeptiert auch den vorherigen/nächsten 30s-Schritt, sonst scheitert
+    # der Code regelmäßig an einer leicht abweichenden Geräteuhr oder normaler Tippzeit.
+    ok = bool(code) and pyotp.TOTP(user["totp_secret"]).verify(code, valid_window=1)
+
+    if not ok and code:
+        codes = json.loads(user.get("totp_recovery_codes") or "[]")
+        code_hash = _hash_recovery_code(code)
+        if code_hash in codes:
+            ok = True
+            codes.remove(code_hash)
+            cur.execute("UPDATE users SET totp_recovery_codes = %s WHERE username = %s", (json.dumps(codes), username))
+            conn.commit()
+            log_audit_action(username, "2FA_RECOVERY_CODE_VERWENDET", f"Wiederherstellungscode verbraucht, {len(codes)} verbleibend.")
+
+    if not ok:
+        _record_ip_failure(client_ip)
+        cur.close(); conn.close()
+        log_audit_action(username, "LOGIN_2FA_FEHLGESCHLAGEN", "Falscher TOTP-/Wiederherstellungscode.")
+        raise HTTPException(status_code=401, detail="Code falsch oder abgelaufen.")
+
+    cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE username = %s", (username,))
+    conn.commit(); cur.close(); conn.close()
+    return _issue_session(user, response, request)
+
+@router.get("/api/auth/2fa/status")
+def get_2fa_status(request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT totp_enabled FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return {"enabled": bool(row and row["totp_enabled"])}
+
+@router.post("/api/auth/2fa/setup")
+def setup_2fa(request: Request):
+    """Erzeugt ein neues, noch NICHT aktives Geheimnis - erst ein gültiger Code in /confirm
+    schaltet es scharf. Ohne diesen Zwischenschritt könnte ein Tippfehler beim Einscannen des
+    QR-Codes (z.B. falsche Zeitzone der Authenticator-App) das eigene Konto beim nächsten
+    Login aussperren, ohne dass man es vorher merkt."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    import pyotp
+    secret = pyotp.random_base32()
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE users SET totp_secret = %s, totp_enabled = 0 WHERE username = %s", (secret, user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    from core.utils import get_station_name
+    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=user["username"], issuer_name=get_station_name())
+    log_audit_action(user["username"], "2FA_SETUP_GESTARTET", "Neues TOTP-Geheimnis erzeugt (noch nicht bestätigt).")
+    return {"secret": secret, "otpauth_url": otpauth_url}
+
+@router.post("/api/auth/2fa/confirm")
+def confirm_2fa(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    code = (data.get("code") or "").strip()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT totp_secret FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone()
+    if not row or not row["totp_secret"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Zuerst die Einrichtung starten.")
+    import pyotp
+    if not code or not pyotp.TOTP(row["totp_secret"]).verify(code, valid_window=1):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Code falsch. Bitte erneut versuchen.")
+    codes, hashed = _generate_recovery_codes()
+    cur.execute("UPDATE users SET totp_enabled = 1, totp_recovery_codes = %s WHERE username = %s",
+               (json.dumps(hashed), user["username"]))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_role_cache(user["username"])
+    log_audit_action(user["username"], "2FA_AKTIVIERT", "Zwei-Faktor-Authentifizierung aktiviert.")
+    return {"status": "success", "recovery_codes": codes}
+
+@router.post("/api/auth/2fa/disable")
+def disable_2fa(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT password_hash FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone()
+    if not row or not verify_password(row["password_hash"], data.get("password") or ""):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Passwort nicht korrekt.")
+    cur.execute("UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL WHERE username = %s", (user["username"],))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_role_cache(user["username"])
+    log_audit_action(user["username"], "2FA_DEAKTIVIERT", "Zwei-Faktor-Authentifizierung deaktiviert.")
+    return {"status": "success"}
 
 @router.get("/api/auth/me")
 def api_auth_me(request: Request):

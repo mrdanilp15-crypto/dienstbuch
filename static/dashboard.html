@@ -1420,7 +1420,7 @@
                                                     <tr v-for="usr in systemUsers" :key="usr.id">
                                                         <td class="fw-bold text-white">{{ usr.username }}</td>
                                                         <td>
-                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':'bg-secondary'">{{ usr.role }}</span>
+                                                            <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':usr.role==='atemschutzwart'?'bg-dark border border-info text-info':'bg-secondary'">{{ usr.role }}</span>
                                                         </td>
                                                         <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                         <td>
@@ -1473,6 +1473,7 @@
                                                 <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
                                                 <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
                                                 <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                <option value="atemschutzwart">Atemschutzwart (Nur Atemschutz-Einsätze)</option>
                                                 <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
                                                 <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
                                                 <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
@@ -1481,6 +1482,7 @@
                                                 <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
                                                 <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
                                                 <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                <option value="atemschutzwart">Atemschutzwart (Nur Atemschutz-Einsätze)</option>
                                                 <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
                                                 <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
                                                 <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
@@ -3205,6 +3207,7 @@
                                             <option value="Passiv">Passiv / Fördernd</option>
                                             <option value="Jugend">Jugendfeuerwehr</option>
                                             <option value="Ehrenabteilung">Ehrenabteilung</option>
+                                            <option value="Ausgeschieden">Ausgeschieden</option>
                                         </select>
                                     </div>
                                     <div class="col-6">
@@ -3773,6 +3776,10 @@
                             </div>
                         </div>
 
+                        <div v-if="!isFirstLoginBlock" class="text-center mb-4">
+                            <a href="/api/users/me/data-export" class="btn btn-outline-light btn-sm rounded-pill" title="Alle zu deinem Konto gespeicherten Daten als Datei herunterladen (Art. 15/20 DSGVO)"><i class="fa fa-download me-1"></i>Meine Daten exportieren</a>
+                        </div>
+
                         <!-- Table of attended services -->
                         <div v-if="!isFirstLoginBlock && !personalStats.unlinked" class="mb-4">
                             <h6 class="fw-bold text-white mb-2"><i class="fa fa-calendar-check text-danger me-2"></i>Besuchte Dienste (Jahresliste)</h6>
@@ -3812,6 +3819,46 @@
                             </div>
                         </div>
                         
+                        <!-- ZWEI-FAKTOR-AUTHENTIFIZIERUNG -->
+                        <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-shield-halved text-danger me-2"></i>Zwei-Faktor-Authentifizierung</h6>
+
+                            <div v-if="twoFaEnabled === null" class="text-muted small"><i class="fa fa-spinner fa-spin me-1"></i>Lädt...</div>
+
+                            <div v-else-if="twoFaEnabled === true && !twoFaSetup">
+                                <p class="small text-success mb-2"><i class="fa fa-check-circle me-1"></i>Aktiv - beim Login wird zusätzlich ein Code verlangt.</p>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" @click="startDisable2fa"><i class="fa fa-power-off me-1"></i>Deaktivieren</button>
+                            </div>
+
+                            <div v-else-if="twoFaEnabled === false && !twoFaSetup">
+                                <p class="small text-muted mb-2">Nicht aktiv. Empfohlen für Admin- und Leitungskonten.</p>
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-pill" @click="startSetup2fa"><i class="fa fa-plus me-1"></i>Einrichten</button>
+                            </div>
+
+                            <!-- Einrichtungsschritt: QR-Code scannen, dann Code bestätigen -->
+                            <div v-if="twoFaSetup && !twoFaRecoveryCodes">
+                                <p class="small text-muted mb-2">Mit einer Authenticator-App (z.B. Google Authenticator, Aegis, FreeOTP) scannen, dann den 6-stelligen Code eingeben:</p>
+                                <div class="d-flex justify-content-center mb-2">
+                                    <canvas id="twoFaQrCanvas" width="180" height="180" style="border-radius:8px;"></canvas>
+                                </div>
+                                <p class="small text-center text-muted mb-3" style="word-break:break-all;">Manuell: <code>{{twoFaSetup.secret}}</code></p>
+                                <div class="d-flex gap-2">
+                                    <input type="text" v-model="twoFaConfirmCode" class="form-control text-center" placeholder="123456" inputmode="numeric" maxlength="6" style="letter-spacing:0.2em;">
+                                    <button type="button" class="btn btn-premium rounded-pill px-3" @click="confirmSetup2fa"><i class="fa fa-check"></i></button>
+                                    <button type="button" class="btn btn-outline-light rounded-pill px-3" @click="twoFaSetup = null"><i class="fa fa-times"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Wiederherstellungscodes: werden nur DIESES eine Mal angezeigt -->
+                            <div v-if="twoFaRecoveryCodes">
+                                <p class="small text-warning fw-bold mb-2"><i class="fa fa-triangle-exclamation me-1"></i>Wiederherstellungscodes - jetzt sicher aufschreiben, werden nicht erneut angezeigt:</p>
+                                <div class="bg-black bg-opacity-50 rounded-3 p-2 mb-2 font-monospace small text-center">
+                                    <div v-for="c in twoFaRecoveryCodes" :key="c">{{c}}</div>
+                                </div>
+                                <button type="button" class="btn btn-premium btn-sm rounded-pill w-100" @click="twoFaRecoveryCodes = null; twoFaSetup = null">Verstanden, gespeichert</button>
+                            </div>
+                        </div>
+
                         <form @submit.prevent="submitSelfPassword">
                             <div class="mb-3">
                                 <label class="form-label">Aktuelles Passwort</label>

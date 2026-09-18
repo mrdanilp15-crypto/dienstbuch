@@ -1,13 +1,20 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
+import json
 import mysql.connector
 
 from database import get_db_connection
 from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache
 
 router = APIRouter()
+
+
+def _jsonable(row):
+    """Wandelt date/datetime-Werte in einem dictionary()-Cursor-Ergebnis in Strings um,
+    damit json.dumps() nicht mit einem TypeError abbricht."""
+    return {k: (str(v) if isinstance(v, (date, datetime)) else v) for k, v in row.items()}
 
 class UserCreateRequest(BaseModel):
     username: str
@@ -265,6 +272,90 @@ def bind_self_personnel(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "SELBST_VERKNÜPFUNG", f"Eigenes Konto mit Personal-ID {pid} verknüpft.")
     return {"status": "success"}
+
+# --- DSGVO-SELBSTBEDIENUNGS-EXPORT (Art. 15 Auskunft / Art. 20 Datenübertragbarkeit) -----
+# Bewusst für JEDEN angemeldeten Nutzer (nicht nur Admins): jedes Mitglied hat das Recht,
+# seine eigenen gespeicherten Daten in einem gängigen, maschinenlesbaren Format zu bekommen,
+# ohne dafür einen Admin bitten zu müssen. Fasst alles zusammen, was an personenbezogenen
+# Daten unter dem eigenen Konto bzw. der verknüpften Personalakte gespeichert ist.
+@router.get("/api/users/me/data-export")
+def export_my_data(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    export = {"exportiert_am": datetime.now().isoformat(), "hinweis":
+              "Vollständiger Export aller unter diesem Konto gespeicherten personenbezogenen "
+              "Daten (Art. 15/20 DSGVO). Einträge aus Einsatz-/Atemschutzhistorie bleiben "
+              "aus Dokumentationspflicht auch nach einem Austritt bestehen."}
+
+    cur.execute("SELECT username, role, personnel_id, last_login, is_first_login, "
+               "failed_logins FROM users WHERE username = %s", (user["username"],))
+    account = cur.fetchone()
+    export["konto"] = _jsonable(account) if account else None
+    personnel_id = account.get("personnel_id") if account else None
+    personnel_name = None
+
+    if personnel_id:
+        cur.execute("SELECT * FROM personnel WHERE id = %s", (personnel_id,))
+        p = cur.fetchone()
+        if p:
+            p.pop("id", None)
+            export["personalakte"] = _jsonable(p)
+            personnel_name = p.get("name")
+
+        cur.execute("""
+            SELECT m.date, m.stichwort, ma.is_present, ma.vehicle
+            FROM mission_attendance ma JOIN missions m ON ma.mission_id = m.id
+            WHERE ma.personnel_id = %s ORDER BY m.date DESC
+        """, (personnel_id,))
+        export["einsatz_teilnahmen"] = [_jsonable(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT m.date, m.stichwort, r.druck_start, r.druck_10, r.druck_20, r.druck_ende,
+                   r.dauer, r.fit_ok
+            FROM respiration_log r JOIN missions m ON r.mission_id = m.id
+            WHERE r.personnel_id = %s ORDER BY m.date DESC
+        """, (personnel_id,))
+        export["atemschutz_einsaetze"] = [dict(_jsonable(r), fit_ok=bool(r["fit_ok"])) for r in cur.fetchall()]
+
+        cur.execute("SELECT course_name, date, valid_until, certificate_url FROM lehrgaenge "
+                   "WHERE personnel_id = %s ORDER BY date DESC", (personnel_id,))
+        export["lehrgaenge"] = [_jsonable(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT item_name, size, issue_date, return_date FROM personal_inventar "
+                   "WHERE personnel_id = %s", (personnel_id,))
+        export["ausgegebene_ausruestung"] = [_jsonable(r) for r in cur.fetchall()]
+
+    if personnel_name:
+        cur.execute("""
+            SELECT s.date, s.category, s.description, a.is_present, a.vehicle, a.note
+            FROM attendance a JOIN sessions s ON a.session_id = s.id
+            JOIN persons p ON a.person_id = p.id
+            WHERE p.name = %s ORDER BY s.date DESC
+        """, (personnel_name,))
+        export["dienst_teilnahmen"] = [_jsonable(r) for r in cur.fetchall()]
+
+    cur.execute("SELECT title, content, visibility, created_at FROM notes "
+               "WHERE username = %s ORDER BY created_at DESC", (user["username"],))
+    export["eigene_notizen"] = [_jsonable(r) for r in cur.fetchall()]
+
+    # Nur die letzten 500 Protokolleinträge - der Audit-Log selbst bleibt als
+    # Nachweispflicht bestehen, hier geht es um Auskunft an die betroffene Person.
+    cur.execute("SELECT created_at, action, details FROM audit_log "
+               "WHERE username = %s ORDER BY created_at DESC LIMIT 500", (user["username"],))
+    export["protokollierte_eigene_aktionen"] = [_jsonable(r) for r in cur.fetchall()]
+
+    cur.close(); conn.close()
+    log_audit_action(user["username"], "DATENAUSKUNFT_EXPORT", "Eigene Daten exportiert (Art. 15/20 DSGVO).")
+
+    filename = f"meine_daten_{user['username']}_{datetime.now().strftime('%Y-%m-%d')}.json"
+    return Response(
+        content=json.dumps(export, ensure_ascii=False, indent=2, default=str),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 # --- "WAS IST NEU" -----------------------------------------------------------------------
 # Bewusst nur für Admins: die Änderungen betreffen überwiegend Verwaltungsfunktionen, und ein
