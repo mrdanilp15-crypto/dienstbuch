@@ -14,3 +14,13 @@ __pycache__/
 
 # Auto-generierter Session-Signierschlüssel (siehe core/utils.py)
 secret.key
+
+# Firebase-Dienstkonto (privater Schlüssel fürs Versenden von Push-Alarmen - niemals committen!)
+firebase-service-account.json
+
+# Capacitor/Android-Build-Ausgaben (lokale Test-APKs, keine Quelldateien)
+mobile-app/node_modules/
+mobile-app/android/app/build/
+mobile-app/android/build/
+mobile-app/android/.gradle/
+mobile-app/android/local.properties

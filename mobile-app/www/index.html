@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Dienstbuch</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #201414 0%, #121010 100%);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: #f1f1f1;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: rgba(30, 24, 24, 0.9);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 32px 26px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, #b71c1c, #801313);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  h1 { font-size: 1.4rem; margin: 0; font-weight: 800; }
+  p.sub { color: #b9adad; font-size: 0.85rem; margin: 4px 0 24px 0; line-height: 1.4; }
+  label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #c9bcbc; margin-bottom: 8px; }
+  input[type="text"] {
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    border-radius: 12px;
+    padding: 14px 14px;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+  }
+  input[type="text"]:focus { outline: none; border-color: #b71c1c; box-shadow: 0 0 0 3px rgba(183,28,28,0.25); }
+  .hint { font-size: 0.72rem; color: #8f8484; margin-bottom: 22px; }
+  .err { font-size: 0.8rem; color: #ff6b6b; margin: -4px 0 14px 0; min-height: 1em; }
+  button {
+    width: 100%;
+    border: none;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #b71c1c 0%, #801313 100%);
+    box-shadow: 0 4px 15px rgba(183, 28, 28, 0.4);
+  }
+  button:active { transform: translateY(1px); }
+  .recent { margin-top: 22px; }
+  .recent-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.04);
+    margin-bottom: 8px; font-size: 0.85rem; cursor: pointer;
+  }
+  .recent-item:active { background: rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-icon">🚒</div>
+      <h1>Dienstbuch</h1>
+    </div>
+    <p class="sub">Gib die Adresse deiner Feuerwehr-Instanz ein. Jede Wehr betreibt ihren eigenen Server &mdash; diese App kann mit jeder davon verbunden werden.</p>
+    <label for="serverUrl">Server-Adresse</label>
+    <input type="text" id="serverUrl" placeholder="anwesenheit.hege.ipv64.de" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="hint">Ohne "https://" davor &mdash; wird automatisch ergänzt.</div>
+    <div class="err" id="err"></div>
+    <button id="connectBtn">Verbinden</button>
+    <div class="recent" id="recentWrap" style="display:none;">
+      <label>Zuletzt verwendet</label>
+      <div id="recentList"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var input = document.getElementById('serverUrl');
+  var btn = document.getElementById('connectBtn');
+  var err = document.getElementById('err');
+  var recentWrap = document.getElementById('recentWrap');
+  var recentList = document.getElementById('recentList');
+
+  function prefs() {
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
+  }
+
+  function normalize(raw) {
+    var v = (raw || '').trim();
+    if (!v) return null;
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    try {
+      var u = new URL(v);
+      if (!u.hostname || u.hostname.indexOf('.') === -1) return null;
+      return u.origin;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function go(url) {
+    var p = prefs();
+    var finish = function () { window.location.href = url; };
+    if (p) {
+      var recentRaw = null;
+      p.get({ key: 'recent_servers' }).then(function (r) {
+        var list = [];
+        try { list = JSON.parse(r.value || '[]'); } catch (e) {}
+        list = list.filter(function (u) { return u !== url; });
+        list.unshift(url);
+        list = list.slice(0, 5);
+        return Promise.all([
+          p.set({ key: 'server_url', value: url }),
+          p.set({ key: 'recent_servers', value: JSON.stringify(list) })
+        ]);
+      }).then(finish).catch(finish);
+    } else {
+      finish();
+    }
+  }
+
+  btn.addEventListener('click', function () {
+    var url = normalize(input.value);
+    if (!url) {
+      err.textContent = 'Bitte eine gültige Adresse eingeben.';
+      return;
+    }
+    err.textContent = '';
+    go(url);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') btn.click();
+  });
+
+  // Skip this screen automatically if a server was chosen before,
+  // unless the native "System wechseln" button explicitly brought us here (?switch=1).
+  var params = new URLSearchParams(window.location.search);
+  var forceSwitch = params.get('switch') === '1';
+
+  var p = prefs();
+  if (p) {
+    p.get({ key: 'server_url' }).then(function (r) {
+      if (r.value && !forceSwitch) {
+        window.location.href = r.value;
+        return;
+      }
+      if (r.value) input.value = r.value.replace(/^https?:\/\//, '');
+      return p.get({ key: 'recent_servers' });
+    }).then(function (r) {
+      if (!r) return;
+      var list = [];
+      try { list = JSON.parse(r.value || '[]'); } catch (e) {}
+      if (list.length) {
+        recentWrap.style.display = 'block';
+        list.forEach(function (u) {
+          var el = document.createElement('div');
+          el.className = 'recent-item';
+          el.textContent = u.replace(/^https?:\/\//, '');
+          el.addEventListener('click', function () { go(u); });
+          recentList.appendChild(el);
+        });
+      }
+    }).catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>

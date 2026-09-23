@@ -29,7 +29,7 @@ from routers import push_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.52"
+CURRENT_VERSION = "2.53"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -716,6 +716,18 @@ def init_db_extensions():
                 endpoint TEXT NOT NULL,
                 p256dh VARCHAR(255) NOT NULL,
                 auth VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        # FCM-Tokens der nativen Android-App (Alarm-Push, siehe routers/push_api.py).
+        # Getrennt von push_subscriptions (Web Push), weil FCM-Tokens keine p256dh/auth-Keys
+        # haben, sondern nur einen einzelnen Token-String, den Firebase selbst verwaltet.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fcm_tokens (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                token VARCHAR(255) NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)

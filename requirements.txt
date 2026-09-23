@@ -26,3 +26,5 @@ requests<3.0
 pyotp<3.0
 
 argon2-cffi<25.0
+
+firebase-admin<7.0
