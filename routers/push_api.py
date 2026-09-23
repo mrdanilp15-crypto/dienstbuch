@@ -56,9 +56,54 @@ if os.path.exists(public_key_txt_path):
 else:
     print("WARNUNG: public_key.txt fehlt weiterhin! Push wird nicht funktionieren.")
 
+# --- Firebase Cloud Messaging (Alarm-Push für die native Android-App) ---
+# Der Dienstkonto-Schlüssel liegt bewusst NICHT im Repo/Docker-Image (siehe .gitignore /
+# .dockerignore), sondern im selben persistenten Volume wie die VAPID-Keys - muss vom
+# Betreiber einmalig manuell dort abgelegt werden.
+_FCM_KEY_PATH = os.path.join(_DATA_DIR, "firebase-service-account.json")
+_firebase_app = None
+FCM_AVAILABLE = False
+if os.path.exists(_FCM_KEY_PATH):
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        cred = credentials.Certificate(_FCM_KEY_PATH)
+        _firebase_app = firebase_admin.initialize_app(cred)
+        FCM_AVAILABLE = True
+        print("Firebase Cloud Messaging initialisiert.")
+    except Exception:
+        print("Fehler beim Initialisieren von Firebase Cloud Messaging:")
+        traceback.print_exc()
+else:
+    print(f"Hinweis: {_FCM_KEY_PATH} nicht gefunden - native App-Alarme (FCM) sind deaktiviert, Web-Push läuft normal weiter.")
+
 @router.get("/public-key")
 def get_public_key():
     return {"public_key": VAPID_PUBLIC_KEY}
+
+@router.post("/register-fcm-token")
+async def register_fcm_token(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+
+    data = await request.json()
+    token = (data.get("token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Kein Token übermittelt")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Ein Token kann sich (z.B. nach App-Neuinstallation oder Nutzerwechsel auf dem
+    # gleichen Gerät) einem anderen Konto zuordnen - daher upsert statt reinem Insert.
+    cur.execute("""
+        INSERT INTO fcm_tokens (username, token) VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE username = %s
+    """, (user["username"], token, user["username"]))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "success"}
 
 @router.post("/subscribe")
 async def subscribe(request: Request):
@@ -92,14 +137,14 @@ async def subscribe(request: Request):
 
 def send_push_to_all(payload_dict: dict):
     from pywebpush import webpush, WebPushException
-    
+
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM push_subscriptions")
     subs = cur.fetchall()
     cur.close()
     conn.close()
-    
+
     payload = json.dumps(payload_dict)
     # Nutzt den module-weiten (persistenten) Pfad, nicht neu aus cwd bauen.
 
@@ -127,6 +172,63 @@ def send_push_to_all(payload_dict: dict):
             success_count += 1
         except WebPushException as ex:
             print("Web Push Error:", ex)
+
+    success_count += send_fcm_to_all(payload_dict)
+    return success_count
+
+
+def send_fcm_to_all(payload_dict: dict):
+    """Alarmiert alle Geräte mit installierter Android-App über Firebase Cloud Messaging.
+    Bewusst als reine Daten-Nachricht (kein "notification"-Feld): so landet die Nachricht
+    IMMER in der eigenen FirebaseMessagingService (siehe mobile-app), auch wenn die App
+    im Hintergrund oder komplett beendet ist - nur so kann die App selbst den
+    Vollbild-Alarm mit Ton/Vibration/Display-Wecken bauen. Mit einem "notification"-Feld
+    würde Android bei beendeter App stattdessen eine stille Standard-Benachrichtigung
+    zeigen, an der App vorbei."""
+    if not FCM_AVAILABLE:
+        return 0
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM fcm_tokens")
+    tokens = [row["token"] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    if not tokens:
+        return 0
+
+    from firebase_admin import messaging
+
+    data = {
+        "title": str(payload_dict.get("title", "Dienstbuch")),
+        "body": str(payload_dict.get("body", "")),
+        "url": str(payload_dict.get("url", "/dashboard")),
+    }
+
+    success_count = 0
+    invalid_tokens = []
+    # Einzeln statt send_each_for_multicast: bei > 500 Tokens (grosse Wehr/mehrere
+    # Standorte) müsste multicast ohnehin in Batches aufgeteilt werden - Einzelversand
+    # ist hier unkritisch, da Alarme selten genug sind, dass die paar hundert
+    # Millisekunden Mehraufwand nicht ins Gewicht fallen.
+    for token in tokens:
+        try:
+            messaging.send(messaging.Message(data=data, token=token, android=messaging.AndroidConfig(priority="high")))
+            success_count += 1
+        except messaging.UnregisteredError:
+            invalid_tokens.append(token)
+        except Exception as ex:
+            print("FCM Push Error:", ex)
+
+    if invalid_tokens:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.executemany("DELETE FROM fcm_tokens WHERE token = %s", [(t,) for t in invalid_tokens])
+        conn.commit()
+        cur.close()
+        conn.close()
+
     return success_count
 
 @router.post("/test")

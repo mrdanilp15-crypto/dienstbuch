@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dienstbuch</string>
+    <string name="title_activity_main">Dienstbuch</string>
+    <string name="package_name">de.hege.dienstbuch</string>
+    <string name="custom_url_scheme">de.hege.dienstbuch</string>
+</resources>

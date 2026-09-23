@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 3,
+        "version": "2.53",
+        "date": "2026-09-23",
+        "items": [
+            {"type": "new", "tag": "App", "title": "Native Android-App",
+             "text": "Zuverlässige Alarm-Benachrichtigungen mit Vollbild-Anzeige, Ton und Display-Weckung - auch bei gesperrtem Handy oder wenn die App geschlossen ist."},
+        ],
+    },
+    {
         "id": 2,
         "version": "2.52",
         "date": "2026-09-17",

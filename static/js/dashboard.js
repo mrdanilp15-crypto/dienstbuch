@@ -677,7 +677,11 @@ applyChartTheme();
                         appAlert(el.getAttribute('title'));
                     }
                 });
-                this.setupPushNotifications();
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    this.setupNativeFcm();
+                } else {
+                    this.setupPushNotifications();
+                }
                 try {
                     const authRes = await fetch('/api/auth/me', { credentials: 'include' });
                     if (!authRes.ok) {
@@ -946,6 +950,15 @@ applyChartTheme();
                     }
                 },
                 async requestPushPermission() {
+                    // In der nativen App laeuft Push nicht ueber die Web-Push-API des Browsers
+                    // (im WebView zu unzuverlaessig, ueberlebt App-Beenden/Doze nicht), sondern
+                    // ueber Firebase Cloud Messaging - eigener Pfad, eigene Berechtigungsabfrage.
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        await this.setupNativeFcm();
+                        await this.requestNativeBatteryExemption();
+                        await appAlert("Alarm-Benachrichtigungen aktiviert!");
+                        return;
+                    }
                     const permission = await Notification.requestPermission();
                     if (permission === 'granted') {
                         try {
@@ -965,6 +978,28 @@ applyChartTheme();
                     } else {
                         await appAlert("Berechtigung verweigert.");
                     }
+                },
+                async setupNativeFcm() {
+                    if (!(window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.FcmToken)) return;
+                    try {
+                        const { token } = await window.Capacitor.Plugins.FcmToken.getToken();
+                        if (!token) return;
+                        await fetch('/api/push/register-fcm-token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ token })
+                        });
+                    } catch (err) { console.error('FCM-Registrierung fehlgeschlagen:', err); }
+                },
+                async requestNativeBatteryExemption() {
+                    if (!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FcmToken)) return;
+                    try {
+                        const { ignoring } = await window.Capacitor.Plugins.FcmToken.isIgnoringBatteryOptimizations();
+                        if (!ignoring) {
+                            await window.Capacitor.Plugins.FcmToken.requestBatteryOptimizationExemption();
+                        }
+                    } catch (err) { console.error('Akku-Ausnahme-Anfrage fehlgeschlagen:', err); }
                 },
                 async setupPushNotifications(forceReset = false) {
                     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;

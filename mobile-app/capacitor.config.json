@@ -1,0 +1,9 @@
+{
+  "appId": "de.hege.dienstbuch",
+  "appName": "Dienstbuch",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
+  }
+}

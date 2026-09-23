@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "367189072411",
+    "project_id": "dienstbuch-ac9d2",
+    "storage_bucket": "dienstbuch-ac9d2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:367189072411:android:f93093771d52446a9336be",
+        "android_client_info": {
+          "package_name": "de.hege.dienstbuch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAB7qW0qAhFjwjQa9gxFpr_qXu9jWDp7Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
