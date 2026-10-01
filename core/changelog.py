@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 7,
+        "version": "2.57",
+        "date": "2026-10-01",
+        "items": [
+            {"type": "new", "tag": "Design", "title": "Mehr Farbe und Leben",
+             "text": "Jeder Bereich hat seine eigene Akzentfarbe, dazu dezente Bewegungen, ein wärmerer Hintergrund und eine persönliche Begrüßung mit dem nächsten Termin."},
+        ],
+    },
+    {
         "id": 6,
         "version": "2.56",
         "date": "2026-10-01",

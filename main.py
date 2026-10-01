@@ -30,7 +30,7 @@ from routers import mail_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.56"
+CURRENT_VERSION = "2.57"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")

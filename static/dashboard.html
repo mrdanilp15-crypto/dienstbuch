@@ -180,7 +180,7 @@
         <div v-if="!isOnline" class="bg-danger text-white text-center p-2 fw-bold" style="z-index: 9999; position: sticky; top: 0;">
             <i class="fa fa-wifi-slash me-2"></i> Du bist offline! Änderungen werden lokal gespeichert und später synchronisiert.
         </div>
-        <div class="app-container">
+        <div class="app-container" :data-area="activeTab">
             <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
                 <div class="d-flex justify-content-between align-items-center p-3 d-lg-none border-bottom border-secondary border-opacity-10 bg-black bg-opacity-20">
                     <span class="fw-bold text-white small"><i class="fa fa-fire-extinguisher text-danger me-2"></i>Dienstbuch</span>
@@ -269,6 +269,11 @@
 
                 <!-- TAB 1: DIENSTBETRIEB -->
                 <div v-show="activeTab === 'dienste'">
+                    <div class="greeting mb-4">
+                        <div class="greeting-title">{{ greeting }}<span v-if="displayName">, {{ displayName }}</span></div>
+                        <div class="greeting-sub" v-if="nextSchedule"><i class="fa fa-calendar-day me-1"></i>Nächster Termin: {{ formatDateDay(nextSchedule.date) }}.{{ formatDateMonth(nextSchedule.date) }}. {{ nextSchedule.time }} – {{ nextSchedule.title }}</div>
+                        <div class="greeting-sub" v-else>Keine geplanten Termine in dieser Liste.</div>
+                    </div>
                     <div class="row g-4">
                         <div class="col-12 col-lg-3">
                             <div class="card premium-card p-3">

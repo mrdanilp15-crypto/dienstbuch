@@ -1261,3 +1261,76 @@ body { background: var(--bg-color); }
     letter-spacing: 0.05em;
     color: var(--text-secondary) !important;
 }
+
+
+/* ===== Lebendiger: eigene Akzentfarbe je Bereich, dezente Bewegung, warmer Hintergrund ===== */
+.app-container { --area: #ff6b6b; }
+.app-container[data-area="dienste"] { --area: #4dabf7; }
+.app-container[data-area="einsaetze"], .app-container[data-area="apager"] { --area: #ff6b6b; }
+.app-container[data-area="fahrzeuge"] { --area: #51cf66; }
+.app-container[data-area="material"] { --area: #ffa94d; }
+.app-container[data-area="hvo"] { --area: #f783ac; }
+.app-container[data-area="personal"] { --area: #b197fc; }
+.app-container[data-area="jugend"] { --area: #38d9a9; }
+.app-container[data-area="kalender"] { --area: #3bc9db; }
+.app-container[data-area="stats"] { --area: #748ffc; }
+.app-container[data-area="notizen"] { --area: #ffd43b; }
+.app-container[data-area="archiv"] { --area: #91a7ff; }
+.app-container[data-area="verwaltung"] { --area: #ced4da; }
+.app-container[data-area="arbeitsbescheinigung"] { --area: #a9e34b; }
+.app-container[data-area="abrechnung"] { --area: #fcc419; }
+.app-container[data-area="lagekarte"] { --area: #63e6be; }
+.app-container { --area-ink: var(--area); }
+[data-theme="light"] .app-container { --area-ink: color-mix(in srgb, var(--area) 70%, black); }
+
+/* Überschrift-Icons als farbig getönte Kachel */
+.main-content h2 > i:first-child {
+    color: var(--area-ink) !important;
+    opacity: 1;
+    background: color-mix(in srgb, var(--area) 16%, transparent);
+    width: 1.9em;
+    height: 1.9em;
+    border-radius: 0.55em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    vertical-align: middle;
+    margin-right: 0.6rem !important;
+}
+.main-content h5 > i:first-child { color: var(--area-ink) !important; opacity: 1; }
+
+/* feine farbige Kante oben an Karten + aktiver Menüpunkt in Bereichsfarbe */
+.main-content .premium-card { border-top: 2px solid color-mix(in srgb, var(--area) 45%, transparent); }
+.sidebar-btn.active i { color: var(--area-ink); }
+.sidebar-btn.active { background: color-mix(in srgb, var(--area) 12%, transparent); }
+
+/* dezente Bewegung */
+.session-item, .mission-item, .equipment-item, .member-card, .note-card, .btn {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+.session-item:hover, .mission-item:hover, .equipment-item:hover, .member-card:hover, .note-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+[data-theme="light"] .session-item:hover, [data-theme="light"] .mission-item:hover,
+[data-theme="light"] .equipment-item:hover, [data-theme="light"] .member-card:hover,
+[data-theme="light"] .note-card:hover { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08); }
+.btn:active { transform: scale(0.97); }
+
+/* warmer statt toter Hintergrund (nur Dunkelmodus) */
+:root:not([data-theme="light"]) body {
+    background:
+        radial-gradient(900px 500px at 10% -10%, rgba(183, 28, 28, 0.13), transparent 60%),
+        radial-gradient(700px 500px at 100% 110%, rgba(77, 171, 247, 0.06), transparent 60%),
+        var(--bg-color);
+}
+
+/* persönliche Begrüßung */
+.greeting-title { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); }
+.greeting-sub { color: var(--text-secondary); font-size: 0.92rem; margin-top: 2px; }
+.greeting-sub i { color: var(--area-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+    .session-item:hover, .mission-item:hover, .equipment-item:hover, .member-card:hover, .note-card:hover, .btn:active { transform: none; }
+}
