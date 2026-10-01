@@ -398,6 +398,11 @@ applyChartTheme();
                 }
             },
             computed: {
+                yearOptions() {
+                    const years = [];
+                    for (let y = 2024; y <= new Date().getFullYear() + 1; y++) years.push(y);
+                    return years;
+                },
                 calendarFeedUrl() { return `${window.location.protocol}//${this.serverHost}/api/calendar/feed.ics?token=${this.accessTokens.calendar_token}`; },
                 displayUrl() { return `${window.location.protocol}//${this.serverHost}/static/alarmdisplay.html?token=${this.accessTokens.display_token}`; },
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
