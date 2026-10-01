@@ -193,6 +193,7 @@ applyChartTheme();
                     changelogUnseen: false,
                     twoFaEnabled: null,
                     groupListOpen: false,
+                    displayName: '',
                     clothingStock: [], clothingIssued: [], clothingTab: 'stock', newStock: { item_name: '', size: '', quantity: 1, min_quantity: 0 },
                     mailSettings: {}, mailTestTo: '', mailSaving: false,
                     lehrgangMatrix: { courses: [], entries: {} },
@@ -456,6 +457,15 @@ applyChartTheme();
                     return this.consumables.filter(c => c.min_stock > 0 && c.current_stock <= c.min_stock);
                 },
                 clothingOpenReturns() { return this.clothingIssued.filter(g => g.membership_status === 'Ausgeschieden').length; },
+                greeting() {
+                    const h = new Date().getHours();
+                    return h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend';
+                },
+                nextSchedule() {
+                    const today = new Date().toISOString().split('T')[0];
+                    return [...(this.schedules || [])].filter(s => String(s.date).slice(0, 10) >= today)
+                        .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time).localeCompare(String(b.time)))[0] || null;
+                },
                 activePersonnelForMatrix() {
                     return this.personnel.filter(p => p.membership_status === 'Aktiv');
                 },
@@ -702,7 +712,7 @@ applyChartTheme();
                         return;
                     }
                     const authData = await authRes.json();
-                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role;
+                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role; this.displayName = (authData.personnel_name || authData.username || '').split(' ')[0];
                     this.isFirstLoginBlock = !!authData.is_first_login;
                 } catch (e) {
                     const params = new URLSearchParams(window.location.search);
