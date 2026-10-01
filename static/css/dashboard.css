@@ -50,7 +50,7 @@
         
         /* Theme overrides for Bootstrap classes */
         :root .text-muted {
-            color: #adb5bd !important; /* Lighter grey for better readability on black */
+            color: #b5a9a9 !important;
         }
         :root .text-secondary {
             color: var(--text-secondary) !important;
@@ -410,9 +410,6 @@
             background-color: #1c1414 !important;
             color: #ffffff !important;
         }
-        .text-muted {
-            color: #e0d8d8 !important;
-        }
         small, .small {
             color: #e8e2e2 !important;
         }
@@ -601,7 +598,7 @@
                 width: 280px; 
                 height: 100vh; 
                 z-index: 1050;
-                background: #0f0f12;
+                background: #141010;
                 transform: translateX(-100%);
                 transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 border-right: 1px solid var(--card-border);
@@ -634,9 +631,6 @@
         /* Global high-contrast overrides for dark theme readability */
         label, .form-label {
             color: #ffffff !important;
-        }
-        .text-muted {
-            color: rgba(255, 255, 255, 0.7) !important;
         }
         input::placeholder, textarea::placeholder, select::placeholder {
             color: rgba(255, 255, 255, 0.65) !important;
@@ -1105,3 +1099,71 @@
 .status-jugend { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
 .status-ehren { background: rgba(245, 158, 11, 0.15); color: #ffd700; border: 1px solid rgba(245, 158, 11, 0.25); }
 .status-ausgeschieden { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); }
+
+/* Listen/Gruppen: auf dem Handy eingeklappt, damit der eigentliche Inhalt sofort sichtbar ist */
+.group-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--text-primary);
+    font-weight: 700;
+    padding: 2px 4px;
+}
+@media (max-width: 991px) {
+    .group-list-body { display: none; margin-top: 12px; }
+    .group-list-body.open { display: block; }
+}
+
+/* Statistik-Kacheln: dezent getönt mit Akzentkante statt vollflächig knallig */
+.stat-card.stat-uebung, .stat-card.stat-einsatz, .stat-card.stat-sonstiges {
+    border: 1px solid var(--card-border);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+}
+.stat-uebung { background: linear-gradient(135deg, rgba(13,110,253,0.24), rgba(13,110,253,0.08)); border-left: 4px solid #3d8bfd !important; }
+.stat-einsatz { background: linear-gradient(135deg, rgba(220,53,69,0.26), rgba(220,53,69,0.08)); border-left: 4px solid #e35d6a !important; }
+.stat-sonstiges { background: linear-gradient(135deg, rgba(255,193,7,0.22), rgba(255,193,7,0.06)); border-left: 4px solid #ffc107 !important; }
+.stat-uebung .stat-label, .stat-einsatz .stat-label, .stat-sonstiges .stat-label { color: var(--text-secondary); }
+.stat-uebung .stat-val { color: #6ea8fe; }
+.stat-einsatz .stat-val { color: #ff7b86; }
+.stat-sonstiges .stat-val { color: #ffcd39; }
+[data-theme="light"] .stat-uebung .stat-val { color: #0a58ca; }
+[data-theme="light"] .stat-einsatz .stat-val { color: #b02a37; }
+[data-theme="light"] .stat-sonstiges .stat-val { color: #946c00; }
+[data-theme="light"] .stat-card.stat-uebung, [data-theme="light"] .stat-card.stat-einsatz, [data-theme="light"] .stat-card.stat-sonstiges { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+
+/* Dienstplaner auf dem Handy als Karten statt seitlich scrollender Tabelle */
+@media (max-width: 767px) {
+    .schedule-table thead { display: none; }
+    .schedule-table, .schedule-table tbody { display: block; }
+    .schedule-table tr {
+        display: block;
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+    }
+    .schedule-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border: 0 !important;
+        padding: 4px 0 !important;
+        text-align: right;
+    }
+    .schedule-table td[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        text-align: left;
+    }
+    .schedule-table td:not([data-label]) { display: block; text-align: left; }
+    .schedule-table td.schedule-actions { display: flex; justify-content: flex-end; padding-top: 8px !important; }
+    .schedule-table td[colspan] { text-align: center; }
+}

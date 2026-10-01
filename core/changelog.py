@@ -6,12 +6,16 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
-        "id": 3,
-        "version": "2.53",
-        "date": "2026-09-23",
+        "id": 4,
+        "version": "2.54",
+        "date": "2026-10-01",
         "items": [
-            {"type": "new", "tag": "App", "title": "Native Android-App",
-             "text": "Zuverlässige Alarm-Benachrichtigungen mit Vollbild-Anzeige, Ton und Display-Weckung - auch bei gesperrtem Handy oder wenn die App geschlossen ist."},
+            {"type": "new", "tag": "Design", "title": "Aufgeräumte Handy-Ansicht",
+             "text": "Die Listenauswahl ist auf dem Handy eingeklappt, der Dienstplaner erscheint als Karten statt als breite Tabelle."},
+            {"type": "new", "tag": "Design", "title": "Ruhigere Optik",
+             "text": "Dezentere Statistik-Kacheln, einheitliche Buttons und abgestimmte Farben."},
+            {"type": "fix", "tag": "Login", "title": "Login-Seite blieb stehen",
+             "text": "Nach erfolgreicher Anmeldung zeigte der Browser teils weiter die Login-Seite an."},
         ],
     },
     {

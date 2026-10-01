@@ -1,7 +1,5 @@
 # Secrets - dürfen niemals ins Docker-Image gebacken werden (landet sonst evtl. in der
-# GitHub Container Registry). Das echte Firebase-Dienstkonto liegt stattdessen im
-# persistenten /app/data-Volume, genau wie die VAPID-Schlüssel (siehe routers/push_api.py).
-firebase-service-account.json
+# GitHub Container Registry).
 .env
 *.pem
 secret.key
@@ -10,9 +8,6 @@ secret.key
 .git
 .github
 .gitignore
-
-# Mobile-App-Projekt (eigenständiges Capacitor/Android-Projekt, gehört nicht ins Backend-Image)
-mobile-app/
 
 # Python Müll
 __pycache__/
