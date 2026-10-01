@@ -1167,3 +1167,97 @@
     .schedule-table td.schedule-actions { display: flex; justify-content: flex-end; padding-top: 8px !important; }
     .schedule-table td[colspan] { text-align: center; }
 }
+
+/* Lehrgangsspalten der Qualifikationsmatrix: lange Freitext-Namen nicht die Tabelle sprengen lassen */
+.matrix-course-head {
+    max-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ===== Design 2.0: ruhiger, flacher, Rot nur noch als Signalfarbe =====
+   Bewusst als Überschreib-Block am Dateiende, damit der Stil an einer Stelle steuerbar bleibt. */
+:root:not([data-theme="light"]) {
+    --bg-color: #100d0d;
+    --bg-glow: #100d0d;
+    --card-bg: #1b1616;
+    --card-border: rgba(255, 255, 255, 0.08);
+    --surface-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+[data-theme="light"] { --surface-shadow: 0 1px 3px rgba(0, 0, 0, 0.07); }
+
+body { background: var(--bg-color); }
+
+/* Kein Glas-/Leuchteffekt mehr */
+.top-nav, .sidebar, .modal-content { backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root:not([data-theme="light"]) .top-nav,
+:root:not([data-theme="light"]) .sidebar { background: #161212; }
+.brand-title { text-shadow: none; }
+.premium-card, .session-item, .mission-item, .equipment-item, .note-card, .member-card, .broadcast-card {
+    box-shadow: var(--surface-shadow);
+}
+.premium-card:hover, .note-card:hover {
+    box-shadow: var(--surface-shadow);
+    border-color: var(--card-border);
+    transform: none;
+}
+.session-item:hover, .mission-item:hover, .equipment-item:hover, .member-card:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.18);
+}
+[data-theme="light"] .session-item:hover, [data-theme="light"] .mission-item:hover,
+[data-theme="light"] .equipment-item:hover, [data-theme="light"] .member-card:hover { border-color: rgba(0, 0, 0, 0.2); }
+
+/* Hauptaktion: flach rot, ohne Schein */
+.btn-premium, .btn-premium:hover {
+    background: #b71c1c;
+    box-shadow: none;
+    transform: none;
+}
+.btn-premium:hover { background: #c62828; }
+
+/* Nebenaktionen: einheitlich neutral (auch die bisher gelb/türkis umrandeten Pillen) */
+.btn-outline-light,
+.rounded-pill.btn-outline-warning,
+.rounded-pill.btn-outline-info {
+    color: var(--text-primary) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    background: transparent;
+}
+.btn-outline-light:hover,
+.rounded-pill.btn-outline-warning:hover,
+.rounded-pill.btn-outline-info:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: var(--text-primary) !important;
+}
+[data-theme="light"] .rounded-pill.btn-outline-warning,
+[data-theme="light"] .rounded-pill.btn-outline-info { border-color: rgba(0, 0, 0, 0.2) !important; }
+[data-theme="light"] .rounded-pill.btn-outline-warning:hover,
+[data-theme="light"] .rounded-pill.btn-outline-info:hover { background: rgba(0, 0, 0, 0.05) !important; }
+
+/* Icons in Überschriften neutral statt rot */
+.main-content h2 > i, .main-content h5 > i, .main-content h6 > i, .modal-title > i { color: var(--text-secondary) !important; opacity: 0.75; }
+
+/* Aktive Navigation: dezent statt rot leuchtend */
+.sidebar-btn.active {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid transparent;
+    box-shadow: none;
+}
+.sidebar-btn.active i { color: #ef5350; }
+[data-theme="light"] .sidebar-btn.active { background: rgba(0, 0, 0, 0.06) !important; }
+.group-item.active { background: rgba(255, 255, 255, 0.05); }
+[data-theme="light"] .group-item.active { background: rgba(0, 0, 0, 0.04); }
+.filter-pill:hover, .filter-pill.active { box-shadow: none; }
+
+/* Schrift: feste Stufen statt überall fett und groß */
+.main-content h1 { font-size: 1.9rem !important; letter-spacing: -0.5px !important; }
+.main-content h2 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.3px; }
+.main-content h5, .modal-title { font-size: 1.05rem; font-weight: 600 !important; }
+.table thead th, .table thead tr {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary) !important;
+}

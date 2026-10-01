@@ -36,8 +36,8 @@ BACKUP_TABLES = [
     "station_settings", "audit_log", "apager_config", "apager_logs",
     "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
     "schedule_attendance", "missions", "mission_attendance", "respiration_log",
-    "billing_verursacher", "personal_inventar", "lehrgaenge", "hydrants", "bma",
-    "drone_images", "push_subscriptions", "club_inventory", "club_donations"
+    "billing_verursacher", "personal_inventar", "clothing_stock", "lehrgaenge", "hydrants", "bma",
+    "drone_images", "push_subscriptions", "mail_settings", "club_inventory", "club_donations"
 ]
 
 
@@ -446,55 +446,73 @@ def delete_archive_file(file_id: int, request: Request):
     log_audit_action(user["username"], "ARCHIV_DATEI_GELOESCHT", f"Datei '{row['filename']}' gelöscht.")
     return {"status": "success"}
 
+_MISSION_TYPE_LABELS = {
+    "B": "Brand", "THL": "Technische Hilfe", "H": "Technische Hilfe", "ABC": "Gefahrgut",
+    "CBRN": "Gefahrgut", "GSG": "Gefahrgut", "RD": "Rettungsdienst", "RTW": "Rettungsdienst",
+    "FR": "First Responder", "BMA": "Brandmeldeanlage", "UG": "Unwetter",
+}
+
+
+def _mission_type(stichwort: str) -> str:
+    """Einsatzart aus dem Stichwort-Präfix ("B2 Wohnungsbrand" -> Brand, "THL 1" -> Technische Hilfe)."""
+    import re
+    m = re.match(r"\s*([A-Za-zÄÖÜäöü]+)", stichwort or "")
+    if not m:
+        return "Sonstige"
+    prefix = m.group(1).upper()
+    return _MISSION_TYPE_LABELS.get(prefix, "Sonstige")
+
+
 @router.get("/api/admin/stats")
-def get_admin_stats(request: Request):
+def get_admin_stats(request: Request, year: Optional[int] = None):
     user = get_current_user(request)
     if not user or user["role"] not in ["admin", "leitung"]:
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    year = year or date.today().year
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    
-    cur.execute("SELECT DAYNAME(date) as day, COUNT(*) as count FROM missions GROUP BY DAYNAME(date)")
-    missions_by_day_raw = cur.fetchall()
-    
-    # Fill missing days and sort properly
-    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    # Test-/Probealarme verfälschen sonst die Jahresstatistik
+    not_test = "stichwort NOT LIKE '[TEST]%%'"
+
+    cur.execute(f"SELECT date, stichwort FROM missions WHERE YEAR(date) = %s AND {not_test}", (year,))
+    missions = cur.fetchall()
+    cur.execute(f"SELECT MONTH(date) AS m, COUNT(*) AS c FROM missions WHERE YEAR(date) = %s AND {not_test} GROUP BY MONTH(date)", (year - 1,))
+    prev_by_month = {r["m"]: r["c"] for r in cur.fetchall()}
+
     days_german = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
-    
-    # Create mapping from raw to dict
-    raw_dict = {row["day"]: row["count"] for row in missions_by_day_raw if row["day"]}
-    
-    missions_by_day = []
-    for i, d in enumerate(days_order):
-        missions_by_day.append({
-            "day": days_german[i],
-            "count": raw_dict.get(d, 0)
-        })
-        
-    cur.execute("SELECT COUNT(*) as total FROM missions")
-    total_missions = cur.fetchone()["total"]
-    
-    cur.execute("SELECT MONTHNAME(date) as month, COUNT(*) as count FROM missions GROUP BY MONTHNAME(date)")
-    missions_by_month_raw = cur.fetchall()
-    
-    months_order = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     months_german = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
-    
-    month_dict = {row["month"]: row["count"] for row in missions_by_month_raw if row["month"]}
-    missions_by_month = []
-    for i, m in enumerate(months_order):
-        missions_by_month.append({
-            "month": months_german[i],
-            "count": month_dict.get(m, 0)
-        })
-    
+    by_day = [0] * 7
+    by_month = [0] * 12
+    by_type = {}
+    for m in missions:
+        if not m["date"]:
+            continue
+        by_day[m["date"].weekday()] += 1
+        by_month[m["date"].month - 1] += 1
+        t = _mission_type(m["stichwort"])
+        by_type[t] = by_type.get(t, 0) + 1
+
+    cur.execute("""
+        SELECT MONTH(date) AS m, category, SUM(duration) AS h FROM sessions
+        WHERE YEAR(date) = %s GROUP BY MONTH(date), category
+    """, (year,))
+    hours = {}
+    for r in cur.fetchall():
+        cat = r["category"] or "Sonstiges"
+        hours.setdefault(cat, [0.0] * 12)[r["m"] - 1] += float(r["h"] or 0)
+
     cur.close()
     conn.close()
-    
+
     return {
-        "missions_by_day": missions_by_day,
-        "missions_by_month": missions_by_month,
-        "total_missions": total_missions
+        "year": year,
+        "missions_by_day": [{"day": days_german[i], "count": by_day[i]} for i in range(7)],
+        "missions_by_month": [{"month": months_german[i], "count": by_month[i], "prev": prev_by_month.get(i + 1, 0)} for i in range(12)],
+        "missions_by_type": sorted(({"type": k, "count": v} for k, v in by_type.items()), key=lambda x: -x["count"]),
+        "hours_by_category": {k: [round(x, 1) for x in v] for k, v in hours.items()},
+        "total_missions": len(missions),
+        "total_missions_prev": sum(prev_by_month.values()),
     }
 
 @router.get("/api/search")

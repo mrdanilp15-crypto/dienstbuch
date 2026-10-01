@@ -230,6 +230,8 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
         })
     except Exception as e:
         print("Push error:", e)
+    from core.mailer import send_alarm_mail
+    send_alarm_mail("Neuer Alarm", stichwort, adresse, meldung)
     return {"status": "success", "message": "Alarm erfolgreich verarbeitet und Einsatz angelegt."}
 
 @router.api_route("/api/apager/webhook", methods=["GET", "POST"])
@@ -333,4 +335,6 @@ async def send_test_alarm(data: dict, request: Request):
         })
     except Exception as e:
         print(f"Push-Versand beim Test-Alarm fehlgeschlagen: {e}")
+    from core.mailer import send_alarm_mail
+    send_alarm_mail("Test-Alarm", stichwort, adresse, meldung)
     return {"status": "success", "message": "Test-Alarm wurde im Protokoll erfasst."}

@@ -6,6 +6,32 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 6,
+        "version": "2.56",
+        "date": "2026-10-01",
+        "items": [
+            {"type": "new", "tag": "Design", "title": "Ruhigeres Erscheinungsbild",
+             "text": "Flachere Karten ohne Leuchteffekte, Rot nur noch für Hauptaktionen, einheitliche Buttons und klarere Schriftgrößen."},
+        ],
+    },
+    {
+        "id": 5,
+        "version": "2.55",
+        "date": "2026-10-01",
+        "items": [
+            {"type": "new", "tag": "E-Mail", "title": "E-Mail-Versand",
+             "text": "Unter Verwaltung > E-Mail-Versand kann jede Wehr ihr eigenes Postfach eintragen. Damit funktionieren „Passwort vergessen“, Fristen-Erinnerungen per Mail und optional Alarme per Mail."},
+            {"type": "new", "tag": "Personal", "title": "Lehrgänge in der Qualifikationsmatrix",
+             "text": "Die Matrix zeigt jetzt alle Lehrgänge und den G26.3-Status mit Ampel (gültig, läuft bald ab, abgelaufen)."},
+            {"type": "new", "tag": "Statistiken", "title": "Mehr Diagramme",
+             "text": "Vorjahresvergleich, Einsätze nach Art und Dienststunden nach Kategorie."},
+            {"type": "new", "tag": "Kleiderkammer", "title": "Lagerbestand und Rückgaben",
+             "text": "Neue Kleiderkammer in der Personalverwaltung: Lagerbestand mit Mindestbestand, Ausgaben buchen automatisch ab, Rückgaben werden vermerkt statt gelöscht. Offene Rückgaben ausgeschiedener Mitglieder sind markiert."},
+            {"type": "fix", "tag": "Statistiken", "title": "Jahresauswahl wirkte nicht",
+             "text": "Die Einsatz-Diagramme zeigten immer alle Jahre zusammen und zählten Test-Alarme mit."},
+        ],
+    },
+    {
         "id": 4,
         "version": "2.54",
         "date": "2026-10-01",

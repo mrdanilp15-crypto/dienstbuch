@@ -193,6 +193,10 @@ applyChartTheme();
                     changelogUnseen: false,
                     twoFaEnabled: null,
                     groupListOpen: false,
+                    clothingStock: [], clothingIssued: [], clothingTab: 'stock', newStock: { item_name: '', size: '', quantity: 1, min_quantity: 0 },
+                    mailSettings: {}, mailTestTo: '', mailSaving: false,
+                    lehrgangMatrix: { courses: [], entries: {} },
+                    statsTypeInstance: null, statsHoursInstance: null, statsPrevTotal: 0,
                     twoFaSetup: null,
                     twoFaConfirmCode: '',
                     twoFaRecoveryCodes: null,
@@ -451,6 +455,7 @@ applyChartTheme();
                 lowStockConsumables() {
                     return this.consumables.filter(c => c.min_stock > 0 && c.current_stock <= c.min_stock);
                 },
+                clothingOpenReturns() { return this.clothingIssued.filter(g => g.membership_status === 'Ausgeschieden').length; },
                 activePersonnelForMatrix() {
                     return this.personnel.filter(p => p.membership_status === 'Aktiv');
                 },
@@ -1738,6 +1743,53 @@ applyChartTheme();
                         const gRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { credentials: 'include' });
                         this.activePersonnel.gearList = await gRes.json();
                     }
+                },
+                async returnGear(g) {
+                    if (!await appConfirm(`Rückgabe von „${g.item_name}" (${g.size}) vermerken?`, 'Rückgabe')) return;
+                    const backToStock = await appConfirm('Kommt der Artikel zurück ins Lager?\n\n(Abbrechen = nein, z. B. weil defekt oder ausgesondert)', 'Lagerbestand');
+                    const res = await fetch(`/api/material/personnel/inventar/${g.id}/return`, {
+                        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ back_to_stock: !!backToStock })
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(d.detail || 'Rückgabe fehlgeschlagen.'); return; }
+                    if (this.activePersonnel && this.activePersonnel.id) {
+                        const gRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { credentials: 'include' });
+                        if (gRes.ok) this.activePersonnel.gearList = await gRes.json();
+                    }
+                    if (document.getElementById('clothingModal')?.classList.contains('show')) await this.loadClothing();
+                },
+                async openClothingModal() {
+                    await this.loadClothing();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('clothingModal')).show();
+                },
+                async loadClothing() {
+                    const [s, i] = await Promise.all([
+                        fetch('/api/material/clothing/stock', { credentials: 'include' }),
+                        fetch('/api/material/clothing/issued', { credentials: 'include' })
+                    ]);
+                    if (s.ok) this.clothingStock = await s.json();
+                    if (i.ok) this.clothingIssued = await i.json();
+                },
+                async saveStockItem() {
+                    const res = await fetch('/api/material/clothing/stock', {
+                        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newStock)
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte Artikel, Größe und Mengen prüfen.'); return; }
+                    this.newStock = { item_name: '', size: '', quantity: 1, min_quantity: 0 };
+                    await this.loadClothing();
+                },
+                async changeStock(s, delta) {
+                    const res = await fetch(`/api/material/clothing/stock/${s.id}`, {
+                        method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ delta })
+                    });
+                    if (res.ok) s.quantity = Math.max(0, s.quantity + delta);
+                },
+                async deleteStockItem(s) {
+                    if (!await appConfirm(`„${s.item_name}" (${s.size}) aus dem Lagerbestand löschen?`)) return;
+                    const res = await fetch(`/api/material/clothing/stock/${s.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadClothing();
                 },
                 async deleteGear(id) {
                     const res = await fetch(`/api/material/personnel/inventar/${id}`, { method: 'DELETE', credentials: 'include' });
@@ -3056,8 +3108,60 @@ applyChartTheme();
                         await appAlert("PDF-Download steht nur für Einsätze im neuen Einsatz-System (Reiter 'Einsätze') zur Verfügung. Für alte Dienste verwende bitte die Druckfunktion (STRG+P) in der Bearbeiten-Ansicht.");
                     }
                 },
+                async loadMailSettings() {
+                    const res = await fetch('/api/admin/mail-settings', { credentials: 'include' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (!data.app_url) data.app_url = window.location.origin;
+                    data.smtp_password = '';
+                    this.mailSettings = data;
+                },
+                async saveMailSettings() {
+                    this.mailSaving = true;
+                    try {
+                        const res = await fetch('/api/admin/mail-settings', {
+                            method: 'PUT', credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.mailSettings)
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) { await appAlert(data.detail || 'Speichern fehlgeschlagen.'); return; }
+                        await this.loadMailSettings();
+                        await appAlert('E-Mail-Einstellungen gespeichert.');
+                    } finally { this.mailSaving = false; }
+                },
+                async sendTestMail() {
+                    if (!this.mailTestTo) { await appAlert('Bitte eine Empfängeradresse für die Test-Mail eingeben.'); return; }
+                    this.mailSaving = true;
+                    try {
+                        const res = await fetch('/api/admin/mail-settings/test', {
+                            method: 'POST', credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to: this.mailTestTo })
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        await appAlert(res.ok ? 'Test-Mail verschickt. Bitte Posteingang (und Spam-Ordner) prüfen.' : (data.detail || 'Versand fehlgeschlagen.'));
+                    } finally { this.mailSaving = false; }
+                },
+                lehrgangCell(p, course) {
+                    const e = (this.lehrgangMatrix.entries[String(p.id)] || {})[course];
+                    if (!e) return null;
+                    const fmt = d => d ? d.split('-').reverse().join('.') : '';
+                    let state = 'ok';
+                    if (e.valid_until) {
+                        const days = (new Date(e.valid_until) - new Date()) / 86400000;
+                        if (days < 0) state = 'expired';
+                        else if (days <= 90) state = 'soon';
+                    }
+                    const title = 'Abgelegt: ' + fmt(e.date) + (e.valid_until ? ' – gültig bis ' + fmt(e.valid_until) : '');
+                    return { state, title };
+                },
                 async openQualMatrixModal() {
                     if (this.personnel.length === 0) await this.loadPersonnel();
+                    try {
+                        const res = await fetch('/api/personnel/lehrgaenge-matrix', { credentials: 'include' });
+                        if (res.ok) this.lehrgangMatrix = await res.json();
+                    } catch (e) { console.error(e); }
                     new bootstrap.Modal(document.getElementById('qualMatrixModal')).show();
                 },
                 async openAnniversariesModal() {
@@ -3425,10 +3529,11 @@ applyChartTheme();
                     await new Promise(resolve => this.$nextTick(() => requestAnimationFrame(resolve)));
                     applyChartTheme();
                     try {
-                        const res = await fetch('/api/admin/stats', { credentials: 'include' });
+                        const res = await fetch(`/api/admin/stats?year=${this.statsYear}`, { credentials: 'include' });
                         if (res.ok) {
                             const data = await res.json();
                             this.statsTotalMissions = data.total_missions;
+                            this.statsPrevTotal = data.total_missions_prev;
                             
                                                         const ctx = document.getElementById('statsChart');
                             if (ctx) {
@@ -3457,10 +3562,16 @@ applyChartTheme();
                                     data: {
                                         labels: data.missions_by_month.map(d => d.month),
                                         datasets: [{
-                                            label: 'Einsätze',
+                                            label: String(this.statsYear),
                                             data: data.missions_by_month.map(d => d.count),
                                             backgroundColor: 'rgba(13, 110, 253, 0.5)',
                                             borderColor: 'rgba(13, 110, 253, 1)',
+                                            borderWidth: 1
+                                        }, {
+                                            label: String(this.statsYear - 1),
+                                            data: data.missions_by_month.map(d => d.prev),
+                                            backgroundColor: 'rgba(148, 163, 184, 0.35)',
+                                            borderColor: 'rgba(148, 163, 184, 0.8)',
                                             borderWidth: 1
                                         }]
                                     },
@@ -3468,6 +3579,35 @@ applyChartTheme();
                                 });
                             }
 
+                            const ctxType = document.getElementById('statsChartType');
+                            if (ctxType) {
+                                if (this.statsTypeInstance) this.statsTypeInstance.destroy();
+                                const typeColors = ['#dc3545', '#0d6efd', '#ffc107', '#10b981', '#a855f7', '#f97316', '#94a3b8'];
+                                this.statsTypeInstance = new Chart(ctxType, {
+                                    type: 'doughnut',
+                                    data: {
+                                        labels: data.missions_by_type.map(d => d.type),
+                                        datasets: [{ data: data.missions_by_type.map(d => d.count), backgroundColor: typeColors, borderWidth: 0 }]
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom' } } }
+                                });
+                            }
+
+                            const ctxHours = document.getElementById('statsChartHours');
+                            if (ctxHours) {
+                                if (this.statsHoursInstance) this.statsHoursInstance.destroy();
+                                const catColors = { 'Übung': 'rgba(13, 110, 253, 0.6)', 'Einsatz': 'rgba(220, 53, 69, 0.6)', 'Sonstiges': 'rgba(255, 193, 7, 0.6)' };
+                                this.statsHoursInstance = new Chart(ctxHours, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: data.missions_by_month.map(d => d.month),
+                                        datasets: Object.entries(data.hours_by_category).map(([cat, vals]) => ({
+                                            label: cat, data: vals, backgroundColor: catColors[cat] || 'rgba(148, 163, 184, 0.6)'
+                                        }))
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+                                });
+                            }
                         }
                     } catch(err) {
                         console.error('Error loading stats:', err);

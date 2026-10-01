@@ -26,10 +26,11 @@ from routers import hvo_api
 from routers import missions_api
 from routers import calendar_api
 from routers import push_api
+from routers import mail_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.54"
+CURRENT_VERSION = "2.56"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -177,6 +178,7 @@ app.include_router(hvo_api.router)
 app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
 app.include_router(push_api.router)
+app.include_router(mail_api.router)
 app.include_router(legal_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
@@ -540,6 +542,17 @@ def init_db_extensions():
         """)
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS clothing_stock (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_name VARCHAR(255) NOT NULL,
+                size VARCHAR(50) NOT NULL,
+                quantity INT DEFAULT 0,
+                min_quantity INT DEFAULT 0,
+                UNIQUE KEY uq_clothing_item_size (item_name, size)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS lehrgang_types (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL UNIQUE
@@ -723,6 +736,35 @@ def init_db_extensions():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mail_settings (
+                id INT PRIMARY KEY,
+                enabled BOOLEAN DEFAULT FALSE,
+                smtp_host VARCHAR(255) NULL,
+                smtp_port INT DEFAULT 587,
+                smtp_security VARCHAR(10) DEFAULT 'starttls',
+                smtp_user VARCHAR(255) NULL,
+                smtp_password_enc TEXT NULL,
+                sender_address VARCHAR(255) NULL,
+                sender_name VARCHAR(255) NULL,
+                app_url VARCHAR(255) NULL,
+                alarm_mail BOOLEAN DEFAULT FALSE,
+                reminder_mail BOOLEAN DEFAULT TRUE
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS youth_members (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1162,6 +1204,10 @@ def get_dash(request: Request):
             return RedirectResponse(url=f"/login?eq_barcode={eq_barcode}", status_code=302)
         return FileResponse("static/login.html")
     return FileResponse("static/dashboard.html")
+
+@app.get("/reset-password", response_class=FileResponse)
+def get_reset_password():
+    return FileResponse("static/reset-password.html")
 
 @app.get("/editor", response_class=FileResponse)
 def get_edit(request: Request):
