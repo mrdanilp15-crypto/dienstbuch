@@ -29,7 +29,7 @@ from routers import push_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.53"
+CURRENT_VERSION = "2.54"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -49,6 +49,10 @@ async def add_cache_control_headers(request: Request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    elif response.headers.get("content-type", "").startswith("text/html"):
+        # Seiten-Routen liefern je nach Login-Zustand login.html ODER die eigentliche Seite unter
+        # derselben URL - ohne no-store zeigte der Browser nach dem Login weiter die gecachte Login-Seite.
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 @app.middleware("http")
@@ -719,19 +723,6 @@ def init_db_extensions():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
-
-        # FCM-Tokens der nativen Android-App (Alarm-Push, siehe routers/push_api.py).
-        # Getrennt von push_subscriptions (Web Push), weil FCM-Tokens keine p256dh/auth-Keys
-        # haben, sondern nur einen einzelnen Token-String, den Firebase selbst verwaltet.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS fcm_tokens (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(255) NOT NULL,
-                token VARCHAR(255) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB;
-        """)
-
         cur.execute("""
             CREATE TABLE IF NOT EXISTS youth_members (
                 id INT AUTO_INCREMENT PRIMARY KEY,
