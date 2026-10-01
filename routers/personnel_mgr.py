@@ -140,6 +140,38 @@ def get_single_member(member_id: int, request: Request):
             row[key] = bool(value)
     return row
 
+@router.get("/lehrgaenge-matrix")
+def get_lehrgaenge_matrix(request: Request):
+    check_auth(request, allowed_roles=("admin", "leitung"))
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT l.personnel_id, l.course_name, l.date, l.valid_until FROM lehrgaenge l
+        JOIN personnel p ON p.id = l.personnel_id
+        WHERE p.membership_status = 'Aktiv'
+        ORDER BY l.date
+    """)
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+
+    # Lehrgangsnamen sind Freitext - Schreibvarianten ("Atemschutz"/"atemschutz") zu einer
+    # Spalte zusammenfassen, sonst zerfällt die Matrix in viele halbleere Spalten.
+    display_names, counts, entries = {}, {}, {}
+    for r in rows:
+        name = (r["course_name"] or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        display_names.setdefault(key, name)
+        counts[key] = counts.get(key, 0) + 1
+        # ORDER BY date: der jüngste Eintrag (z.B. Auffrischung) überschreibt ältere
+        entries.setdefault(str(r["personnel_id"]), {})[display_names[key]] = {
+            "date": r["date"].isoformat() if r["date"] else None,
+            "valid_until": r["valid_until"].isoformat() if r["valid_until"] else None,
+        }
+    courses = [display_names[k] for k in sorted(counts, key=lambda k: (-counts[k], k))]
+    return {"courses": courses, "entries": entries}
+
 # --- VERFÜGBARKEIT / ABWESENHEIT (Urlaub, Krankheit, ...) ---
 @router.get("/{member_id}/availability")
 def list_availability(member_id: int, request: Request):

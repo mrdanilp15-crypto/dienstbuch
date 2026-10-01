@@ -6,7 +6,7 @@ import mysql.connector
 
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
-from core.utils import check_auth
+from core.utils import check_auth, log_audit_action
 
 class EquipmentCreate(BaseModel):
     name: str
@@ -36,6 +36,24 @@ class InventarCreate(BaseModel):
     item_name: str
     size: str
     issue_date: str
+    from_stock: bool = True
+
+
+class ReturnRequest(BaseModel):
+    back_to_stock: bool = True
+
+
+class ClothingStockIn(BaseModel):
+    item_name: str
+    size: str
+    quantity: int = 0
+    min_quantity: int = 0
+
+
+class StockDelta(BaseModel):
+    delta: int
+
+_CLOTHING_ROLES = ("admin", "leitung", "geratewart")
 
 class CourseCreate(BaseModel):
     course_name: str
@@ -376,6 +394,11 @@ def add_inventar_item(p_id: int, item: InventarCreate, request: Request):
         INSERT INTO personal_inventar (personnel_id, item_name, size, issue_date)
         VALUES (%s, %s, %s, %s)
     """, (p_id, item.item_name.strip(), item.size.strip(), item.issue_date))
+    if item.from_stock:
+        cur.execute(
+            "UPDATE clothing_stock SET quantity = quantity - 1 WHERE item_name = %s AND size = %s AND quantity > 0",
+            (item.item_name.strip(), item.size.strip()),
+        )
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
@@ -386,6 +409,92 @@ def delete_inventar_item(item_id: int, request: Request):
     cur.execute("DELETE FROM personal_inventar WHERE id = %s", (item_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
+
+@router.post("/personnel/inventar/{item_id}/return")
+def return_inventar_item(item_id: int, data: ReturnRequest, request: Request):
+    # Rückgabe wird vermerkt statt gelöscht - so bleibt nachvollziehbar, wer was wann hatte.
+    user = check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "SELECT i.item_name, i.size, i.return_date, p.name FROM personal_inventar i "
+        "LEFT JOIN personnel p ON p.id = i.personnel_id WHERE i.id = %s", (item_id,)
+    )
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Eintrag nicht gefunden.")
+    if row["return_date"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Bereits zurückgegeben.")
+    cur.execute("UPDATE personal_inventar SET return_date = CURDATE() WHERE id = %s", (item_id,))
+    if data.back_to_stock:
+        cur.execute(
+            "INSERT INTO clothing_stock (item_name, size, quantity) VALUES (%s, %s, 1) "
+            "ON DUPLICATE KEY UPDATE quantity = quantity + 1",
+            (row["item_name"], row["size"]),
+        )
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "KLEIDUNG_RUECKGABE", f"{row['item_name']} ({row['size']}) von {row['name']} zurückgenommen.")
+    return {"status": "success"}
+
+# --- 👕 KLEIDERKAMMER (Lagerbestand + Gesamtübersicht) ---
+@router.get("/clothing/stock")
+def list_clothing_stock(request: Request):
+    check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM clothing_stock ORDER BY item_name, size")
+    res = cur.fetchall(); cur.close(); conn.close()
+    return res
+
+@router.post("/clothing/stock")
+def upsert_clothing_stock(data: ClothingStockIn, request: Request):
+    check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    name, size = data.item_name.strip(), data.size.strip()
+    if not name or not size:
+        raise HTTPException(status_code=400, detail="Artikel und Größe angeben.")
+    if data.quantity < 0 or data.min_quantity < 0:
+        raise HTTPException(status_code=400, detail="Mengen dürfen nicht negativ sein.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO clothing_stock (item_name, size, quantity, min_quantity) VALUES (%s, %s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), min_quantity = VALUES(min_quantity)",
+        (name, size, data.quantity, data.min_quantity),
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.patch("/clothing/stock/{stock_id}")
+def change_clothing_stock(stock_id: int, data: StockDelta, request: Request):
+    check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE clothing_stock SET quantity = GREATEST(quantity + %s, 0) WHERE id = %s", (data.delta, stock_id))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.delete("/clothing/stock/{stock_id}")
+def delete_clothing_stock(stock_id: int, request: Request):
+    check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM clothing_stock WHERE id = %s", (stock_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+@router.get("/clothing/issued")
+def list_issued_clothing(request: Request):
+    check_auth(request, allowed_roles=_CLOTHING_ROLES)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    # Ausgeschiedene mit noch nicht zurückgegebener Kleidung zuerst - das sind die offenen Rückgaben.
+    cur.execute("""
+        SELECT i.id, i.item_name, i.size, i.issue_date, p.id AS personnel_id, p.name, p.membership_status
+        FROM personal_inventar i JOIN personnel p ON p.id = i.personnel_id
+        WHERE i.return_date IS NULL
+        ORDER BY (p.membership_status = 'Ausgeschieden') DESC, p.name, i.item_name
+    """)
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        if isinstance(row["issue_date"], date):
+            row["issue_date"] = str(row["issue_date"])
+    return res
 
 # --- LEHRGANGSARTEN (verwaltbare Vorschlagsliste statt freiem Text) ---
 @router.get("/lehrgang-types")

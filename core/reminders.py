@@ -105,6 +105,10 @@ def get_due_items(window_days: int = None):
     for c in cur.fetchall():
         add_item("low_stock", c["name"], f"Bestand {c['current_stock']:g}/{c['min_stock']:g} {c['unit']}", today)
 
+    cur.execute("SELECT item_name, size, quantity, min_quantity FROM clothing_stock WHERE min_quantity > 0 AND quantity <= min_quantity")
+    for c in cur.fetchall():
+        add_item("low_stock", f"{c['item_name']} ({c['size']})", f"Kleiderkammer: Bestand {c['quantity']}/{c['min_quantity']}", today)
+
     cur.close(); conn.close()
     items.sort(key=lambda x: x["due_date"])
     return items
@@ -157,6 +161,8 @@ def check_due_reminders():
                 })
             except Exception as push_err:
                 print(f"Reminder-Push fehlgeschlagen: {push_err}")
+            from core.mailer import send_reminder_mails
+            send_reminder_mails(items, lines)
 
         cur.execute(
             "INSERT INTO settings (setting_key, setting_value) VALUES ('last_reminder_check', %s) "
