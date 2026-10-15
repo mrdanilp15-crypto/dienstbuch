@@ -614,10 +614,14 @@ def system_health(request: Request):
     no2fa = cur.fetchone()["c"]
     add("2fa", "Admin-Konten", "warn" if no2fa else "ok",
         f"{no2fa} Admin-Konto/Konten ohne Zwei-Faktor-Anmeldung - bitte unter „Mein Profil“ aktivieren." if no2fa else "Alle Admin-Konten nutzen Zwei-Faktor-Anmeldung.")
-    cur.execute("SELECT enabled, smtp_host, sender_address FROM mail_settings WHERE id = 1")
+    cur.execute("SELECT enabled, smtp_host, sender_address, last_error, last_error_at FROM mail_settings WHERE id = 1")
     mail = cur.fetchone()
     mail_ok = bool(mail and mail["enabled"] and mail["smtp_host"] and mail["sender_address"])
-    add("mail", "E-Mail-Versand", "ok" if mail_ok else "info", "Eingerichtet." if mail_ok else "Nicht eingerichtet - „Passwort vergessen“ und Erinnerungs-Mails sind aus.")
+    if mail_ok and mail["last_error"]:
+        when = mail["last_error_at"].strftime("%d.%m.%Y %H:%M") if mail["last_error_at"] else ""
+        add("mail", "E-Mail-Versand", "warn", f"Der letzte Versand ist fehlgeschlagen ({when}): {mail['last_error'][:200]} - bitte unter Verwaltung > E-Mail-Versand prüfen.")
+    else:
+        add("mail", "E-Mail-Versand", "ok" if mail_ok else "info", "Eingerichtet." if mail_ok else "Nicht eingerichtet - „Passwort vergessen“ und Erinnerungs-Mails sind aus.")
     cur.execute("SELECT COUNT(*) AS c FROM push_subscriptions")
     add("push", "Push-Benachrichtigungen", "info", f"{cur.fetchone()['c']} Gerät(e) angemeldet.")
     cur.close(); conn.close()

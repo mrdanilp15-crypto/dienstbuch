@@ -2960,10 +2960,15 @@ applyChartTheme();
                     }
                 },
                 async resetUserPassword(usr) {
-                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}':`);
+                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}' (mindestens 8 Zeichen):`);
                     if (newPw) {
                         const res = await fetch(`/api/users/${usr.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: newPw }) });
-                        if (res.ok) await appAlert("Passwort erfolgreich zurückgesetzt!");
+                        if (res.ok) {
+                            await appAlert("Passwort erfolgreich zurückgesetzt! Beim nächsten Login muss der Kamerad ein eigenes Passwort festlegen.");
+                        } else {
+                            const err = await res.json().catch(() => ({}));
+                            await appAlert("Das Passwort wurde NICHT geändert: " + (typeof err.detail === 'string' ? err.detail : "Unbekannter Fehler"));
+                        }
                     }
                 },
 

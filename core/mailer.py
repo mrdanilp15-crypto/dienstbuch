@@ -92,6 +92,23 @@ def send_mail(recipients, subject: str, body: str, bcc: bool = False, settings: 
     return len(to)
 
 
+def record_mail_result(error):
+    """Merkt sich den letzten Versandfehler (None = zuletzt erfolgreich), damit Admins im
+    Systemzustand sehen, wenn z.B. "Passwort vergessen" still ins Leere laeuft."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        if error is None:
+            cur.execute("UPDATE mail_settings SET last_error = NULL, last_error_at = NULL WHERE id = 1")
+        else:
+            cur.execute("UPDATE mail_settings SET last_error = %s, last_error_at = NOW() WHERE id = 1", (str(error)[:500],))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Mail-Status konnte nicht gespeichert werden: {e}")
+
+
 def send_mail_background(recipients, subject: str, body: str, bcc: bool = False):
     """Für Alarme/Erinnerungen: ein langsamer oder hängender Mailserver darf die eigentliche
     Verarbeitung (Alarm anlegen, Push senden) nicht ausbremsen."""
@@ -101,8 +118,10 @@ def send_mail_background(recipients, subject: str, body: str, bcc: bool = False)
         try:
             if is_mail_configured():
                 send_mail(recipients, subject, body, bcc=bcc)
+                record_mail_result(None)
         except Exception as e:
             print(f"E-Mail-Versand fehlgeschlagen ({subject}): {e}")
+            record_mail_result(f"{subject}: {e}")
 
     threading.Thread(target=run, daemon=True).start()
 

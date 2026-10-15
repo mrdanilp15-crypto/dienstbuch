@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 10,
+        "version": "2.60",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "fix", "tag": "Login", "title": "Passwort zurücksetzen durch Admin",
+             "text": "Ein zu kurzes Passwort (unter 8 Zeichen) wurde stillschweigend abgelehnt - jetzt erscheint eine klare Meldung. Außerdem hebt das Zurücksetzen eine bestehende Kontosperre auf."},
+            {"type": "fix", "tag": "Login", "title": "„Passwort vergessen?“ immer sichtbar",
+             "text": "Ist der E-Mail-Versand noch nicht eingerichtet, erklärt die Seite, dass die Wehrführung das Passwort zurücksetzen kann."},
+            {"type": "new", "tag": "Verwaltung", "title": "Fehlgeschlagene E-Mails sichtbar",
+             "text": "Schlägt der Versand fehl, zeigt der Systemzustand den Grund an."},
+        ],
+    },
+    {
         "id": 9,
         "version": "2.59",
         "date": "2026-10-16",

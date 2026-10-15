@@ -32,7 +32,7 @@ from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.59"
+CURRENT_VERSION = "2.60"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -770,6 +770,12 @@ def init_db_extensions():
                 reminder_mail BOOLEAN DEFAULT TRUE
             ) ENGINE=InnoDB;
         """)
+
+        for col_name, col_type in [("last_error", "TEXT NULL"), ("last_error_at", "DATETIME NULL")]:
+            try:
+                cur.execute(f"ALTER TABLE mail_settings ADD COLUMN {col_name} {col_type}")
+            except mysql.connector.Error as err:
+                if err.errno != 1060: raise
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS password_resets (

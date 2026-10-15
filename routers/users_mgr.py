@@ -112,7 +112,9 @@ def change_user_password(user_id: int, data: dict, request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
     target_user = cur.fetchone()
-    cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1 WHERE id = %s", (p_hash, user_id))
+    # failed_logins/lockout_until mit zuruecksetzen: wer sich vorher mehrfach vertippt hat, ist sonst trotz
+    # korrektem neuem Passwort noch 15 Minuten gesperrt - wirkt wie "Reset geht nicht".
+    cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1, failed_logins = 0, lockout_until = NULL WHERE id = %s", (p_hash, user_id))
     conn.commit(); cur.close(); conn.close()
     if target_user:
         invalidate_role_cache(target_user["username"])

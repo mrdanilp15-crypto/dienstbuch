@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from core.mailer import encrypt_secret, get_mail_settings, is_mail_configured, send_mail, send_mail_background
+from core.mailer import encrypt_secret, get_mail_settings, is_mail_configured, record_mail_result, send_mail, send_mail_background
 from core.utils import check_auth, hash_password, log_audit_action
 from database import get_db_connection
 
@@ -101,7 +101,9 @@ async def send_test_mail(request: Request):
         send_mail([to], "Test-E-Mail vom Dienstbuch", "Der E-Mail-Versand des Dienstbuchs ist korrekt eingerichtet.")
     except Exception as e:
         # SMTP-Fehlermeldung bewusst durchreichen: nur Admins sehen sie, und sie ist zur Fehlersuche nötig
+        record_mail_result(f"Test-Mail: {e}")
         raise HTTPException(status_code=400, detail=f"Versand fehlgeschlagen: {e}")
+    record_mail_result(None)
     return {"status": "success"}
 
 

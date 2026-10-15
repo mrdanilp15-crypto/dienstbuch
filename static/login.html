@@ -315,7 +315,7 @@
         </form>
 
         <!-- Nur sichtbar, wenn die Wehr den E-Mail-Versand eingerichtet hat (siehe /api/auth/mail-enabled). -->
-        <div id="forgotLinkWrap" class="text-center mt-3" style="display:none;">
+        <div id="forgotLinkWrap" class="text-center mt-3">
             <a href="#" class="footer-link-item" onclick="toggleForgot(true); return false;">Passwort vergessen?</a>
         </div>
         <form id="forgotForm" style="display:none;">
@@ -470,9 +470,8 @@
 
         let pendingTwoFaToken = null;
 
-        fetch('/api/auth/mail-enabled').then(r => r.json()).then(d => {
-            if (d.enabled) document.getElementById('forgotLinkWrap').style.display = 'block';
-        }).catch(() => {});
+        var mailEnabled = false;
+        fetch('/api/auth/mail-enabled').then(r => r.json()).then(d => { mailEnabled = !!d.enabled; }).catch(() => {});
 
         function toggleForgot(show) {
             document.getElementById('loginForm').style.display = show ? 'none' : 'block';
@@ -487,6 +486,11 @@
             e.preventDefault();
             const btn = document.getElementById('forgotSubmitBtn');
             const msgEl = document.getElementById('forgotMsg');
+            if (!mailEnabled) {
+                msgEl.textContent = 'Bei euch ist der automatische E-Mail-Versand noch nicht eingerichtet. Bitte wende dich an die Wehrführung oder den Administrator - sie können dein Passwort direkt zurücksetzen.';
+                msgEl.style.display = 'block';
+                return;
+            }
             btn.disabled = true;
             try {
                 const res = await fetch('/api/auth/forgot-password', {
