@@ -193,6 +193,7 @@ applyChartTheme();
                     changelogUnseen: false,
                     twoFaEnabled: null,
                     groupListOpen: false,
+                    scheduleMemberSearch: '',
                     buildingChecks: [], buildingSuggestions: [], buildingForm: { id: null, name: '', interval_months: 12, last_check: '', responsible: '' },
                     health: null,
                     prospects: [], prospectStatuses: ['Interessent', 'Probe', 'Aufgenommen', 'Abgesagt'],
@@ -223,7 +224,7 @@ applyChartTheme();
                     
                     // Schedules / Dienstplanung
                     schedules: [],
-                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null, repeat: '', repeat_until: '', notify: true },
+                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] },
                     schedulePersonnelList: [],
                     activeScheduleForAttendance: null,
                     
@@ -409,6 +410,12 @@ applyChartTheme();
                 }
             },
             computed: {
+                scheduleCandidates() {
+                    const q = (this.scheduleMemberSearch || '').trim().toLowerCase();
+                    return (this.personnel || [])
+                        .filter(p => p.membership_status !== 'Ausgeschieden' && (!q || p.name.toLowerCase().includes(q)))
+                        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+                },
                 yearOptions() {
                     const years = [];
                     for (let y = 2024; y <= new Date().getFullYear() + 1; y++) years.push(y);
@@ -1159,17 +1166,33 @@ applyChartTheme();
                     this.activeRsvpResponses = rsvpData.responses || [];
                     new bootstrap.Modal(document.getElementById('rsvpListModal')).show();
                 },
-                openScheduleModal() {
-                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id, repeat: '', repeat_until: '', notify: true };
+                async ensurePersonnelLoaded() {
+                    if (!this.personnel || this.personnel.length === 0) await this.loadPersonnel();
+                },
+                addScheduleGroup(flag) {
+                    const ids = new Set(this.newSchedule.audience_ids);
+                    if (flag === 'none') { this.newSchedule.audience_ids = []; return; }
+                    this.scheduleCandidates.filter(p => flag === 'all' || p[flag]).forEach(p => ids.add(p.id));
+                    this.newSchedule.audience_ids = [...ids];
+                },
+                async openScheduleModal() {
+                    await this.ensurePersonnelLoaded();
+                    this.scheduleMemberSearch = '';
+                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async submitSchedule() {
                     const isEdit = !!this.newSchedule.id;
                     const url = isEdit ? `/api/missions/schedules/${this.newSchedule.id}` : '/api/missions/schedules';
                     const method = isEdit ? 'PUT' : 'POST';
-                    const { title, date, time, description, type, group_id, repeat, repeat_until, notify } = this.newSchedule;
-                    const payload = isEdit ? { title, date, time, description, type, group_id }
-                                           : { title, date, time, description, type, group_id, repeat: repeat || null, repeat_until: repeat ? repeat_until : null, notify };
+                    const { title, date, time, description, type, group_id, repeat, repeat_until, notify, audience, audience_ids } = this.newSchedule;
+                    if (audience === 'selected' && (!audience_ids || audience_ids.length === 0)) {
+                        await appAlert('Bitte mindestens eine Person auswählen – oder oben „Alle aktiven Mitglieder“ wählen.');
+                        return;
+                    }
+                    const aud = { audience, audience_ids: audience === 'selected' ? audience_ids : [] };
+                    const payload = isEdit ? { title, date, time, description, type, group_id, ...aud }
+                                           : { title, date, time, description, type, group_id, repeat: repeat || null, repeat_until: repeat ? repeat_until : null, notify, ...aud };
                     const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
                     if(res.ok) {
                         const result = await res.json().catch(() => ({}));
@@ -3119,15 +3142,20 @@ applyChartTheme();
                     this.calendarMonth = m; this.calendarYear = y;
                     this.loadCalendar();
                 },
-                openCalendarDayModal(dateStr) {
-                    this.newSchedule = { title: '', date: dateStr, time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id || null };
+                async openCalendarDayModal(dateStr) {
+                    await this.ensurePersonnelLoaded();
+                    this.scheduleMemberSearch = '';
+                    this.newSchedule = { title: '', date: dateStr, time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id || null, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
-                editCalendarTermin(ev, domEvent) {
+                async editCalendarTermin(ev, domEvent) {
                     if (domEvent) domEvent.stopPropagation();
                     const full = this.schedules.find(s => s.id === ev.schedule_id);
                     if (!full) return;
-                    this.newSchedule = { id: full.id, title: full.title, date: full.date, time: full.time || '19:00', description: full.description || '', type: full.type, group_id: full.group_id || null };
+                    await this.ensurePersonnelLoaded();
+                    this.scheduleMemberSearch = '';
+                    this.newSchedule = { id: full.id, title: full.title, date: full.date, time: full.time || '19:00', description: full.description || '', type: full.type, group_id: full.group_id || null,
+                                         series_id: full.series_id || null, audience: full.audience || 'all', audience_ids: [...(full.audience_ids || [])], notify: true };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async deleteScheduleFromModal() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v63';
+const CACHE_NAME = 'fw-app-cache-v65';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -69,7 +69,10 @@ self.addEventListener('fetch', event => {
 
   if (isOwnAppCode) {
       event.respondWith(
-        fetch(event.request).then(response => {
+        // cache: 'no-cache' = vor jeder Nutzung beim Server rückfragen (meist nur ein winziges "304 unverändert").
+        // Ohne das bediente der HTTP-Cache des Browsers (Cache-Control: max-age=1 Tag) auch diesen netzwerk-zuerst-
+        // Abruf mit der alten Datei - ausgerollte Korrekturen kamen dann erst am nächsten Tag an.
+        fetch(event.request, { cache: 'no-cache' }).then(response => {
           if (response && response.status === 200 && response.type === 'basic') {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));

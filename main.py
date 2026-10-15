@@ -32,7 +32,7 @@ from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.58"
+CURRENT_VERSION = "2.59"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -633,11 +633,20 @@ def init_db_extensions():
                 group_id INT NULL
             ) ENGINE=InnoDB;
         """)
-        for col_name, col_type in [("series_id", "VARCHAR(36) NULL"), ("reminder_sent", "BOOLEAN DEFAULT FALSE")]:
+        for col_name, col_type in [("series_id", "VARCHAR(36) NULL"), ("reminder_sent", "BOOLEAN DEFAULT FALSE"),
+                                   ("audience", "VARCHAR(10) NOT NULL DEFAULT 'all'"), ("created_by", "VARCHAR(255) NULL")]:
             try:
                 cur.execute(f"ALTER TABLE schedules ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno != 1060: raise
+        # Teilnehmerkreis eines Termins, wenn er nicht fuer alle gilt (siehe core/schedule_access.py)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedule_audience (
+                schedule_id INT NOT NULL,
+                personnel_id INT NOT NULL,
+                PRIMARY KEY (schedule_id, personnel_id)
+            ) ENGINE=InnoDB;
+        """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS schedule_attendance (

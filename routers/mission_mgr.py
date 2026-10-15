@@ -9,7 +9,8 @@ import uuid
 
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
-from core.utils import check_auth
+from core.utils import check_auth, get_current_user
+from core.schedule_access import visibility_sql, can_view_schedule, EDITOR_ROLES
 
 def safe_decode(val):
     if not val: return None
@@ -89,6 +90,8 @@ class ScheduleCreate(BaseModel):
     repeat: Optional[str] = None  # None | 'weekly' | 'biweekly' | 'monthly' (nur beim Anlegen)
     repeat_until: Optional[str] = None
     notify: bool = True
+    audience: str = "all"  # 'all' | 'selected'
+    audience_ids: Optional[List[int]] = None
 
 class ScheduleAttendanceEntry(BaseModel):
     personnel_id: int
@@ -933,18 +936,54 @@ def export_sepa_xml(year: int, hourly_rate: float, sender_iban: str, sender_bic:
     )
 
 # --- 📅 ÜBUNGS- & DIENSTPLANUNG ---
+def _clean_audience(cur, s) -> Optional[List[int]]:
+    """None = gilt fuer alle; sonst die geprueften Personen-IDs des Teilnehmerkreises."""
+    if s.audience not in ("all", "selected"):
+        raise HTTPException(status_code=400, detail="Ungültiger Teilnehmerkreis.")
+    if s.audience == "all":
+        return None
+    ids = sorted({int(i) for i in (s.audience_ids or [])})
+    if ids:
+        cur.execute("SELECT id FROM personnel WHERE id IN (%s)" % ", ".join(["%s"] * len(ids)), tuple(ids))
+        ids = [r[0] for r in cur.fetchall()]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Bitte mindestens eine Person auswählen oder „Alle“ wählen.")
+    return ids
+
+
+def _assert_can_view(cur, user, sch_id: int):
+    # 404 statt 403: ein nicht berechtigter Nutzer soll nicht einmal erfahren, dass es den Termin gibt.
+    if not can_view_schedule(cur, user, sch_id):
+        raise HTTPException(status_code=404, detail="Termin nicht gefunden.")
+
+
 @router.get("/schedules/list")
 def list_schedules(request: Request):
-    # Kein check_auth: wird auch vom nicht eingeloggten Hallenmonitor (alarmdisplay.html) gelesen.
+    # Kein check_auth: wird auch vom nicht eingeloggten Hallenmonitor (alarmdisplay.html) gelesen -
+    # dann aber nur Termine, die fuer alle gelten.
+    user = get_current_user(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM schedules ORDER BY date ASC, time ASC")
-    res = cur.fetchall(); cur.close(); conn.close()
+    vis_sql, vis_params = visibility_sql(cur, user, "s")
+    cur.execute(f"SELECT s.* FROM schedules s WHERE {vis_sql} ORDER BY s.date ASC, s.time ASC", vis_params)
+    res = cur.fetchall()
+    can_edit = bool(user and user.get("role") in EDITOR_ROLES)
+    members = {}
+    restricted = [r["id"] for r in res if r.get("audience") == "selected"]
+    if can_edit and restricted:
+        cur.execute("SELECT schedule_id, personnel_id FROM schedule_audience WHERE schedule_id IN (%s)" % ", ".join(["%s"] * len(restricted)), tuple(restricted))
+        for m in cur.fetchall():
+            members.setdefault(m["schedule_id"], []).append(m["personnel_id"])
+    cur.close(); conn.close()
     for row in res:
         if isinstance(row["date"], date):
             row["date"] = str(row["date"])
         if "time" in row:
             row["time"] = format_time_val(row["time"])
+        row["audience"] = row.get("audience") or "all"
+        row["audience_ids"] = members.get(row["id"], []) if row["audience"] == "selected" and can_edit else None
+        if not can_edit:
+            row.pop("created_by", None)
     return res
 
 _MAX_SERIES_OCCURRENCES = 80
@@ -988,29 +1027,51 @@ def create_schedule(s: ScheduleCreate, request: Request, background_tasks: Backg
     dates = _series_dates(start, s.repeat, until)
     series_id = str(uuid.uuid4()) if len(dates) > 1 else None
     conn = get_db_connection(); cur = conn.cursor()
+    audience_ids = _clean_audience(cur, s)
     for d in dates:
         cur.execute("""
-            INSERT INTO schedules (title, date, time, description, type, group_id, series_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (s.title.strip(), d.isoformat(), s.time, s.description, s.type, s.group_id, series_id))
+            INSERT INTO schedules (title, date, time, description, type, group_id, series_id, audience, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (s.title.strip(), d.isoformat(), s.time, s.description, s.type, s.group_id, series_id,
+               "selected" if audience_ids else "all", user["username"]))
+        new_id = cur.lastrowid
+        for pid in audience_ids or []:
+            cur.execute("INSERT INTO schedule_audience (schedule_id, personnel_id) VALUES (%s, %s)", (new_id, pid))
     conn.commit(); cur.close(); conn.close()
     if s.notify:
         from core.schedule_notify import notify_new_schedule
-        background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, dates, s.group_id)
+        background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, dates, s.group_id, audience_ids)
     return {"status": "success", "created": len(dates)}
 
 @router.put("/schedules/{sch_id}")
-def update_schedule(sch_id: int, s: ScheduleCreate, request: Request):
+def update_schedule(sch_id: int, s: ScheduleCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
+    _assert_can_view(cur, user, sch_id)
+    audience_ids = _clean_audience(cur, s)
+    cur.execute("SELECT personnel_id FROM schedule_audience WHERE schedule_id = %s", (sch_id,))
+    previously = {r[0] for r in cur.fetchall()}
     cur.execute("""
-        UPDATE schedules 
-        SET title=%s, date=%s, time=%s, description=%s, type=%s, group_id=%s
+        UPDATE schedules
+        SET title=%s, date=%s, time=%s, description=%s, type=%s, group_id=%s, audience=%s
         WHERE id=%s
-    """, (s.title.strip(), s.date, s.time, s.description, s.type, s.group_id, sch_id))
+    """, (s.title.strip(), s.date, s.time, s.description, s.type, s.group_id, "selected" if audience_ids else "all", sch_id))
+    cur.execute("DELETE FROM schedule_audience WHERE schedule_id = %s", (sch_id,))
+    for pid in audience_ids or []:
+        cur.execute("INSERT INTO schedule_audience (schedule_id, personnel_id) VALUES (%s, %s)", (sch_id, pid))
     conn.commit(); cur.close(); conn.close()
+    # Wer neu in den Teilnehmerkreis kommt, wird eingeladen (wer schon dabei war, nicht noch einmal)
+    added = [i for i in (audience_ids or []) if i not in previously]
+    if added and s.notify:
+        from core.schedule_notify import notify_new_schedule
+        try:
+            when = [date.fromisoformat(s.date)]
+        except ValueError:
+            when = []
+        if when:
+            background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, when, s.group_id, added)
     return {"status": "success"}
 
 @router.delete("/schedules/{sch_id}")
@@ -1019,6 +1080,7 @@ def delete_schedule(sch_id: int, request: Request, series: bool = False):
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    _assert_can_view(cur, user, sch_id)
     ids = [sch_id]
     if series:
         # diesen Termin und alle folgenden derselben Serie (vergangene bleiben als Historie)
@@ -1028,7 +1090,7 @@ def delete_schedule(sch_id: int, request: Request, series: bool = False):
             cur.execute("SELECT id FROM schedules WHERE series_id = %s AND date >= %s", (row["series_id"], row["date"]))
             ids = [r["id"] for r in cur.fetchall()] or [sch_id]
     marks = ", ".join(["%s"] * len(ids))
-    for table in ("schedule_attendance", "schedule_rsvp"):
+    for table in ("schedule_attendance", "schedule_rsvp", "schedule_audience"):
         cur.execute(f"DELETE FROM {table} WHERE schedule_id IN ({marks})", tuple(ids))
     cur.execute(f"DELETE FROM schedules WHERE id IN ({marks})", tuple(ids))
     conn.commit(); cur.close(); conn.close()
@@ -1037,21 +1099,22 @@ def delete_schedule(sch_id: int, request: Request, series: bool = False):
 @router.get("/schedules/aushang")
 def schedules_pdf(request: Request, year: Optional[int] = None, group_id: Optional[int] = None):
     """Terminuebersicht zum Aushang / Weiterleiten."""
-    check_auth(request)
+    user = check_auth(request)
     import io
     import os
     import xhtml2pdf.pisa as pisa
     year = year or date.today().year
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    sql, params = "SELECT * FROM schedules WHERE YEAR(date) = %s", [year]
+    vis_sql, vis_params = visibility_sql(cur, user, "s")
+    sql, params = f"SELECT s.* FROM schedules s WHERE YEAR(s.date) = %s AND {vis_sql}", [year] + vis_params
     group_name = ""
     if group_id:
-        sql += " AND (group_id = %s OR group_id IS NULL)"
+        sql += " AND (s.group_id = %s OR s.group_id IS NULL)"
         params.append(group_id)
         cur.execute("SELECT name FROM groups_table WHERE id = %s", (group_id,))
         g = cur.fetchone()
         group_name = g["name"] if g else ""
-    cur.execute(sql + " ORDER BY date ASC, time ASC", tuple(params))
+    cur.execute(sql + " ORDER BY s.date ASC, s.time ASC", tuple(params))
     rows = cur.fetchall(); cur.close(); conn.close()
 
     months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
@@ -1095,9 +1158,10 @@ def schedules_pdf(request: Request, year: Optional[int] = None, group_id: Option
 
 @router.get("/schedules/{sch_id}/attendance")
 def get_schedule_attendance(sch_id: int, request: Request):
-    check_auth(request)
+    user = check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
+    _assert_can_view(cur, user, sch_id)
     cur.execute("""
         SELECT sa.personnel_id, sa.status, p.name 
         FROM schedule_attendance sa
@@ -1113,6 +1177,7 @@ def save_schedule_attendance(sch_id: int, data: List[ScheduleAttendanceEntry], r
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
+    _assert_can_view(cur, user, sch_id)
     cur.execute("DELETE FROM schedule_attendance WHERE schedule_id = %s", (sch_id,))
     for entry in data:
         cur.execute("""
@@ -1141,6 +1206,7 @@ def _resolve_own_personnel_id(cur, username):
 def get_schedule_rsvp(sch_id: int, request: Request):
     user = check_auth(request)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    _assert_can_view(cur, user, sch_id)
     cur.execute("""
         SELECT r.status, p.name FROM schedule_rsvp r JOIN personnel p ON r.personnel_id = p.id
         WHERE r.schedule_id = %s ORDER BY p.name ASC
@@ -1163,6 +1229,7 @@ def set_schedule_rsvp(sch_id: int, data: dict, request: Request):
     if status not in ("Ja", "Nein", "Vielleicht"):
         raise HTTPException(status_code=400, detail="Ungültiger Status")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    _assert_can_view(cur, user, sch_id)
     personnel_id = _resolve_own_personnel_id(cur, user["username"])
     if not personnel_id:
         cur.close(); conn.close()

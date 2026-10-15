@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 9,
+        "version": "2.59",
+        "date": "2026-10-16",
+        "items": [
+            {"type": "new", "tag": "Termine", "title": "Termine nur für bestimmte Personen",
+             "text": "Beim Planen lässt sich festlegen, wer den Termin bekommt: alle aktiven Mitglieder oder nur ausgewählte Personen (mit Schnellauswahl für Atemschutz, Maschinisten, Gruppenführer, Truppführer). Nur diese bekommen Push und E-Mail und sehen den Termin in der App, im Kalender und im Kalender-Abo. Admin und Leitung sehen immer alles."},
+            {"type": "fix", "tag": "Termine", "title": "Hallenmonitor und Kalender-Abo",
+             "text": "Zeigen nur noch Termine, die für alle gelten."},
+        ],
+    },
+    {
         "id": 8,
         "version": "2.58",
         "date": "2026-10-15",

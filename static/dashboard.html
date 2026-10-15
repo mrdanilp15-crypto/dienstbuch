@@ -330,7 +330,7 @@
                                             <tr v-for="s in schedules" :key="s.id">
                                                 <td data-label="Datum" class="fw-bold text-white">{{ formatDateDay(s.date) }}.{{ formatDateMonth(s.date) }}</td>
                                                 <td data-label="Zeit">{{s.time}}</td>
-                                                <td data-label="Thema" class="fw-bold">{{s.title}}</td>
+                                                <td data-label="Thema" class="fw-bold">{{s.title}} <span v-if="s.audience === 'selected'" class="badge bg-secondary fw-normal ms-1" :title="s.audience_ids ? s.audience_ids.length + ' ausgewählte Personen' : 'Nur für ausgewählte Personen'"><i class="fa fa-lock me-1"></i>{{ s.audience_ids ? s.audience_ids.length : 'privat' }}</span></td>
                                                 <td data-label="Kategorie"><span class="badge" :class="s.type==='Übung'?'bg-primary':s.type==='Schulung'?'bg-success':'bg-secondary'">{{s.type}}</span></td>
                                                 <td>
                                                     <div v-if="scheduleRsvpMap[s.id]" class="btn-group btn-group-sm" role="group">
@@ -2743,6 +2743,31 @@
                                     <option value="Schulung">Schulung</option>
                                     <option value="Sonstiges">Sonstiges</option>
                                 </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Wer bekommt den Termin und sieht ihn?</label>
+                                <div class="btn-group w-100 mb-2" role="group">
+                                    <button type="button" class="btn btn-sm" :class="newSchedule.audience === 'all' ? 'btn-light text-dark' : 'btn-outline-light'" @click="newSchedule.audience = 'all'">Alle aktiven Mitglieder</button>
+                                    <button type="button" class="btn btn-sm" :class="newSchedule.audience === 'selected' ? 'btn-light text-dark' : 'btn-outline-light'" @click="newSchedule.audience = 'selected'"><i class="fa fa-lock me-1"></i>Nur bestimmte Personen</button>
+                                </div>
+                                <div v-if="newSchedule.audience === 'selected'" class="border border-secondary border-opacity-25 rounded-3 p-2">
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('is_agt')">+ Atemschutz</button>
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('is_maschinist')">+ Maschinisten</button>
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('is_gf')">+ Gruppenführer</button>
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('is_tf')">+ Truppführer</button>
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('all')">Alle</button>
+                                        <button type="button" class="btn btn-outline-light btn-sm rounded-pill py-0" @click="addScheduleGroup('none')">Keine</button>
+                                    </div>
+                                    <input type="text" class="form-control form-control-sm mb-2" v-model="scheduleMemberSearch" placeholder="Name suchen …">
+                                    <div style="max-height: 180px; overflow-y: auto;">
+                                        <div class="form-check" v-for="p in scheduleCandidates" :key="p.id">
+                                            <input class="form-check-input" type="checkbox" :id="'aud' + p.id" :value="p.id" v-model="newSchedule.audience_ids">
+                                            <label class="form-check-label" :for="'aud' + p.id">{{ p.name }}</label>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">{{ newSchedule.audience_ids.length }} ausgewählt. Nur sie bekommen den Termin per Push und E-Mail und sehen ihn in der App. Admin und Leitung sehen immer alle Termine. Wer noch keinen verknüpften Login hat, sieht den Termin in der App nicht.</small>
+                                </div>
                             </div>
                             <div v-if="!newSchedule.id" class="row g-2 mb-3">
                                 <div :class="newSchedule.repeat ? 'col-6' : 'col-12'">

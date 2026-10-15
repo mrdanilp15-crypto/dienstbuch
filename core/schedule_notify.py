@@ -10,8 +10,19 @@ def _fmt_day(d: datetime.date) -> str:
     return f"{_WEEKDAYS[d.weekday()]}, {d.strftime('%d.%m.%Y')}"
 
 
-def _recipients(cur, group_id):
-    """Aktive Mitglieder, die zum Termin passen (Jugend-Termine -> Jugendmitglieder), mit Login-Name und E-Mail."""
+def _recipients(cur, group_id, audience_ids=None):
+    """Empfaenger eines Termins mit Login-Name und E-Mail.
+    audience_ids gesetzt -> genau diese Personen (nicht ausgeschiedene); sonst alle aktiven Mitglieder,
+    die zum Termin passen (Jugend-Termine -> Jugendmitglieder)."""
+    if audience_ids is not None:
+        if not audience_ids:
+            return []
+        cur.execute(
+            "SELECT p.id, p.name, p.email, u.username FROM personnel p LEFT JOIN users u ON u.personnel_id = p.id "
+            "WHERE p.id IN (%s) AND (p.membership_status IS NULL OR p.membership_status <> 'Ausgeschieden')" % ", ".join(["%s"] * len(audience_ids)),
+            tuple(audience_ids),
+        )
+        return cur.fetchall()
     youth = False
     if group_id:
         cur.execute("SELECT name FROM groups_table WHERE id = %s", (group_id,))
@@ -47,11 +58,11 @@ def _send(recipients, title: str, body: str):
         print(f"Termin-Mail fehlgeschlagen: {e}")
 
 
-def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_id):
+def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_id, audience_ids=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor(dictionary=True)
-        rec = _recipients(cur, group_id)
+        rec = _recipients(cur, group_id, audience_ids)
         cur.close()
         conn.close()
         if len(dates) == 1:
@@ -96,7 +107,11 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
         if delta > datetime.timedelta(hours=24):
             continue
         if delta > datetime.timedelta(0):
-            rec = _recipients(cur, s["group_id"])
+            aud = None
+            if s.get("audience") == "selected":
+                cur.execute("SELECT personnel_id FROM schedule_audience WHERE schedule_id = %s", (s["id"],))
+                aud = [r["personnel_id"] for r in cur.fetchall()]
+            rec = _recipients(cur, s["group_id"], aud)
             cur.execute("SELECT personnel_id, status FROM schedule_rsvp WHERE schedule_id = %s", (s["id"],))
             answers = {r["personnel_id"]: r["status"] for r in cur.fetchall()}
             when = f"{_fmt_day(s['date'])}, {_parse_time(s['time']).strftime('%H:%M')} Uhr"

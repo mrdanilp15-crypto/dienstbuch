@@ -541,10 +541,11 @@ def get_calendar_events(request: Request, year: int, month: int):
     # Geplante Termine (Dienst- & Übungsplaner) - bisher fehlte diese Abfrage komplett, ein
     # dort eingetragener Termin (z.B. über den Kalender-Tagesklick angelegt) tauchte im
     # gemeinsamen Kalender nie auf.
-    cur.execute("""
-        SELECT id, date, time, title, type FROM schedules
-        WHERE YEAR(date) = %s AND MONTH(date) = %s
-    """, (year, month))
+    from core.schedule_access import visibility_sql
+    vis_sql, vis_params = visibility_sql(cur, user, "s")
+    cur.execute(
+        "SELECT s.id, s.date, s.time, s.title, s.type FROM schedules s "
+        f"WHERE YEAR(s.date) = %s AND MONTH(s.date) = %s AND {vis_sql}", [year, month] + vis_params)
     for row in cur.fetchall():
         events.append({
             "date": str(row["date"]), "type": "termin", "schedule_id": row["id"],

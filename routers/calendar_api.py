@@ -17,7 +17,8 @@ def export_calendar_ical(request: Request, token: str = ""):
     if not token or not hmac.compare_digest(token, get_or_create_token("calendar_token")):
         raise HTTPException(status_code=401, detail="Ungültiger oder fehlender Kalender-Token.")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM schedules")
+    # Der Abo-Link ist fuer alle gleich (kein Login) - deshalb nur Termine, die fuer alle gelten.
+    cur.execute("SELECT * FROM schedules WHERE audience = 'all' OR audience IS NULL")
     schedules = cur.fetchall(); cur.close(); conn.close()
     
     import datetime
