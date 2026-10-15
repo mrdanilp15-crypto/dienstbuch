@@ -72,6 +72,33 @@ def get_due_items(window_days: int = None):
         if due_date <= window_end:
             add_item("g26", p["name"], "G26.3-Untersuchung", due_date)
 
+    # Führerscheinkontrolle: wer Einsatzfahrzeuge fährt, muss laut Halterpflicht regelmäßig (üblich: jährlich)
+    # den Führerschein vorzeigen. Wer noch nie kontrolliert wurde, gilt ab heute als fällig.
+    cur.execute(
+        "SELECT name, license_checked_date FROM personnel "
+        "WHERE (membership_status IS NULL OR membership_status = 'Aktiv') "
+        "AND (is_maschinist = 1 OR lic_be = 1 OR lic_c = 1 OR lic_ce = 1)"
+    )
+    for p in cur.fetchall():
+        checked = p["license_checked_date"]
+        due_date = (checked + datetime.timedelta(days=365)) if checked else today
+        if due_date <= window_end:
+            add_item("license", p["name"], "Führerscheinkontrolle" + ("" if checked else " (noch nie erfasst)"), due_date)
+
+    # Gerätehaus-Prüfungen (Feuerlöscher, E-Check, Blitzschutz, ...)
+    cur.execute("SELECT name, next_check FROM building_checks WHERE next_check IS NOT NULL AND next_check <= %s", (window_end,))
+    for b in cur.fetchall():
+        add_item("building", b["name"], "Gerätehaus-Prüfung", b["next_check"])
+
+    # Nachwuchs: Interessenten/Probemitglieder nachfassen bzw. Probezeit-Ende
+    cur.execute("SELECT name, status, first_contact, last_contact, trial_end FROM prospects WHERE status IN ('Interessent', 'Probe')")
+    for pr in cur.fetchall():
+        last = pr["last_contact"] or pr["first_contact"]
+        if last and last + datetime.timedelta(days=21) <= window_end:
+            add_item("prospect", pr["name"], "Interessent: seit 3 Wochen kein Kontakt - nachfassen", last + datetime.timedelta(days=21))
+        if pr["trial_end"] and pr["trial_end"] <= window_end:
+            add_item("prospect", pr["name"], "Probezeit endet - Entscheidung treffen", pr["trial_end"])
+
     # Lehrgänge mit Ablaufdatum (z.B. Gruppenführer-Fortbildung, Atemschutz-Lehrgang, ...)
     cur.execute("""
         SELECT l.course_name, l.valid_until, p.name FROM lehrgaenge l
@@ -134,7 +161,7 @@ def check_due_reminders():
         items = get_due_items()
 
         if items:
-            icons = {"equipment": "🔧", "vehicle": "🚒", "g26": "🫁", "lehrgang": "🎓", "vehicle_check": "📋", "hvo_material": "🩹", "low_stock": "📦"}
+            icons = {"equipment": "🔧", "vehicle": "🚒", "g26": "🫁", "lehrgang": "🎓", "vehicle_check": "📋", "hvo_material": "🩹", "low_stock": "📦", "license": "🪪", "building": "🏠", "prospect": "🤝"}
             lines = []
             for it in items:
                 due = datetime.date.fromisoformat(it["due_date"])

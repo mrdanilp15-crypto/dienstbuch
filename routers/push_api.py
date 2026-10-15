@@ -90,12 +90,22 @@ async def subscribe(request: Request):
     
     return {"status": "success", "message": "Erfolgreich für Push-Benachrichtigungen registriert."}
 
-def send_push_to_all(payload_dict: dict):
+def send_push_to_all(payload_dict: dict, usernames=None):
+    """Sendet an alle Abos - oder, mit usernames, nur an die Geraete dieser Nutzer."""
     from pywebpush import webpush, WebPushException
-    
+
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM push_subscriptions")
+    if usernames is None:
+        cur.execute("SELECT * FROM push_subscriptions")
+    elif not usernames:
+        cur.close(); conn.close()
+        return 0
+    else:
+        cur.execute(
+            "SELECT * FROM push_subscriptions WHERE username IN (%s)" % ", ".join(["%s"] * len(usernames)),
+            tuple(usernames),
+        )
     subs = cur.fetchall()
     cur.close()
     conn.close()

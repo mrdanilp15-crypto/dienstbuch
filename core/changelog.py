@@ -6,6 +6,31 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 8,
+        "version": "2.58",
+        "date": "2026-10-15",
+        "items": [
+            {"type": "new", "tag": "Termine", "title": "Benachrichtigungen und Erinnerungen",
+             "text": "Neue Termine werden den Kameraden per Push (und E-Mail, wenn eingerichtet) gemeldet. 24 Stunden vorher gibt es eine Erinnerung, wer noch nicht geantwortet hat, wird um Rückmeldung gebeten."},
+            {"type": "new", "tag": "Termine", "title": "Serientermine",
+             "text": "Beim Planen lässt sich ein Termin wöchentlich, alle 2 Wochen oder monatlich wiederholen. Beim Löschen kann die ganze Serie ab diesem Termin entfernt werden."},
+            {"type": "new", "tag": "Termine", "title": "Aushang als PDF",
+             "text": "Die Terminübersicht des Jahres gibt es als PDF zum Aushängen oder Weiterleiten."},
+            {"type": "new", "tag": "Profil", "title": "Kontaktdaten selbst ändern",
+             "text": "Jeder kann unter „Mein Profil“ Telefon, E-Mail, Adresse und Notfallkontakt selbst aktuell halten."},
+            {"type": "new", "tag": "Personal", "title": "Führerscheinkontrolle",
+             "text": "Das Datum der letzten Kontrolle wird erfasst, nach 12 Monaten erinnert das Dienstbuch."},
+            {"type": "new", "tag": "Verwaltung", "title": "Gerätehaus-Prüfungen",
+             "text": "Feuerlöscher, E-Check, Blitzschutz und weitere Prüfungen am Gebäude mit Fristen und Erinnerung."},
+            {"type": "new", "tag": "Personal", "title": "Nachwuchs und Interessenten",
+             "text": "Interessenten und Probemitglieder erfassen, Betreuer und Probezeit festhalten, und ans Nachfassen erinnern lassen."},
+            {"type": "new", "tag": "Statistiken", "title": "Beteiligung mit Ampel",
+             "text": "Zeigt je Kamerad die Teilnahme an Übungen im Jahr, mit einstellbarem Mindestwert."},
+            {"type": "new", "tag": "Verwaltung", "title": "Systemzustand",
+             "text": "Admins sehen auf einen Blick, ob die Datensicherung aktuell ist, wie viel Speicher frei ist und ob Admin-Konten abgesichert sind."},
+        ],
+    },
+    {
         "id": 7,
         "version": "2.57",
         "date": "2026-10-01",

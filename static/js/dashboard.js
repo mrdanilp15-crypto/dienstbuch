@@ -193,6 +193,12 @@ applyChartTheme();
                     changelogUnseen: false,
                     twoFaEnabled: null,
                     groupListOpen: false,
+                    buildingChecks: [], buildingSuggestions: [], buildingForm: { id: null, name: '', interval_months: 12, last_check: '', responsible: '' },
+                    health: null,
+                    prospects: [], prospectStatuses: ['Interessent', 'Probe', 'Aufgenommen', 'Abgesagt'],
+                    prospectForm: { id: null, name: '', phone: '', email: '', source: '', mentor: '', status: 'Interessent', first_contact: null, last_contact: null, trial_end: '', note: '' },
+                    participation: { threshold: 50, members: [] }, participationInput: 50,
+                    myContact: null, contactSaving: false,
                     displayName: '',
                     clothingStock: [], clothingIssued: [], clothingTab: 'stock', newStock: { item_name: '', size: '', quantity: 1, min_quantity: 0 },
                     mailSettings: {}, mailTestTo: '', mailSaving: false,
@@ -217,7 +223,7 @@ applyChartTheme();
                     
                     // Schedules / Dienstplanung
                     schedules: [],
-                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null },
+                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null, repeat: '', repeat_until: '', notify: true },
                     schedulePersonnelList: [],
                     activeScheduleForAttendance: null,
                     
@@ -1154,28 +1160,42 @@ applyChartTheme();
                     new bootstrap.Modal(document.getElementById('rsvpListModal')).show();
                 },
                 openScheduleModal() {
-                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id };
+                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id, repeat: '', repeat_until: '', notify: true };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async submitSchedule() {
                     const isEdit = !!this.newSchedule.id;
                     const url = isEdit ? `/api/missions/schedules/${this.newSchedule.id}` : '/api/missions/schedules';
                     const method = isEdit ? 'PUT' : 'POST';
-                    const { title, date, time, description, type, group_id } = this.newSchedule;
-                    const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ title, date, time, description, type, group_id }) });
+                    const { title, date, time, description, type, group_id, repeat, repeat_until, notify } = this.newSchedule;
+                    const payload = isEdit ? { title, date, time, description, type, group_id }
+                                           : { title, date, time, description, type, group_id, repeat: repeat || null, repeat_until: repeat ? repeat_until : null, notify };
+                    const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
                     if(res.ok) {
+                        const result = await res.json().catch(() => ({}));
                         bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+                        if (result.created > 1) await appAlert(`${result.created} Termine wurden angelegt.`);
                         await this.loadSchedules();
                         if (this.activeTab === 'kalender') await this.loadCalendar();
                     } else {
-                        await appAlert("Speichern fehlgeschlagen.");
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(typeof err.detail === 'string' ? err.detail : "Speichern fehlgeschlagen.");
                     }
                 },
-                async deleteSchedule(id) {
-                    if(await appConfirm("Termin wirklich löschen?")) {
-                        await fetch(`/api/missions/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
-                        await this.loadSchedules();
+                async askDeleteSchedule(id) {
+                    if (!await appConfirm("Termin wirklich löschen?")) return null;
+                    const sch = (this.schedules || []).find(x => x.id === id) || this.newSchedule;
+                    let series = false;
+                    if (sch && sch.series_id) {
+                        series = await appConfirm("Dieser Termin gehört zu einer Serie.\n\nAuch alle folgenden Termine der Serie löschen?\n(Abbrechen = nur diesen Termin)", 'Serie');
                     }
+                    return { series };
+                },
+                async deleteSchedule(id) {
+                    const choice = await this.askDeleteSchedule(id);
+                    if (!choice) return;
+                    await fetch(`/api/missions/schedules/${id}?series=${choice.series}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadSchedules();
                 },
                 async openScheduleAttendance(s) {
                     this.activeScheduleForAttendance = s;
@@ -2686,11 +2706,116 @@ applyChartTheme();
                         if (sRes.ok) { this.personalSessions = await sRes.json(); }
                     } catch(e) {}
                 },
+                async loadBuilding() {
+                    const res = await fetch('/api/building/checks', { credentials: 'include' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    this.buildingChecks = data.checks;
+                    this.buildingSuggestions = data.suggestions.filter(s => !data.checks.some(c => c.name === s.name));
+                },
+                resetBuildingForm() { this.buildingForm = { id: null, name: '', interval_months: 12, last_check: '', responsible: '' }; },
+                applyBuildingSuggestion(s) { this.buildingForm = { id: null, name: s.name, interval_months: s.interval_months, last_check: '', responsible: '' }; },
+                editBuildingCheck(c) { this.buildingForm = { id: c.id, name: c.name, interval_months: c.interval_months, last_check: c.last_check || '', responsible: c.responsible || '' }; },
+                async saveBuildingCheck() {
+                    const f = this.buildingForm;
+                    const res = await fetch(f.id ? `/api/building/checks/${f.id}` : '/api/building/checks', {
+                        method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: f.name, interval_months: f.interval_months, last_check: f.last_check || null, responsible: f.responsible })
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte Bezeichnung und Intervall prüfen.'); return; }
+                    this.resetBuildingForm();
+                    await this.loadBuilding();
+                },
+                async markBuildingDone(c) {
+                    const res = await fetch(`/api/building/checks/${c.id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                    if (res.ok) await this.loadBuilding();
+                },
+                async deleteBuildingCheck(c) {
+                    if (!await appConfirm(`Prüfung „${c.name}" löschen?`)) return;
+                    const res = await fetch(`/api/building/checks/${c.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadBuilding();
+                },
+                buildingStatus(c) {
+                    if (!c.next_check) return { cls: 'bg-secondary', label: 'offen' };
+                    const days = Math.ceil((new Date(c.next_check) - new Date()) / 86400000);
+                    if (days < 0) return { cls: 'bg-danger', label: `seit ${-days} Tagen überfällig` };
+                    if (days <= 30) return { cls: 'bg-warning text-dark', label: `in ${days} Tagen` };
+                    return { cls: 'bg-success', label: 'in Ordnung' };
+                },
+                async loadHealth() {
+                    this.health = null;
+                    const res = await fetch('/api/admin/health', { credentials: 'include' });
+                    if (res.ok) this.health = await res.json();
+                },
+                async openProspectsModal() {
+                    this.resetProspectForm();
+                    await this.loadProspects();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('prospectsModal')).show();
+                },
+                async loadProspects() {
+                    const res = await fetch('/api/prospects', { credentials: 'include' });
+                    if (res.ok) this.prospects = await res.json();
+                },
+                resetProspectForm() { this.prospectForm = { id: null, name: '', phone: '', email: '', source: '', mentor: '', status: 'Interessent', first_contact: null, last_contact: null, trial_end: '', note: '' }; },
+                editProspect(p) { this.prospectForm = { ...p, trial_end: p.trial_end || '' }; },
+                async saveProspect() {
+                    const f = this.prospectForm;
+                    const body = { name: f.name, phone: f.phone, email: f.email, source: f.source, mentor: f.mentor, status: f.status,
+                                   first_contact: f.first_contact || null, last_contact: f.last_contact || null, trial_end: f.trial_end || null, note: f.note };
+                    const res = await fetch(f.id ? `/api/prospects/${f.id}` : '/api/prospects', {
+                        method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte Eingaben prüfen.'); return; }
+                    this.resetProspectForm();
+                    await this.loadProspects();
+                },
+                async prospectContact(p) {
+                    const res = await fetch(`/api/prospects/${p.id}/contact`, { method: 'POST', credentials: 'include' });
+                    if (res.ok) await this.loadProspects();
+                },
+                async deleteProspect(p) {
+                    if (!await appConfirm(`„${p.name}" endgültig löschen? Das lässt sich nicht rückgängig machen.`)) return;
+                    const res = await fetch(`/api/prospects/${p.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadProspects();
+                },
+                async loadParticipation() {
+                    try {
+                        const res = await fetch(`/api/admin/stats/participation?year=${this.statsYear}`, { credentials: 'include' });
+                        if (res.ok) { this.participation = await res.json(); this.participationInput = this.participation.threshold; }
+                    } catch (e) { console.error(e); }
+                },
+                async saveParticipationThreshold() {
+                    const res = await fetch('/api/admin/stats/participation-threshold', {
+                        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: this.participationInput })
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte eine Zahl von 0 bis 100 eingeben.'); return; }
+                    await this.loadParticipation();
+                },
+                async loadMyContact() {
+                    this.myContact = null;
+                    try {
+                        const res = await fetch('/api/personnel/me/contact', { credentials: 'include' });
+                        if (res.ok) this.myContact = await res.json();
+                    } catch (e) { console.error(e); }
+                },
+                async saveMyContact() {
+                    this.contactSaving = true;
+                    try {
+                        const res = await fetch('/api/personnel/me/contact', {
+                            method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.myContact)
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        await appAlert(res.ok ? 'Kontaktdaten gespeichert.' : (typeof data.detail === 'string' ? data.detail : 'Speichern fehlgeschlagen.'));
+                    } finally { this.contactSaving = false; }
+                },
                 openSelfPasswordModal() {
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
                     this.twoFaSetup = null; this.twoFaConfirmCode = ''; this.twoFaRecoveryCodes = null;
                     this.fetchPersonalStats();
                     this.loadTwoFaStatus();
+                    this.loadMyContact();
                     const el = document.getElementById('selfPasswordModal');
                     if (el) {
                         let m = bootstrap.Modal.getInstance(el);
@@ -3008,8 +3133,9 @@ applyChartTheme();
                 async deleteScheduleFromModal() {
                     if (!this.newSchedule.id) return;
                     const id = this.newSchedule.id;
-                    if (!await appConfirm("Termin wirklich löschen?")) return;
-                    await fetch(`/api/missions/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
+                    const choice = await this.askDeleteSchedule(id);
+                    if (!choice) return;
+                    await fetch(`/api/missions/schedules/${id}?series=${choice.series}`, { method: 'DELETE', credentials: 'include' });
                     bootstrap.Modal.getInstance(document.getElementById('scheduleModal'))?.hide();
                     await this.loadSchedules();
                     if (this.activeTab === 'kalender') await this.loadCalendar();
@@ -3651,6 +3777,7 @@ applyChartTheme();
                         } catch(err) {
                             console.error('Error loading attendance stats:', err);
                         }
+                        await this.loadParticipation();
                     }
                 }
             }

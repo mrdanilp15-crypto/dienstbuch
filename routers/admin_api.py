@@ -37,7 +37,7 @@ BACKUP_TABLES = [
     "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
     "schedule_attendance", "missions", "mission_attendance", "respiration_log",
     "billing_verursacher", "personal_inventar", "clothing_stock", "lehrgaenge", "hydrants", "bma",
-    "drone_images", "push_subscriptions", "mail_settings", "club_inventory", "club_donations"
+    "drone_images", "push_subscriptions", "mail_settings", "building_checks", "prospects", "club_inventory", "club_donations"
 ]
 
 
@@ -449,7 +449,7 @@ def delete_archive_file(file_id: int, request: Request):
 _MISSION_TYPE_LABELS = {
     "B": "Brand", "THL": "Technische Hilfe", "H": "Technische Hilfe", "ABC": "Gefahrgut",
     "CBRN": "Gefahrgut", "GSG": "Gefahrgut", "RD": "Rettungsdienst", "RTW": "Rettungsdienst",
-    "FR": "First Responder", "BMA": "Brandmeldeanlage", "UG": "Unwetter",
+    "FR": "First Responder", "BMA": "Brandmeldeanlage", "UG": "Unwetter", "UNWETTER": "Unwetter",
 }
 
 
@@ -572,6 +572,115 @@ def get_attendance_stats(year: int, request: Request):
     from routers.mission_mgr import calculate_compensations
     comps = calculate_compensations(year, 0.0, request)
     return sorted([c for c in comps if c["total_hours"] > 0], key=lambda x: x["total_hours"], reverse=True)
+
+@router.get("/api/admin/health")
+def system_health(request: Request):
+    """Gesundheits-Karte fürs Verwaltungs-Team: Sicherung, Speicherplatz, Datenbank, Sicherheit."""
+    user = get_current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    checks = []
+
+    def add(key, label, status, detail):
+        checks.append({"key": key, "label": label, "status": status, "detail": detail})
+
+    interval_h = max(1.0, float(os.getenv("BACKUP_INTERVAL_HOURS", "24") or 24))
+    try:
+        bdir = _backup_dir()
+        stamps = [os.stat(os.path.join(bdir, f)).st_mtime for f in os.listdir(bdir)
+                  if f.startswith(("db_backup_", "dienstbuch_backup_")) and os.path.isfile(os.path.join(bdir, f))]
+        if not stamps:
+            add("backup", "Datensicherung", "error", "Es gibt noch keine Sicherung. Die erste läuft kurz nach dem Start - falls nicht, bitte Protokoll prüfen.")
+        else:
+            age_h = (datetime.datetime.now().timestamp() - max(stamps)) / 3600
+            when = datetime.datetime.fromtimestamp(max(stamps)).strftime("%d.%m.%Y %H:%M")
+            if age_h > interval_h * 3:
+                add("backup", "Datensicherung", "error", f"Letzte Sicherung vom {when} - seit {age_h / 24:.1f} Tagen keine neue! Bitte prüfen.")
+            elif age_h > interval_h * 1.5:
+                add("backup", "Datensicherung", "warn", f"Letzte Sicherung vom {when} - etwas älter als erwartet.")
+            else:
+                add("backup", "Datensicherung", "ok", f"Letzte Sicherung vom {when} ({len(stamps)} vorhanden).")
+        usage = shutil.disk_usage(bdir)
+        free_pct = usage.free / usage.total * 100
+        detail = f"{usage.free / 1024 ** 3:.1f} GB frei von {usage.total / 1024 ** 3:.1f} GB ({free_pct:.0f} %)"
+        add("disk", "Speicherplatz", "error" if free_pct < 5 else "warn" if free_pct < 15 else "ok", detail)
+    except Exception as e:
+        add("backup", "Datensicherung", "error", f"Sicherungsordner nicht erreichbar: {e}")
+
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) AS mb FROM information_schema.tables WHERE table_schema = DATABASE()")
+    add("db", "Datenbank", "ok", f"{cur.fetchone()['mb'] or 0} MB")
+    cur.execute("SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND (totp_enabled IS NULL OR totp_enabled = 0)")
+    no2fa = cur.fetchone()["c"]
+    add("2fa", "Admin-Konten", "warn" if no2fa else "ok",
+        f"{no2fa} Admin-Konto/Konten ohne Zwei-Faktor-Anmeldung - bitte unter „Mein Profil“ aktivieren." if no2fa else "Alle Admin-Konten nutzen Zwei-Faktor-Anmeldung.")
+    cur.execute("SELECT enabled, smtp_host, sender_address FROM mail_settings WHERE id = 1")
+    mail = cur.fetchone()
+    mail_ok = bool(mail and mail["enabled"] and mail["smtp_host"] and mail["sender_address"])
+    add("mail", "E-Mail-Versand", "ok" if mail_ok else "info", "Eingerichtet." if mail_ok else "Nicht eingerichtet - „Passwort vergessen“ und Erinnerungs-Mails sind aus.")
+    cur.execute("SELECT COUNT(*) AS c FROM push_subscriptions")
+    add("push", "Push-Benachrichtigungen", "info", f"{cur.fetchone()['c']} Gerät(e) angemeldet.")
+    cur.close(); conn.close()
+
+    rank = {"ok": 0, "info": 0, "warn": 1, "error": 2}
+    worst = max((c["status"] for c in checks), key=lambda s: rank[s], default="ok")
+    return {"overall": "ok" if worst == "info" else worst, "checks": checks}
+
+
+@router.get("/api/admin/stats/participation")
+def participation_stats(year: int, request: Request):
+    """Beteiligung an Übungen je aktivem Kameraden, mit Ampel gegen einen einstellbaren Mindestwert."""
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'min_participation_pct'")
+    row = cur.fetchone()
+    threshold = row["setting_value"] if row and row["setting_value"] is not None else 50
+    cur.execute("SELECT id, name FROM personnel WHERE membership_status = 'Aktiv' OR membership_status IS NULL ORDER BY name")
+    members = cur.fetchall()
+    cur.execute("""
+        SELECT p.id, COUNT(*) AS total, SUM(a.is_present = 1) AS present
+        FROM attendance a
+        JOIN sessions s ON s.id = a.session_id
+        JOIN persons pe ON pe.id = a.person_id
+        JOIN personnel p ON TRIM(p.name) = TRIM(pe.name)
+        WHERE YEAR(s.date) = %s AND s.date <= CURDATE() AND s.category = 'Übung'
+        GROUP BY p.id
+    """, (year,))
+    counts = {r["id"]: (int(r["total"]), int(r["present"] or 0)) for r in cur.fetchall()}
+    cur.close(); conn.close()
+    out = []
+    for m in members:
+        total, present = counts.get(m["id"], (0, 0))
+        pct = round(present / total * 100) if total else None
+        if total < 3:
+            status = "nodata"  # zu wenige Übungen für eine sinnvolle Aussage (z.B. neu eingetreten)
+        else:
+            status = "ok" if pct >= threshold else "low"
+        out.append({"name": m["name"], "present": present, "total": total, "pct": pct, "status": status})
+    out.sort(key=lambda x: (x["status"] != "low", x["pct"] if x["pct"] is not None else 101))
+    return {"year": year, "threshold": threshold, "members": out}
+
+
+@router.put("/api/admin/stats/participation-threshold")
+async def set_participation_threshold(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    data = await request.json()
+    try:
+        value = int(data.get("value"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Bitte eine Zahl von 0 bis 100 angeben.")
+    if not 0 <= value <= 100:
+        raise HTTPException(status_code=400, detail="Bitte eine Zahl von 0 bis 100 angeben.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES ('min_participation_pct', %s) ON DUPLICATE KEY UPDATE setting_value = %s", (value, value))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "MINDESTBETEILIGUNG", f"Mindestbeteiligung auf {value} % gesetzt.")
+    return {"status": "success"}
+
 
 @router.get("/api/admin/stats/due-soon")
 def get_due_soon(request: Request):

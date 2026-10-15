@@ -27,10 +27,12 @@ from routers import missions_api
 from routers import calendar_api
 from routers import push_api
 from routers import mail_api
+from routers import building_api
+from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.57"
+CURRENT_VERSION = "2.58"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -179,6 +181,8 @@ app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
 app.include_router(push_api.router)
 app.include_router(mail_api.router)
+app.include_router(building_api.router)
+app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
@@ -256,7 +260,7 @@ def init_db_extensions():
                 setting_value INT
             ) ENGINE=InnoDB;
         """)
-        default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12), ('reminder_window_days', 14), ('session_max_days', 30)]
+        default_settings = [('int_g26', 36), ('int_belastung', 12), ('int_unterweisung', 12), ('reminder_window_days', 14), ('session_max_days', 30), ('min_participation_pct', 50)]
         for key, val in default_settings:
             cur.execute("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (%s, %s)", (key, val))
 
@@ -629,6 +633,11 @@ def init_db_extensions():
                 group_id INT NULL
             ) ENGINE=InnoDB;
         """)
+        for col_name, col_type in [("series_id", "VARCHAR(36) NULL"), ("reminder_sent", "BOOLEAN DEFAULT FALSE")]:
+            try:
+                cur.execute(f"ALTER TABLE schedules ADD COLUMN {col_name} {col_type}")
+            except mysql.connector.Error as err:
+                if err.errno != 1060: raise
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS schedule_attendance (
@@ -762,6 +771,35 @@ def init_db_extensions():
                 used BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS building_checks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                interval_months INT NOT NULL DEFAULT 12,
+                last_check DATE NULL,
+                next_check DATE NULL,
+                responsible VARCHAR(255) DEFAULT '',
+                note TEXT NULL
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS prospects (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(255) DEFAULT '',
+                email VARCHAR(255) DEFAULT '',
+                source VARCHAR(255) DEFAULT '',
+                mentor VARCHAR(255) DEFAULT '',
+                status VARCHAR(30) NOT NULL DEFAULT 'Interessent',
+                first_contact DATE NULL,
+                last_contact DATE NULL,
+                trial_end DATE NULL,
+                note TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
         """)
 
@@ -1135,6 +1173,18 @@ async def start_reminder_scheduler():
                 print(f"Reminder-Scheduler Fehler: {e}")
             await asyncio.sleep(24 * 3600)
     asyncio.create_task(_reminder_loop())
+
+    async def _schedule_reminder_loop():
+        # Stuendlich: erinnert 24 h vor jedem Termin (siehe core/schedule_notify.py)
+        from core.schedule_notify import check_schedule_reminders
+        await asyncio.sleep(120)
+        while True:
+            try:
+                await asyncio.to_thread(check_schedule_reminders)
+            except Exception as e:
+                print(f"Termin-Erinnerung Fehler: {e}")
+            await asyncio.sleep(3600)
+    asyncio.create_task(_schedule_reminder_loop())
 
 
 # --- AUTOMATISCHE SICHERUNG ---

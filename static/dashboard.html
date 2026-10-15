@@ -318,7 +318,10 @@
                             <div class="card premium-card p-4 mb-4">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h5 class="fw-bold text-white mb-0"><i class="fa fa-calendar-days text-danger me-2"></i>Dienst- & Übungsplaner</h5>
-                                    <button v-if="canManageDienste" class="btn btn-outline-light btn-sm rounded-pill" @click="openScheduleModal"><i class="fa fa-plus me-1"></i>Termin planen</button>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a :href="'/api/missions/schedules/aushang?year=' + selectedYear + '&group_id=' + selectedGroup.id" target="_blank" class="btn btn-outline-light btn-sm rounded-pill" title="Terminübersicht als PDF zum Aushängen oder Weiterleiten"><i class="fa fa-file-pdf me-1"></i>Aushang (PDF)</a>
+                                        <button v-if="canManageDienste" class="btn btn-outline-light btn-sm rounded-pill" @click="openScheduleModal"><i class="fa fa-plus me-1"></i>Termin planen</button>
+                                    </div>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-dark table-hover mb-0 align-middle schedule-table">
@@ -746,7 +749,7 @@
                             <h5 class="fw-bold text-white mb-3"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Bald fällig / überfällig (nächste 14 Tage)</h5>
                             <div class="d-flex flex-wrap gap-2">
                                 <span v-for="it in dueSoonItems" :key="it.type + it.name + it.due_date" class="badge rounded-pill px-3 py-2" :class="it.overdue ? 'bg-danger' : 'bg-warning text-dark'">
-                                    <i class="fa" :class="{'fa-truck': it.type === 'vehicle', 'fa-user-doctor': it.type === 'g26', 'fa-screwdriver-wrench': it.type === 'equipment', 'fa-graduation-cap': it.type === 'lehrgang', 'fa-clipboard-check': it.type === 'vehicle_check'}"></i>
+                                    <i class="fa" :class="{'fa-truck': it.type === 'vehicle', 'fa-user-doctor': it.type === 'g26', 'fa-screwdriver-wrench': it.type === 'equipment', 'fa-graduation-cap': it.type === 'lehrgang', 'fa-clipboard-check': it.type === 'vehicle_check', 'fa-id-card': it.type === 'license', 'fa-building': it.type === 'building', 'fa-handshake': it.type === 'prospect'}"></i>
                                     {{ it.name }} ({{ it.detail }}) - {{ it.overdue ? 'überfällig' : new Date(it.due_date).toLocaleDateString('de-DE') }}
                                 </span>
                             </div>
@@ -1049,6 +1052,7 @@
                             <a v-if="isAdmin || role === 'leitung'" href="/api/personnel/roster/pdf" target="_blank" class="btn btn-outline-light rounded-pill"><i class="fa fa-file-pdf me-1"></i>Mitgliederliste (PDF)</a>
                             <button v-if="isAdmin || role === 'leitung'" class="btn btn-outline-info rounded-pill" @click="openQualMatrixModal"><i class="fa fa-table-cells me-1"></i>Qualifikationsmatrix</button>
                             <button v-if="canManageMaterial" class="btn btn-outline-light rounded-pill" @click="openClothingModal"><i class="fa fa-shirt me-1"></i>Kleiderkammer</button>
+                            <button v-if="isAdmin || role === 'leitung' || role === 'jugendwarte'" class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
                             <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
                         </div>
                     </div>
@@ -1345,6 +1349,12 @@
                         <li class="nav-item" v-if="isAdmin">
                             <button class="nav-link" :class="verwaltungTab === 'mail' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'mail'; loadMailSettings()"><i class="fa fa-envelope me-1"></i>E-Mail-Versand</button>
                         </li>
+                        <li class="nav-item" v-if="canManageMaterial">
+                            <button class="nav-link" :class="verwaltungTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
+                        </li>
+                        <li class="nav-item" v-if="isAdmin">
+                            <button class="nav-link" :class="verwaltungTab === 'system' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'system'; loadHealth()"><i class="fa fa-heart-pulse me-1"></i>System</button>
+                        </li>
                                                 <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
                             <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
                         </li>
@@ -1563,6 +1573,61 @@
                         </div>
 
                         <!-- SUB-TAB: Aktivitäts-Log (Audit-Log) -->
+                        <div v-show="verwaltungTab === 'gebaeude'" v-if="canManageMaterial">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-building me-2"></i>Gerätehaus-Prüfungen</h5>
+                                <small class="text-muted d-block mb-3">Wiederkehrende Prüfungen am Gebäude. Fällige Prüfungen erscheinen automatisch in den Erinnerungen. Die Vorschläge sind nur Richtwerte – bitte mit eurer Gemeinde und Versicherung abgleichen.</small>
+                                <div class="d-flex flex-wrap gap-2 mb-3" v-if="!buildingForm.id">
+                                    <button v-for="s in buildingSuggestions" :key="s.name" type="button" class="btn btn-outline-light btn-sm rounded-pill" @click="applyBuildingSuggestion(s)">+ {{ s.name }}</button>
+                                </div>
+                                <div class="row g-2 align-items-end mb-4">
+                                    <div class="col-12 col-md-4"><label class="small text-muted fw-bold mb-1">Prüfung</label><input type="text" class="form-control form-control-sm" v-model="buildingForm.name" maxlength="255" placeholder="z. B. Feuerlöscher"></div>
+                                    <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Alle (Monate)</label><input type="number" min="1" max="240" class="form-control form-control-sm" v-model.number="buildingForm.interval_months"></div>
+                                    <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Zuletzt geprüft</label><input type="date" class="form-control form-control-sm" v-model="buildingForm.last_check"></div>
+                                    <div class="col-12 col-md-2"><label class="small text-muted fw-bold mb-1">Zuständig</label><input type="text" class="form-control form-control-sm" v-model="buildingForm.responsible" maxlength="255"></div>
+                                    <div class="col-12 col-md-2 d-flex gap-1">
+                                        <button class="btn btn-premium btn-sm rounded-pill flex-fill" @click="saveBuildingCheck"><i class="fa" :class="buildingForm.id ? 'fa-save' : 'fa-plus'"></i> {{ buildingForm.id ? 'Speichern' : 'Anlegen' }}</button>
+                                        <button v-if="buildingForm.id" class="btn btn-outline-light btn-sm rounded-pill" @click="resetBuildingForm" title="Abbrechen"><i class="fa fa-xmark"></i></button>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-hover align-middle small mb-0">
+                                        <thead><tr class="text-muted"><th>PRÜFUNG</th><th>INTERVALL</th><th>ZULETZT</th><th>NÄCHSTE</th><th>ZUSTÄNDIG</th><th class="text-end">AKTION</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="c in buildingChecks" :key="c.id">
+                                                <td class="fw-bold text-white">{{ c.name }}</td>
+                                                <td>{{ c.interval_months }} Mon.</td>
+                                                <td>{{ c.last_check ? new Date(c.last_check).toLocaleDateString('de-DE') : 'noch nie' }}</td>
+                                                <td><span class="badge" :class="buildingStatus(c).cls">{{ c.next_check ? new Date(c.next_check).toLocaleDateString('de-DE') : '–' }} · {{ buildingStatus(c).label }}</span></td>
+                                                <td>{{ c.responsible || '–' }}</td>
+                                                <td class="text-end text-nowrap">
+                                                    <button class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="markBuildingDone(c)"><i class="fa fa-check me-1"></i>Heute geprüft</button>
+                                                    <button class="btn btn-sm btn-outline-light border-0 p-1" @click="editBuildingCheck(c)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteBuildingCheck(c)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="buildingChecks.length === 0"><td colspan="6" class="text-center py-4 text-muted">Noch keine Prüfungen eingetragen – oben eine Vorlage antippen.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-show="verwaltungTab === 'system'" v-if="isAdmin">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-heart-pulse me-2"></i>Systemzustand</h5>
+                                <small class="text-muted d-block mb-3">Auf einen Blick: läuft alles, wie es soll?</small>
+                                <div v-if="health" class="d-flex flex-column gap-2">
+                                    <div v-for="c in health.checks" :key="c.key" class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(255,255,255,0.04);">
+                                        <i class="fa fa-lg mt-1" :class="{'fa-circle-check text-success': c.status === 'ok', 'fa-triangle-exclamation text-warning': c.status === 'warn', 'fa-circle-xmark text-danger': c.status === 'error', 'fa-circle-info text-info': c.status === 'info'}"></i>
+                                        <div><div class="fw-bold text-white">{{ c.label }}</div><div class="small text-muted">{{ c.detail }}</div></div>
+                                    </div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill align-self-start mt-2" @click="loadHealth"><i class="fa fa-rotate me-1"></i>Neu prüfen</button>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                        </div>
+
                         <div v-show="verwaltungTab === 'mail'" v-if="isAdmin">
                             <div class="card premium-card p-4">
                                 <h5 class="fw-bold text-white mb-1"><i class="fa fa-envelope text-danger me-2"></i>E-Mail-Versand</h5>
@@ -1590,7 +1655,7 @@
                                 <div class="mt-4 d-flex flex-column gap-2">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" id="mailReminder" v-model="mailSettings.reminder_mail">
-                                        <label class="form-check-label" for="mailReminder">Fristen-Erinnerungen per E-Mail (Leitung bekommt die Übersicht, jeder Kamerad seine eigenen Fristen)</label>
+                                        <label class="form-check-label" for="mailReminder">Erinnerungen per E-Mail (Fristen: Leitung bekommt die Übersicht, jeder Kamerad seine eigenen; dazu Mails zu neuen Terminen und Termin-Erinnerungen)</label>
                                     </div>
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" id="mailAlarm" v-model="mailSettings.alarm_mail">
@@ -1950,6 +2015,28 @@
                                 <h5 class="fw-bold text-white mb-3">Dienststunden nach Kategorie</h5>
                                 <div style="height: 340px; position: relative;">
                                     <canvas id="statsChartHours"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white m-0">Beteiligung an Übungen ({{ statsYear }})</h5>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <label class="small text-muted mb-0">Mindestens</label>
+                                        <input type="number" min="0" max="100" class="form-control form-control-sm" style="width: 80px;" v-model.number="participationInput">
+                                        <span class="small text-muted">%</span>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="saveParticipationThreshold">Übernehmen</button>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mb-3">Anteil der Übungen, an denen ein aktiver Kamerad teilgenommen hat. Erst ab 3 Übungen aussagekräftig. Gedacht als Anlass für ein Gespräch, nicht als Urteil.</small>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span v-for="m in participation.members" :key="m.name" class="badge rounded-pill px-3 py-2 fw-normal"
+                                          :class="{'bg-danger': m.status === 'low', 'bg-success': m.status === 'ok', 'bg-secondary': m.status === 'nodata'}"
+                                          :title="m.total ? (m.present + ' von ' + m.total + ' Übungen') : 'noch keine Übungen erfasst'">
+                                        {{ m.name }} · {{ m.pct === null ? '–' : m.pct + ' %' }}
+                                    </span>
+                                    <span v-if="participation.members.length === 0" class="text-muted">Keine Daten.</span>
                                 </div>
                             </div>
                         </div>
@@ -2657,9 +2744,28 @@
                                     <option value="Sonstiges">Sonstiges</option>
                                 </select>
                             </div>
+                            <div v-if="!newSchedule.id" class="row g-2 mb-3">
+                                <div :class="newSchedule.repeat ? 'col-6' : 'col-12'">
+                                    <label class="form-label">Wiederholen</label>
+                                    <select v-model="newSchedule.repeat" class="form-select">
+                                        <option value="">Einmalig</option>
+                                        <option value="weekly">Jede Woche</option>
+                                        <option value="biweekly">Alle 2 Wochen</option>
+                                        <option value="monthly">Jeden Monat</option>
+                                    </select>
+                                </div>
+                                <div v-if="newSchedule.repeat" class="col-6">
+                                    <label class="form-label">bis einschließlich</label>
+                                    <input type="date" v-model="newSchedule.repeat_until" class="form-control" :min="newSchedule.date" required>
+                                </div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Details</label>
                                 <textarea v-model="newSchedule.description" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div v-if="!newSchedule.id" class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="schedNotify" v-model="newSchedule.notify">
+                                <label class="form-check-label" for="schedNotify">Kameraden per Push (und E-Mail, falls eingerichtet) benachrichtigen</label>
                             </div>
                             <div class="d-flex gap-2">
                                 <button v-if="newSchedule.id" type="button" class="btn btn-outline-danger rounded-pill px-4" @click="deleteScheduleFromModal"><i class="fa fa-trash me-1"></i>Löschen</button>
@@ -3340,6 +3446,11 @@
                                     </div>
                                 </div>
                                 <h6 class="fw-bold text-primary mb-3"><i class="fa fa-id-card-clip me-2"></i>Führerscheinklassen</h6>
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">Letzte Führerscheinkontrolle</label>
+                                    <input type="date" class="form-control form-control-sm" style="max-width: 220px;" v-model="activePersonnel.license_checked_date" :disabled="!canManagePersonnel">
+                                    <small class="text-muted">Wer Einsatzfahrzeuge fährt, muss den Führerschein regelmäßig (üblich: jährlich) vorzeigen. Das Dienstbuch erinnert nach 12 Monaten.</small>
+                                </div>
                                 <div class="row g-2">
                                     <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
                                         <div class="form-check border border-secondary border-opacity-10 p-2 rounded text-center bg-black bg-opacity-20">
@@ -3612,6 +3723,56 @@
         </div>
 
         <!-- MODAL: QUALIFIKATIONSMATRIX -->
+        <div class="modal fade" id="prospectsModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-handshake me-2"></i>Nachwuchs & Interessenten</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="row g-2 mb-3">
+                            <div class="col-12 col-md-3"><label class="small text-muted fw-bold mb-1">Name</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.name" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Telefon</label><input type="tel" class="form-control form-control-sm" v-model="prospectForm.phone" maxlength="255"></div>
+                            <div class="col-6 col-md-3"><label class="small text-muted fw-bold mb-1">E-Mail</label><input type="email" class="form-control form-control-sm" v-model="prospectForm.email" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Woher?</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.source" maxlength="255" placeholder="z. B. Tag der offenen Tür"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Betreuer</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.mentor" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Status</label>
+                                <select class="form-select form-select-sm" v-model="prospectForm.status"><option v-for="s in prospectStatuses" :key="s" :value="s">{{ s }}</option></select></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Probezeit bis</label><input type="date" class="form-control form-control-sm" v-model="prospectForm.trial_end"></div>
+                            <div class="col-12 col-md-5"><label class="small text-muted fw-bold mb-1">Notiz</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.note"></div>
+                            <div class="col-12 col-md-3 d-flex gap-1 align-items-end">
+                                <button class="btn btn-premium btn-sm rounded-pill flex-fill" @click="saveProspect"><i class="fa" :class="prospectForm.id ? 'fa-save' : 'fa-plus'"></i> {{ prospectForm.id ? 'Speichern' : 'Erfassen' }}</button>
+                                <button v-if="prospectForm.id" class="btn btn-outline-light btn-sm rounded-pill" @click="resetProspectForm"><i class="fa fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle small mb-0">
+                                <thead><tr class="text-muted"><th>NAME</th><th>STATUS</th><th>ERSTKONTAKT</th><th>LETZTER KONTAKT</th><th>PROBEZEIT</th><th>BETREUER</th><th class="text-end">AKTION</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="p in prospects" :key="p.id">
+                                        <td class="fw-bold text-white">{{ p.name }}<div class="text-muted fw-normal">{{ [p.phone, p.email].filter(Boolean).join(' · ') }}</div><div v-if="p.note" class="text-muted fw-normal fst-italic">{{ p.note }}</div></td>
+                                        <td><span class="badge" :class="{'bg-info text-dark': p.status === 'Interessent', 'bg-warning text-dark': p.status === 'Probe', 'bg-success': p.status === 'Aufgenommen', 'bg-secondary': p.status === 'Abgesagt'}">{{ p.status }}</span></td>
+                                        <td>{{ p.first_contact ? new Date(p.first_contact).toLocaleDateString('de-DE') : '–' }}<div class="text-muted">{{ p.source }}</div></td>
+                                        <td>{{ p.last_contact ? new Date(p.last_contact).toLocaleDateString('de-DE') : '–' }}</td>
+                                        <td>{{ p.trial_end ? new Date(p.trial_end).toLocaleDateString('de-DE') : '–' }}</td>
+                                        <td>{{ p.mentor || '–' }}</td>
+                                        <td class="text-end text-nowrap">
+                                            <button v-if="p.status === 'Interessent' || p.status === 'Probe'" class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="prospectContact(p)" title="Heute Kontakt gehabt"><i class="fa fa-phone me-1"></i>Kontakt</button>
+                                            <button class="btn btn-sm btn-outline-light border-0 p-1" @click="editProspect(p)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteProspect(p)" title="Endgültig löschen"><i class="fa fa-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="prospects.length === 0"><td colspan="7" class="text-center py-4 text-muted">Noch niemand erfasst.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted d-block mt-3"><i class="fa fa-shield-halved me-1"></i>Datenschutz: Das sind personenbezogene Daten von Menschen, die (noch) nicht Mitglied sind. Bitte nur erfassen, was nötig ist, und Absagen zeitnah löschen. Nach 3 Wochen ohne Kontakt erinnert das Dienstbuch ans Nachfassen.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="clothingModal" tabindex="-1">
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
@@ -3979,6 +4140,20 @@
                             </div>
                         </div>
                         
+                        <!-- MEINE KONTAKTDATEN -->
+                        <div v-if="!isFirstLoginBlock && myContact" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-address-card me-2"></i>Meine Kontaktdaten</h6>
+                            <small class="text-muted d-block mb-3">Bitte aktuell halten – so erreicht dich die Wehr im Einsatz- und Notfall.</small>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Telefon</label><input type="tel" class="form-control form-control-sm" v-model="myContact.phone" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">E-Mail</label><input type="email" class="form-control form-control-sm" v-model="myContact.email" maxlength="255"></div>
+                                <div class="col-12"><label class="small text-muted fw-bold mb-1">Adresse</label><input type="text" class="form-control form-control-sm" v-model="myContact.address" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Notfallkontakt (Name)</label><input type="text" class="form-control form-control-sm" v-model="myContact.emergency_contact_name" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Notfallkontakt (Telefon)</label><input type="tel" class="form-control form-control-sm" v-model="myContact.emergency_contact_phone" maxlength="255"></div>
+                            </div>
+                            <button type="button" class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="saveMyContact" :disabled="contactSaving"><i class="fa fa-save me-1"></i>Kontaktdaten speichern</button>
+                        </div>
+
                         <!-- ZWEI-FAKTOR-AUTHENTIFIZIERUNG -->
                         <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
                             <h6 class="fw-bold text-white mb-2"><i class="fa fa-shield-halved text-danger me-2"></i>Zwei-Faktor-Authentifizierung</h6>

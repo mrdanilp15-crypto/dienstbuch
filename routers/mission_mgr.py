@@ -2,7 +2,10 @@ from fastapi import APIRouter, HTTPException, Request, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date
+from datetime import date, timedelta
+import calendar
+import html as _html
+import uuid
 
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
@@ -83,6 +86,9 @@ class ScheduleCreate(BaseModel):
     description: Optional[str] = ""
     type: str # 'Übung', 'Schulung', 'Sonstiges'
     group_id: Optional[int] = None
+    repeat: Optional[str] = None  # None | 'weekly' | 'biweekly' | 'monthly' (nur beim Anlegen)
+    repeat_until: Optional[str] = None
+    notify: bool = True
 
 class ScheduleAttendanceEntry(BaseModel):
     personnel_id: int
@@ -941,18 +947,57 @@ def list_schedules(request: Request):
             row["time"] = format_time_val(row["time"])
     return res
 
+_MAX_SERIES_OCCURRENCES = 80
+
+
+def _add_months(d: date, n: int) -> date:
+    y, m = divmod(d.month - 1 + n, 12)
+    year, month = d.year + y, m + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def _series_dates(start: date, repeat: Optional[str], until: Optional[date]) -> List[date]:
+    if not repeat:
+        return [start]
+    if repeat not in ("weekly", "biweekly", "monthly"):
+        raise HTTPException(status_code=400, detail="Ungültige Wiederholung.")
+    if not until or until < start:
+        raise HTTPException(status_code=400, detail="Bitte ein Enddatum für die Serie angeben (nicht vor dem ersten Termin).")
+    dates, i = [start], 1
+    while len(dates) <= _MAX_SERIES_OCCURRENCES:
+        nxt = _add_months(start, i) if repeat == "monthly" else start + timedelta(days=(7 if repeat == "weekly" else 14) * i)
+        if nxt > until:
+            break
+        dates.append(nxt)
+        i += 1
+    if len(dates) > _MAX_SERIES_OCCURRENCES:
+        raise HTTPException(status_code=400, detail=f"Eine Serie darf höchstens {_MAX_SERIES_OCCURRENCES} Termine haben.")
+    return dates
+
+
 @router.post("/schedules")
-def create_schedule(s: ScheduleCreate, request: Request):
+def create_schedule(s: ScheduleCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    try:
+        start = date.fromisoformat(s.date)
+        until = date.fromisoformat(s.repeat_until) if s.repeat_until else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ungültiges Datum.")
+    dates = _series_dates(start, s.repeat, until)
+    series_id = str(uuid.uuid4()) if len(dates) > 1 else None
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO schedules (title, date, time, description, type, group_id)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (s.title.strip(), s.date, s.time, s.description, s.type, s.group_id))
+    for d in dates:
+        cur.execute("""
+            INSERT INTO schedules (title, date, time, description, type, group_id, series_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (s.title.strip(), d.isoformat(), s.time, s.description, s.type, s.group_id, series_id))
     conn.commit(); cur.close(); conn.close()
-    return {"status": "success"}
+    if s.notify:
+        from core.schedule_notify import notify_new_schedule
+        background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, dates, s.group_id)
+    return {"status": "success", "created": len(dates)}
 
 @router.put("/schedules/{sch_id}")
 def update_schedule(sch_id: int, s: ScheduleCreate, request: Request):
@@ -969,15 +1014,84 @@ def update_schedule(sch_id: int, s: ScheduleCreate, request: Request):
     return {"status": "success"}
 
 @router.delete("/schedules/{sch_id}")
-def delete_schedule(sch_id: int, request: Request):
+def delete_schedule(sch_id: int, request: Request, series: bool = False):
     user = check_auth(request)
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("DELETE FROM schedule_attendance WHERE schedule_id = %s", (sch_id,))
-    cur.execute("DELETE FROM schedules WHERE id = %s", (sch_id,))
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    ids = [sch_id]
+    if series:
+        # diesen Termin und alle folgenden derselben Serie (vergangene bleiben als Historie)
+        cur.execute("SELECT series_id, date FROM schedules WHERE id = %s", (sch_id,))
+        row = cur.fetchone()
+        if row and row["series_id"]:
+            cur.execute("SELECT id FROM schedules WHERE series_id = %s AND date >= %s", (row["series_id"], row["date"]))
+            ids = [r["id"] for r in cur.fetchall()] or [sch_id]
+    marks = ", ".join(["%s"] * len(ids))
+    for table in ("schedule_attendance", "schedule_rsvp"):
+        cur.execute(f"DELETE FROM {table} WHERE schedule_id IN ({marks})", tuple(ids))
+    cur.execute(f"DELETE FROM schedules WHERE id IN ({marks})", tuple(ids))
     conn.commit(); cur.close(); conn.close()
-    return {"status": "success"}
+    return {"status": "success", "deleted": len(ids)}
+
+@router.get("/schedules/aushang")
+def schedules_pdf(request: Request, year: Optional[int] = None, group_id: Optional[int] = None):
+    """Terminuebersicht zum Aushang / Weiterleiten."""
+    check_auth(request)
+    import io
+    import os
+    import xhtml2pdf.pisa as pisa
+    year = year or date.today().year
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    sql, params = "SELECT * FROM schedules WHERE YEAR(date) = %s", [year]
+    group_name = ""
+    if group_id:
+        sql += " AND (group_id = %s OR group_id IS NULL)"
+        params.append(group_id)
+        cur.execute("SELECT name FROM groups_table WHERE id = %s", (group_id,))
+        g = cur.fetchone()
+        group_name = g["name"] if g else ""
+    cur.execute(sql + " ORDER BY date ASC, time ASC", tuple(params))
+    rows = cur.fetchall(); cur.close(); conn.close()
+
+    months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    esc = lambda v: _html.escape(str(v or ""))
+    body, current = "", None
+    for r in rows:
+        if r["date"].month != current:
+            if current is not None:
+                body += "</table>"
+            current = r["date"].month
+            body += f'<h3>{months[current - 1]} {year}</h3><table><tr><th width="90">Datum</th><th width="55">Uhr</th><th>Thema</th><th width="75">Art</th></tr>'
+        detail = f'<br/><span class="d">{esc(r["description"])}</span>' if r.get("description") else ""
+        body += (f'<tr><td>{days[r["date"].weekday()]}, {r["date"].strftime("%d.%m.")}</td><td>{esc(format_time_val(r["time"]))}</td>'
+                 f'<td><b>{esc(r["title"])}</b>{detail}</td><td>{esc(r["type"])}</td></tr>')
+    if current is not None:
+        body += "</table>"
+    if not rows:
+        body = "<p>Für dieses Jahr sind keine Termine eingetragen.</p>"
+    town = esc(os.getenv("TOWN_NAME") or "Feuerwehr")
+    doc = f"""<html><head><meta charset="utf-8"/><style>
+        @page {{ size: A4; margin: 1.6cm; }}
+        body {{ font-family: Helvetica; font-size: 10pt; color: #222; }}
+        h1 {{ font-size: 18pt; margin: 0; color: #b71c1c; }}
+        h3 {{ font-size: 12pt; margin: 14px 0 4px 0; border-bottom: 1px solid #b71c1c; padding-bottom: 2px; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th {{ text-align: left; font-size: 8pt; color: #666; padding: 3px 4px; }}
+        td {{ padding: 4px; border-bottom: 0.5px solid #ddd; vertical-align: top; }}
+        .d {{ font-size: 8.5pt; color: #555; }}
+        .f {{ margin-top: 16px; font-size: 8pt; color: #888; }}
+    </style></head><body>
+        <h1>Terminübersicht {year}</h1>
+        <div>{town}{(" – " + esc(group_name)) if group_name and group_name.lower() not in (os.getenv("TOWN_NAME") or "").lower() else ""}</div>
+        {body}
+        <div class="f">Stand: {date.today().strftime("%d.%m.%Y")} &bull; Änderungen vorbehalten, aktuelle Termine im Dienstbuch.</div>
+    </body></html>"""
+    buf = io.BytesIO()
+    pisa.CreatePDF(doc, dest=buf)
+    return Response(content=buf.getvalue(), media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="termine_{year}.pdf"'})
 
 @router.get("/schedules/{sch_id}/attendance")
 def get_schedule_attendance(sch_id: int, request: Request):

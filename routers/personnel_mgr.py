@@ -8,7 +8,8 @@ from datetime import date
 
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
 from database import get_db_connection
-from core.utils import check_auth
+from core.utils import check_auth, log_audit_action
+import re
 
 class PersonnelMember(BaseModel):
     name: str
@@ -37,6 +38,7 @@ class PersonnelMember(BaseModel):
     unterweisung_date: Optional[str] = None
     dsgvo_ack_date: Optional[str] = None
     dienstordnung_ack_date: Optional[str] = None
+    license_checked_date: Optional[str] = None
     emergency_contact_name: Optional[str] = ""
     emergency_contact_phone: Optional[str] = ""
 
@@ -87,7 +89,7 @@ def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
     sql = """SELECT id, name, rank, membership_status, phone, email, address, 
                     badge_number, birth_date, entry_date, profile_picture, is_truppmann, is_funk, 
                     is_agt, is_maschinist, is_tf, is_gf, lic_b, lic_be, lic_c, lic_ce, 
-                    g26_3_date, belastungslauf_date, unterweisung_date,
+                    g26_3_date, belastungslauf_date, unterweisung_date, license_checked_date,
                     CASE WHEN profile_picture IS NOT NULL AND LENGTH(profile_picture) > 0 THEN 1 ELSE 0 END AS has_picture
              FROM personnel ORDER BY name ASC"""
     cur.execute(sql)
@@ -284,7 +286,7 @@ def add_member(m: PersonnelMember, request: Request):
                  is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
                  lic_b=%s, lic_be=%s, lic_c=%s, lic_ce=%s,
                  g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s,
-                 dsgvo_ack_date=%s, dienstordnung_ack_date=%s,
+                 dsgvo_ack_date=%s, dienstordnung_ack_date=%s, license_checked_date=%s,
                  emergency_contact_name=%s, emergency_contact_phone=%s
                  WHERE name=%s""",
                     (m.rank, m.phone, m.email, m.address,
@@ -292,7 +294,7 @@ def add_member(m: PersonnelMember, request: Request):
                      int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
                      int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
                      m.g26_3_date or None, m.belastungslauf_date or None, m.unterweisung_date or None,
-                     m.dsgvo_ack_date or None, m.dienstordnung_ack_date or None,
+                     m.dsgvo_ack_date or None, m.dienstordnung_ack_date or None, m.license_checked_date or None,
                      m.emergency_contact_name, m.emergency_contact_phone,
                      clean_name))
         conn.commit()
@@ -333,7 +335,7 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
              is_truppmann=%s, is_funk=%s, is_agt=%s, is_maschinist=%s, is_tf=%s, is_gf=%s,
              lic_b=%s, lic_be=%s, lic_c=%s, lic_ce=%s,
              g26_3_date=%s, belastungslauf_date=%s, unterweisung_date=%s,
-             dsgvo_ack_date=%s, dienstordnung_ack_date=%s,
+             dsgvo_ack_date=%s, dienstordnung_ack_date=%s, license_checked_date=%s,
              emergency_contact_name=%s, emergency_contact_phone=%s
              WHERE id=%s"""
 
@@ -341,7 +343,7 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
             m.badge_number, b_date, e_date, m.honors, m.profile_picture,
             int(m.is_truppmann), int(m.is_funk), int(m.is_agt), int(m.is_maschinist), int(m.is_tf), int(m.is_gf),
             int(m.lic_b), int(m.lic_be), int(m.lic_c), int(m.lic_ce),
-            g26, bel, unt, dsgvo, dienstordnung, m.emergency_contact_name, m.emergency_contact_phone, member_id)
+            g26, bel, unt, dsgvo, dienstordnung, (m.license_checked_date or None), m.emergency_contact_name, m.emergency_contact_phone, member_id)
     
     cur.execute(sql, vals)
 
@@ -886,6 +888,62 @@ def get_respiratory_certificate(member_id: int, request: Request, year: Optional
         html_content, f"Atemschutznachweis_{_safe_filename(person['name'])}_{target_year}.pdf")
 
 
+class MyContact(BaseModel):
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    address: Optional[str] = ""
+    emergency_contact_name: Optional[str] = ""
+    emergency_contact_phone: Optional[str] = ""
+
+
+_CONTACT_FIELDS = ("phone", "email", "address", "emergency_contact_name", "emergency_contact_phone")
+
+
+def _own_personnel_id(cur, username: str) -> int:
+    # Bewusst nur die ausdrückliche Verknüpfung (users.personnel_id): hier wird geschrieben,
+    # da darf nicht über einen Namens-Abgleich versehentlich die Akte einer anderen Person landen.
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (username,))
+    row = cur.fetchone()
+    if not row or not row["personnel_id"]:
+        raise HTTPException(status_code=400, detail="Dein Login ist mit keinem Kameraden verknüpft - bitte die Leitung bitten, die Verknüpfung zu setzen.")
+    return row["personnel_id"]
+
+
+@router.get("/me/contact")
+def get_my_contact(request: Request):
+    user = check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        pid = _own_personnel_id(cur, user["username"])
+        cur.execute(f"SELECT name, {', '.join(_CONTACT_FIELDS)} FROM personnel WHERE id = %s", (pid,))
+        row = cur.fetchone() or {}
+    finally:
+        cur.close(); conn.close()
+    return {k: (v or "") for k, v in row.items()}
+
+
+@router.put("/me/contact")
+def update_my_contact(data: MyContact, request: Request):
+    user = check_auth(request)
+    values = {f: (getattr(data, f) or "").strip() for f in _CONTACT_FIELDS}
+    if any(len(v) > 255 for v in values.values()):
+        raise HTTPException(status_code=400, detail="Eingaben dürfen höchstens 255 Zeichen lang sein.")
+    if values["email"] and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", values["email"]):
+        raise HTTPException(status_code=400, detail="Bitte eine gültige E-Mail-Adresse eingeben.")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        pid = _own_personnel_id(cur, user["username"])
+        cur.execute(
+            f"UPDATE personnel SET {', '.join(f + ' = %s' for f in _CONTACT_FIELDS)} WHERE id = %s",
+            tuple(values.values()) + (pid,),
+        )
+        conn.commit()
+    finally:
+        cur.close(); conn.close()
+    log_audit_action(user["username"], "KONTAKTDATEN_GEAENDERT", "Eigene Kontaktdaten selbst aktualisiert.")
+    return {"status": "success"}
+
+
 @router.get("/me/licenses")
 def get_my_licenses(request: Request):
     user = check_auth(request)
@@ -1019,6 +1077,7 @@ def init_personnel_db():
             ("unterweisung_date", "DATE NULL"),
             ("dsgvo_ack_date", "DATE NULL"),
             ("dienstordnung_ack_date", "DATE NULL"),
+            ("license_checked_date", "DATE NULL"),
             ("notes", "TEXT NULL"),
             ("skills", "TEXT NULL"),
             ("parent_contact", "VARCHAR(255) NULL"),
