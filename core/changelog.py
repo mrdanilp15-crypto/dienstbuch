@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 11,
+        "version": "2.61",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "fix", "tag": "Editor", "title": "Editor öffnet schneller",
+             "text": "Bei einem neuen Eintrag erscheint die Auswahl Einsatz/Übung/Sonstiges sofort, bestehende Einträge öffnen direkt in der richtigen Ansicht. Alle benötigten Daten werden gleichzeitig statt nacheinander geladen."},
+        ],
+    },
+    {
         "id": 10,
         "version": "2.60",
         "date": "2026-10-17",

@@ -312,6 +312,11 @@
             background: #1e1e1e !important;
             color: #ffffff !important;
         }
+        .editor-loading {
+            position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 24, 24, 0.95); border: 1px solid rgba(255,255,255,0.12);
+            color: #e0d8d8; padding: 8px 16px; border-radius: 999px; font-size: 0.85rem; z-index: 2000;
+        }
     </style>
 </head>
 <body>
@@ -330,6 +335,8 @@
             <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
         </div>
     </div>
+
+    <div v-if="isLoading && !showTypeModal" class="editor-loading"><span class="spinner-border spinner-border-sm me-2"></span>Wird geladen …</div>
 
     <div class="main-content" v-if="!showTypeModal">
         <div class="editor-card">
@@ -787,6 +794,25 @@
 </div>
 
 <script>
+    // Alle Abfragen, die der Editor ohnehin braucht, starten HIER sofort und gleichzeitig - nicht erst
+    // nacheinander innerhalb von mounted(). Vorher: Anmeldung, dann (erst danach) Fahrzeuge/Personal/
+    // Gruppen, dann erst der eigentliche Eintrag - jede Stufe wartete auf die vorherige, und bis dahin
+    // war die Seite leer. Bei Netzfehler liefert pf() null, die Aufrufer fallen dann auf einen
+    // normalen Abruf zurueck.
+    const _qs = new URLSearchParams(window.location.search);
+    const pf = (url) => fetch(url, { credentials: 'include' }).catch(() => null);
+    const _pre = {
+        auth: pf('/api/auth/me'),
+        vehicles: pf('/api/vehicles'),
+        personnel: pf('/api/personnel/list'),
+        groups: pf('/groups'),
+        mission: _qs.get('mission_id') ? pf(`/api/missions/${_qs.get('mission_id')}`) : null,
+        session: (_qs.get('session_id') && _qs.get('group_id'))
+            ? pf(`/groups/${_qs.get('group_id')}/attendance?session_id=${_qs.get('session_id')}`) : null,
+    };
+    // Typ steht bei bestehenden Eintraegen schon in der Adresse -> sofort bekannt, nichts zu "berechnen".
+    const _isNewEntry = !_qs.get('mission_id') && !_qs.get('session_id') && !_qs.get('new_type');
+
     const { createApp } = Vue;
     let sigPad = null, sigModal = null, saveTimer = null, savingPromise = null;
 
@@ -898,8 +924,10 @@
                 isReadOnly: false,
                 groupId: null,
                 sessionId: null,
-                mode: 'session', // 'session' (Dienst/Übung/Sonstiges, sessions-Tabelle) oder 'mission' (Einsatz, missions-Tabelle)
-                showTypeModal: false,
+                mode: _qs.get('mission_id') ? 'mission' : 'session', // 'session' (Dienst/Übung/Sonstiges, sessions-Tabelle) oder 'mission' (Einsatz, missions-Tabelle)
+                // Neuer Eintrag: Typ-Auswahl (Einsatz/Übung/Sonstiges) sofort zeigen, ohne auf irgendeine Abfrage zu warten.
+                showTypeModal: _isNewEntry,
+                refsReady: Promise.resolve(),
                 globalVehicles: [], persons: [], pool: [], groupPersons: [], groups: [],
                 topicOptions: [], instrOptions: [],
                 q: '', poolSearch: '', category: 'Übung', duration: 2.0,
@@ -949,8 +977,32 @@
             }
         },
         async mounted() {
+            // Referenzdaten (Fahrzeuge, Personal, Gruppen): laufen schon seit Seitenstart. refsReady wird
+            // SOFORT gesetzt, damit auch ein sehr frueher Klick auf die Typ-Auswahl (chooseType) auf
+            // die vollstaendige Personalliste wartet statt mit leerer Liste zu starten.
+            this.refsReady = Promise.all([
+                (async () => {
+                    try {
+                        const r = await _pre.vehicles;
+                        if (r) this.globalVehicles = await r.json();
+                    } catch(e) {}
+                })(),
+                (async () => {
+                    try {
+                        const r = await _pre.personnel;
+                        if (r) { const pData = await r.json(); this.pool = pData.map(m => ({...m, selected: false})); }
+                    } catch(e) {}
+                })(),
+                (async () => {
+                    try {
+                        const r = await _pre.groups;
+                        if (r) this.groups = await r.json();
+                    } catch(e) {}
+                })()
+            ]);
             try {
-                const authRes = await fetch('/api/auth/me', { credentials: 'include' });
+                const authRes = await _pre.auth;
+                if (!authRes) throw new Error('offline');
                 if (!authRes.ok) { window.location.href = '/'; return; }
                 const authData = await authRes.json();
 
@@ -975,27 +1027,7 @@
             // typspezifischen Laden abgeschlossen sein, da z.B. loadMission()/chooseType('Einsatz')
             // synchron auf das schon gefüllte this.pool zugreifen (sonst Race Condition: die
             // Einsatzbeteiligungsliste bliebe leer, wenn personnel/list langsamer antwortet).
-            await Promise.all([
-                (async () => {
-                    try {
-                        const vRes = await fetch('/api/vehicles', { credentials: 'include' });
-                        this.globalVehicles = await vRes.json();
-                    } catch(e) {}
-                })(),
-                (async () => {
-                    try {
-                        const pRes = await fetch('/api/personnel/list', { credentials: 'include' });
-                        const pData = await pRes.json();
-                        this.pool = pData.map(m => ({...m, selected: false}));
-                    } catch(e) {}
-                })(),
-                (async () => {
-                    try {
-                        const gRes = await fetch('/groups', { credentials: 'include' });
-                        this.groups = await gRes.json();
-                    } catch(e) {}
-                })()
-            ]);
+            await this.refsReady;
 
             const promises = [];
             if (this.missionId) {
@@ -1066,7 +1098,8 @@
         },
         methods: {
             // --- TYPWAHL FÜR NEUE EINTRÄGE ---
-            chooseType(type) {
+            async chooseType(type) {
+                await this.refsReady;  // Personalliste muss da sein (Einsatz-Mannschaftsliste wird daraus gebaut)
                 this.showTypeModal = false;
                 if (type === 'Einsatz') {
                     this.mode = 'mission';
@@ -1105,7 +1138,8 @@
                 if(!this.groupId) return;
                 const url = `/groups/${this.groupId}/attendance${this.sessionId ? '?session_id='+this.sessionId : ''}`;
                 try {
-                    const res = await fetch(url, { credentials: 'include' });
+                    const pre = (this.sessionId && String(this.sessionId) === _qs.get('session_id')) ? _pre.session : null; _pre.session = null;
+                    const res = (pre && await pre) || await fetch(url, { credentials: 'include' });
                     const d = await res.json();
 
                     if(d.persons) { this.persons = d.persons.map(p => ({ ...p, id: p.id || p.person_id, is_present: !!p.is_present })); }
@@ -1239,7 +1273,8 @@
             // --- EINSATZ (missions) ---
             async loadMission() {
                 try {
-                    const res = await fetch(`/api/missions/${this.missionId}`, { credentials: 'include' });
+                    const pre = _pre.mission; _pre.mission = null;
+                    const res = (pre && await pre) || await fetch(`/api/missions/${this.missionId}`, { credentials: 'include' });
                     if (!res.ok) { await appAlert("Einsatz nicht gefunden."); return; }
                     const detail = await res.json();
                     this.stichwort = detail.stichwort || '';
