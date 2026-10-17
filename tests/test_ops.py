@@ -184,6 +184,9 @@ check("Status verrät das Passwort nicht, zeigt aber dass eines gespeichert ist"
 check("Ohne neues Passwort bleibt das gespeicherte erhalten", admin.put("/api/admin/backup-settings", json={"enabled": True, "url": URL, "username": "nas", "password": ""}).status_code == 200
       and admin.post("/api/admin/backup-settings/test", json={"enabled": True, "url": URL, "username": "nas", "password": ""}).json()["ok"] is True)
 
+# Die erfundenen Dateien enthalten keine echten Tabellen - eine echte Probe-Wiederherstellung (falls in dieser Umgebung möglich)
+# würde sie zu Recht ablehnen. Hier geht es um Status, Kopie und Meldungen, deshalb nur die Plausibilitätsprüfung.
+bt.restore_test = lambda path: None
 good = fake_dump("db_backup_20261017_070000.sql", live_tables)
 ver, off = bt.after_backup(good, None)
 check("Nach der Sicherung: Prüfung + Kopie, Status gespeichert", ver["status"] in ("ok", "warn") and off["status"] == "ok", f"{ver} {off}")

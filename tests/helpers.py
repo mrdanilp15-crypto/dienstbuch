@@ -13,14 +13,15 @@ DB = dict(
 
 
 def sql(q):
-    """Fuehrt eine einzelne SQL-Anweisung aus. Bei SELECT: Zeilen als Text (Spalten per Tab, NULL als 'NULL')."""
+    """Fuehrt eine oder mehrere SQL-Anweisungen (durch ; getrennt) aus. Bei SELECT: Zeilen als Text (Spalten per Tab, NULL als 'NULL')."""
     conn = mysql.connector.connect(**DB)
     cur = conn.cursor()
     try:
-        cur.execute(q)
         out = ""
-        if cur.with_rows:
-            out = "\n".join("\t".join("NULL" if v is None else str(v) for v in row) for row in cur.fetchall())
+        for stmt in (x for x in q.split(";") if x.strip()):  # ; kommt in den Tests nie innerhalb von Texten vor
+            cur.execute(stmt)
+            if cur.with_rows:
+                out = "\n".join("\t".join("NULL" if v is None else str(v) for v in row) for row in cur.fetchall())
         conn.commit()
         return out
     finally:
