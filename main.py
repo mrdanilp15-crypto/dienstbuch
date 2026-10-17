@@ -3,7 +3,7 @@ import mysql.connector
 import time
 import asyncio
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uuid
@@ -1286,6 +1286,17 @@ class BroadcastCreateRequest(BaseModel):
     role_target: str = "all"
     is_mandatory: bool = False
 # --- WEB SEITEN-ROUTEN ---
+@app.get("/api/health")
+def health():
+    """Fuer Ueberwachung (Docker-Healthcheck, Uptime Kuma o.ae.): ohne Anmeldung, verraet nur Status und Version.
+    503, wenn die Datenbank nicht antwortet - dann ist die App fuer die Wache praktisch unbrauchbar."""
+    try:
+        conn = get_db_connection(); cur = conn.cursor(); cur.execute("SELECT 1"); cur.fetchone(); cur.close(); conn.close()
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "db_down", "version": CURRENT_VERSION})
+    return {"status": "ok", "version": CURRENT_VERSION}
+
+
 @app.get("/", response_class=FileResponse)
 def get_login(request: Request):
     user = get_current_user(request)

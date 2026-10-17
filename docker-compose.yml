@@ -34,6 +34,13 @@ services:
       - DATABASE_URL=mysql+pymysql://${DB_USER:-app_user}:${DB_PASS}@db/${DB_NAME:-attendance_system}
       # Pfad für die SQLite Notizen-Datenbank
       - SQLITE_DB_PATH=/app/data/notes.db
+    healthcheck:
+      # Antwortet /api/health nicht mit 200 (App oder Datenbank down), meldet Docker/Portainer den Container als "unhealthy"
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 60s
+      timeout: 8s
+      retries: 3
+      start_period: 60s
     volumes:
       # Benanntes Volume für die Notizen
       - notes_data:/app/data

@@ -3,9 +3,58 @@ name: Docker Image Build & Push
 on:
   push:
     branches: [ "main" ]
+  pull_request:
 
 jobs:
+  # Erst testen, dann bauen: schlaegt etwas fehl, wird KEIN neues Image veroeffentlicht und
+  # Portainer bleibt auf dem letzten funktionierenden Stand.
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: rootpw
+          MYSQL_DATABASE: dienstbuch_demo
+          MYSQL_USER: app
+          MYSQL_PASSWORD: apppw
+        ports:
+          - 33307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "33307"
+      DB_USER: app
+      DB_PASS: apppw
+      DB_NAME: dienstbuch_demo
+      ROOT_PASS: rootpw
+      SECRET_KEY: testtesttesttesttesttesttesttest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements.txt -r tests/requirements.txt
+
+      - name: Routen- und Vertragspruefung
+        run: python tools/check.py
+
+      - name: Tests
+        run: python tests/run_all.py
+
   build:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
