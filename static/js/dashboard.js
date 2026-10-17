@@ -259,7 +259,7 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
-                    dueSoonItems: [], showAllDue: false,
+                    dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint,
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
                     vehicleReservations: [],
@@ -846,6 +846,7 @@ applyChartTheme();
                 this.$nextTick(() => this.loadDataForActiveTab());
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
+                PasswordPolicy.load().then(() => this.pwPolicyTick++);
                 setInterval(() => { if (!document.hidden) this.refreshNotifCount(); }, 60000);
                 document.addEventListener('click', e => { if (this.notifOpen && !e.target.closest('#notifBell')) this.notifOpen = false; });
 
@@ -2863,6 +2864,8 @@ applyChartTheme();
                     if (!g) { appAlert('Bitte zuerst im Dienstbetrieb eine Liste wählen.'); return; }
                     window.location.href = `/editor?group_id=${g}&from_schedule=${s.id}`;
                 },
+                pwRules(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).items; },
+                pwOk(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).ok; },
                 async refreshNotifCount() {
                     try {
                         const res = await fetch('/api/notifications/count', { credentials: 'include' });
@@ -3041,6 +3044,7 @@ applyChartTheme();
                 },
                 async submitSelfPassword() {
                     if (this.selfPwData.new_password !== this.selfPwData.confirm_password) { await appAlert("Die neuen Passwörter stimmen nicht überein!"); return; }
+                    if (!this.pwOk(this.selfPwData.new_password, this.username, this.selfPwData.old_password)) { await appAlert("Das neue Passwort erfüllt die Regeln noch nicht (siehe Liste unter dem Feld)."); return; }
                     const res = await fetch('/api/auth/change-password', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ old_password: this.selfPwData.old_password, new_password: this.selfPwData.new_password }) });
                     if (res.ok) {
                         await appAlert("Dein Passwort wurde erfolgreich aktualisiert!");
@@ -3050,6 +3054,9 @@ applyChartTheme();
                             const m = bootstrap.Modal.getInstance(el);
                             if (m) m.hide();
                         }
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(typeof err.detail === 'string' ? err.detail : 'Das Passwort konnte nicht geändert werden.');
                     }
                 },
                 async bindSelfAccount() {
@@ -3064,6 +3071,7 @@ applyChartTheme();
                 
                 async submitNewLogin() {
                     if (!this.newLogin.username || !this.newLogin.password) return await appAlert("Benutzername und Passwort sind erforderlich!");
+                    if (!this.pwOk(this.newLogin.password, this.newLogin.username)) return await appAlert("Das Passwort erfüllt die Regeln noch nicht (siehe Liste unter dem Feld).");
                     const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogin) });
                     if (res.ok) {
                         await appAlert("System-Login angelegt!");
@@ -3104,7 +3112,7 @@ applyChartTheme();
                     }
                 },
                 async resetUserPassword(usr) {
-                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}' (mindestens 8 Zeichen):`);
+                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}' (mindestens 8 Zeichen, kein bekanntes Passwort wie 12345678):`);
                     if (newPw) {
                         const res = await fetch(`/api/users/${usr.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: newPw }) });
                         if (res.ok) {

@@ -6,6 +6,7 @@ import json
 import mysql.connector
 
 from database import get_db_connection
+from core.password_policy import check_password
 from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache
 
 router = APIRouter()
@@ -60,8 +61,9 @@ def add_user(data: UserCreateRequest, request: Request):
     username_clean = data.username.strip()
     if not username_clean:
         raise HTTPException(status_code=400, detail="Benutzername darf nicht leer sein!")
-    if len(data.password) < 8:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
+    problem = check_password(data.password, username_clean)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
     conn = get_db_connection(); cur = conn.cursor()
     try:
         # Der Login unterscheidet nicht zwischen Gross und Klein - also darf es auch keine zwei Konten geben,
@@ -111,13 +113,15 @@ def update_user_personnel_relation(user_id: int, data: dict, request: Request):
 def change_user_password(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    new_pw = (data.get("password") or "").strip()
-    if len(new_pw) < 8:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
-    p_hash = hash_password(new_pw)
+    new_pw = data.get("password") or ""
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
     target_user = cur.fetchone()
+    problem = check_password(new_pw, target_user["username"] if target_user else None)
+    if problem:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail=problem)
+    p_hash = hash_password(new_pw)
     # failed_logins/lockout_until mit zuruecksetzen: wer sich vorher mehrfach vertippt hat, ist sonst trotz
     # korrektem neuem Passwort noch 15 Minuten gesperrt - wirkt wie "Reset geht nicht".
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 1, failed_logins = 0, lockout_until = NULL WHERE id = %s", (p_hash, user_id))

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from core.mailer import encrypt_secret, get_mail_settings, is_mail_configured, record_mail_result, send_mail, send_mail_background
 from core.utils import check_auth, hash_password, log_audit_action
 from database import get_db_connection
+from core.password_policy import check_password
 
 router = APIRouter(tags=["Mail"])
 
@@ -196,8 +197,6 @@ async def reset_password(request: Request):
     data = await request.json()
     token = (data.get("token") or "").strip()
     password = data.get("password") or ""
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
 
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -211,6 +210,11 @@ async def reset_password(request: Request):
         cur.close()
         conn.close()
         raise HTTPException(status_code=400, detail="Der Link ist ungültig oder abgelaufen. Bitte neu anfordern.")
+    problem = check_password(password, row["username"])
+    if problem:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail=problem)
 
     cur.execute(
         "UPDATE users SET password_hash = %s, failed_logins = 0, lockout_until = NULL, is_first_login = 0 WHERE id = %s",

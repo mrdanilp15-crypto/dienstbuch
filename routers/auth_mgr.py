@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 
 from database import get_db_connection
+from core.password_policy import check_password, policy_for_client
 from core.utils import (log_audit_action, verify_password, hash_password, needs_password_rehash,
                         create_session_token, get_current_user, invalidate_role_cache,
                         get_session_max_days, create_pending_2fa_token, verify_pending_2fa_token)
@@ -272,6 +273,12 @@ def api_logout(response: Response):
     response.delete_cookie("session_token", path="/")
     return {"status": "success"}
 
+@router.get("/api/auth/password-policy")
+def password_policy():
+    """Öffentlich (auch die Seite "Passwort zurücksetzen" ist nicht angemeldet): Regeln für die Live-Anzeige."""
+    return policy_for_client()
+
+
 @router.put("/api/auth/change-password")
 def user_change_self_password(data: dict, request: Request):
     user = get_current_user(request)
@@ -279,8 +286,11 @@ def user_change_self_password(data: dict, request: Request):
     old_pw = data.get("old_password")
     new_pw = data.get("new_password")
     
-    if not old_pw or not new_pw or len(new_pw.strip()) < 8:
-        raise HTTPException(status_code=400, detail="Eingaben ungültig oder Passwort zu kurz (mind. 8 Zeichen)!")
+    if not old_pw or not new_pw:
+        raise HTTPException(status_code=400, detail="Bitte aktuelles und neues Passwort angeben.")
+    problem = check_password(new_pw, user["username"], old_pw)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
         
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -291,7 +301,7 @@ def user_change_self_password(data: dict, request: Request):
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Das aktuelle Passwort ist nicht korrekt!")
         
-    new_hash = hash_password(new_pw.strip())
+    new_hash = hash_password(new_pw)  # unverändert (kein strip): der Login vergleicht ebenfalls das Passwort genau so, wie getippt
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 0 WHERE username = %s", (new_hash, user["username"]))
     conn.commit(); cur.close(); conn.close()
     invalidate_role_cache(user["username"])

@@ -13,6 +13,7 @@
     <link href="/static/vendor/fontawesome-6.4.2/css/all.min.css" rel="stylesheet">
 
     <script src="/static/vendor/vue-3.5.42/vue.global.prod.js"></script>
+    <script src="/static/js/password-policy.js"></script>
     <script src="/static/vendor/bootstrap-5.3.2/js/bootstrap.bundle.min.js"></script>
     
     <style>
@@ -390,7 +391,10 @@
                                 <div class="mb-3">
                                     <label class="form-label">Passwort</label>
                                     <input type="password" v-model="newUser.password" class="form-control" placeholder="Min. 8 Zeichen" minlength="8" required>
-                                </div>
+                                    <div class="pw-rules small mt-2">
+                                    <div v-for="i in pwRules(newUser.password, newUser.username)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                    <div class="text-muted mt-1">{{ pwHint }}</div>
+                                </div>                                </div>
                                 <div class="mb-3">
                                     <label class="form-label">Zugeordneter Kamerad</label>
                                     <select v-model="newUser.personnel_id" class="form-select" required>
@@ -750,7 +754,7 @@ createApp({
                 {id: 'is_tf', label: 'Truppführer (TF)'}, {id: 'is_gf', label: 'Gruppenführer (GF)'}
             ],
             users: [],
-            newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null },
+            newUser: { username: '', password: '', role: 'mannschaft', personnel_id: null }, pwTick: 0, pwHint: PasswordPolicy.hint,
             legalTexts: { impressum: '', datenschutz: '' },
             activeLegalTab: 'impressum'
         }
@@ -827,7 +831,9 @@ createApp({
         },
         async editMember(p) { this.activePerson = { ...p, honors: 'Lade Akte...', profile_picture: '' }; this.modalInstance.show(); const r = await fetch(`/api/personnel/get/${p.id}`, { credentials: 'include' }); if(r.ok) { this.activePerson = await r.json(); } },
         onAvatarChange(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { this.activePerson.profile_picture = event.target.result; }; reader.readAsDataURL(file); },
+        pwRules(pw, user) { this.pwTick; return PasswordPolicy.check(pw, user).items; },
         async createUser() {
+            if (!PasswordPolicy.check(this.newUser.password, this.newUser.username).ok) { await appAlert("Das Passwort erfüllt die Regeln noch nicht (siehe Liste unter dem Feld)."); return; }
             const res = await fetch('/api/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(this.newUser) });
             if (res.ok) {
                 this.newUser = { username: '', password: '', role: 'mannschaft', personnel_id: null };
@@ -854,7 +860,7 @@ createApp({
         },
         async deleteActiveMember() { if(await appConfirm(`${this.activePerson.name} löschen?`)) { await fetch(`/api/personnel/delete/${this.activePerson.id}`, { method: 'DELETE', credentials: 'include' }); this.load(); this.modalInstance.hide(); } }
     },
-    mounted() { this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
+    mounted() { PasswordPolicy.load().then(() => this.pwTick++); this.modalInstance = new bootstrap.Modal(document.getElementById('memberModal')); this.load(); this.loadSettings(); }
 }).mount('#app');
 </script>
 </body>

@@ -1545,7 +1545,10 @@
                                         <div class="mb-3" v-if="!editingUserId">
                                             <label class="form-label">Passwort</label>
                                             <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 8 Zeichen" minlength="8" autocomplete="new-password">
-                                        </div>
+                                            <div class="pw-rules small mt-2">
+                                    <div v-for="i in pwRules(newLogin.password, newLogin.username)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                    <div class="text-muted mt-1">{{ pwHint }}</div>
+                                </div>                                        </div>
 
                                         <!-- Info banner in edit mode -->
                                         <div v-if="editingUserId" class="alert alert-info small p-2 rounded-3 mb-3" style="background:rgba(13,202,240,0.1); border: 1px solid rgba(13,202,240,0.3);">
@@ -4325,12 +4328,15 @@
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort</label>
                                 <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 8 Zeichen" required minlength="8" autocomplete="new-password">
-                            </div>
+                                <div class="pw-rules small mt-2">
+                                    <div v-for="i in pwRules(selfPwData.new_password, username, selfPwData.old_password)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                    <div class="text-muted mt-1">{{ pwHint }}</div>
+                                </div>                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Neues Passwort bestätigen</label>
                                 <input type="password" v-model="selfPwData.confirm_password" class="form-control" required autocomplete="new-password">
                             </div>
-                            <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-2">Speichern</button>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-2" :disabled="!pwOk(selfPwData.new_password, username, selfPwData.old_password)">Speichern</button>
                         </form>
                     </div>
                 </div>
@@ -4338,6 +4344,7 @@
         </div>
 
     </div>
+    <script src="/static/js/password-policy.js"></script>
     <script src="/static/js/dashboard.js"></script>
 </body>
 </html>

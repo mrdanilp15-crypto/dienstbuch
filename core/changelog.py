@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 13,
+        "version": "2.63",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "new", "tag": "Sicherheit", "title": "Passwort-Richtlinie",
+             "text": "Neue Passwörter brauchen mindestens 8 Zeichen und dürfen kein bekanntes oder leicht erratbares Passwort sein (12345678, Passwort1, Feuerwehr2024, Tastaturreihen), nicht der Benutzername und beim Ändern nicht das alte Passwort. Sonderzeichen-Pflicht gibt es bewusst nicht (aktuelle Empfehlung von NIST/BSI: Länge und Sperrliste statt Zeichenregeln). Unter jedem Passwortfeld zeigt eine Liste live, was noch fehlt. Bestehende Passwörter bleiben gültig."},
+            {"type": "fix", "tag": "Login", "title": "Leerzeichen im Passwort",
+             "text": "Passwörter werden nicht mehr stillschweigend gekürzt; Leerzeichen am Rand zählen mit. Fehlermeldungen beim Ändern des eigenen Passworts werden jetzt angezeigt."},
+        ],
+    },
+    {
         "id": 12,
         "version": "2.62",
         "date": "2026-10-17",
