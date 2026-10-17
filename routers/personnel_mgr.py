@@ -78,9 +78,25 @@ def internal_sync_personnel_to_groups():
         print(f"Hintergrund-Synchronisationsfehler: {e}")
 
 # --- SCHNELLE ÜBERSICHTSLISTE (OHNE BILDER UND NOTIZEN) ---
+# Datensparsamkeit: Wer nicht zur Wehrführung gehört, braucht Anschrift, Geburtsdatum und Gesundheits-/Prüfdaten
+# anderer Kameraden nicht (Kameradenliste, Einsatz-Editor und Jugend-Ansichten brauchen sie nicht).
+_LIST_HIDDEN = ("address", "birth_date", "g26_3_date", "belastungslauf_date", "unterweisung_date", "license_checked_date")
+_ONE_HIDDEN = _LIST_HIDDEN + ("notes", "skills", "parent_contact", "emergency_contact_name", "emergency_contact_phone",
+                              "dsgvo_ack_date", "dienstordnung_ack_date", "badge_number")
+
+
+def _hidden_fields(role: str, many: bool):
+    if role in ("admin", "leitung"):
+        return ()
+    hidden = _LIST_HIDDEN if many else _ONE_HIDDEN
+    if role == "atemschutzwart":  # braucht die Untersuchungs-/Prüfdaten für seine Aufgabe
+        hidden = tuple(h for h in hidden if h not in ("g26_3_date", "belastungslauf_date", "unterweisung_date", "license_checked_date"))
+    return hidden
+
+
 @router.get("/list")
 def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
-    check_auth(request)
+    viewer = check_auth(request)
     # Sicherheits-Trigger: Vor dem Ausgeben der Liste kurz synchronisieren (im Hintergrund!)
     background_tasks.add_task(internal_sync_personnel_to_groups)
     
@@ -119,22 +135,30 @@ def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
             if key.startswith("is_") or key.startswith("lic_"):
                 row[key] = bool(value)
         row["has_picture"] = bool(row["has_picture"])
+        for h in _hidden_fields(viewer["role"], True):
+            row.pop(h, None)
     return res
 
 # --- EINZELNES MITGLIED VOLLSTÄNDIG LADEN (FÜR MODAL) ---
 @router.get("/get/{member_id}")
 def get_single_member(member_id: int, request: Request):
-    check_auth(request)
+    viewer = check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE id = %s", (member_id,))
     row = cur.fetchone()
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (viewer["username"],))
+    me = cur.fetchone()
     cur.close()
     conn.close()
     
     if not row:
         raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
-        
+    # Die eigene Akte sieht jeder vollständig, fremde nur die Wehrführung (sonst die Kurzansicht ohne private Angaben)
+    if not (me and me["personnel_id"] == member_id):
+        for h in _hidden_fields(viewer["role"], False):
+            row.pop(h, None)
+
     for key, value in row.items():
         if isinstance(value, date):
             row[key] = str(value)

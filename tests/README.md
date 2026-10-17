@@ -20,3 +20,10 @@ python tools/check.py              # Routen-/Vertrags-Pruefung
 `.github/workflows/docker-publish.yml` fuehrt vor jedem Bau des Images `tools/check.py` und alle Tests aus.
 Schlaegt etwas fehl, wird **kein neues Image** veroeffentlicht - Portainer bleibt dann auf dem letzten
 funktionierenden Stand.
+
+## Oberflaechen-Tests (Playwright)
+
+`test_contrast.py` prueft jeden sichtbaren Text auf jeder Seite, in Dunkel und Hell, auf Kontrast (WCAG 4,5:1) und
+Mindestschriftgroesse (12 px). `test_navigation.py` prueft je Rolle Seitenleiste, Reiter und dass keine verbotenen Abfragen
+gestellt werden. Dafuer einmalig: `python -m playwright install chromium`. Ohne Playwright werden beide uebersprungen.
+Neue Farben bitte ueber die Variablen am Ende von `static/css/dashboard.css` ("LESBARKEIT") waehlen, nicht fest eintragen.

@@ -133,7 +133,7 @@ def list_missions(request: Request):
 
 @router.get("/employer-certificates")
 def list_employer_certificates(request: Request):
-    check_auth(request)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT ec.id, ec.mission_id, ec.personnel_id, ec.created_by, ec.created_at,
@@ -727,7 +727,7 @@ def delete_respiration_entry(entry_id: int, request: Request):
 # --- 💶 ABRECHNUNG / KOSTENBESCHEIDE & EXPORTE ---
 @router.get("/billing/list")
 def list_bills(request: Request):
-    check_auth(request)
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
@@ -799,7 +799,8 @@ def mark_bill_paid(bill_id: int, request: Request):
 # --- 💶 STUNDEN-ENTSCHÄDIGUNG & SEPA EXPORT HELFER ---
 @router.get("/billing/compensations/list")
 def calculate_compensations(year: int, hourly_rate: float, request: Request):
-    check_auth(request)
+    # Stunden und Entschädigung ALLER Kameraden: nur Wehrführung (jeder sieht seine eigenen Stunden unter "Mein Profil")
+    check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     

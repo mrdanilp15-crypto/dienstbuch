@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 16,
+        "version": "2.66",
+        "date": "2026-10-18",
+        "items": [
+            {"type": "new", "tag": "Oberfläche", "title": "Neue Gliederung",
+             "text": "„Verwaltung & VB“ ist aufgeteilt: Objekte & BMA steht jetzt bei Einsatz & Taktik, das Gerätehaus bei Geräte & Material, Vereinskasse & Bank bei Material & Finanzen. Die Einstellungen (Admin/Leitung) sind nach Themen gruppiert: Konten & Sicherheit, Betrieb, Kommunikation (mit dem Kalender-Abo), Wache. Jede Rolle sieht nur noch, was sie nutzen kann; „Unterstützen“ steht unten im Profilfeld."},
+            {"type": "fix", "tag": "Lesbarkeit", "title": "Schrift und Kontrast",
+             "text": "Dunkle Schrift auf dunklem Grund (u. a. Hilfetexte im System-Reiter, deaktivierte Knöpfe), kaum lesbare Badges und Kalender-Einträge sind korrigiert, der Hellmodus ist durchgängig lesbar, die kleinste Schrift ist 12 px. Ein automatischer Test prüft das künftig bei jedem Push."},
+            {"type": "fix", "tag": "Datenschutz", "title": "Weniger Daten für Mannschaft",
+             "text": "Stunden und Entschädigung aller Kameraden, Rechnungen, Arbeitgeberbescheinigungen, Spenden und Mitgliedsbeiträge sehen nur noch Admin und Leitung. In der Kameradenliste fehlen für übrige Rollen Anschrift, Geburtsdatum und Prüfdaten anderer; die eigene Akte bleibt vollständig."},
+        ],
+    },
+    {
         "id": 15,
         "version": "2.65",
         "date": "2026-10-17",

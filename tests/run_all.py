@@ -24,7 +24,16 @@ ENV["PYTHONPATH"] = ROOT
 ENV["PYTHONIOENCODING"] = "utf-8"
 
 
+def _port_in_use(port=8801):
+    import socket
+    with socket.socket() as sock:
+        sock.settimeout(1)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
 def start_app():
+    if _port_in_use():
+        raise SystemExit("Port 8801 ist belegt (läuft noch eine alte App-Instanz?). Bitte beenden - sonst würde gegen alten Code getestet.")
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--port", "8801"], cwd=ROOT, env=ENV,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(60):

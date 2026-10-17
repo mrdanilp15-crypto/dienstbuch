@@ -65,7 +65,7 @@
             color: var(--text-color) !important;
         }
         [data-theme="light"] .text-muted {
-            color: #6c757d !important;
+            color: var(--muted-text) !important;
         }
         [data-theme="light"] .bg-black,
         [data-theme="light"] .bg-dark {
@@ -411,7 +411,7 @@
             color: #ffffff !important;
         }
         small, .small {
-            color: #e8e2e2 !important;
+            color: var(--text-secondary);
         }
         .form-control:focus, .form-select:focus {
             background: rgba(255, 255, 255, 0.12) !important;
@@ -851,7 +851,7 @@
     color: #000000 !important;
 }
 [data-theme='light'] .text-muted {
-    color: #6c757d !important;
+    color: var(--muted-text) !important;
 }
 
 [data-theme='light'] .bg-black,
@@ -1352,3 +1352,104 @@ body { background: var(--bg-color); }
 .notif-title{font-size:.9rem}
 .notif-body{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line}
 .calendar-event-done { opacity: 0.45; text-decoration: line-through; }
+
+/* =====================================================================================================
+   LESBARKEIT (Dunkel- UND Hellmodus) - zentral, damit neue Seiten nicht wieder "dunkle Schrift auf dunklem
+   Grund" erzeugen. Grundregel: Text mindestens 4,5:1 gegen den Untergrund, große Schrift 3:1.
+   Geprüft wird das automatisch (tests/test_contrast.py), siehe tests/README.md.
+   ===================================================================================================== */
+:root {
+    --muted-text: #b9aeae;
+    --c-danger: #ff7b7b; --c-success: #4cd98a; --c-warning: #ffcf5a; --c-primary: #7db4ff; --c-info: #5fd4f0; --c-secondary: #b4bbc2;
+    --on-c: #16110f;
+}
+[data-theme="light"], [data-theme="light"] body {
+    --text-secondary: #495057;
+    --muted-text: #565e65;
+    --c-danger: #b02a37; --c-success: #146c43; --c-warning: #7a5200; --c-primary: #0a58ca; --c-info: #066477; --c-secondary: #495057;
+    --on-c: #ffffff;
+}
+body { color: var(--text-color); }
+.card, .premium-card, .modal-content { color: var(--text-color); }
+:root .text-muted, :root .form-text, :root .text-body-secondary, :root[data-theme="light"] .text-muted, :root[data-theme="light"] .form-text { color: var(--muted-text) !important; }
+:root .text-danger, :root[data-theme="light"] .text-danger { color: var(--c-danger) !important; }
+:root .text-success, :root[data-theme="light"] .text-success { color: var(--c-success) !important; }
+:root .text-warning, :root[data-theme="light"] .text-warning { color: var(--c-warning) !important; }
+:root .text-primary, :root[data-theme="light"] .text-primary { color: var(--c-primary) !important; }
+:root .text-info, :root[data-theme="light"] .text-info { color: var(--c-info) !important; }
+:root .text-secondary, :root[data-theme="light"] .text-secondary { color: var(--muted-text) !important; }
+
+/* Umrandete Knöpfe: je Modus lesbare Farbe, beim Überfahren ausgefüllt mit passender Schrift */
+.btn-outline-danger { --bs-btn-color: var(--c-danger); --bs-btn-border-color: var(--c-danger); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-danger); --bs-btn-hover-border-color: var(--c-danger); --bs-btn-active-color: var(--on-c); --bs-btn-active-bg: var(--c-danger); }
+.btn-outline-success { --bs-btn-color: var(--c-success); --bs-btn-border-color: var(--c-success); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-success); --bs-btn-hover-border-color: var(--c-success); --bs-btn-active-color: var(--on-c); --bs-btn-active-bg: var(--c-success); }
+.btn-outline-primary { --bs-btn-color: var(--c-primary); --bs-btn-border-color: var(--c-primary); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-primary); --bs-btn-hover-border-color: var(--c-primary); --bs-btn-active-color: var(--on-c); --bs-btn-active-bg: var(--c-primary); }
+.btn-outline-warning { --bs-btn-color: var(--c-warning); --bs-btn-border-color: var(--c-warning); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-warning); --bs-btn-hover-border-color: var(--c-warning); --bs-btn-active-color: var(--on-c); --bs-btn-active-bg: var(--c-warning); }
+.btn-outline-info { --bs-btn-color: var(--c-info); --bs-btn-border-color: var(--c-info); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-info); --bs-btn-hover-border-color: var(--c-info); --bs-btn-active-color: var(--on-c); --bs-btn-active-bg: var(--c-info); }
+.btn-outline-secondary { --bs-btn-color: var(--c-secondary); --bs-btn-border-color: var(--c-secondary); --bs-btn-hover-color: var(--on-c); --bs-btn-hover-bg: var(--c-secondary); --bs-btn-hover-border-color: var(--c-secondary); }
+/* Gefüllte Knöpfe: Schrift immer passend zum Grund */
+.btn-success, .btn-danger, .btn-primary, .btn-secondary, .btn-dark,
+:root[data-theme="light"] .btn-success, :root[data-theme="light"] .btn-danger, :root[data-theme="light"] .btn-primary,
+:root[data-theme="light"] .btn-secondary, :root[data-theme="light"] .btn-dark { color: #fff !important; }
+.btn-link { --bs-btn-color: var(--c-primary); --bs-btn-hover-color: var(--c-primary); }
+.btn-success { background-color: #157347 !important; border-color: #146c43 !important; }
+.btn-danger { background-color: #c1272d !important; border-color: #b02a37 !important; }
+.btn-primary { background-color: #0b5ed7 !important; border-color: #0a58ca !important; }
+.btn-warning, .btn-info, .btn-light, :root[data-theme="light"] .btn-warning, :root[data-theme="light"] .btn-info, :root[data-theme="light"] .btn-light { color: #1a1a1a !important; }
+/* Deaktivierte Knöpfe waren vorher dunkle Schrift auf transparentem Grund = unsichtbar */
+.btn:disabled, .btn.disabled, fieldset:disabled .btn {
+    opacity: 1 !important; cursor: not-allowed;
+    background: rgba(128, 128, 128, 0.18) !important; border-color: rgba(128, 128, 128, 0.35) !important; color: var(--muted-text) !important;
+}
+
+/* Badges: weiße Schrift auf kräftigem Grund, gelb/hellblau mit dunkler Schrift */
+.badge { color: #fff; font-size: max(12px, 0.75em); }
+.badge.bg-primary { background-color: #0b5ed7 !important; }
+.badge.bg-danger { background-color: #c1272d !important; }
+.badge.bg-success { background-color: #157347 !important; }
+.badge.bg-secondary { background-color: #565e65 !important; }
+.badge.bg-dark { background-color: #343a40 !important; color: #fff !important; }
+.badge.bg-warning, .badge.bg-info, .badge.bg-light, .badge.text-dark { color: #1a1a1a !important; }
+:root[data-theme="light"] .badge.bg-primary, :root[data-theme="light"] .badge.bg-danger, :root[data-theme="light"] .badge.bg-success,
+:root[data-theme="light"] .badge.bg-secondary, :root[data-theme="light"] .badge.bg-dark { color: #fff !important; }
+.badge-status { font-size: 12px; }
+[data-theme="light"] .status-aktiv { color: #0b5c3b; background: #dbf5ec; border-color: #9fdcc2; }
+[data-theme="light"] .status-passiv { color: #3d444b; background: #e9ecef; border-color: #ced4da; }
+[data-theme="light"] .status-jugend { color: #0a4cb0; background: #dbe7fd; border-color: #a9c4f5; }
+[data-theme="light"] .status-ehren { color: #6b4b00; background: #fef0da; border-color: #f1cf8f; }
+[data-theme="light"] .status-ausgeschieden { color: #3d444b; background: #e9ecef; border-color: #ced4da; }
+
+/* Kalender: deckende Farben mit weißer Schrift (vorher halbdurchsichtig = je nach Modus unlesbar) */
+.calendar-event { font-size: 12px; color: #fff; }
+.calendar-event-dienst { background: #0b5ed7; }
+.calendar-event-einsatz { background: #b02a37; }
+.calendar-event-jubilaeum { background: #146c43; }
+.calendar-event-termin { background: #6f42c1; }
+.calendar-event-reservierung { background: #ffc107; color: #1a1a1a; }
+.calendar-event-editable:hover { background: #7d52cf; }
+.calendar-cell-num, .calendar-weekday { color: var(--muted-text) !important; }
+/* Tage des Nachbarmonats: nicht mehr durch Durchsichtigkeit abdunkeln (machte auch die Termine darin unlesbar) */
+.calendar-cell-muted { opacity: 1; background: rgba(128, 128, 128, 0.05); }
+.calendar-cell-muted .calendar-cell-num { font-weight: 500; }
+.calendar-event-done { opacity: 1; background: #6c757d !important; color: #fff !important; }
+
+/* Mitteilungs-Banner: im Hellmodus hell statt dunkelbraun mit dunkler Schrift */
+[data-theme="light"] .broadcast-card { background: #fff7e0; border-color: #ecd28c; color: #212529; }
+[data-theme="light"] .broadcast-card.mandatory { background: #fdecea; border-color: #f1aeb5; }
+[data-theme="light"] .broadcast-card h5, [data-theme="light"] .broadcast-card .text-white { color: #212529 !important; }
+[data-theme="light"] .broadcast-card .btn-outline-secondary { color: #343a40 !important; border-color: #6c757d !important; background: #fff; }
+
+/* Reiter-Leisten (Pillen): themefähig statt fest dunkler Inline-Farbe */
+.pill-nav { background: rgba(0, 0, 0, 0.3); border-radius: 16px; padding: 8px; display: inline-flex; }
+.pill-nav .nav-link:not(.active) { color: var(--text-primary) !important; }
+.pill-nav .nav-link:not(.active):hover { background: rgba(128, 128, 128, 0.2); }
+[data-theme="light"] .pill-nav { background: #e9ecef; }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; }
+.settings-group-label { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-text); margin: 0 0 6px 8px; }
+
+/* Mindestschriftgröße 12 px auch dort, wo Seiten sehr kleine Inline-Größen setzen */
+.btn-xs, .badge[style*="font-size"], .btn[style*="font-size"], .nav-link[style*="font-size"],
+[style*="font-size:0.6"], [style*="font-size: 0.6"], [style*="font-size:0.7"], [style*="font-size: 0.7"], [style*="font-size:0.65"], [style*="font-size: 0.65"] {
+    font-size: max(12px, 0.75rem) !important;
+}
+.small, small { font-size: max(12px, 0.875em); }
+.settings-nav .pill-nav { flex-wrap: wrap !important; overflow: visible !important; max-width: 100%; }

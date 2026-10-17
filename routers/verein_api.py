@@ -41,7 +41,9 @@ def delete_club_inventory(i_id: int, request: Request):
 
 @router.get("/api/verein/donations")
 def get_donations(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    u = get_current_user(request)
+    if not u: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if u["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT *, DATE_FORMAT(date, '%d.%m.%Y') as formatted_date FROM club_donations ORDER BY date DESC")
     res = cur.fetchall(); cur.close(); conn.close()
@@ -64,7 +66,9 @@ def add_donation(data: dict, request: Request):
 # --- MITGLIEDSBEITRÄGE ---
 @router.get("/api/verein/membership-fees")
 def get_membership_fees(year: int, request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    u = get_current_user(request)
+    if not u: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if u["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     # LEFT JOIN, damit auch Mitglieder ohne Eintrag für dieses Jahr (= noch nicht bezahlt)
     # mit auftauchen, statt einfach zu fehlen.

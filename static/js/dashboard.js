@@ -329,7 +329,7 @@ applyChartTheme();
                     
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
-                    verwaltungTab: 'logins',
+                    verwaltungTab: '', vereinTab: 'kasse',
                     
                     // Mängelmelder
                     defectReports: [],
@@ -458,6 +458,27 @@ applyChartTheme();
                 dueSoonShown() {
                     const sorted = [...this.dueSoonItems].sort((a, b) => (b.overdue - a.overdue) || String(a.due_date).localeCompare(String(b.due_date)));
                     return this.showAllDue ? sorted : sorted.slice(0, 8);
+                },
+                // Einstellungen (früher "Verwaltung & VB"): Reiter nach Themen gruppiert, je nach Rolle
+                canSeeSettings() { return ['admin', 'leitung'].includes(this.role); },
+                canSeeFinance() { return ['admin', 'leitung'].includes(this.role); },
+                canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
+                settingsGroups() {
+                    const admin = this.role === 'admin';
+                    const groups = [
+                        { label: 'Konten & Sicherheit', tabs: [
+                            { key: 'logins', label: 'System-Logins', icon: 'fa-key', show: admin },
+                            { key: 'audit', label: 'Aktivitäts-Log', icon: 'fa-clock-rotate-left', show: admin },
+                            { key: 'sicherheit', label: 'Sicherheit & Datenschutz', icon: 'fa-shield-halved', show: admin } ] },
+                        { label: 'Betrieb', tabs: [
+                            { key: 'betrieb', label: 'Systemzustand & Sicherung', icon: 'fa-heart-pulse', show: admin } ] },
+                        { label: 'Kommunikation', tabs: [
+                            { key: 'mail', label: 'E-Mail-Versand', icon: 'fa-envelope', show: admin },
+                            { key: 'kalender', label: 'Kalender-Abo', icon: 'fa-calendar-check', show: this.canSeeSettings } ] },
+                        { label: 'Wache', tabs: [
+                            { key: 'standort', label: 'Feuerwache-Standort', icon: 'fa-map-pin', show: this.canSeeSettings } ] }
+                    ];
+                    return groups.map(g => ({ label: g.label, tabs: g.tabs.filter(t => t.show) })).filter(g => g.tabs.length);
                 },
                 canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
                 // Backend /billing/... (mission_mgr.py) erlaubt dieselbe Rollenmenge -
@@ -720,11 +741,15 @@ applyChartTheme();
                 }
             },
             watch: {
+                // Gespeicherter oder per Link angesteuerter Reiter, den die Rolle nicht nutzen kann (z.B. nach Rollenwechsel): zur Startseite
+                role(r) { if (r && !this.tabAllowed(this.activeTab)) this.activeTab = 'dienste'; },
                 'newSchedule.audience'(v) { if (v === 'selected') this.loadAudienceInfo(); },
                 activeTab(newTab) {
+                    if (newTab && !this.tabAllowed(newTab)) { this.activeTab = 'dienste'; return; }
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
                     }
+                    if (newTab === 'verwaltung') this.ensureSettingsTab();
                     // Einziger Ort, an dem beim Reiterwechsel Daten nachgeladen werden. Vorher
                     // hingen die Ladeaufrufe an den @click-Handlern der Menü-Schaltflächen - wer
                     // den Reiter auf anderem Weg wechselte (globale Suche, Sprung nach einem
@@ -1543,7 +1568,6 @@ applyChartTheme();
                         }
                     }
                     await this.loadDefectReports();
-                    await this.loadClubData();
                     if (this.canManageMaterial) await this.loadDueSoon();
                 },
                 async loadDueSoon() {
@@ -1570,7 +1594,8 @@ applyChartTheme();
                         abrechnung: () => { this.loadBills(); this.calculateCompensations(); },
                         arbeitsbescheinigung: () => this.loadEmployerCertificates(),
                         archiv: () => this.loadArchiveFiles(),
-                        stats: () => this.loadStats()
+                        stats: () => this.loadStats(),
+                        verein: () => this.loadClubData()
                     };
                     const load = loaders[tab || this.activeTab];
                     if (!load) return;
@@ -2587,14 +2612,14 @@ applyChartTheme();
                 // Vereinsverwaltung Module (Moved to Material)
                 async loadClubData() {
                     try {
-                        const [iRes, dRes] = await Promise.all([
-                            fetch('/api/verein/inventory', { credentials: 'include' }),
-                            fetch('/api/verein/donations', { credentials: 'include' })
-                        ]);
+                        const iRes = await fetch('/api/verein/inventory', { credentials: 'include' });
                         if(iRes.ok) this.clubInventory = await iRes.json();
-                        if(dRes.ok) this.clubDonations = await dRes.json();
+                        if (this.canSeeFinance) {  // Spenden und Beiträge sehen nur Admin/Leitung (Server sperrt sonst mit 403)
+                            const dRes = await fetch('/api/verein/donations', { credentials: 'include' });
+                            if(dRes.ok) this.clubDonations = await dRes.json();
+                        }
                     } catch(err) { console.error(err); }
-                    await this.loadMembershipFees();
+                    if (this.canSeeFinance) await this.loadMembershipFees();
                 },
                 async loadMembershipFees() {
                     try {
@@ -2894,6 +2919,29 @@ applyChartTheme();
                 },
                 pwRules(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).items; },
                 pwOk(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).ok; },
+                tabAllowed(tab) {
+                    if (!this.role) return true; // Rolle noch nicht geladen
+                    if (['abrechnung', 'arbeitsbescheinigung', 'verein'].includes(tab)) return this.canSeeFinance;
+                    if (tab === 'stats') return this.canSeeStats;
+                    if (tab === 'verwaltung') return this.canSeeSettings;
+                    return true;
+                },
+                firstSettingsTab() { const g = this.settingsGroups; return g.length ? g[0].tabs[0].key : ''; },
+                ensureSettingsTab() {
+                    const keys = this.settingsGroups.flatMap(g => g.tabs.map(t => t.key));
+                    if (!keys.includes(this.verwaltungTab)) { this.verwaltungTab = this.firstSettingsTab(); }
+                    this.openSettingsTab(this.verwaltungTab);
+                },
+                openSettingsTab(key) {
+                    this.verwaltungTab = key;
+                    const loaders = {
+                        logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(),
+                        sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
+                        betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
+                        mail: () => this.loadMailSettings(), kalender: () => this.loadAccessTokens()
+                    };
+                    if (loaders[key]) loaders[key]();
+                },
                 async loadBackupInfo() {
                     if (!this.isAdmin) return;
                     const res = await fetch('/api/admin/backup-status', { credentials: 'include' });
@@ -3397,7 +3445,7 @@ applyChartTheme();
                 },
                 goToSearchBma(item) {
                     this.globalSearchOpen = false; this.globalSearchQuery = '';
-                    this.activeTab = 'verwaltung'; this.verwaltungTab = 'bma'; this.showMobileSidebar = false;
+                    this.activeTab = 'bma'; this.showMobileSidebar = false;
                     const full = this.bmas.find(b => b.id === item.id);
                     if (full) this.startBmaEdit(full);
                 },

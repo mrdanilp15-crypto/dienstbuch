@@ -49,6 +49,9 @@ jobs:
       - name: Abhaengigkeiten installieren
         run: pip install -r requirements.txt -r tests/requirements.txt
 
+      - name: Browser fuer die Oberflaechen-Tests installieren
+        run: python -m playwright install --with-deps chromium
+
       - name: Routen- und Vertragspruefung
         run: python tools/check.py
 
