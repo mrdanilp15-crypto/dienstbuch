@@ -6,6 +6,21 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 14,
+        "version": "2.64",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "new", "tag": "Sicherheit", "title": "Passwortwechsel beendet fremde Sitzungen",
+             "text": "Wer sein Passwort ändert oder zurücksetzen lässt (Admin oder E-Mail-Link), wird auf allen anderen Geräten abgemeldet. Ein gestohlenes Anmelde-Cookie ist damit sofort wertlos."},
+            {"type": "new", "tag": "Verwaltung", "title": "Passwort-Reset mit Regel-Checkliste",
+             "text": "Der Admin-Reset hat jetzt ein eigenes Fenster mit der Checkliste der Passwort-Regeln und einem Anzeigen-Knopf."},
+            {"type": "fix", "tag": "Sicherheit", "title": "Anmelde-Sperren lückenlos",
+             "text": "Die IP-Bremse ließ sich über einen erfundenen Header umgehen, bei Zwei-Faktor-Codes gab es keine Sperre pro Konto, und unbekannte Benutzernamen verhielten sich anders als echte (Fehlerzähler, Sperre). Alles behoben."},
+            {"type": "fix", "tag": "Verwaltung", "title": "Konten-Schutz",
+             "text": "Unbekannte Rollen werden abgelehnt, der letzte Administrator kann weder gelöscht noch herabgestuft werden, das eigene Konto nicht gelöscht. Ein Konto wird nicht mehr still mit einer Person verknüpft, deren Name den Benutzernamen enthält."},
+        ],
+    },
+    {
         "id": 13,
         "version": "2.63",
         "date": "2026-10-17",

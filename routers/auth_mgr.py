@@ -1,3 +1,4 @@
+import os
 import time
 import hashlib
 import json
@@ -10,7 +11,7 @@ from database import get_db_connection
 from core.password_policy import check_password, policy_for_client
 from core.utils import (log_audit_action, verify_password, hash_password, needs_password_rehash,
                         create_session_token, get_current_user, invalidate_role_cache,
-                        get_session_max_days, create_pending_2fa_token, verify_pending_2fa_token)
+                        get_session_max_days, create_pending_2fa_token, verify_pending_2fa_token, bump_session_version)
 
 router = APIRouter()
 
@@ -23,13 +24,18 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+def _set_session_cookie(user: dict, response: Response, request: Request, session_version=None):
+    sv = user.get('session_version') if session_version is None else session_version
+    token = create_session_token(user['username'], user['role'], sv or 0)
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+    response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400 * get_session_max_days(), samesite="lax", secure=is_https)
+
+
 def _issue_session(user: dict, response: Response, request: Request) -> dict:
     """Setzt das Session-Cookie und liefert die Login-Antwort - gemeinsam genutzt vom
     direkten Login (kein 2FA) und von /api/login/2fa (nach erfolgreichem zweiten Faktor),
     damit beide Wege exakt dieselbe Session erzeugen."""
-    token = create_session_token(user['username'], user['role'])
-    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
-    response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400 * get_session_max_days(), samesite="lax", secure=is_https)
+    _set_session_cookie(user, response, request)
     log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
     return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
 
@@ -43,11 +49,23 @@ _ip_login_attempts = {}  # ip -> [Zeitstempel fehlgeschlagener Versuche]
 _IP_RATE_LIMIT_WINDOW = 900  # 15 Minuten
 _IP_RATE_LIMIT_MAX = 20  # Fehlversuche pro IP in diesem Zeitfenster
 
+# Hinter einem Reverse-Proxy (Nginx Proxy Manager, Traefik, ...) hängt der Proxy die echte Client-Adresse
+# HINTEN an X-Forwarded-For an. Der erste Eintrag stammt dagegen vom Client selbst und ist frei erfunden
+# möglich - wer ihn nutzt, umgeht die IP-Bremse mit einem wechselnden Header. Deshalb von hinten zählen:
+# TRUSTED_PROXY_HOPS = Anzahl vorgeschalteter Proxys (Standard 1; 0 = direkt erreichbar, Header ignorieren).
+try:
+    _TRUSTED_PROXY_HOPS = max(0, int(os.getenv("TRUSTED_PROXY_HOPS", "1")))
+except ValueError:
+    _TRUSTED_PROXY_HOPS = 1
+
+
 def _get_client_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    direct = request.client.host if request.client else "unknown"
+    if _TRUSTED_PROXY_HOPS:
+        parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+        if len(parts) >= _TRUSTED_PROXY_HOPS:
+            return parts[-_TRUSTED_PROXY_HOPS]
+    return direct
 
 def _ip_rate_limited(ip: str) -> bool:
     now = time.time()
@@ -57,6 +75,22 @@ def _ip_rate_limited(ip: str) -> bool:
 
 def _record_ip_failure(ip: str):
     _ip_login_attempts.setdefault(ip, []).append(time.time())
+
+
+# Fehlversuche mit NICHT existierenden Namen werden genauso gezählt und gesperrt wie bei echten Konten.
+# Sonst verriete schon der Zusatz "(3/5)" bzw. "Konto gesperrt", welche Benutzernamen es gibt.
+_unknown_failures = {}  # name klein -> [Zeitstempel]
+_LOCK_WINDOW = 900
+
+
+def _unknown_recent(name: str):
+    now = time.time()
+    recent = [t for t in _unknown_failures.get(name, []) if now - t < _LOCK_WINDOW]
+    if recent:
+        _unknown_failures[name] = recent
+    else:
+        _unknown_failures.pop(name, None)
+    return recent
 
 @router.post("/api/login")
 def api_login(data: LoginRequest, response: Response, request: Request):
@@ -69,6 +103,12 @@ def api_login(data: LoginRequest, response: Response, request: Request):
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(%s)", (username_clean,))
     user = cur.fetchone()
+    if not user:
+        recent = _unknown_recent(username_clean.lower()[:100])
+        if len(recent) >= 5:
+            cur.close(); conn.close()
+            remaining = int((_LOCK_WINDOW - (time.time() - recent[0])) // 60) + 1
+            raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
     
     if user:
         if user["lockout_until"] and datetime.now() < user["lockout_until"]:
@@ -81,11 +121,14 @@ def api_login(data: LoginRequest, response: Response, request: Request):
             # Stilles Umstellen auf Argon2id, sobald das Konto sich das nächste Mal erfolgreich
             # anmeldet - der alte PBKDF2-Hash bleibt bis dahin über verify_password() gültig,
             # niemand muss sein Passwort deswegen ändern.
+            # Mit aktiver Zwei-Faktor-Anmeldung den Fehlerzähler erst nach dem zweiten Faktor zurücksetzen, sonst
+            # ließen sich mit dem richtigen Passwort immer wieder 4 neue Code-Versuche "freischalten"
+            reset = "" if user.get("totp_enabled") else "failed_logins = 0, lockout_until = NULL, "
             if needs_password_rehash(user['password_hash']):
-                cur.execute("UPDATE users SET password_hash = %s, failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s",
+                cur.execute(f"UPDATE users SET password_hash = %s, {reset}last_login = NOW() WHERE id = %s",
                            (hash_password(data.password), user["id"]))
             else:
-                cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE id = %s", (user["id"],))
+                cur.execute(f"UPDATE users SET {reset}last_login = NOW() WHERE id = %s", (user["id"],))
             conn.commit(); cur.close(); conn.close()
 
             if user.get("totp_enabled"):
@@ -123,8 +166,15 @@ def api_login(data: LoginRequest, response: Response, request: Request):
         # Timing-Unterschied, den dieser Aufruf eigentlich verhindern soll.
         verify_password(_DUMMY_ARGON2_HASH, data.password)
         _record_ip_failure(client_ip)
+        key = username_clean.lower()[:100]
+        if len(_unknown_failures) > 5000:
+            _unknown_failures.clear()
+        _unknown_failures.setdefault(key, []).append(time.time())
+        failed = len(_unknown_failures[key])
         log_audit_action("SYSTEM", "LOGIN_BENUTZER_UNBEKANNT", f"Anmeldeversuch mit nicht existierendem Namen '{username_clean}'.")
-        raise HTTPException(status_code=401, detail="Benutzername oder Passwort falsch!")
+        if failed >= 5:
+            raise HTTPException(status_code=423, detail="Konto wegen zu vieler Fehllogins für 15 Min. gesperrt.")
+        raise HTTPException(status_code=401, detail=f"Benutzername oder Passwort falsch! ({failed}/5)")
 
 def _hash_recovery_code(code: str) -> str:
     return hashlib.sha256(code.strip().upper().replace("-", "").replace(" ", "").encode()).hexdigest()
@@ -156,6 +206,10 @@ def api_login_2fa(data: dict, response: Response, request: Request):
     if not user or not user.get("totp_enabled") or not user.get("totp_secret"):
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Zwei-Faktor-Authentifizierung ist für dieses Konto nicht aktiv.")
+    if user["lockout_until"] and datetime.now() < user["lockout_until"]:
+        cur.close(); conn.close()
+        remaining = (user["lockout_until"] - datetime.now()).seconds // 60 + 1
+        raise HTTPException(status_code=423, detail=f"Konto gesperrt. Bitte in {remaining} Min. versuchen.")
 
     import pyotp
     # valid_window=1: akzeptiert auch den vorherigen/nächsten 30s-Schritt, sonst scheitert
@@ -174,9 +228,15 @@ def api_login_2fa(data: dict, response: Response, request: Request):
 
     if not ok:
         _record_ip_failure(client_ip)
-        cur.close(); conn.close()
-        log_audit_action(username, "LOGIN_2FA_FEHLGESCHLAGEN", "Falscher TOTP-/Wiederherstellungscode.")
-        raise HTTPException(status_code=401, detail="Code falsch oder abgelaufen.")
+        # Ein 6-stelliger Code lässt sich sonst mit wechselnden Adressen durchprobieren: auch hier pro Konto zählen und sperren
+        failed = (user["failed_logins"] or 0) + 1
+        lockout = datetime.now() + timedelta(minutes=15) if failed >= 5 else None
+        cur.execute("UPDATE users SET failed_logins = %s, lockout_until = %s WHERE username = %s", (failed, lockout, username))
+        conn.commit(); cur.close(); conn.close()
+        log_audit_action(username, "LOGIN_2FA_FEHLGESCHLAGEN", f"Falscher TOTP-/Wiederherstellungscode ({failed}/5).")
+        if failed >= 5:
+            raise HTTPException(status_code=423, detail="Zu viele falsche Codes - Konto für 15 Min. gesperrt.")
+        raise HTTPException(status_code=401, detail=f"Code falsch oder abgelaufen. ({failed}/5)")
 
     cur.execute("UPDATE users SET failed_logins = 0, lockout_until = NULL, last_login = NOW() WHERE username = %s", (username,))
     conn.commit(); cur.close(); conn.close()
@@ -280,7 +340,7 @@ def password_policy():
 
 
 @router.put("/api/auth/change-password")
-def user_change_self_password(data: dict, request: Request):
+def user_change_self_password(data: dict, request: Request, response: Response):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
     old_pw = data.get("old_password")
@@ -305,5 +365,8 @@ def user_change_self_password(data: dict, request: Request):
     cur.execute("UPDATE users SET password_hash = %s, is_first_login = 0 WHERE username = %s", (new_hash, user["username"]))
     conn.commit(); cur.close(); conn.close()
     invalidate_role_cache(user["username"])
-    log_audit_action(user["username"], "PASSWORT_ÄNDERUNG", "Eigenes Passwort erfolgreich aktualisiert.")
+    # Alle anderen Geräte/Sitzungen abmelden (z.B. ein gestohlenes Cookie), diese Sitzung bleibt über ein neues Cookie bestehen
+    new_sv = bump_session_version(user["username"])
+    _set_session_cookie(user, response, request, session_version=new_sv)
+    log_audit_action(user["username"], "PASSWORT_ÄNDERUNG", "Eigenes Passwort erfolgreich aktualisiert (andere Sitzungen abgemeldet).")
     return {"status": "success"}

@@ -33,7 +33,7 @@ from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.63"
+CURRENT_VERSION = "2.64"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -333,7 +333,9 @@ def init_db_extensions():
                                    # code in /api/auth/2fa/confirm wird totp_enabled wahr und der Login
                                    # verlangt den zweiten Faktor. totp_recovery_codes: JSON-Liste
                                    # gehashter Einmal-Codes für den Fall eines verlorenen Geräts.
-                                   ("totp_secret", "VARCHAR(64) NULL"), ("totp_enabled", "BOOLEAN DEFAULT FALSE"), ("totp_recovery_codes", "TEXT NULL")]:
+                                   ("totp_secret", "VARCHAR(64) NULL"), ("totp_enabled", "BOOLEAN DEFAULT FALSE"), ("totp_recovery_codes", "TEXT NULL"),
+                                   # Wird bei jedem Passwortwechsel/-reset erhöht: macht alle bisherigen Sitzungs-Cookies dieses Kontos ungültig
+                                   ("session_version", "INT NOT NULL DEFAULT 0")]:
             try: cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass

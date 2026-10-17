@@ -125,8 +125,8 @@ def verify_password(stored_password: str, provided_password: str) -> bool:
     except Exception:
         return False
 
-def create_session_token(username: str, role: str) -> str:
-    payload = {"username": username, "role": role, "ts": time.time()}
+def create_session_token(username: str, role: str, session_version: int = 0) -> str:
+    payload = {"username": username, "role": role, "ts": time.time(), "sv": int(session_version or 0)}
     payload_b64 = base64.b64encode(json.dumps(payload).encode()).decode()
     signature = hmac.new(SECRET_KEY.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
     return f"{payload_b64}.{signature}"
@@ -162,7 +162,7 @@ def verify_pending_2fa_token(token: str) -> Optional[str]:
     except Exception:
         return None
 
-_role_cache = {}  # username -> ((role, is_first_login) | None, cached_at) - None = Konto existiert nicht (mehr)
+_role_cache = {}  # username -> ((role, is_first_login, session_version) | None, cached_at) - None = Konto existiert nicht (mehr)
 _ROLE_CACHE_TTL = 15  # Sekunden
 
 _session_max_days_cache = None  # (value, cached_at) - vermeidet einen DB-Query pro Request
@@ -191,6 +191,20 @@ def get_session_max_days() -> int:
     _session_max_days_cache = (value, now)
     return value
 
+def bump_session_version(username: str) -> int:
+    """Meldet alle bestehenden Sitzungen dieses Kontos ab (siehe get_current_user) und liefert die neue Nummer."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET session_version = session_version + 1 WHERE username = %s", (username,))
+    cur.execute("SELECT session_version FROM users WHERE username = %s", (username,))
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    invalidate_role_cache(username)
+    return int(row[0]) if row else 0
+
+
 def invalidate_role_cache(username: str):
     """Vom Admin-Bereich aufrufen, wenn Rolle/Passwort geändert oder Konto gelöscht wird,
     damit das sofort greift statt bis zu _ROLE_CACHE_TTL Sekunden zu warten."""
@@ -209,11 +223,11 @@ def _get_live_user_info(username: str):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT role, is_first_login FROM users WHERE username = %s", (username,))
+        cur.execute("SELECT role, is_first_login, session_version FROM users WHERE username = %s", (username,))
         row = cur.fetchone()
         cur.close()
         conn.close()
-        info = (row[0], bool(row[1])) if row else None
+        info = (row[0], bool(row[1]), int(row[2] or 0)) if row else None
         _role_cache[username] = (info, now)
         return info
     except Exception as e:
@@ -246,7 +260,12 @@ def get_current_user(request: Request) -> Optional[dict]:
         if info is None:
             return None  # Account existiert nicht mehr -> Session ungültig
         if info != "__db_unavailable__":
-            live_role, is_first_login = info
+            live_role, is_first_login, live_sv = info
+            # Nach Passwortwechsel/-reset ist die Versionsnummer des Kontos hochgezählt: Cookies aus
+            # der Zeit davor (z.B. ein gestohlenes) sind damit sofort wertlos. Alte Cookies ohne
+            # Nummer zählen als 0 und bleiben gültig, bis zum ersten Passwortwechsel.
+            if int(data.get("sv", 0)) != live_sv:
+                return None
             data["role"] = live_role
             # Der erzwungene Passwortwechsel bei Erstanmeldung/-Reset war bisher nur eine
             # UI-Sperre im Frontend - wer den (oft bekannten) Default wie admin/admin123

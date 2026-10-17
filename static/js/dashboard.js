@@ -259,7 +259,7 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
-                    dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint,
+                    dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
                     vehicleReservations: [],
@@ -3111,17 +3111,27 @@ applyChartTheme();
                         await appAlert("Fehler: " + (err.detail || "Unbekannter Fehler"));
                     }
                 },
-                async resetUserPassword(usr) {
-                    const newPw = await appPrompt(`Neues Passwort für Benutzer '${usr.username}' (mindestens 8 Zeichen, kein bekanntes Passwort wie 12345678):`);
-                    if (newPw) {
-                        const res = await fetch(`/api/users/${usr.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: newPw }) });
+                resetUserPassword(usr) {
+                    // Eigenes Fenster statt appPrompt: so ist die Checkliste der Passwort-Regeln sichtbar
+                    this.adminPw = { id: usr.id, username: usr.username, password: '', show: false, busy: false };
+                    const el = document.getElementById('adminPwModal');
+                    bootstrap.Modal.getOrCreateInstance(el).show();
+                    el.addEventListener('shown.bs.modal', () => document.getElementById('adminPwInput')?.focus(), { once: true });
+                },
+                async submitAdminPw() {
+                    if (!this.pwOk(this.adminPw.password, this.adminPw.username)) return;
+                    this.adminPw.busy = true;
+                    try {
+                        const res = await fetch(`/api/users/${this.adminPw.id}/password`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ password: this.adminPw.password }) });
                         if (res.ok) {
-                            await appAlert("Passwort erfolgreich zurückgesetzt! Beim nächsten Login muss der Kamerad ein eigenes Passwort festlegen.");
+                            bootstrap.Modal.getInstance(document.getElementById('adminPwModal'))?.hide();
+                            this.adminPw.password = '';
+                            await appAlert("Passwort zurückgesetzt. Beim nächsten Login muss die Person ein eigenes Passwort festlegen.");
                         } else {
                             const err = await res.json().catch(() => ({}));
                             await appAlert("Das Passwort wurde NICHT geändert: " + (typeof err.detail === 'string' ? err.detail : "Unbekannter Fehler"));
                         }
-                    }
+                    } finally { this.adminPw.busy = false; }
                 },
 
                 // Vehicles Form Actions

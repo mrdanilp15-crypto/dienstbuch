@@ -7,7 +7,7 @@ import mysql.connector
 
 from database import get_db_connection
 from core.password_policy import check_password
-from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache
+from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache, bump_session_version
 
 router = APIRouter()
 
@@ -22,6 +22,14 @@ class UserCreateRequest(BaseModel):
     password: str
     role: str
     personnel_id: Optional[int] = None
+
+VALID_ROLES = ("mannschaft", "geratewart", "jugendwarte", "atemschutzwart", "gruppenfuehrer", "leitung", "admin")
+
+
+def _other_admins(cur, exclude_username):
+    cur.execute("SELECT COUNT(*) FROM users WHERE role = 'admin' AND username <> %s", (exclude_username,))
+    return cur.fetchone()[0]
+
 
 @router.get("/api/users/list")
 def list_users(request: Request):
@@ -64,6 +72,8 @@ def add_user(data: UserCreateRequest, request: Request):
     problem = check_password(data.password, username_clean)
     if problem:
         raise HTTPException(status_code=400, detail=problem)
+    if data.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
     conn = get_db_connection(); cur = conn.cursor()
     try:
         # Der Login unterscheidet nicht zwischen Gross und Klein - also darf es auch keine zwei Konten geben,
@@ -87,9 +97,18 @@ def update_user_role(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_role = data.get("role")
+    if new_role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
     row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    # Ohne mindestens einen Administrator kommt niemand mehr an Konten, Einstellungen und Sicherung
+    if row[1] == "admin" and new_role != "admin" and _other_admins(cur, row[0]) == 0:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Das ist der letzte Administrator - seine Rolle kann nicht geändert werden.")
     cur.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
     conn.commit(); cur.close(); conn.close()
     if row:
@@ -128,6 +147,7 @@ def change_user_password(user_id: int, data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     if target_user:
         invalidate_role_cache(target_user["username"])
+        bump_session_version(target_user["username"])  # bestehende Sitzungen dieses Kontos enden
         log_audit_action(user["username"], "PASSWORT_GESETZT", f"Passwort für '{target_user['username']}' durch Admin gesetzt.")
     return {"status": "success"}
 
@@ -136,8 +156,14 @@ def delete_user(user_id: int, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
     row = cur.fetchone()
+    if row and row[0] == user["username"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Das eigene Konto kann nicht gelöscht werden.")
+    if row and row[1] == "admin" and _other_admins(cur, row[0]) == 0:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Das ist der letzte Administrator und kann nicht gelöscht werden.")
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit(); cur.close(); conn.close()
     if row:
@@ -153,16 +179,11 @@ def get_my_global_fire_stats(year: int, request: Request):
     cur.execute("SELECT p.name, u.personnel_id FROM users u LEFT JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s", (user["username"],))
     res = cur.fetchone()
     
-    klarnat_name = None
-    if res and res["name"]:
-        klarnat_name = res["name"]
-    else:
-        cur.execute("SELECT id, name FROM personnel WHERE LOWER(name) LIKE %s", (f"%{user['username'].lower()}%",))
-        fallback = cur.fetchone()
-        if fallback:
-            cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], user["username"]))
-            conn.commit()
-            klarnat_name = fallback["name"]
+    # Früher wurde hier bei fehlender Verknüpfung still die erste Person verknüpft, deren Name den Benutzernamen
+    # irgendwo enthält (Beispiel: Konto "an" -> "Hannah ..."), noch dazu in einem lesenden Aufruf und ohne die
+    # Konfliktprüfung von bind-personnel. Falsche Verknüpfung = fremde Daten und fremde private Termine. Jetzt
+    # nur noch die ausdrückliche Verknüpfung (Admin oder "Konto verknüpfen" im Profil).
+    klarnat_name = res["name"] if res and res["name"] else None
             
     if not klarnat_name:
         cur.close(); conn.close()

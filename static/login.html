@@ -378,7 +378,30 @@
         if (openLink) {
             sessionStorage.setItem('open_after_login', openLink);
         }
+        function showError(msg) {
+            const box = document.getElementById('errorBox');
+            box.textContent = '';
+            const icon = document.createElement('i');
+            icon.className = 'fa fa-exclamation-circle me-1';
+            box.appendChild(icon);
+            box.appendChild(document.createTextNode(' ' + msg));
+            box.style.display = 'block';
+        }
+        // Antwort des Servers als Meldung: normale Fehler liefern {"detail": "..."}, Formularfehler eine Liste, ein Proxy-/Serverfehler gar kein JSON
+        async function readResponse(response, fallback) {
+            let data = {};
+            try { data = await response.json(); } catch (e) {}
+            let msg = typeof data.detail === 'string' ? data.detail : '';
+            if (!msg && !response.ok) msg = response.status >= 500 ? 'Der Server hat gerade ein Problem (Fehler ' + response.status + '). Bitte gleich nochmal versuchen.' : fallback;
+            return { data, msg };
+        }
         function goAfterLogin(defaultUrl) {
+            const savedBarcode = sessionStorage.getItem('eq_barcode_redirect');
+            if (savedBarcode) {
+                sessionStorage.removeItem('eq_barcode_redirect');
+                window.location.href = '/dashboard?eq_barcode=' + encodeURIComponent(savedBarcode);
+                return;
+            }
             const o = sessionStorage.getItem('open_after_login');
             if (o) {
                 sessionStorage.removeItem('open_after_login');
@@ -428,12 +451,10 @@
                     clearTimeout(timeoutId);
                 }
 
-                const data = await response.json();
+                const { data, msg: errorMsg } = await readResponse(response, 'Benutzername oder Passwort falsch!');
 
                 if (!response.ok) {
-                    const errorMsg = data.detail || 'Benutzername oder Passwort falsch!';
-                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${errorMsg}`;
-                    errorBox.style.display = 'block';
+                    showError(errorMsg);
                     
                     passwordInput.value = '';
                     btn.disabled = false;
@@ -461,20 +482,13 @@
                 localStorage.setItem('userRole', data.role);
                 localStorage.setItem('userName', data.username);
 
-                const savedBarcode = sessionStorage.getItem('eq_barcode_redirect');
-                if (savedBarcode) {
-                    sessionStorage.removeItem('eq_barcode_redirect');
-                    window.location.href = '/dashboard?eq_barcode=' + savedBarcode;
-                } else {
-                    goAfterLogin(data.redirect);
-                }
+                goAfterLogin(data.redirect);
 
             } catch (error) {
                 const msg = error.name === 'AbortError'
                     ? 'Zeitüberschreitung - Server antwortet nicht. Bitte Internetverbindung prüfen.'
                     : 'Verbindung zum Server fehlgeschlagen!';
-                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${msg}`;
-                errorBox.style.display = 'block';
+                showError(msg);
                 btn.disabled = false;
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';
@@ -551,11 +565,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ temp_token: pendingTwoFaToken, code: codeInput.value.trim() })
                 });
-                const data = await response.json();
+                const { data, msg } = await readResponse(response, 'Code falsch.');
 
                 if (!response.ok) {
-                    errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> ${data.detail || 'Code falsch.'}`;
-                    errorBox.style.display = 'block';
+                    showError(msg);
+                    if (response.status === 423 || /abgelaufen\. Bitte erneut/.test(msg)) cancelTwoFa();
                     codeInput.value = '';
                     codeInput.focus();
                     btn.disabled = false;
@@ -569,8 +583,7 @@
                 localStorage.setItem('userName', data.username);
                 goAfterLogin(data.redirect);
             } catch (error) {
-                errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
-                errorBox.style.display = 'block';
+                showError('Verbindung zum Server fehlgeschlagen!');
                 btn.disabled = false;
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';

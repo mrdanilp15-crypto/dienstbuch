@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import time
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -9,6 +10,8 @@ from core.mailer import encrypt_secret, get_mail_settings, is_mail_configured, r
 from core.utils import check_auth, hash_password, log_audit_action
 from database import get_db_connection
 from core.password_policy import check_password
+from core.utils import bump_session_version
+from routers.auth_mgr import _get_client_ip
 
 router = APIRouter(tags=["Mail"])
 
@@ -121,6 +124,9 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+_forgot_hits = {}  # ip -> [Zeitstempel]
+
+
 @router.post("/api/auth/forgot-password")
 async def forgot_password(request: Request):
     data = await request.json()
@@ -133,6 +139,16 @@ async def forgot_password(request: Request):
     # sonst könnte ein Angreifer Reset-Links auf eine fremde Domain umbiegen.
     app_url = (settings.get("app_url") or "").rstrip("/")
     if not identifier or not is_mail_configured(settings) or not app_url:
+        return generic
+    # Pro Adresse höchstens 10 Anforderungen in 15 Minuten (sonst lässt sich über diese Seite beliebig Mail-Verkehr auslösen)
+    ip = _get_client_ip(request)
+    now = time.time()
+    hits = [t for t in _forgot_hits.get(ip, []) if now - t < 900]
+    hits.append(now)
+    _forgot_hits[ip] = hits
+    if len(_forgot_hits) > 5000:
+        _forgot_hits.clear()
+    if len(hits) > 10:
         return generic
 
     conn = get_db_connection()
@@ -224,5 +240,6 @@ async def reset_password(request: Request):
     conn.commit()
     cur.close()
     conn.close()
+    bump_session_version(row["username"])  # bestehende Sitzungen enden (war das Konto kompromittiert, ist der Zugang damit weg)
     log_audit_action(row["username"], "PASSWORT_ZURUECKGESETZT", "Passwort über E-Mail-Link neu gesetzt.")
     return {"status": "success"}

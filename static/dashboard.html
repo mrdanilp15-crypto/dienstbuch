@@ -4196,6 +4196,36 @@
             </div>
         </div>
 
+        <!-- MODAL: PASSWORT FÜR ANDERES KONTO SETZEN (Admin) -->
+        <div class="modal fade" id="adminPwModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-key text-warning me-2"></i>Passwort zurücksetzen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form @submit.prevent="submitAdminPw">
+                        <div class="modal-body">
+                            <p class="small text-muted mb-3">Neues Passwort für <strong class="text-white">{{ adminPw.username }}</strong>. Beim nächsten Login muss die Person ein eigenes Passwort festlegen, bestehende Anmeldungen dieses Kontos werden beendet.</p>
+                            <label class="form-label">Neues Passwort</label>
+                            <div class="input-group">
+                                <input :type="adminPw.show ? 'text' : 'password'" v-model="adminPw.password" id="adminPwInput" class="form-control" autocomplete="new-password" required>
+                                <button type="button" class="btn btn-outline-secondary" @click="adminPw.show = !adminPw.show" title="Anzeigen/Verbergen"><i class="fa" :class="adminPw.show ? 'fa-eye-slash' : 'fa-eye'"></i></button>
+                            </div>
+                            <div class="pw-rules small mt-2">
+                                <div v-for="i in pwRules(adminPw.password, adminPw.username)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                <div class="text-muted mt-1">{{ pwHint }}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-secondary border-opacity-10">
+                            <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="submit" class="btn btn-warning rounded-pill fw-bold px-4" :disabled="!pwOk(adminPw.password, adminPw.username) || adminPw.busy">Passwort setzen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL: PROFILE & PASSWORD CHANGE -->
         <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
