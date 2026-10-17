@@ -260,6 +260,7 @@ applyChartTheme();
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
                     vehicleReservations: [],
@@ -319,7 +320,7 @@ applyChartTheme();
                     newHydrant: { lat: 0.0, lng: 0.0, type: 'Unterflur', label: 'Hydrant' },
                     newLogRide: { date: '', mileage_start: 0, mileage_end: 0, driver_name: '', purpose: '' },
                     systemUsers: [],
-                    newLogin: { username: '', password: '', role: 'mannschaft', personnel_id: null },
+                    newLogin: { username: '', password: '', role: 'mannschaft', personnel_id: null, invite: false },
                     activeVehicle: null,
                     selfBindPersonnelId: null,
                     
@@ -754,6 +755,7 @@ applyChartTheme();
                     const authData = await authRes.json();
                     this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role; this.displayName = (authData.personnel_name || authData.username || '').split(' ')[0];
                     this.isFirstLoginBlock = !!authData.is_first_login;
+                    this.must2fa = !!authData.must_setup_2fa;
                 } catch (e) {
                     const params = new URLSearchParams(window.location.search);
                     const eqBarcode = params.get('eq_barcode');
@@ -847,6 +849,7 @@ applyChartTheme();
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
                 PasswordPolicy.load().then(() => this.pwPolicyTick++);
+                fetch('/api/auth/mail-enabled').then(r => r.json()).then(d => { this.mailInviteOk = !!d.enabled; }).catch(() => {});
                 setInterval(() => { if (!document.hidden) this.refreshNotifCount(); }, 60000);
                 document.addEventListener('click', e => { if (this.notifOpen && !e.target.closest('#notifBell')) this.notifOpen = false; });
 
@@ -2866,6 +2869,44 @@ applyChartTheme();
                 },
                 pwRules(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).items; },
                 pwOk(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).ok; },
+                async loadSecurity() {
+                    if (!this.isAdmin) return;
+                    const res = await fetch('/api/admin/security', { credentials: 'include' });
+                    if (res.ok) this.security = await res.json();
+                },
+                async saveSecurity() {
+                    this.securitySaving = true;
+                    try {
+                        const res = await fetch('/api/admin/security-settings', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.security.settings) });
+                        await appAlert(res.ok ? 'Sicherheits-Einstellungen gespeichert.' : 'Speichern fehlgeschlagen.');
+                        if (res.ok) await this.loadSecurity();
+                    } finally { this.securitySaving = false; }
+                },
+                async resendInvite(usr) {
+                    if (!await appConfirm(`Einladung für „${usr.username}“ erneut per E-Mail schicken? Ältere Links werden damit ungültig.`)) return;
+                    const res = await fetch(`/api/users/${usr.id}/invite`, { method: 'POST', credentials: 'include' });
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? (err.message || 'Einladung verschickt.') : (typeof err.detail === 'string' ? err.detail : 'Einladung konnte nicht verschickt werden.'));
+                },
+                async resetUser2fa(usr) {
+                    if (!await appConfirm(`Zwei-Faktor für „${usr.username}“ ausschalten? Bestehende Anmeldungen des Kontos werden beendet, die Person muss 2FA danach neu einrichten.`)) return;
+                    const res = await fetch(`/api/users/${usr.id}/2fa-reset`, { method: 'POST', credentials: 'include' });
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? 'Zwei-Faktor zurückgesetzt.' : (typeof err.detail === 'string' ? err.detail : 'Zurücksetzen fehlgeschlagen.'));
+                    if (res.ok) await this.loadSystemUsers();
+                },
+                async loadMyDevices() {
+                    try {
+                        const res = await fetch('/api/auth/devices', { credentials: 'include' });
+                        this.myDevices = res.ok ? (await res.json()).map(d => ({ ...d, icon: /Android|iPhone/.test(d.label || '') ? 'fa-mobile-screen' : 'fa-desktop' })) : [];
+                    } catch (e) { this.myDevices = []; }
+                },
+                async logoutAllDevices() {
+                    if (!await appConfirm('Alle anderen Geräte abmelden? Dieses Gerät bleibt angemeldet.')) return;
+                    const res = await fetch('/api/auth/logout-all', { method: 'POST', credentials: 'include' });
+                    await appAlert(res.ok ? 'Alle anderen Geräte wurden abgemeldet.' : 'Das hat nicht geklappt.');
+                    await this.loadMyDevices();
+                },
                 async refreshNotifCount() {
                     try {
                         const res = await fetch('/api/notifications/count', { credentials: 'include' });
@@ -2984,6 +3025,7 @@ applyChartTheme();
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
                     this.twoFaSetup = null; this.twoFaConfirmCode = ''; this.twoFaRecoveryCodes = null;
                     this.fetchPersonalStats();
+                    this.loadMyDevices();
                     this.loadTwoFaStatus();
                     this.loadMyContact();
                     const el = document.getElementById('selfPasswordModal');
@@ -3024,7 +3066,7 @@ applyChartTheme();
                         return;
                     }
                     const data = await res.json();
-                    this.twoFaEnabled = true;
+                    this.twoFaEnabled = true; this.must2fa = false;
                     this.twoFaRecoveryCodes = data.recovery_codes;
                 },
                 async startDisable2fa() {
@@ -3070,12 +3112,17 @@ applyChartTheme();
                 
                 
                 async submitNewLogin() {
-                    if (!this.newLogin.username || !this.newLogin.password) return await appAlert("Benutzername und Passwort sind erforderlich!");
-                    if (!this.pwOk(this.newLogin.password, this.newLogin.username)) return await appAlert("Das Passwort erfüllt die Regeln noch nicht (siehe Liste unter dem Feld).");
+                    if (!this.newLogin.username) return await appAlert("Benutzername ist erforderlich!");
+                    if (this.newLogin.invite) {
+                        if (!this.newLogin.personnel_id) return await appAlert("Für eine Einladung bitte unten einen Kameraden verknüpfen - die Mail geht an dessen Adresse.");
+                    } else {
+                        if (!this.newLogin.password) return await appAlert("Bitte ein Passwort vergeben oder „Per E-Mail einladen“ wählen.");
+                        if (!this.pwOk(this.newLogin.password, this.newLogin.username)) return await appAlert("Das Passwort erfüllt die Regeln noch nicht (siehe Liste unter dem Feld).");
+                    }
                     const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newLogin) });
                     if (res.ok) {
-                        await appAlert("System-Login angelegt!");
-                        this.newLogin = { username: '', password: '', role: 'mannschaft', personnel_id: null };
+                        await appAlert(this.newLogin.invite ? "System-Login angelegt - die Einladung per E-Mail ist unterwegs. Die Person legt ihr Passwort über den Link selbst fest." : "System-Login angelegt!");
+                        this.newLogin = { username: '', password: '', role: 'mannschaft', personnel_id: null, invite: false };
                         await this.loadSystemUsers();
                     } else {
                         const err = await res.json();

@@ -16,7 +16,7 @@ from tests.helpers import sql
 
 from core.utils import hash_password
 today = datetime.date.today()
-for q in ("delete from notifications", "delete from notification_prefs", "delete from schedule_audience", "delete from schedule_rsvp", "delete from schedules", "delete from users where username <> 'demo'"):
+for q in ("delete from notifications", "delete from login_devices", "delete from notification_prefs", "delete from schedule_audience", "delete from schedule_rsvp", "delete from schedules", "delete from users where username <> 'demo'"):
     sql(q)
 def pid(name): return int(sql(f"select id from personnel where name='{name}'"))
 for u, role, person in [("m_in", "mannschaft", "Jonas Weber"), ("m_in2", "mannschaft", "Tim Fischer"), ("m_out", "mannschaft", "Laura Schmitt"), ("gw", "geratewart", "David Keller")]:

@@ -15,6 +15,7 @@ def check(name, cond, extra=""):
 from tests.helpers import sql
 
 
+sql("update settings set setting_value=50 where setting_key='min_participation_pct'")  # Ausgangszustand, falls ein früherer Lauf ihn verändert hat
 check("login", c.post("/api/login", json={"username": "demo", "password": "demo1234"}).status_code == 200)
 today = datetime.date.today()
 for q in ('delete from schedule_rsvp','delete from schedules','delete from building_checks','delete from prospects',"delete from users where username='mann'"):

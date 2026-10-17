@@ -7,6 +7,7 @@ import mysql.connector
 
 from database import get_db_connection
 from core.password_policy import check_password
+from core.security import INVITE_VALID_MINUTES, get_user_email, new_reset_token, security_event, send_invite_mail
 from core.utils import log_audit_action, hash_password, get_current_user, invalidate_role_cache, bump_session_version
 
 router = APIRouter()
@@ -19,9 +20,10 @@ def _jsonable(row):
 
 class UserCreateRequest(BaseModel):
     username: str
-    password: str
+    password: str = ""
     role: str
     personnel_id: Optional[int] = None
+    invite: bool = False  # True: kein Passwort vergeben - die Person bekommt eine Mail und legt es selbst fest
 
 VALID_ROLES = ("mannschaft", "geratewart", "jugendwarte", "atemschutzwart", "gruppenfuehrer", "leitung", "admin")
 
@@ -36,12 +38,13 @@ def list_users(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login, failed_logins, lockout_until FROM users ORDER BY username ASC")
+    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login, failed_logins, lockout_until, totp_enabled FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
     for u in users:
         u["last_login"] = str(u["last_login"]) if u["last_login"] else None
         u["is_locked"] = bool(u["lockout_until"] and u["lockout_until"] > datetime.now())
         u["lockout_until"] = str(u["lockout_until"]) if u["lockout_until"] else None
+        u["totp_enabled"] = bool(u["totp_enabled"])
     return users
 
 @router.put("/api/users/{user_id}/unlock")
@@ -69,11 +72,27 @@ def add_user(data: UserCreateRequest, request: Request):
     username_clean = data.username.strip()
     if not username_clean:
         raise HTTPException(status_code=400, detail="Benutzername darf nicht leer sein!")
-    problem = check_password(data.password, username_clean)
-    if problem:
-        raise HTTPException(status_code=400, detail=problem)
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
+    invite_email = invite_name = None
+    if data.invite:
+        # Einladung statt Passwort: braucht eine verknuepfte Person mit E-Mail-Adresse und eingerichteten Mailversand
+        from core.mailer import get_mail_settings, is_mail_configured
+        s = get_mail_settings()
+        if not (is_mail_configured(s) and s.get("app_url")):
+            raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet (Verwaltung → E-Mail). Bitte ein Passwort vergeben.")
+        if not data.personnel_id:
+            raise HTTPException(status_code=400, detail="Für eine Einladung bitte einen Kameraden verknüpfen - die Mail geht an dessen Adresse.")
+        c0 = get_db_connection(); k0 = c0.cursor(dictionary=True)
+        k0.execute("SELECT name, email FROM personnel WHERE id = %s", (data.personnel_id,))
+        person = k0.fetchone(); k0.close(); c0.close()
+        if not person or not person["email"]:
+            raise HTTPException(status_code=400, detail="Für diese Person ist keine E-Mail-Adresse hinterlegt (Personalakte). Bitte dort eintragen oder ein Passwort vergeben.")
+        invite_email, invite_name = person["email"], person["name"]
+    else:
+        problem = check_password(data.password, username_clean)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
     conn = get_db_connection(); cur = conn.cursor()
     try:
         # Der Login unterscheidet nicht zwischen Gross und Klein - also darf es auch keine zwei Konten geben,
@@ -82,14 +101,65 @@ def add_user(data: UserCreateRequest, request: Request):
         existing = cur.fetchone()
         if existing:
             raise HTTPException(status_code=400, detail=f"Benutzername existiert bereits (als '{existing[0]}') - Groß-/Kleinschreibung zählt nicht.")
-        p_hash = hash_password(data.password)
+        import secrets as _secrets
+        # Bei einer Einladung bekommt das Konto ein zufaelliges, niemandem bekanntes Passwort - der Link setzt das echte
+        p_hash = hash_password(_secrets.token_urlsafe(32) if data.invite else data.password)
         cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 1, %s)", (username_clean, p_hash, data.role, data.personnel_id or None))
+        new_id = cur.lastrowid
         conn.commit()
-        log_audit_action(user["username"], "NUTZER_ANLEGEN", f"Konto für '{username_clean}' verknüpft mit Personal-ID {data.personnel_id} erstellt.")
+        log_audit_action(user["username"], "NUTZER_ANLEGEN", f"Konto für '{username_clean}' verknüpft mit Personal-ID {data.personnel_id} erstellt" + (" (Einladung per Mail)." if data.invite else "."))
+        if data.invite:
+            send_invite_mail(username_clean, invite_email, new_reset_token(new_id, INVITE_VALID_MINUTES), invite_name)
+            log_audit_action(user["username"], "EINLADUNG_GESENDET", f"Einladung für '{username_clean}' an {invite_email} verschickt.")
     except mysql.connector.Error as err:
         if err.errno == 1062: raise HTTPException(status_code=400, detail="Benutzername existiert bereits!")
         raise HTTPException(status_code=500, detail=str(err))
     finally: cur.close(); conn.close()
+    return {"status": "success", "invited": bool(data.invite)}
+
+
+@router.post("/api/users/{user_id}/invite")
+def resend_invite(user_id: int, request: Request):
+    """Einladung erneut schicken (neuer Link, die alten werden ungültig) - nur solange das Konto noch nie eingerichtet wurde."""
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT u.id, u.username, u.is_first_login, p.name, p.email FROM users u LEFT JOIN personnel p ON p.id = u.personnel_id WHERE u.id = %s", (user_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row: raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    if not row["is_first_login"]:
+        raise HTTPException(status_code=400, detail="Dieses Konto ist bereits eingerichtet. Für ein neues Passwort bitte „PW Reset“ nutzen.")
+    from core.mailer import get_mail_settings, is_mail_configured
+    s = get_mail_settings()
+    if not (is_mail_configured(s) and s.get("app_url")):
+        raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet.")
+    if not row["email"]:
+        raise HTTPException(status_code=400, detail="Für die verknüpfte Person ist keine E-Mail-Adresse hinterlegt.")
+    send_invite_mail(row["username"], row["email"], new_reset_token(row["id"], INVITE_VALID_MINUTES), row["name"] or "")
+    log_audit_action(user["username"], "EINLADUNG_GESENDET", f"Einladung für '{row['username']}' erneut an {row['email']} verschickt.")
+    return {"status": "success", "message": f"Einladung an {row['email']} verschickt."}
+
+
+@router.post("/api/users/{user_id}/2fa-reset")
+def reset_user_2fa(user_id: int, request: Request):
+    """Zwei-Faktor für ein Konto ausschalten (z.B. Handy UND Wiederherstellungscodes verloren). Beendet die Sitzungen des Kontos."""
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT username, totp_enabled FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    if not row["totp_enabled"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Bei diesem Konto ist keine Zwei-Faktor-Anmeldung aktiv.")
+    cur.execute("UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL WHERE id = %s", (user_id,))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_role_cache(row["username"])
+    bump_session_version(row["username"])
+    log_audit_action(user["username"], "2FA_ZURUECKGESETZT", f"Zwei-Faktor für '{row['username']}' durch Admin zurückgesetzt.")
+    security_event(row["username"], "Zwei-Faktor-Anmeldung zurückgesetzt", "Die Wehrführung hat die Zwei-Faktor-Anmeldung deines Kontos zurückgesetzt. Bitte richte sie neu ein.")
     return {"status": "success"}
 
 @router.put("/api/users/{user_id}/role")
@@ -148,6 +218,7 @@ def change_user_password(user_id: int, data: dict, request: Request):
     if target_user:
         invalidate_role_cache(target_user["username"])
         bump_session_version(target_user["username"])  # bestehende Sitzungen dieses Kontos enden
+        security_event(target_user["username"], "Dein Passwort wurde zurückgesetzt", "Die Wehrführung hat ein neues Passwort für dein Konto vergeben. Beim nächsten Anmelden musst du ein eigenes festlegen.")
         log_audit_action(user["username"], "PASSWORT_GESETZT", f"Passwort für '{target_user['username']}' durch Admin gesetzt.")
     return {"status": "success"}
 
@@ -165,6 +236,10 @@ def delete_user(user_id: int, request: Request):
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Das ist der letzte Administrator und kann nicht gelöscht werden.")
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+    if row:
+        # Nichts zurücklassen, was ein später neu angelegtes Konto mit gleichem Namen erben würde
+        for tbl in ("login_devices", "notifications", "notification_prefs"):
+            cur.execute(f"DELETE FROM {tbl} WHERE username = %s", (row[0],))
     conn.commit(); cur.close(); conn.close()
     if row:
         invalidate_role_cache(row[0])

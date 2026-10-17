@@ -162,7 +162,7 @@ def verify_pending_2fa_token(token: str) -> Optional[str]:
     except Exception:
         return None
 
-_role_cache = {}  # username -> ((role, is_first_login, session_version) | None, cached_at) - None = Konto existiert nicht (mehr)
+_role_cache = {}  # username -> ((role, is_first_login, session_version, totp_enabled) | None, cached_at) - None = Konto existiert nicht (mehr)
 _ROLE_CACHE_TTL = 15  # Sekunden
 
 _session_max_days_cache = None  # (value, cached_at) - vermeidet einen DB-Query pro Request
@@ -223,11 +223,11 @@ def _get_live_user_info(username: str):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT role, is_first_login, session_version FROM users WHERE username = %s", (username,))
+        cur.execute("SELECT role, is_first_login, session_version, totp_enabled FROM users WHERE username = %s", (username,))
         row = cur.fetchone()
         cur.close()
         conn.close()
-        info = (row[0], bool(row[1]), int(row[2] or 0)) if row else None
+        info = (row[0], bool(row[1]), int(row[2] or 0), bool(row[3])) if row else None
         _role_cache[username] = (info, now)
         return info
     except Exception as e:
@@ -260,7 +260,8 @@ def get_current_user(request: Request) -> Optional[dict]:
         if info is None:
             return None  # Account existiert nicht mehr -> Session ungültig
         if info != "__db_unavailable__":
-            live_role, is_first_login, live_sv = info
+            live_role, is_first_login, live_sv, live_totp = info
+            data["totp"] = live_totp
             # Nach Passwortwechsel/-reset ist die Versionsnummer des Kontos hochgezählt: Cookies aus
             # der Zeit davor (z.B. ein gestohlenes) sind damit sofort wertlos. Alte Cookies ohne
             # Nummer zählen als 0 und bleiben gültig, bis zum ersten Passwortwechsel.

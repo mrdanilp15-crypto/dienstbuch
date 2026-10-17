@@ -232,6 +232,10 @@
         <div v-if="!isOnline" class="bg-danger text-white text-center p-2 fw-bold" style="z-index: 9999; position: sticky; top: 0;">
             <i class="fa fa-wifi-slash me-2"></i> Du bist offline! Änderungen werden lokal gespeichert und später synchronisiert.
         </div>
+        <div v-if="must2fa" class="alert alert-danger rounded-0 m-0 py-2 px-4 d-flex flex-wrap align-items-center justify-content-between gap-2" style="z-index: 900;">
+            <span><i class="fa fa-shield-halved me-2"></i><strong>Zwei-Faktor-Anmeldung ist für deine Rolle Pflicht.</strong> Bis du sie eingerichtet hast, kannst du nur lesen.</span>
+            <button class="btn btn-sm btn-light rounded-pill fw-bold" @click="openSelfPasswordModal()">Jetzt einrichten</button>
+        </div>
         <div class="app-container" :data-area="activeTab">
             <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
                 <div class="d-flex justify-content-between align-items-center p-3 d-lg-none border-bottom border-secondary border-opacity-10 bg-black bg-opacity-20">
@@ -1408,7 +1412,7 @@
                             <button class="nav-link" :class="verwaltungTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
                         </li>
                         <li class="nav-item" v-if="isAdmin">
-                            <button class="nav-link" :class="verwaltungTab === 'system' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'system'; loadHealth()"><i class="fa fa-heart-pulse me-1"></i>System</button>
+                            <button class="nav-link" :class="verwaltungTab === 'system' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'system'; loadHealth(); loadSecurity()"><i class="fa fa-heart-pulse me-1"></i>System</button>
                         </li>
                                                 <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
                             <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
@@ -1503,7 +1507,7 @@
                                                 <thead><tr class="text-muted"><th>BENUTZER</th><th>ROLLE</th><th>KAMERAD</th><th>LETZTER LOGIN</th><th>AKTIONEN</th></tr></thead>
                                                 <tbody>
                                                     <tr v-for="usr in systemUsers" :key="usr.id">
-                                                        <td class="fw-bold text-white">{{ usr.username }}</td>
+                                                        <td class="fw-bold text-white">{{ usr.username }}<i v-if="usr.totp_enabled" class="fa fa-shield-halved text-success ms-1" title="Zwei-Faktor aktiv" style="font-size:0.75rem;"></i></td>
                                                         <td>
                                                             <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':usr.role==='atemschutzwart'?'bg-dark border border-info text-info':'bg-secondary'">{{ usr.role }}</span>
                                                         </td>
@@ -1518,6 +1522,8 @@
                                                                 <button v-if="usr.is_locked" class="btn btn-xs btn-outline-success rounded-pill" @click="unlockUserAccount(usr)" style="font-size:0.65rem;"><i class="fa fa-unlock me-1"></i>Sperre aufheben</button>
                                                                 <button class="btn btn-xs btn-outline-primary rounded-pill" @click="startUserEdit(usr)" style="font-size:0.65rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
                                                                 <button class="btn btn-xs btn-outline-warning rounded-pill" @click="resetUserPassword(usr)" style="font-size:0.65rem;">PW Reset</button>
+                                                                <button v-if="usr.is_first_login" class="btn btn-xs btn-outline-info rounded-pill" @click="resendInvite(usr)" style="font-size:0.65rem;" title="Neuen Einrichtungs-Link per E-Mail schicken"><i class="fa fa-envelope me-1"></i>Einladung</button>
+                                                                <button v-if="usr.totp_enabled" class="btn btn-xs btn-outline-secondary rounded-pill" @click="resetUser2fa(usr)" style="font-size:0.65rem;" title="Zwei-Faktor ausschalten (z.B. Handy verloren)">2FA zurücksetzen</button>
                                                                 <button class="btn btn-xs btn-outline-danger rounded-pill" @click="deleteUserAccount(usr.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
                                                             </div>
                                                         </td>
@@ -1542,7 +1548,14 @@
                                             <label class="form-label">Benutzername</label>
                                             <input type="text" v-model="newLogin.username" class="form-control" placeholder="z. B. f.mueller">
                                         </div>
-                                        <div class="mb-3" v-if="!editingUserId">
+                                        <div class="mb-3" v-if="!editingUserId && mailInviteOk">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="inviteSwitch" v-model="newLogin.invite">
+                                                <label class="form-check-label" for="inviteSwitch">Per E-Mail einladen</label>
+                                            </div>
+                                            <div class="small text-muted mt-1">{{ newLogin.invite ? 'Die Person legt ihr Passwort selbst fest - niemand sonst kennt es. Dafür unten einen Kameraden mit hinterlegter E-Mail-Adresse verknüpfen.' : 'Oder hier ein Passwort vergeben und weitergeben.' }}</div>
+                                        </div>
+                                        <div class="mb-3" v-if="!editingUserId && !newLogin.invite">
                                             <label class="form-label">Passwort</label>
                                             <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 8 Zeichen" minlength="8" autocomplete="new-password">
                                             <div class="pw-rules small mt-2">
@@ -1681,6 +1694,54 @@
                                         <div><div class="fw-bold text-white">{{ c.label }}</div><div class="small text-muted">{{ c.detail }}</div></div>
                                     </div>
                                     <button class="btn btn-outline-light btn-sm rounded-pill align-self-start mt-2" @click="loadHealth"><i class="fa fa-rotate me-1"></i>Neu prüfen</button>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                            <div class="card premium-card p-4 mt-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-shield-halved text-danger me-2"></i>Sicherheit</h5>
+                                <small class="text-muted d-block mb-3">Anmeldungen, Sperren und Regeln für Zwei-Faktor und Passwörter.</small>
+                                <div v-if="security">
+                                    <div class="row g-2 mb-3 text-center">
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.failed_24h ? 'text-warning' : 'text-success'">{{ security.failed_24h }}</div><div class="small text-muted">Fehlversuche (24 Std.)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold">{{ security.failed_7d }}</div><div class="small text-muted">Fehlversuche (7 Tage)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.ip_blocked_7d ? 'text-warning' : 'text-success'">{{ security.ip_blocked_7d }}</div><div class="small text-muted">Adress-Sperren (7 Tage)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.locked.length ? 'text-danger' : 'text-success'">{{ security.locked.length }}</div><div class="small text-muted">Gesperrte Konten</div></div></div>
+                                    </div>
+                                    <div v-if="security.locked.length" class="small mb-2"><i class="fa fa-lock text-danger me-1"></i>Gesperrt: <span v-for="l in security.locked" :key="l.username" class="badge bg-danger me-1">{{ l.username }} bis {{ l.until }}</span></div>
+                                    <div v-if="security.no_2fa.length" class="small mb-2"><i class="fa fa-triangle-exclamation text-warning me-1"></i>Ohne Zwei-Faktor (Admin/Leitung): <span v-for="u in security.no_2fa" :key="u.username" class="badge bg-warning text-dark me-1">{{ u.username }}</span></div>
+                                    <div v-if="security.pending_invites.length" class="small mb-2"><i class="fa fa-envelope text-info me-1"></i>Noch nicht eingerichtet (Erstanmeldung offen): <span v-for="u in security.pending_invites" :key="u" class="badge bg-secondary me-1">{{ u }}</span></div>
+                                    <hr class="border-secondary border-opacity-25">
+                                    <div class="row g-3 align-items-end mb-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Zwei-Faktor-Anmeldung ist Pflicht für</label>
+                                            <select class="form-select" v-model.number="security.settings.require_2fa">
+                                                <option :value="0">Niemanden (freiwillig)</option>
+                                                <option :value="1">Administratoren</option>
+                                                <option :value="2">Administratoren und Leitung</option>
+                                            </select>
+                                            <div class="form-text">Betroffene Konten dürfen ohne 2FA nur noch lesen, bis sie es unter „Mein Profil“ einrichten.</div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="pwnedSwitch" v-model="security.settings.pwned_check" :true-value="1" :false-value="0">
+                                                <label class="form-check-label" for="pwnedSwitch">Neue Passwörter mit bekannten Datenlecks abgleichen</label>
+                                            </div>
+                                            <div class="form-text">Über haveibeenpwned.com; gesendet werden nur die ersten 5 Zeichen eines Hashes, nie das Passwort. Fällt der Dienst aus, läuft alles normal weiter.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-warning btn-sm rounded-pill mb-3" @click="saveSecurity" :disabled="securitySaving"><i class="fa fa-floppy-disk me-1"></i>Sicherheits-Einstellungen speichern</button>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-lg-6">
+                                            <div class="small fw-bold text-white mb-1">Letzte Anmeldungen</div>
+                                            <div v-for="l in security.last_logins" :key="l.username" class="small text-muted d-flex justify-content-between"><span>{{ l.username }} <span class="opacity-50">({{ l.role }})</span></span><span>{{ l.at }}</span></div>
+                                        </div>
+                                        <div class="col-12 col-lg-6">
+                                            <div class="small fw-bold text-white mb-1">Letzte Sicherheits-Ereignisse</div>
+                                            <div v-for="(e, i) in security.events" :key="i" class="small text-muted"><span class="opacity-75">{{ e.at }}</span> · {{ e.who }} · {{ e.action }}</div>
+                                            <div v-if="!security.events.length" class="small text-muted">Noch nichts.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="loadSecurity"><i class="fa fa-rotate me-1"></i>Aktualisieren</button>
                                 </div>
                                 <div v-else class="text-muted">Wird geladen …</div>
                             </div>
@@ -4308,6 +4369,18 @@
                                 <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Notfallkontakt (Telefon)</label><input type="tel" class="form-control form-control-sm" v-model="myContact.emergency_contact_phone" maxlength="255"></div>
                             </div>
                             <button type="button" class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="saveMyContact" :disabled="contactSaving"><i class="fa fa-save me-1"></i>Kontaktdaten speichern</button>
+                        </div>
+
+                        <!-- MEINE GERÄTE -->
+                        <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-laptop-mobile text-danger me-2"></i>Meine Geräte</h6>
+                            <small class="text-muted d-block mb-2">Geräte, mit denen du dich angemeldet hast. Erkennst du eines nicht, melde alle anderen ab und ändere dein Passwort.</small>
+                            <div v-for="(d, i) in myDevices" :key="i" class="d-flex justify-content-between small py-1 border-top border-secondary border-opacity-10">
+                                <span><i class="fa fa-fw" :class="d.icon"></i> {{ d.label }} <span v-if="d.current" class="badge bg-success ms-1">dieses Gerät</span></span>
+                                <span class="text-muted text-end">zuletzt {{ d.last_seen }}<span v-if="d.ip"> · {{ d.ip }}</span></span>
+                            </div>
+                            <div v-if="!myDevices.length" class="small text-muted">Noch keine Geräte erfasst.</div>
+                            <button v-if="myDevices.length > 1" type="button" class="btn btn-outline-danger btn-sm rounded-pill mt-2" @click="logoutAllDevices"><i class="fa fa-right-from-bracket me-1"></i>Auf allen anderen Geräten abmelden</button>
                         </div>
 
                         <!-- ZWEI-FAKTOR-AUTHENTIFIZIERUNG -->

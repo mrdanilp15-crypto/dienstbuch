@@ -12,6 +12,7 @@ from core.password_policy import check_password, policy_for_client
 from core.utils import (log_audit_action, verify_password, hash_password, needs_password_rehash,
                         create_session_token, get_current_user, invalidate_role_cache,
                         get_session_max_days, create_pending_2fa_token, verify_pending_2fa_token, bump_session_version)
+from core.security import register_login_device, security_event, two_fa_required
 
 router = APIRouter()
 
@@ -36,6 +37,13 @@ def _issue_session(user: dict, response: Response, request: Request) -> dict:
     direkten Login (kein 2FA) und von /api/login/2fa (nach erfolgreichem zweiten Faktor),
     damit beide Wege exakt dieselbe Session erzeugen."""
     _set_session_cookie(user, response, request)
+    try:
+        is_new, label, _ = register_login_device(request, response, user['username'], _get_client_ip(request))
+        if is_new:
+            security_event(user['username'], "Neue Anmeldung auf einem anderen Gerät",
+                           f"Anmeldung mit {label} am {datetime.now().strftime('%d.%m.%Y um %H:%M')} Uhr.")
+    except Exception as e:
+        print(f"Geräteerkennung fehlgeschlagen (Anmeldung läuft normal weiter): {e}")
     log_audit_action(user['username'], "LOGIN", "Erfolgreich eingeloggt.")
     return {"status": "success", "username": user['username'], "role": user['role'], "is_first_login": bool(user['is_first_login']), "redirect": "/dashboard"}
 
@@ -290,6 +298,7 @@ def confirm_2fa(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     invalidate_role_cache(user["username"])
     log_audit_action(user["username"], "2FA_AKTIVIERT", "Zwei-Faktor-Authentifizierung aktiviert.")
+    security_event(user["username"], "Zwei-Faktor-Anmeldung aktiviert", "Für dein Konto wurde die Zwei-Faktor-Anmeldung eingeschaltet.")
     return {"status": "success", "recovery_codes": codes}
 
 @router.post("/api/auth/2fa/disable")
@@ -306,6 +315,7 @@ def disable_2fa(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     invalidate_role_cache(user["username"])
     log_audit_action(user["username"], "2FA_DEAKTIVIERT", "Zwei-Faktor-Authentifizierung deaktiviert.")
+    security_event(user["username"], "Zwei-Faktor-Anmeldung abgeschaltet", "Für dein Konto wurde die Zwei-Faktor-Anmeldung ausgeschaltet.")
     return {"status": "success"}
 
 @router.get("/api/auth/me")
@@ -326,7 +336,36 @@ def api_auth_me(request: Request):
     is_first = bool(db_user["is_first_login"]) if db_user else False
     p_id = db_user["personnel_id"] if db_user else None
     p_name = db_user["personnel_name"] if db_user else None
-    return {"username": user["username"], "role": user["role"], "is_first_login": is_first, "personnel_id": p_id, "personnel_name": p_name}
+    must_2fa = bool(two_fa_required(user["role"]) and not user.get("totp"))
+    return {"username": user["username"], "role": user["role"], "is_first_login": is_first, "personnel_id": p_id, "personnel_name": p_name, "must_setup_2fa": must_2fa}
+
+@router.get("/api/auth/devices")
+def my_devices(request: Request):
+    """Geräte, mit denen sich dieses Konto angemeldet hat (Browser/System, grobe Adresse, Zeitpunkt)."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    current = request.cookies.get("device_id") or ""
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT device_id, label, ip_masked, first_seen, last_seen FROM login_devices WHERE username = %s ORDER BY last_seen DESC LIMIT 20", (user["username"],))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [{"label": r["label"], "ip": r["ip_masked"], "first_seen": r["first_seen"].strftime("%d.%m.%Y"), "last_seen": r["last_seen"].strftime("%d.%m.%Y %H:%M"),
+             "current": r["device_id"] == current} for r in rows]
+
+
+@router.post("/api/auth/logout-all")
+def logout_all_other_devices(request: Request, response: Response):
+    """Beendet alle anderen Sitzungen dieses Kontos; dieses Gerät bleibt angemeldet (neues Cookie)."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    new_sv = bump_session_version(user["username"])
+    _set_session_cookie(user, response, request, session_version=new_sv)
+    current = request.cookies.get("device_id") or ""
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM login_devices WHERE username = %s AND device_id <> %s", (user["username"], current))
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "ALLE_GERAETE_ABGEMELDET", "Alle anderen Sitzungen beendet.")
+    return {"status": "success"}
+
 
 @router.post("/api/logout")
 def api_logout(response: Response):
@@ -369,4 +408,5 @@ def user_change_self_password(data: dict, request: Request, response: Response):
     new_sv = bump_session_version(user["username"])
     _set_session_cookie(user, response, request, session_version=new_sv)
     log_audit_action(user["username"], "PASSWORT_ÄNDERUNG", "Eigenes Passwort erfolgreich aktualisiert (andere Sitzungen abgemeldet).")
+    security_event(user["username"], "Dein Passwort wurde geändert", f"Das Passwort deines Kontos wurde am {datetime.now().strftime('%d.%m.%Y um %H:%M')} Uhr geändert. Alle anderen Geräte wurden abgemeldet.")
     return {"status": "success"}

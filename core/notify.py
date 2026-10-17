@@ -11,13 +11,14 @@ from database import get_db_connection
 # key -> (Anzeigename, Font-Awesome-Icon). Reihenfolge = Reihenfolge in der Glocke.
 CATEGORIES = {
     "einsatz": ("Einsatz", "fa-fire"),
+    "sicherheit": ("Sicherheit", "fa-shield-halved"),
     "termine": ("Termine", "fa-calendar-days"),
     "fristen": ("Fristen", "fa-clock"),
     "verwaltung": ("Verwaltung", "fa-clipboard-list"),
     "system": ("System", "fa-gear"),
 }
-# Einsatzalarme kommen immer als Push - das laesst sich nicht abschalten.
-ALWAYS_PUSH = {"einsatz"}
+# Einsatzalarme und Sicherheitsmeldungen kommen immer als Push - das laesst sich nicht abschalten.
+ALWAYS_PUSH = {"einsatz", "sicherheit"}
 RETENTION_DAYS = 60
 
 

@@ -27,6 +27,7 @@ from routers import missions_api
 from routers import calendar_api
 from routers import push_api
 from routers import notifications_api
+from routers import security_api
 from routers import mail_api
 from routers import building_api
 from routers import prospects_api
@@ -58,6 +59,22 @@ async def add_cache_control_headers(request: Request, call_next):
         # derselben URL - ohne no-store zeigte der Browser nach dem Login weiter die gecachte Login-Seite.
         response.headers["Cache-Control"] = "no-store"
     return response
+
+# Ist Zwei-Faktor fuer eine Rolle Pflicht (Verwaltung -> System -> Sicherheit), darf ein Konto ohne 2FA nur noch
+# lesen und die Einrichtung durchfuehren - schreibende Aufrufe bekommen eine verstaendliche 403-Antwort.
+_2FA_SETUP_PATHS = {"/api/auth/2fa/setup", "/api/auth/2fa/confirm", "/api/auth/2fa/status", "/api/auth/me", "/api/logout",
+                    "/api/auth/change-password", "/api/auth/devices", "/api/auth/logout-all"}
+
+
+@app.middleware("http")
+async def enforce_required_2fa(request: Request, call_next):
+    if request.method != "GET" and request.url.path.startswith("/api/") and request.cookies.get("session_token") \
+            and request.url.path not in _2FA_SETUP_PATHS and not request.url.path.startswith("/api/notifications"):
+        user = get_current_user(request)
+        if user and not user.get("totp") and two_fa_required(user["role"]):
+            return JSONResponse(status_code=403, content={"detail": "Für deine Rolle ist die Zwei-Faktor-Anmeldung Pflicht. Bitte zuerst unter „Mein Profil“ einrichten."})
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -182,6 +199,7 @@ app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
 app.include_router(push_api.router)
 app.include_router(notifications_api.router)
+app.include_router(security_api.router)
 app.include_router(mail_api.router)
 app.include_router(building_api.router)
 app.include_router(prospects_api.router)
@@ -192,6 +210,7 @@ from database import get_db_connection
 
 # --- REVISIONS-LOGBUCH HELFER ---
 from core.utils import log_audit_action, hash_password, get_current_user
+from core.security import two_fa_required
 
 
 # --- AUTOMATISCHE GRUPPEN-SYNCHRONISATION (FIX FÜR DIE FEHLENDEN KAMERADEN) ---
@@ -666,6 +685,19 @@ def init_db_extensions():
                 read_at TIMESTAMP NULL,
                 INDEX idx_notif_user (username, category, id),
                 INDEX idx_notif_created (created_at)
+            ) ENGINE=InnoDB;
+        """)
+        # Bekannte Geräte je Konto (für "Neue Anmeldung"-Hinweis und die Geräteliste im Profil)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS login_devices (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) NOT NULL,
+                device_id CHAR(32) NOT NULL,
+                label VARCHAR(100) NULL,
+                ip_masked VARCHAR(64) NULL,
+                first_seen DATETIME NOT NULL,
+                last_seen DATETIME NOT NULL,
+                UNIQUE KEY uq_device (username, device_id)
             ) ENGINE=InnoDB;
         """)
         cur.execute("""

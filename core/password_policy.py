@@ -77,7 +77,40 @@ def check_password(pw, username=None, old=None):
         return "Das Passwort besteht nur aus Wiederholungen oder einer einfachen Reihenfolge (z. B. 12345678, aaaaaaaa, abcdefgh)."
     if old is not None and pw == old:
         return "Das neue Passwort muss sich vom bisherigen unterscheiden."
+    # Optional (Verwaltung -> System -> Sicherheit): Abgleich mit bekannten Datenlecks
+    n = pwned_count(pw) if _pwned_enabled() else 0
+    if n:
+        return f"Dieses Passwort taucht in bekannten Datenlecks auf ({n:,}-mal) und ist damit nicht mehr sicher. Bitte etwas anderes wählen.".replace(",", ".")
     return None
+
+
+def _pwned_enabled() -> bool:
+    try:
+        from core.security import get_int_setting
+        return get_int_setting("pwned_check", 0) == 1
+    except Exception:
+        return False
+
+
+def pwned_count(pw: str) -> int:
+    """Wie oft das Passwort in bekannten Datenlecks vorkommt (haveibeenpwned.com, "Pwned Passwords").
+    Datenschutz: es werden nur die ersten 5 Zeichen des SHA-1-Hashes gesendet (k-Anonymität) - weder das Passwort
+    noch der volle Hash verlassen den Server. Bei Netzwerkproblemen: 0 (die Prüfung blockiert nie die Anmeldung)."""
+    import hashlib
+    import requests
+    sha = hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
+    prefix, suffix = sha[:5], sha[5:]
+    try:
+        r = requests.get(f"https://api.pwnedpasswords.com/range/{prefix}", headers={"Add-Padding": "true", "User-Agent": "Dienstbuch-Passwortpruefung"}, timeout=3)
+        if r.status_code != 200:
+            return 0
+        for line in r.text.splitlines():
+            h, _, c = line.partition(":")
+            if h.strip() == suffix:
+                return int(c.strip() or 0)
+    except Exception:
+        return 0
+    return 0
 
 
 def policy_for_client():

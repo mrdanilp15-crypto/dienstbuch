@@ -11,6 +11,7 @@ from core.utils import check_auth, hash_password, log_audit_action
 from database import get_db_connection
 from core.password_policy import check_password
 from core.utils import bump_session_version
+from core.security import security_event
 from routers.auth_mgr import _get_client_ip
 
 router = APIRouter(tags=["Mail"])
@@ -240,6 +241,7 @@ async def reset_password(request: Request):
     conn.commit()
     cur.close()
     conn.close()
+    security_event(row["username"], "Passwort per Link zurückgesetzt", f"Das Passwort deines Kontos wurde über den Link aus der E-Mail neu gesetzt.")
     bump_session_version(row["username"])  # bestehende Sitzungen enden (war das Konto kompromittiert, ist der Zugang damit weg)
     log_audit_action(row["username"], "PASSWORT_ZURUECKGESETZT", "Passwort über E-Mail-Link neu gesetzt.")
     return {"status": "success"}
