@@ -1427,7 +1427,7 @@
                             <button class="nav-link" :class="verwaltungTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
                         </li>
                         <li class="nav-item" v-if="isAdmin">
-                            <button class="nav-link" :class="verwaltungTab === 'system' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'system'; loadHealth(); loadSecurity()"><i class="fa fa-heart-pulse me-1"></i>System</button>
+                            <button class="nav-link" :class="verwaltungTab === 'system' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'system'; loadHealth(); loadSecurity(); loadBackupInfo(); loadPrivacy()"><i class="fa fa-heart-pulse me-1"></i>System</button>
                         </li>
                                                 <li class="nav-item" v-if="role === 'admin' || role === 'leitung'">
                             <button class="nav-link" :class="verwaltungTab === 'standort' ? 'active bg-danger' : 'text-white'" @click="verwaltungTab = 'standort'"><i class="fa fa-map-pin me-1"></i>Feuerwache-Standort</button>
@@ -1757,6 +1757,64 @@
                                         </div>
                                     </div>
                                     <button class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="loadSecurity"><i class="fa fa-rotate me-1"></i>Aktualisieren</button>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                            <div class="card premium-card p-4 mt-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-database text-danger me-2"></i>Datensicherung</h5>
+                                <small class="text-muted d-block mb-3">Jede Sicherung wird geprüft und kann zusätzlich an einen zweiten Ort kopiert werden.</small>
+                                <div v-if="backupInfo">
+                                    <div v-if="backupInfo.status.last_run" class="small mb-2">
+                                        <div><i class="fa fa-clock me-1 text-muted"></i>Letzte Sicherung: <strong>{{ backupInfo.status.last_run }}</strong> <span class="text-muted">({{ backupInfo.status.dump_file }}<span v-if="backupInfo.status.size_bytes">, {{ (backupInfo.status.size_bytes / 1048576).toFixed(1) }} MB</span>)</span></div>
+                                        <div :class="backupInfo.status.verify_status === 'ok' ? 'text-success' : backupInfo.status.verify_status === 'warn' ? 'text-warning' : 'text-danger'"><i class="fa fa-circle-check me-1"></i>{{ backupInfo.status.verify_detail }}</div>
+                                        <div v-if="!backupInfo.real_restore_check" class="text-muted">Hinweis: Eine echte Probe-Wiederherstellung braucht den Datenbank-Root-Zugang (ROOT_PASS) und das mysql-Programm im Container - hier läuft nur die Plausibilitätsprüfung.</div>
+                                    </div>
+                                    <div v-else class="small text-muted mb-2">Noch keine Sicherung seit dem Update erfasst. „Jetzt sichern“ startet eine.</div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill mb-3" @click="runBackupNow" :disabled="backupBusy"><i class="fa me-1" :class="backupBusy ? 'fa-spinner fa-spin' : 'fa-play'"></i>{{ backupBusy ? 'Sichere und prüfe …' : 'Jetzt sichern und prüfen' }}</button>
+                                    <hr class="border-secondary border-opacity-25">
+                                    <div class="fw-bold text-white small mb-2">Kopie an einen zweiten Ort (WebDAV: Nextcloud, NAS, Storage Box …)</div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="offsiteOn" v-model="offsiteForm.enabled">
+                                        <label class="form-check-label" for="offsiteOn">Nach jeder Sicherung dorthin kopieren</label>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-12"><input type="text" class="form-control form-control-sm" v-model="offsiteForm.url" placeholder="Ordner-Adresse, z. B. https://cloud.example.org/remote.php/dav/files/NAME/Dienstbuch"></div>
+                                        <div class="col-12 col-md-6"><input type="text" class="form-control form-control-sm" v-model="offsiteForm.username" placeholder="Benutzername" autocomplete="off"></div>
+                                        <div class="col-12 col-md-6"><input type="password" class="form-control form-control-sm" v-model="offsiteForm.password" :placeholder="backupInfo.offsite.has_password ? 'Passwort (gespeichert - leer lassen zum Behalten)' : 'Passwort / App-Passwort'" autocomplete="new-password"></div>
+                                    </div>
+                                    <div class="form-text mb-2">Die Datei enthält personenbezogene Daten - nur an einen vertrauenswürdigen Speicher senden (https). Alte Kopien dort räumt der Speicher selbst auf (z. B. Versionierung/Papierkorb-Regeln).</div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-outline-warning btn-sm rounded-pill" @click="saveOffsite"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="testOffsite"><i class="fa fa-plug me-1"></i>Verbindung testen</button>
+                                    </div>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                            <div class="card premium-card p-4 mt-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-user-shield text-danger me-2"></i>Datenschutz &amp; Aufbewahrung</h5>
+                                <small class="text-muted d-block mb-3">Was automatisch gelöscht wird und welche ausgeschiedenen Mitglieder bereinigt werden können.</small>
+                                <div v-if="privacy">
+                                    <div class="row g-3 align-items-end mb-2">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Sicherheits-Protokoll aufbewahren (Tage, 0 = unbegrenzt)</label>
+                                            <input type="number" min="0" max="3650" class="form-control form-control-sm" v-model.number="privacy.settings.retention_audit_days">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Ausgeschiedene Mitglieder vorschlagen nach (Jahren, 0 = nie)</label>
+                                            <input type="number" min="0" max="50" class="form-control form-control-sm" v-model.number="privacy.settings.retention_ex_member_years">
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mb-2">Automatisch täglich bereinigt: abgelaufene Passwort-Links, Geräte ohne Anmeldung seit 6 Monaten, Benachrichtigungen nach 60 Tagen. Dienstzeiten, Einsatz- und Atemschutzprotokolle bleiben wegen gesetzlicher Aufbewahrung erhalten, nur ohne Namen.</div>
+                                    <div class="d-flex gap-2 flex-wrap mb-3">
+                                        <button class="btn btn-outline-warning btn-sm rounded-pill" @click="savePrivacy"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="runRetentionNow">Bereinigung jetzt ausführen</button>
+                                    </div>
+                                    <div class="fw-bold text-white small mb-1">Ausgeschiedene Mitglieder über der Frist ({{ privacy.candidates.length }})</div>
+                                    <div v-if="!privacy.candidates.length" class="small text-muted">Keine.</div>
+                                    <div v-for="c in privacy.candidates" :key="c.id" class="d-flex justify-content-between align-items-center small py-1 border-top border-secondary border-opacity-10">
+                                        <span>{{ c.name }} <span class="text-muted">· {{ c.exit_date ? 'ausgeschieden ' + c.exit_date : 'Austrittsdatum unbekannt' }}</span></span>
+                                        <button class="btn btn-outline-danger btn-sm rounded-pill py-0" @click="anonymizePerson(c)">Personenbezug entfernen</button>
+                                    </div>
                                 </div>
                                 <div v-else class="text-muted">Wird geladen …</div>
                             </div>

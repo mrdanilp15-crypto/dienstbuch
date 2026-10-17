@@ -6,6 +6,25 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 15,
+        "version": "2.65",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "new", "tag": "Konten", "title": "Einladung per E-Mail",
+             "text": "Neue Logins können per Mail eingeladen werden: die Person legt ihr Passwort selbst fest, niemand sonst kennt es. Bei offener Einladung gibt es in der Login-Liste den Knopf „Einladung“ zum erneuten Senden."},
+            {"type": "new", "tag": "Sicherheit", "title": "Sicherheitsmeldungen, Geräte, 2FA-Pflicht",
+             "text": "Passwortwechsel, Reset, 2FA-Änderungen und Anmeldungen auf einem neuen Gerät melden sich per Glocke und Mail. Im Profil steht „Meine Geräte“ mit „Auf allen anderen Geräten abmelden“. Unter Verwaltung → System → Sicherheit lässt sich Zwei-Faktor für Admins/Leitung zur Pflicht machen, 2FA eines Kontos zurücksetzen und optional gegen bekannte Datenlecks prüfen; dort steht auch eine Sicherheits-Übersicht."},
+            {"type": "new", "tag": "Glocke", "title": "Live, Ruhezeit, Tageszusammenfassung",
+             "text": "Die Glocke aktualisiert sich sofort. Im Zahnrad: Ruhezeit (kein Push, Alarme kommen durch) und E-Mails als Tageszusammenfassung. Bei Terminen gibt es in der Push-Nachricht Knöpfe „Zusagen/Absagen“ (Android)."},
+            {"type": "new", "tag": "Termine", "title": "Rückmeldungen im Blick",
+             "text": "Wer nach einem Tag noch nicht geantwortet hat, wird einmal erinnert. Die Wehrführung sieht im Termin, wer noch ohne Antwort ist. In der Personenauswahl sind Personen ohne Login markiert."},
+            {"type": "new", "tag": "Betrieb", "title": "Sicherung wird geprüft, Kopie an zweiten Ort",
+             "text": "Jede Sicherung wird in eine Wegwerf-Datenbank eingespielt und verglichen. Optional wird sie per WebDAV (Nextcloud, NAS, Storage Box) an einen zweiten Ort kopiert. Fehler melden sich in der Glocke. Neu: /api/health und Docker-Healthcheck, Zeitzone Europe/Berlin im Container."},
+            {"type": "new", "tag": "Datenschutz", "title": "Aufbewahrung und Anonymisieren",
+             "text": "Protokoll, abgelaufene Links und alte Geräte werden automatisch bereinigt. Ausgeschiedene Mitglieder werden nach einstellbarer Frist vorgeschlagen; die Wehrführung kann den Personenbezug entfernen, Dienstzeiten und Protokolle bleiben ohne Namen erhalten."},
+        ],
+    },
+    {
         "id": 14,
         "version": "2.64",
         "date": "2026-10-17",

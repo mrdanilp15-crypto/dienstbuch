@@ -53,7 +53,7 @@ sid2 = sql("select id from schedules where title='Morgen-Übung'")
 sql(f"insert into schedule_rsvp (schedule_id,personnel_id,status) select {sid2}, id, 'Ja' from personnel where name='Max Beispiel'")
 sent_log = []
 orig = sn._send
-sn._send = lambda rec, title, body, link=None: sent_log.append((title, sorted(r['name'] for r in rec)))
+sn._send = lambda rec, title, body, link=None, schedule_id=None: sent_log.append((title, sorted(r['name'] for r in rec)))
 n = sn.check_schedule_reminders(datetime.datetime.combine(today, datetime.time(20, 0)))
 check("Erinnerung 24 h vorher wird ausgelöst", n == 1, str(n))
 titles = {t: names for t, names in sent_log}

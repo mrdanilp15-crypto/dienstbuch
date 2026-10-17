@@ -109,7 +109,7 @@ lst = {x["id"]: x for x in admin.get("/api/missions/schedules/list").json()}
 check("Liste liefert done_session_id", lst[sid]["done_session_id"] == 1)
 from core import schedule_notify as sn
 cap = []
-orig = sn._send; sn._send = lambda rec, title, body, link=None: cap.append((title, link))
+orig = sn._send; sn._send = lambda rec, title, body, link=None, schedule_id=None: cap.append((title, link))
 sql(f"update schedules set date='{tomorrow}', time='19:30', reminder_sent=0 where id={sid}")
 n = sn.check_schedule_reminders(datetime.datetime.combine(today, datetime.time(20, 0)))
 check("Erinnerung: bereits erfasster Termin wird übersprungen", n == 0 and not any(sid_ in str(c) for c in cap for sid_ in [f"termin:{sid}"]))

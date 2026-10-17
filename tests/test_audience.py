@@ -113,7 +113,7 @@ check("Aushang: Teilnehmer mit geheimem Termin", "GEHEIM" in pdf_text(clients["m
 from core import schedule_notify as sn
 captured = []
 orig = sn._send
-sn._send = lambda rec, title, body, link=None: captured.append((title, sorted(r["name"] for r in rec)))
+sn._send = lambda rec, title, body, link=None, schedule_id=None: captured.append((title, sorted(r["name"] for r in rec)))
 sn.notify_new_schedule("GEHEIM Atemschutz", "Übung", "19:00", [tomorrow], group, aud)
 check("Neuer Termin: nur die 2 Ausgewählten", captured[-1][1] == ["Jonas Weber", "Tim Fischer"], str(captured[-1]))
 sn.notify_new_schedule("Offen", "Übung", "19:00", [tomorrow], group, None)

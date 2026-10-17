@@ -262,6 +262,7 @@ applyChartTheme();
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     audienceInfo: null, detailPending: [],
+                    backupInfo: null, backupBusy: false, offsiteForm: { enabled: false, url: '', username: '', password: '' }, privacy: null,
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
@@ -2893,6 +2894,54 @@ applyChartTheme();
                 },
                 pwRules(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).items; },
                 pwOk(pw, user, old) { this.pwPolicyTick; return PasswordPolicy.check(pw, user, old).ok; },
+                async loadBackupInfo() {
+                    if (!this.isAdmin) return;
+                    const res = await fetch('/api/admin/backup-status', { credentials: 'include' });
+                    if (res.ok) { this.backupInfo = await res.json(); const o = this.backupInfo.offsite; this.offsiteForm = { enabled: o.enabled, url: o.url, username: o.username, password: '' }; }
+                },
+                async saveOffsite() {
+                    const res = await fetch('/api/admin/backup-settings', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.offsiteForm) });
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? 'Gespeichert.' : (typeof err.detail === 'string' ? err.detail : 'Speichern fehlgeschlagen.'));
+                    if (res.ok) await this.loadBackupInfo();
+                },
+                async testOffsite() {
+                    const res = await fetch('/api/admin/backup-settings/test', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.offsiteForm) });
+                    const d = await res.json().catch(() => ({}));
+                    await appAlert(d.ok ? d.detail : ('Verbindung fehlgeschlagen: ' + (d.detail || 'unbekannter Fehler')));
+                },
+                async runBackupNow() {
+                    this.backupBusy = true;
+                    try {
+                        const res = await fetch('/api/admin/backup/run-now', { method: 'POST', credentials: 'include' });
+                        await appAlert(res.ok ? 'Sicherung abgeschlossen.' : 'Die Sicherung ist fehlgeschlagen - bitte Protokoll prüfen.');
+                        await this.loadBackupInfo(); await this.loadHealth();
+                    } finally { this.backupBusy = false; }
+                },
+                async loadPrivacy() {
+                    if (!this.isAdmin) return;
+                    const res = await fetch('/api/admin/privacy', { method: 'GET', credentials: 'include' });
+                    if (res.ok) this.privacy = await res.json();
+                },
+                async savePrivacy() {
+                    const res = await fetch('/api/admin/privacy-settings', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.privacy.settings) });
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? 'Gespeichert.' : (typeof err.detail === 'string' ? err.detail : 'Speichern fehlgeschlagen.'));
+                    if (res.ok) await this.loadPrivacy();
+                },
+                async runRetentionNow() {
+                    const res = await fetch('/api/admin/privacy/run-now', { method: 'POST', credentials: 'include' });
+                    const d = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? ('Bereinigt: ' + Object.entries(d.deleted || {}).map(([k, v]) => `${k} ${v}`).join(', ')) : 'Das hat nicht geklappt.');
+                    await this.loadPrivacy();
+                },
+                async anonymizePerson(c) {
+                    if (!await appConfirm(`Personenbezug von „${c.name}“ unwiderruflich entfernen?\n\nName, Kontaktdaten, Geburtsdatum, Foto, Notizen, Prüfdaten und ein eventuelles Login werden gelöscht. Dienstzeiten und Einsatzprotokolle bleiben ohne Namen („Ehemaliges Mitglied“) erhalten.`)) return;
+                    const res = await fetch(`/api/admin/privacy/anonymize/${c.id}`, { method: 'POST', credentials: 'include' });
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(res.ok ? 'Personenbezug entfernt.' : (typeof err.detail === 'string' ? err.detail : 'Das hat nicht geklappt.'));
+                    await this.loadPrivacy();
+                },
                 async loadSecurity() {
                     if (!this.isAdmin) return;
                     const res = await fetch('/api/admin/security', { credentials: 'include' });

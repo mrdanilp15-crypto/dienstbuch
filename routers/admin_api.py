@@ -283,6 +283,19 @@ def run_auto_backup(username: str = "system") -> dict:
 
     _prune_backups(backup_dir, BACKUP_KEEP)
 
+    # Probe-Wiederherstellung, Status merken, Kopie an den zweiten Ort (darf die Sicherung selbst nie gefährden)
+    try:
+        from core import backup_tools
+        if sql_dump_ok:
+            backup_tools.after_backup(db_dump_path, uploads_file)
+        else:
+            backup_tools.save_status(last_run=datetime.datetime.now(), dump_file=os.path.basename(json_file) if json_file else None,
+                                     verify_status="warn" if json_file else "error",
+                                     verify_detail="Nur eine JSON-Sicherung (mysqldump nicht verfügbar) - keine Probe-Wiederherstellung möglich." if json_file else "Sicherung fehlgeschlagen.",
+                                     verify_at=datetime.datetime.now())
+    except Exception as e:
+        print(f"Sicherungs-Nachbearbeitung fehlgeschlagen: {e}")
+
     if sql_dump_ok:
         log_audit_action(username, "AUTO_BACKUP",
                          f"Automatische Sicherung erstellt: {os.path.basename(db_dump_path)}")
@@ -600,6 +613,20 @@ def system_health(request: Request):
                 add("backup", "Datensicherung", "warn", f"Letzte Sicherung vom {when} - etwas älter als erwartet.")
             else:
                 add("backup", "Datensicherung", "ok", f"Letzte Sicherung vom {when} ({len(stamps)} vorhanden).")
+        try:
+            from core import backup_tools
+            st = backup_tools.get_status()
+            if st.get("verify_status"):
+                add("backup_verify", "Sicherung geprüft", st["verify_status"], f"{st['verify_detail']} ({st['verify_at'].strftime('%d.%m.%Y %H:%M')})")
+            off = st.get("offsite_status")
+            if off == "ok":
+                add("backup_offsite", "Kopie an zweiten Ort", "ok", f"{st['offsite_detail']} ({st['offsite_at'].strftime('%d.%m.%Y %H:%M')})")
+            elif off == "error":
+                add("backup_offsite", "Kopie an zweiten Ort", "error", f"Letzte Kopie fehlgeschlagen: {st['offsite_detail']}")
+            else:
+                add("backup_offsite", "Kopie an zweiten Ort", "info", "Nicht eingerichtet. Empfohlen: sonst liegen Datenbank und Sicherungen am selben Ort (Verwaltung → System → Datensicherung).")
+        except Exception:
+            pass
         usage = shutil.disk_usage(bdir)
         free_pct = usage.free / usage.total * 100
         detail = f"{usage.free / 1024 ** 3:.1f} GB frei von {usage.total / 1024 ** 3:.1f} GB ({free_pct:.0f} %)"

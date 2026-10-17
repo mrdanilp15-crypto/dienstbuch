@@ -28,13 +28,14 @@ from routers import calendar_api
 from routers import push_api
 from routers import notifications_api
 from routers import security_api
+from routers import ops_api
 from routers import mail_api
 from routers import building_api
 from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.64"
+CURRENT_VERSION = "2.65"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -200,6 +201,7 @@ app.include_router(calendar_api.router)
 app.include_router(push_api.router)
 app.include_router(notifications_api.router)
 app.include_router(security_api.router)
+app.include_router(ops_api.router)
 app.include_router(mail_api.router)
 app.include_router(building_api.router)
 app.include_router(prospects_api.router)
@@ -687,6 +689,27 @@ def init_db_extensions():
                 INDEX idx_notif_created (created_at)
             ) ENGINE=InnoDB;
         """)
+        # Sicherungs-Status (letzte Prüfung/Kopie) und Ziel für die Kopie an einen zweiten Ort
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS backup_status (
+                id INT PRIMARY KEY,
+                last_run DATETIME NULL, dump_file VARCHAR(255) NULL, size_bytes BIGINT NULL,
+                verify_status VARCHAR(10) NULL, verify_detail TEXT NULL, verify_at DATETIME NULL,
+                offsite_status VARCHAR(10) NULL, offsite_detail TEXT NULL, offsite_at DATETIME NULL
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS backup_settings (
+                id INT PRIMARY KEY,
+                enabled TINYINT(1) NOT NULL DEFAULT 0,
+                url VARCHAR(500) NULL, username VARCHAR(255) NULL, password_enc TEXT NULL
+            ) ENGINE=InnoDB;
+        """)
+        try:
+            cur.execute("ALTER TABLE personnel ADD COLUMN exit_date DATE NULL")  # Austrittsdatum (Aufbewahrungsfristen)
+        except mysql.connector.Error as err:
+            if err.errno != 1060: raise
+
         # Bekannte Geräte je Konto (für "Neue Anmeldung"-Hinweis und die Geräteliste im Profil)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS login_devices (
@@ -1260,9 +1283,11 @@ init_db()
 async def start_reminder_scheduler():
     async def _reminder_loop():
         from core.reminders import check_due_reminders
+        from core.retention import run_retention
         while True:
             try:
                 check_due_reminders()
+                run_retention()  # Datenschutz-Bereinigung, höchstens einmal pro Tag (siehe core/retention.py)
             except Exception as e:
                 print(f"Reminder-Scheduler Fehler: {e}")
             await asyncio.sleep(24 * 3600)

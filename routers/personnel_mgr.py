@@ -346,6 +346,11 @@ def update_member(member_id: int, m: PersonnelMember, request: Request):
             g26, bel, unt, dsgvo, dienstordnung, (m.license_checked_date or None), m.emergency_contact_name, m.emergency_contact_phone, member_id)
     
     cur.execute(sql, vals)
+    # Austrittsdatum für die Aufbewahrungsfristen (Datenschutz): beim Wechsel auf "Ausgeschieden" setzen, bei Rückkehr löschen
+    if m.membership_status == "Ausgeschieden":
+        cur.execute("UPDATE personnel SET exit_date = COALESCE(exit_date, CURDATE()) WHERE id = %s", (member_id,))
+    else:
+        cur.execute("UPDATE personnel SET exit_date = NULL WHERE id = %s", (member_id,))
 
     if old_name and old_name.strip() != m.name.strip():
         cur.execute("UPDATE persons SET name=%s WHERE name=%s", (m.name.strip(), old_name.strip()))
@@ -396,7 +401,7 @@ def delete_member(member_id: int, request: Request):
     if has_history:
         cur.execute("""
             UPDATE personnel SET
-                membership_status = 'Ausgeschieden',
+                membership_status = 'Ausgeschieden', exit_date = COALESCE(exit_date, CURDATE()),
                 phone = NULL, email = NULL, address = NULL,
                 emergency_contact_name = NULL, emergency_contact_phone = NULL,
                 profile_picture = NULL
