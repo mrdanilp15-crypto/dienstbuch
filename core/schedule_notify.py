@@ -91,6 +91,47 @@ def _parse_time(value) -> datetime.time:
         return datetime.time(19, 0)
 
 
+def check_schedule_nudges(now: datetime.datetime = None) -> int:
+    """Erinnert EINMAL an eine fehlende Rückmeldung, wenn der Termin vor mehr als 24 Stunden angelegt wurde und noch
+    mehr als 24 Stunden entfernt ist (kurz davor übernimmt die normale Erinnerung). Nur tagsüber (8-21 Uhr)."""
+    now = now or datetime.datetime.now()
+    if not (8 <= now.hour < 21):
+        return 0
+    sent = 0
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "SELECT * FROM schedules WHERE done_session_id IS NULL AND created_at IS NOT NULL AND created_at < %s AND date BETWEEN %s AND %s",
+        (now - datetime.timedelta(hours=24), now.date(), now.date() + datetime.timedelta(days=14)),
+    )
+    for s in cur.fetchall():
+        start = datetime.datetime.combine(s["date"], _parse_time(s["time"]))
+        if start - now <= datetime.timedelta(hours=24):
+            continue
+        aud = None
+        if s.get("audience") == "selected":
+            cur.execute("SELECT personnel_id FROM schedule_audience WHERE schedule_id = %s", (s["id"],))
+            aud = [r["personnel_id"] for r in cur.fetchall()]
+        rec = _recipients(cur, s["group_id"], aud)
+        cur.execute("SELECT personnel_id FROM schedule_rsvp WHERE schedule_id = %s", (s["id"],))
+        answered = {r["personnel_id"] for r in cur.fetchall()}
+        cur.execute("SELECT personnel_id FROM schedule_nudges WHERE schedule_id = %s", (s["id"],))
+        nudged = {r["personnel_id"] for r in cur.fetchall()}
+        todo = [r for r in rec if r["id"] not in answered and r["id"] not in nudged]
+        if not todo:
+            continue
+        when = f"{_fmt_day(s['date'])}, {_parse_time(s['time']).strftime('%H:%M')} Uhr"
+        _send(todo, f"Bitte zu- oder absagen: {s['title']}", f"{when}. Von dir fehlt noch die Rückmeldung - bitte kurz im Dienstbuch zu- oder absagen.",
+              f"/dashboard?open=termin:{s['id']}", schedule_id=s["id"])
+        for r in todo:
+            cur.execute("INSERT IGNORE INTO schedule_nudges (schedule_id, personnel_id) VALUES (%s, %s)", (s["id"], r["id"]))
+        sent += 1
+    conn.commit()
+    cur.close()
+    conn.close()
+    return sent
+
+
 def check_schedule_reminders(now: datetime.datetime = None) -> int:
     """Erinnert 24 Stunden vor einem Termin: wer noch nicht geantwortet hat, wird um Rueckmeldung
     gebeten, wer zu-/vielleicht-gesagt hat, bekommt eine Erinnerung. Wer abgesagt hat, nicht.

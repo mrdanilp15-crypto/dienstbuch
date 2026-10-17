@@ -658,7 +658,7 @@ def init_db_extensions():
         """)
         for col_name, col_type in [("series_id", "VARCHAR(36) NULL"), ("reminder_sent", "BOOLEAN DEFAULT FALSE"),
                                    ("audience", "VARCHAR(10) NOT NULL DEFAULT 'all'"), ("created_by", "VARCHAR(255) NULL"),
-                                   ("done_session_id", "INT NULL")]:
+                                   ("done_session_id", "INT NULL"), ("created_at", "DATETIME NULL")]:
             try:
                 cur.execute(f"ALTER TABLE schedules ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
@@ -715,6 +715,15 @@ def init_db_extensions():
                 category VARCHAR(30) NOT NULL,
                 push TINYINT(1) NOT NULL DEFAULT 1,
                 PRIMARY KEY (username, category)
+            ) ENGINE=InnoDB;
+        """)
+
+        # Wer wegen eines Termins schon an die fehlende Rückmeldung erinnert wurde (höchstens einmal)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schedule_nudges (
+                schedule_id INT NOT NULL,
+                personnel_id INT NOT NULL,
+                PRIMARY KEY (schedule_id, personnel_id)
             ) ENGINE=InnoDB;
         """)
 
@@ -1261,11 +1270,12 @@ async def start_reminder_scheduler():
 
     async def _schedule_reminder_loop():
         # Stuendlich: erinnert 24 h vor jedem Termin (siehe core/schedule_notify.py)
-        from core.schedule_notify import check_schedule_reminders
+        from core.schedule_notify import check_schedule_reminders, check_schedule_nudges
         await asyncio.sleep(120)
         while True:
             try:
                 await asyncio.to_thread(check_schedule_reminders)
+                await asyncio.to_thread(check_schedule_nudges)
             except Exception as e:
                 print(f"Termin-Erinnerung Fehler: {e}")
             await asyncio.sleep(3600)

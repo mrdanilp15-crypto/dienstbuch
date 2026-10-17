@@ -1031,8 +1031,8 @@ def create_schedule(s: ScheduleCreate, request: Request, background_tasks: Backg
     new_ids = []
     for d in dates:
         cur.execute("""
-            INSERT INTO schedules (title, date, time, description, type, group_id, series_id, audience, created_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO schedules (title, date, time, description, type, group_id, series_id, audience, created_by, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
         """, (s.title.strip(), d.isoformat(), s.time, s.description, s.type, s.group_id, series_id,
                "selected" if audience_ids else "all", user["username"]))
         new_id = cur.lastrowid
@@ -1246,6 +1246,19 @@ def link_schedule_to_session(sch_id: int, data: dict, request: Request):
     return {"status": "success"}
 
 
+@router.get("/schedules/audience-info")
+def schedule_audience_info(request: Request):
+    """Für die Personenauswahl beim Termin: wer hat einen verknüpften Login (sieht den Termin in der App), wer eine E-Mail-Adresse."""
+    check_auth(request, allowed_roles=EDITOR_ROLES)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT DISTINCT personnel_id FROM users WHERE personnel_id IS NOT NULL")
+    with_login = [r[0] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM personnel WHERE email IS NOT NULL AND email <> ''")
+    with_email = [r[0] for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return {"with_login": with_login, "with_email": with_email}
+
+
 @router.get("/schedules/{sch_id}/rsvp")
 def get_schedule_rsvp(sch_id: int, request: Request):
     user = check_auth(request)
@@ -1263,8 +1276,21 @@ def get_schedule_rsvp(sch_id: int, request: Request):
         cur.execute("SELECT status FROM schedule_rsvp WHERE schedule_id = %s AND personnel_id = %s", (sch_id, personnel_id))
         row = cur.fetchone()
         my_status = row["status"] if row else None
+    # Für Wehrführung/Gruppenführer: wer hat noch gar nicht geantwortet?
+    pending = []
+    if user.get("role") in EDITOR_ROLES:
+        from core.schedule_notify import _recipients
+        cur.execute("SELECT group_id, audience FROM schedules WHERE id = %s", (sch_id,))
+        sch = cur.fetchone()
+        aud = None
+        if sch and sch["audience"] == "selected":
+            cur.execute("SELECT personnel_id FROM schedule_audience WHERE schedule_id = %s", (sch_id,))
+            aud = [r["personnel_id"] for r in cur.fetchall()]
+        cur.execute("SELECT personnel_id FROM schedule_rsvp WHERE schedule_id = %s", (sch_id,))
+        answered = {r["personnel_id"] for r in cur.fetchall()}
+        pending = sorted(r["name"] for r in _recipients(cur, sch["group_id"] if sch else None, aud) if r["id"] not in answered)
     conn.commit(); cur.close(); conn.close()
-    return {"my_status": my_status, "unlinked": personnel_id is None, "responses": all_responses}
+    return {"my_status": my_status, "unlinked": personnel_id is None, "responses": all_responses, "pending": pending}
 
 @router.post("/schedules/{sch_id}/rsvp")
 def set_schedule_rsvp(sch_id: int, data: dict, request: Request):

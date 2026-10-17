@@ -2862,6 +2862,7 @@
                         </div>
                         <div class="fs-5 fw-bold text-white">{{ detailWhen }}</div>
                         <div v-if="detailSchedule.description" class="mt-2 text-muted" style="white-space: pre-wrap;">{{ detailSchedule.description }}</div>
+                        <div v-if="detailPending.length" class="mt-3 small"><span class="text-warning"><i class="fa fa-hourglass-half me-1"></i>Noch ohne Antwort ({{ detailPending.length }}):</span> {{ detailPending.join(', ') }}</div>
                         <div v-if="detailInvited.length" class="mt-3 small"><span class="text-muted">Eingeladen ({{ detailInvited.length }}):</span> {{ detailInvited.join(', ') }}</div>
                         <hr class="border-secondary border-opacity-25">
                         <div v-if="detailRsvp">
@@ -2940,9 +2941,10 @@
                                     <div style="max-height: 180px; overflow-y: auto;">
                                         <div class="form-check" v-for="p in scheduleCandidates" :key="p.id">
                                             <input class="form-check-input" type="checkbox" :id="'aud' + p.id" :value="p.id" v-model="newSchedule.audience_ids">
-                                            <label class="form-check-label" :for="'aud' + p.id">{{ p.name }}</label>
+                                            <label class="form-check-label" :for="'aud' + p.id">{{ p.name }} <span v-if="audienceInfo && !audienceInfo.loginSet.has(p.id)" class="badge bg-warning text-dark fw-normal ms-1" title="Hat keinen verknüpften Login und sieht den Termin deshalb nicht in der App">kein Login</span></label>
                                         </div>
                                     </div>
+                                    <div v-if="audienceWithoutLogin.length" class="small text-warning mt-2"><i class="fa fa-triangle-exclamation me-1"></i>{{ audienceWithoutLogin.length }} ausgewählt{{ audienceWithoutLogin.length === 1 ? 'e Person hat' : 'e Personen haben' }} keinen verknüpften Login und {{ audienceWithoutLogin.length === 1 ? 'sieht' : 'sehen' }} den Termin nicht in der App ({{ audienceWithoutLogin.map(p => p.name).join(', ') }}). {{ audienceWithoutLogin.some(p => !audienceInfo.emailSet.has(p.id)) ? 'Wer zusätzlich keine E-Mail-Adresse hat, erfährt gar nichts davon.' : 'Sie bekommen den Termin nur per E-Mail.' }}</div>
                                     <small class="text-muted d-block mt-2">{{ newSchedule.audience_ids.length }} ausgewählt. Nur sie bekommen den Termin per Push und E-Mail und sehen ihn in der App. Admin und Leitung sehen immer alle Termine. Wer noch keinen verknüpften Login hat, sieht den Termin in der App nicht.</small>
                                 </div>
                             </div>

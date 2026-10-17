@@ -261,6 +261,7 @@ applyChartTheme();
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    audienceInfo: null, detailPending: [],
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
@@ -430,6 +431,11 @@ applyChartTheme();
                     const s = this.detailSchedule;
                     if (!s || s.audience !== 'selected' || !s.audience_ids) return [];
                     return (this.personnel || []).filter(p => s.audience_ids.includes(p.id)).map(p => p.name).sort((a, b) => a.localeCompare(b, 'de'));
+                },
+                audienceWithoutLogin() {
+                    if (!this.audienceInfo) return [];
+                    const chosen = new Set(this.newSchedule.audience_ids || []);
+                    return (this.personnel || []).filter(p => chosen.has(p.id) && !this.audienceInfo.loginSet.has(p.id));
                 },
                 scheduleCandidates() {
                     const q = (this.scheduleMemberSearch || '').trim().toLowerCase();
@@ -713,6 +719,7 @@ applyChartTheme();
                 }
             },
             watch: {
+                'newSchedule.audience'(v) { if (v === 'selected') this.loadAudienceInfo(); },
                 activeTab(newTab) {
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
@@ -2859,9 +2866,20 @@ applyChartTheme();
                     if (!s) { await appAlert('Dieser Termin ist nicht mehr vorhanden.'); return; }
                     await this.openScheduleDetail(s);
                 },
+                async loadAudienceInfo() {
+                    try {
+                        const res = await fetch('/api/missions/schedules/audience-info', { credentials: 'include' });
+                        if (res.ok) { const d = await res.json(); this.audienceInfo = { loginSet: new Set(d.with_login), emailSet: new Set(d.with_email) }; }
+                    } catch (e) {}
+                },
                 async openScheduleDetail(s) {
                     if (this.canManageDienste) await this.ensurePersonnelLoaded();
                     this.detailSchedule = s;
+                    this.detailPending = [];
+                    if (this.canManageDienste) {
+                        // Einzelabfrage nur für Wehrführung/Gruppenführer: wer hat noch nicht geantwortet?
+                        fetch(`/api/missions/schedules/${s.id}/rsvp`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(d => { if (d && this.detailSchedule && this.detailSchedule.id === s.id) this.detailPending = d.pending || []; }).catch(() => {});
+                    }
                     bootstrap.Modal.getOrCreateInstance(document.getElementById('scheduleDetailModal')).show();
                 },
                 _closeDetail() { bootstrap.Modal.getInstance(document.getElementById('scheduleDetailModal'))?.hide(); },
