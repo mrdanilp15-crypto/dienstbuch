@@ -1339,6 +1339,8 @@ body { background: var(--bg-color); }
 .notif-panel{color:var(--text-primary);position:absolute;right:0;top:calc(100% + 8px);width:400px;max-width:calc(100vw - 16px);z-index:3000;padding:0;overflow:hidden}
 @media (max-width:575px){#notifBell{position:static!important}.notif-panel{position:fixed;left:8px;right:8px;top:56px;width:auto;max-width:none}}
 .broadcast-text{max-height:9rem;overflow-y:auto}
+@keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(18deg)}30%{transform:rotate(-16deg)}45%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}75%{transform:rotate(4deg)}}
+.bell-ring{animation:bellRing 1s ease-in-out;transform-origin:50% 0}
 .notif-scroll{max-height:70vh;overflow-y:auto}
 .notif-cat{border-bottom:1px solid rgba(128,128,128,.2)}
 .notif-cat-head{display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;cursor:pointer;background:rgba(128,128,128,.08)}

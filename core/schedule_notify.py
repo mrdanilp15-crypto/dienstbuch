@@ -37,7 +37,7 @@ def _recipients(cur, group_id, audience_ids=None):
     return cur.fetchall()
 
 
-def _send(recipients, title: str, body: str, link: str = None):
+def _send(recipients, title: str, body: str, link: str = None, schedule_id=None):
     """Push an die Geraete der Empfaenger, dazu E-Mail (nur wenn die Wehr den Versand eingerichtet hat)."""
     if not recipients:
         return
@@ -45,13 +45,15 @@ def _send(recipients, title: str, body: str, link: str = None):
     try:
         from core.notify import notify
         if usernames:
-            notify("termine", title, body, link or "/dashboard", usernames=usernames)
+            notify("termine", title, body, link or "/dashboard", usernames=usernames, schedule_id=schedule_id)
     except Exception as e:
         print(f"Termin-Push fehlgeschlagen: {e}")
     try:
         s = get_mail_settings()
         if is_mail_configured(s) and s.get("reminder_mail"):
-            emails = [r["email"] for r in recipients if r.get("email")]
+            from core.digest import digest_usernames
+            skip = digest_usernames()  # wer die Tageszusammenfassung gewählt hat, bekommt keine Einzelmails
+            emails = [r["email"] for r in recipients if r.get("email") and r.get("username") not in skip]
             text = body + ("\n\nDirekt zum Termin: " + s["app_url"] + (link or "/dashboard") if s.get("app_url") else "")
             send_mail_background(emails, title, text, bcc=True)
     except Exception as e:
@@ -72,7 +74,8 @@ def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_
             head = f"Neue Terminserie: {title}"
             body = f"{len(dates)} Termine ab {_fmt_day(dates[0])}, {time_str} Uhr ({typ}). Bitte im Dienstbuch zu- oder absagen."
         # Ein Termin-Link fuehrt direkt in den Termin (bei einer Serie: zum ersten Termin)
-        _send(rec, head, body, f"/dashboard?open=termin:{schedule_id}" if schedule_id else None)
+        _send(rec, head, body, f"/dashboard?open=termin:{schedule_id}" if schedule_id else None,
+              schedule_id=schedule_id if len(dates) == 1 else None)
     except Exception as e:
         print(f"Benachrichtigung zum neuen Termin fehlgeschlagen: {e}")
 
@@ -118,7 +121,7 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
             when = f"{_fmt_day(s['date'])}, {_parse_time(s['time']).strftime('%H:%M')} Uhr"
             _send([r for r in rec if r["id"] not in answers],
                   f"Rückmeldung fehlt: {s['title']}", f"{when}. Du hast noch nicht zu- oder abgesagt - bitte kurz im Dienstbuch zurückmelden.",
-                  f"/dashboard?open=termin:{s['id']}")
+                  f"/dashboard?open=termin:{s['id']}", schedule_id=s["id"])
             _send([r for r in rec if answers.get(r["id"]) in ("Ja", "Vielleicht")],
                   f"Erinnerung: {s['title']}", f"{when} - du hast zugesagt.", f"/dashboard?open=termin:{s['id']}")
             sent += 1

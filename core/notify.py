@@ -22,6 +22,24 @@ ALWAYS_PUSH = {"einsatz", "sicherheit"}
 RETENTION_DAYS = 60
 
 
+def in_quiet_window(now_hm: str, start: str, end: str) -> bool:
+    """Liegt now_hm ("HH:MM") in der Ruhezeit start..end? Auch über Mitternacht (22:00-06:00)."""
+    if not start or not end or start == end:
+        return False
+    if start < end:
+        return start <= now_hm < end
+    return now_hm >= start or now_hm < end
+
+
+def _ping_live(users):
+    """Sagt offenen Dashboards sofort Bescheid (WebSocket), damit die Glocke nicht auf die Abfrage wartet."""
+    try:
+        from routers.ws_mgr import manager
+        manager.notify_users_threadsafe(users)
+    except Exception:
+        pass
+
+
 def _users(cur, usernames=None, roles=None):
     if usernames is not None:
         return sorted({u for u in usernames if u})
@@ -32,7 +50,7 @@ def _users(cur, usernames=None, roles=None):
     return sorted({r["username"] for r in cur.fetchall()})
 
 
-def notify(category, title, body="", link=None, usernames=None, roles=None, push=True, dedupe_hours=None):
+def notify(category, title, body="", link=None, usernames=None, roles=None, push=True, dedupe_hours=None, schedule_id=None):
     """Legt die Benachrichtigung fuer die Empfaenger an (usernames > roles > alle) und schickt Push.
     dedupe_hours: gleiche Kategorie + gleicher Titel innerhalb dieser Zeit -> nichts doppelt.
     Gibt die Anzahl der Empfaenger zurueck; Fehler brechen den Aufrufer nie ab."""
@@ -63,15 +81,26 @@ def notify(category, title, body="", link=None, usernames=None, roles=None, push
             cur.execute("SELECT username FROM notification_prefs WHERE category=%s AND push=0", (category,))
             muted = {r["username"] for r in cur.fetchall()}
             push_users = [u for u in users if u not in muted]
+            # Ruhezeit der Person (nur Push - in der Glocke steht die Meldung trotzdem)
+            cur.execute("SELECT username, quiet_from, quiet_to FROM notification_settings WHERE quiet_enabled = 1")
+            now_hm = datetime.datetime.now().strftime("%H:%M")
+            quiet = {r["username"] for r in cur.fetchall() if in_quiet_window(now_hm, r["quiet_from"], r["quiet_to"])}
+            push_users = [u for u in push_users if u not in quiet]
         conn.commit()
         cur.close(); conn.close()
     except Exception as e:
         print(f"Benachrichtigung fehlgeschlagen: {e}")
         return 0
+    _ping_live(users)
     if push and push_users:
         try:
             from routers.push_api import send_push_to_all
-            send_push_to_all({"title": title, "body": body or "", "icon": "/static/favicon.png", "url": link or "/dashboard"}, usernames=push_users)
+            payload = {"title": title, "body": body or "", "icon": "/static/favicon.png", "url": link or "/dashboard"}
+            if schedule_id:
+                # Zu-/Absage direkt in der Benachrichtigung (Android/Chrome; iOS zeigt die Knöpfe nicht, dort öffnet der Klick den Termin)
+                payload["schedule_id"] = schedule_id
+                payload["actions"] = [{"action": "rsvp_yes", "title": "Zusagen"}, {"action": "rsvp_no", "title": "Absagen"}]
+            send_push_to_all(payload, usernames=push_users)
         except Exception as e:
             print(f"Push fehlgeschlagen: {e}")
     return len(users)

@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import List
@@ -20,12 +21,30 @@ def _websocket_authorized(websocket: WebSocket) -> bool:
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.usernames = {}  # WebSocket -> Benutzername (None bei Display-Token)
+        self.loop = None
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, username=None):
         await websocket.accept()
         self.active_connections.append(websocket)
+        self.usernames[websocket] = username
+        self.loop = asyncio.get_running_loop()
+
+    async def _send_notif(self, users: set):
+        for connection in list(self.active_connections):
+            if self.usernames.get(connection) in users:
+                try:
+                    await connection.send_json({"type": "notif"})
+                except Exception:
+                    pass
+
+    def notify_users_threadsafe(self, users):
+        """Aus beliebigem Thread (auch dem normalen Request-Code) aufrufbar."""
+        if self.loop and users:
+            asyncio.run_coroutine_threadsafe(self._send_notif(set(users)), self.loop)
 
     def disconnect(self, websocket: WebSocket):
+        self.usernames.pop(websocket, None)
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
 
@@ -50,7 +69,8 @@ async def websocket_endpoint(websocket: WebSocket):
     if not _websocket_authorized(websocket):
         await websocket.close(code=4401)
         return
-    await manager.connect(websocket)
+    me = get_current_user(websocket)
+    await manager.connect(websocket, me["username"] if me else None)
     try:
         while True:
             # Simple keep-alive or message receive

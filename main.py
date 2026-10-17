@@ -701,6 +701,15 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS notification_settings (
+                username VARCHAR(100) PRIMARY KEY,
+                quiet_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                quiet_from CHAR(5) NOT NULL DEFAULT '22:00',
+                quiet_to CHAR(5) NOT NULL DEFAULT '06:00',
+                digest_mail TINYINT(1) NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS notification_prefs (
                 username VARCHAR(100) NOT NULL,
                 category VARCHAR(30) NOT NULL,
@@ -1261,6 +1270,18 @@ async def start_reminder_scheduler():
                 print(f"Termin-Erinnerung Fehler: {e}")
             await asyncio.sleep(3600)
     asyncio.create_task(_schedule_reminder_loop())
+
+    async def _digest_loop():
+        # Stuendlich pruefen; verschickt die Tageszusammenfassung einmal pro Tag ab 7 Uhr (siehe core/digest.py)
+        from core.digest import run_daily_digest
+        await asyncio.sleep(180)
+        while True:
+            try:
+                await asyncio.to_thread(run_daily_digest)
+            except Exception as e:
+                print(f"Tageszusammenfassung Fehler: {e}")
+            await asyncio.sleep(3600)
+    asyncio.create_task(_digest_loop())
 
 
 # --- AUTOMATISCHE SICHERUNG ---

@@ -10,6 +10,7 @@ services:
       - MYSQL_DATABASE=${DB_NAME:-attendance_system}
       - MYSQL_USER=${DB_USER:-app_user}
       - MYSQL_PASSWORD=${DB_PASS}
+      - TZ=${TZ:-Europe/Berlin}
     volumes:
       # Pfad für die MariaDB Daten
       - ${STAPEL_PFAD}/attendance_db:/var/lib/mysql
@@ -21,6 +22,7 @@ services:
     container_name: attendance_api
     restart: unless-stopped
     environment:
+      - TZ=${TZ:-Europe/Berlin}
       - DB_HOST=db
       - DB_PORT=3306
       - DB_USER=${DB_USER:-app_user}

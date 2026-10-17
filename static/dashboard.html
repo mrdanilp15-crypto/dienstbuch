@@ -162,7 +162,7 @@
                 <!-- Benachrichtigungs-Glocke -->
                 <div class="position-relative ms-auto" id="notifBell">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 position-relative" @click="toggleNotifPanel" title="Benachrichtigungen">
-                        <i class="fa fa-bell" :class="{'text-warning': notifUnread}"></i>
+                        <i class="fa fa-bell" :class="{'text-warning': notifUnread, 'bell-ring': bellRinging}"></i>
                         <span v-if="notifUnread" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ notifUnread > 99 ? '99+' : notifUnread }}</span>
                     </button>
                     <div v-if="notifOpen" class="notif-panel card premium-card shadow">
@@ -179,6 +179,21 @@
                                 <input class="form-check-input" type="checkbox" :id="'np_'+p.key" :checked="p.push" :disabled="p.locked" @change="setNotifPref(p, $event.target.checked)">
                                 <label class="form-check-label" :for="'np_'+p.key">{{ p.label }} <span v-if="p.locked" class="text-muted small">(immer an)</span></label>
                             </div>
+                            <hr class="border-secondary border-opacity-25">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="np_quiet" v-model="notifSettings.quiet_enabled" @change="saveNotifSettings">
+                                <label class="form-check-label" for="np_quiet">Ruhezeit (kein Push)</label>
+                            </div>
+                            <div v-if="notifSettings.quiet_enabled" class="d-flex align-items-center gap-2 mb-2 small">
+                                von <input type="time" class="form-control form-control-sm" style="width: 6.5rem;" v-model="notifSettings.quiet_from" @change="saveNotifSettings">
+                                bis <input type="time" class="form-control form-control-sm" style="width: 6.5rem;" v-model="notifSettings.quiet_to" @change="saveNotifSettings">
+                            </div>
+                            <div class="small text-muted mb-2">Einsatzalarme und Sicherheitsmeldungen kommen immer durch. Alles andere steht danach in der Glocke.</div>
+                            <div v-if="mailInviteOk" class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="np_digest" v-model="notifSettings.digest_mail" @change="saveNotifSettings">
+                                <label class="form-check-label" for="np_digest">E-Mails als Tageszusammenfassung (morgens)</label>
+                            </div>
+                            <div v-if="mailInviteOk" class="small text-muted">Statt einer Mail je Termin oder Frist kommt einmal täglich eine Übersicht. Alarme bleiben sofort.</div>
                         </div>
                         <div v-else class="notif-scroll">
                             <div v-if="!notifCats.length" class="text-center text-muted py-4 small"><i class="fa fa-bell-slash d-block fs-3 mb-2 opacity-50"></i>Keine Benachrichtigungen.</div>

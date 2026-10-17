@@ -183,7 +183,11 @@ def send_reminder_mails(items: list, summary_lines: list):
                 due = it["due_date"].split("-")
                 status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due[2]}.{due[1]}.{due[0]}"
                 personal.setdefault(email_by_name[it["name"]], []).append(f"- {it['detail']}: {status}")
+        from core.digest import digest_emails
+        skip = digest_emails()
         for email, lines in personal.items():
+            if email in skip:
+                continue  # Tageszusammenfassung gewählt
             send_mail_background([email], "Deine anstehenden Fristen im Dienstbuch",
                                  "Hallo,\n\nfür dich stehen folgende Fristen an:\n\n" + "\n".join(lines) +
                                  "\n\nBitte kümmere dich rechtzeitig um einen Termin.")

@@ -1,11 +1,15 @@
 FROM python:3.11-slim
 
+# Zeitzone: Erinnerungen, Ruhezeiten und "heute" richten sich nach der Wehr-Uhrzeit, nicht nach UTC
+ENV TZ=Europe/Berlin
+
 WORKDIR /app
 
 # System-Abhängigkeiten (mariadb-client liefert mysqldump für das Auto-Backup)
 RUN apt-get update && apt-get install -y \
     gcc \
     mariadb-client \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Python-Pakete installieren

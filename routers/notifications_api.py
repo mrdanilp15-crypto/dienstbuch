@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -113,6 +114,41 @@ def set_pref(key: str, data: PrefIn, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("INSERT INTO notification_prefs (username, category, push) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE push=%s",
                 (me, key, 1 if data.push else 0, 1 if data.push else 0))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+
+class NotifSettings(BaseModel):
+    quiet_enabled: bool = False
+    quiet_from: str = "22:00"
+    quiet_to: str = "06:00"
+    digest_mail: bool = False
+
+
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+@router.get("/settings")
+def get_settings(request: Request):
+    me = _user(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT quiet_enabled, quiet_from, quiet_to, digest_mail FROM notification_settings WHERE username=%s", (me,))
+    r = cur.fetchone(); cur.close(); conn.close()
+    if not r:
+        return {"quiet_enabled": False, "quiet_from": "22:00", "quiet_to": "06:00", "digest_mail": False}
+    return {"quiet_enabled": bool(r["quiet_enabled"]), "quiet_from": r["quiet_from"], "quiet_to": r["quiet_to"], "digest_mail": bool(r["digest_mail"])}
+
+
+@router.put("/settings")
+def put_settings(data: NotifSettings, request: Request):
+    me = _user(request)
+    if not (_HHMM.match(data.quiet_from) and _HHMM.match(data.quiet_to)):
+        raise HTTPException(status_code=400, detail="Uhrzeit bitte als HH:MM angeben.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO notification_settings (username, quiet_enabled, quiet_from, quiet_to, digest_mail) VALUES (%s,%s,%s,%s,%s) "
+        "ON DUPLICATE KEY UPDATE quiet_enabled=VALUES(quiet_enabled), quiet_from=VALUES(quiet_from), quiet_to=VALUES(quiet_to), digest_mail=VALUES(digest_mail)",
+        (me, int(data.quiet_enabled), data.quiet_from, data.quiet_to, int(data.digest_mail)))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

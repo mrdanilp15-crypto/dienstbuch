@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v67';
+const CACHE_NAME = 'fw-app-cache-v68';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -152,7 +152,8 @@ self.addEventListener('push', event => {
     vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500, 250, 500],
     requireInteraction: true,
     silent: false, // explizit NICHT stumm - ob wirklich ein Ton kommt, entscheidet aber am Ende das Handy (siehe unten)
-    data: { url: data.url || '/' },
+    data: { url: data.url || '/', schedule_id: data.schedule_id || null },
+    actions: Array.isArray(data.actions) ? data.actions.slice(0, 2) : [],
     tag: 'alarm-' + Date.now(),
     renotify: true
   };
@@ -167,6 +168,25 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const info = event.notification.data || {};
+  if ((event.action === 'rsvp_yes' || event.action === 'rsvp_no') && info.schedule_id) {
+    // Zu-/Absage direkt aus der Benachrichtigung, ohne die App zu öffnen
+    const status = event.action === 'rsvp_yes' ? 'Ja' : 'Nein';
+    event.waitUntil(
+      fetch('/api/missions/schedules/' + info.schedule_id + '/rsvp', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
+      }).then(res => {
+        if (res.ok) {
+          return self.registration.showNotification(status === 'Ja' ? 'Zusage gespeichert' : 'Absage gespeichert', {
+            body: event.notification.title, icon: '/static/favicon.png', tag: 'rsvp-' + info.schedule_id, silent: true
+          }).then(() => new Promise(r => setTimeout(r, 4000))).then(() => self.registration.getNotifications({ tag: 'rsvp-' + info.schedule_id })).then(list => list.forEach(n => n.close()));
+        }
+        // nicht angemeldet / kein Zugriff: dann ganz normal den Termin öffnen (dort ggf. erst anmelden)
+        return clients.openWindow(new URL(info.url || '/', self.location.origin).href);
+      }).catch(() => clients.openWindow(new URL(info.url || '/', self.location.origin).href))
+    );
+    return;
+  }
   const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {

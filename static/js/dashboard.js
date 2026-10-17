@@ -201,7 +201,8 @@ applyChartTheme();
                     scheduleMemberSearch: '',
                     detailSchedule: null,
                     // Glocke
-                    notifOpen: false, notifCats: [], notifUnread: 0, notifCatOpen: {}, notifShowPrefs: false, notifPrefs: [],
+                    notifOpen: false, notifCats: [], notifUnread: 0, notifCatOpen: {}, notifShowPrefs: false, notifPrefs: [], bellRinging: false,
+                    notifSettings: { quiet_enabled: false, quiet_from: '22:00', quiet_to: '06:00', digest_mail: false },
                     buildingChecks: [], buildingSuggestions: [], buildingForm: { id: null, name: '', interval_months: 12, last_check: '', responsible: '' },
                     health: null,
                     prospects: [], prospectStatuses: ['Interessent', 'Probe', 'Aufgenommen', 'Abgesagt'],
@@ -1076,6 +1077,11 @@ applyChartTheme();
                     ws.onmessage = async (event) => {
                         try {
                             const data = JSON.parse(event.data);
+                            if (data.type === 'notif') {
+                                // Neue Benachrichtigung für mich: Glocke sofort aktualisieren
+                                this.bellRinging = true; setTimeout(() => { this.bellRinging = false; }, 1200);
+                                await this.refreshNotifCount(true);
+                            }
                             if (data.type === 'new_mission' || data.type === 'update_mission') {
                                 // Live update the dashboard when a mission arrives or updates
                                 await this.loadMissions();
@@ -2907,12 +2913,12 @@ applyChartTheme();
                     await appAlert(res.ok ? 'Alle anderen Geräte wurden abgemeldet.' : 'Das hat nicht geklappt.');
                     await this.loadMyDevices();
                 },
-                async refreshNotifCount() {
+                async refreshNotifCount(force) {
                     try {
                         const res = await fetch('/api/notifications/count', { credentials: 'include' });
                         if (!res.ok) return;
                         const n = (await res.json()).unread;
-                        if (n !== this.notifUnread) { this.notifUnread = n; if (this.notifOpen) this.loadNotifs(); }
+                        if (n !== this.notifUnread || (force && this.notifOpen)) { this.notifUnread = n; if (this.notifOpen) this.loadNotifs(); }
                     } catch (e) {}
                 },
                 async loadNotifs() {
@@ -2972,7 +2978,13 @@ applyChartTheme();
                     if (this.notifShowPrefs) {
                         const res = await fetch('/api/notifications/prefs', { credentials: 'include' });
                         if (res.ok) this.notifPrefs = await res.json();
+                        const rs = await fetch('/api/notifications/settings', { credentials: 'include' });
+                        if (rs.ok) this.notifSettings = await rs.json();
                     }
+                },
+                async saveNotifSettings() {
+                    const res = await fetch('/api/notifications/settings', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.notifSettings) });
+                    if (!res.ok) await appAlert('Einstellung konnte nicht gespeichert werden.');
                 },
                 async setNotifPref(p, on) {
                     p.push = on;
