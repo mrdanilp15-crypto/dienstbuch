@@ -43,6 +43,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Datenordner anlegen (wie im Container)
+        run: sudo mkdir -p /app/data && sudo chown -R "$USER" /app
+
       - name: Abhaengigkeiten installieren
         run: pip install -r requirements.txt -r tests/requirements.txt
 
