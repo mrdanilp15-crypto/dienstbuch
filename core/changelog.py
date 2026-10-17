@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 12,
+        "version": "2.62",
+        "date": "2026-10-17",
+        "items": [
+            {"type": "new", "tag": "Glocke", "title": "Benachrichtigungen in der Glocke",
+             "text": "Oben rechts sammelt eine Glocke alle Meldungen, sortiert in Fenster wie Einsatz, Termine, Fristen, Verwaltung und System. Ein Fenster erscheint nur, wenn es Einträge gibt. Ein Klick öffnet direkt das Ziel; pro Fenster lässt sich alles als gelesen markieren oder aufräumen, Push pro Kategorie einstellen."},
+            {"type": "new", "tag": "Termine", "title": "Termine im Kalender öffnen",
+             "text": "Ein Klick auf einen Termin zeigt Details, Zu-/Absage und Teilnehmer. Aus einem Termin lässt sich der Dienst direkt vorausgefüllt erfassen. Links in Push und Mail führen genau zum Termin."},
+            {"type": "fix", "tag": "Login", "title": "Groß-/Kleinschreibung beim Login egal",
+             "text": "Die Seite zum Zurücksetzen des Passworts nennt jetzt den Kontonamen."},
+        ],
+    },
+    {
         "id": 11,
         "version": "2.61",
         "date": "2026-10-17",

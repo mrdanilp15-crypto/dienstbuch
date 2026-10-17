@@ -26,13 +26,14 @@ from routers import hvo_api
 from routers import missions_api
 from routers import calendar_api
 from routers import push_api
+from routers import notifications_api
 from routers import mail_api
 from routers import building_api
 from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.61"
+CURRENT_VERSION = "2.62"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -180,6 +181,7 @@ app.include_router(hvo_api.router)
 app.include_router(missions_api.router)
 app.include_router(calendar_api.router)
 app.include_router(push_api.router)
+app.include_router(notifications_api.router)
 app.include_router(mail_api.router)
 app.include_router(building_api.router)
 app.include_router(prospects_api.router)
@@ -634,7 +636,8 @@ def init_db_extensions():
             ) ENGINE=InnoDB;
         """)
         for col_name, col_type in [("series_id", "VARCHAR(36) NULL"), ("reminder_sent", "BOOLEAN DEFAULT FALSE"),
-                                   ("audience", "VARCHAR(10) NOT NULL DEFAULT 'all'"), ("created_by", "VARCHAR(255) NULL")]:
+                                   ("audience", "VARCHAR(10) NOT NULL DEFAULT 'all'"), ("created_by", "VARCHAR(255) NULL"),
+                                   ("done_session_id", "INT NULL")]:
             try:
                 cur.execute(f"ALTER TABLE schedules ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
@@ -645,6 +648,30 @@ def init_db_extensions():
                 schedule_id INT NOT NULL,
                 personnel_id INT NOT NULL,
                 PRIMARY KEY (schedule_id, personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+
+        # Glocke im Dashboard (siehe core/notify.py)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) NOT NULL,
+                category VARCHAR(30) NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                body VARCHAR(1000) NULL,
+                link VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP NULL,
+                INDEX idx_notif_user (username, category, id),
+                INDEX idx_notif_created (created_at)
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notification_prefs (
+                username VARCHAR(100) NOT NULL,
+                category VARCHAR(30) NOT NULL,
+                push TINYINT(1) NOT NULL DEFAULT 1,
+                PRIMARY KEY (username, category)
             ) ENGINE=InnoDB;
         """)
 
@@ -1235,7 +1262,15 @@ async def start_backup_scheduler():
                 result = await asyncio.to_thread(run_auto_backup, "system (automatisch)")
                 print(f"[AUTO-BACKUP] {result.get('status')}: "
                       f"{result.get('sql_dump') or result.get('json_fallback') or '-'}")
+                if result.get("status") != "success":
+                    from core.notify import notify_admins
+                    notify_admins("Automatische Sicherung fehlgeschlagen", f"Status: {result.get('status')}. Bitte unter Verwaltung prüfen.")
             except Exception as e:
+                try:
+                    from core.notify import notify_admins
+                    notify_admins("Automatische Sicherung fehlgeschlagen", str(e)[:300])
+                except Exception:
+                    pass
                 # Eine fehlgeschlagene Sicherung darf den Server niemals mitreissen.
                 print(f"[AUTO-BACKUP] fehlgeschlagen: {e}")
             await asyncio.sleep(_BACKUP_INTERVAL_HOURS * 3600)
@@ -1708,6 +1743,9 @@ def create_broadcast(data: BroadcastCreateRequest, request: Request):
         (user["username"], data.title.strip(), data.content.strip(), data.role_target, 1 if data.is_mandatory else 0)
     )
     conn.commit(); cur.close(); conn.close()
+    from core.notify import notify
+    notify("verwaltung", data.title.strip(), data.content.strip(), None,
+           roles=None if data.role_target == "all" else [data.role_target])
     return {"status": "success"}
 
 @app.post("/api/broadcasts/{id}/read")

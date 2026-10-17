@@ -37,28 +37,28 @@ def _recipients(cur, group_id, audience_ids=None):
     return cur.fetchall()
 
 
-def _send(recipients, title: str, body: str):
+def _send(recipients, title: str, body: str, link: str = None):
     """Push an die Geraete der Empfaenger, dazu E-Mail (nur wenn die Wehr den Versand eingerichtet hat)."""
     if not recipients:
         return
     usernames = sorted({r["username"] for r in recipients if r.get("username")})
     try:
-        from routers.push_api import send_push_to_all
+        from core.notify import notify
         if usernames:
-            send_push_to_all({"title": title, "body": body, "icon": "/static/favicon.png", "url": "/dashboard"}, usernames=usernames)
+            notify("termine", title, body, link or "/dashboard", usernames=usernames)
     except Exception as e:
         print(f"Termin-Push fehlgeschlagen: {e}")
     try:
         s = get_mail_settings()
         if is_mail_configured(s) and s.get("reminder_mail"):
             emails = [r["email"] for r in recipients if r.get("email")]
-            text = body + ("\n\nDienstbuch: " + s["app_url"] + "/dashboard" if s.get("app_url") else "")
+            text = body + ("\n\nDirekt zum Termin: " + s["app_url"] + (link or "/dashboard") if s.get("app_url") else "")
             send_mail_background(emails, title, text, bcc=True)
     except Exception as e:
         print(f"Termin-Mail fehlgeschlagen: {e}")
 
 
-def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_id, audience_ids=None):
+def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_id, audience_ids=None, schedule_id=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor(dictionary=True)
@@ -71,7 +71,8 @@ def notify_new_schedule(title: str, typ: str, time_str: str, dates: list, group_
         else:
             head = f"Neue Terminserie: {title}"
             body = f"{len(dates)} Termine ab {_fmt_day(dates[0])}, {time_str} Uhr ({typ}). Bitte im Dienstbuch zu- oder absagen."
-        _send(rec, head, body)
+        # Ein Termin-Link fuehrt direkt in den Termin (bei einer Serie: zum ersten Termin)
+        _send(rec, head, body, f"/dashboard?open=termin:{schedule_id}" if schedule_id else None)
     except Exception as e:
         print(f"Benachrichtigung zum neuen Termin fehlgeschlagen: {e}")
 
@@ -98,7 +99,7 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        "SELECT * FROM schedules WHERE reminder_sent = 0 AND date BETWEEN %s AND %s",
+        "SELECT * FROM schedules WHERE reminder_sent = 0 AND done_session_id IS NULL AND date BETWEEN %s AND %s",
         (now.date(), now.date() + datetime.timedelta(days=1)),
     )
     for s in cur.fetchall():
@@ -116,9 +117,10 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
             answers = {r["personnel_id"]: r["status"] for r in cur.fetchall()}
             when = f"{_fmt_day(s['date'])}, {_parse_time(s['time']).strftime('%H:%M')} Uhr"
             _send([r for r in rec if r["id"] not in answers],
-                  f"Rückmeldung fehlt: {s['title']}", f"{when}. Du hast noch nicht zu- oder abgesagt - bitte kurz im Dienstbuch zurückmelden.")
+                  f"Rückmeldung fehlt: {s['title']}", f"{when}. Du hast noch nicht zu- oder abgesagt - bitte kurz im Dienstbuch zurückmelden.",
+                  f"/dashboard?open=termin:{s['id']}")
             _send([r for r in rec if answers.get(r["id"]) in ("Ja", "Vielleicht")],
-                  f"Erinnerung: {s['title']}", f"{when} - du hast zugesagt.")
+                  f"Erinnerung: {s['title']}", f"{when} - du hast zugesagt.", f"/dashboard?open=termin:{s['id']}")
             sent += 1
         # auch bereits begonnene Termine als erledigt markieren, damit nichts nachtraeglich verschickt wird
         cur.execute("UPDATE schedules SET reminder_sent = 1 WHERE id = %s", (s["id"],))

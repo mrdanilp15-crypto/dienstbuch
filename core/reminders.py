@@ -168,9 +168,18 @@ def check_due_reminders():
                 status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due.strftime('%d.%m.%Y')}"
                 lines.append(f"{icons.get(it['type'], '•')} {it['name']} ({it['detail']}): {status}")
 
+            # Nur eine kurze Zusammenfassung: bei 50 fälligen Fristen soll das Banner nicht den
+            # ganzen Bildschirm füllen. Die Einzelheiten stehen im Reiter Material (Karte "Bald fällig").
+            labels = {"equipment": "Geräte", "vehicle": "Fahrzeuge", "g26": "G26.3", "lehrgang": "Lehrgänge", "vehicle_check": "Fahrzeugkontrollen",
+                      "hvo_material": "Verbandmaterial", "low_stock": "Bestände", "license": "Führerscheine", "building": "Gerätehaus", "prospect": "Sponsoren"}
+            per_type = {}
+            for it in items:
+                per_type[labels.get(it["type"], "Sonstiges")] = per_type.get(labels.get(it["type"], "Sonstiges"), 0) + 1
+            n_over = sum(1 for it in items if it["overdue"])
             content = (
-                "Folgende Fristen sind in Kürze fällig oder bereits überfällig "
-                "(Vorlaufzeit siehe Einstellungen):\n\n" + "\n".join(lines)
+                f"{len(items)} Frist(en): {n_over} überfällig, {len(items) - n_over} in Kürze fällig.\n"
+                + " · ".join(f"{k}: {v}" for k, v in sorted(per_type.items(), key=lambda x: -x[1]))
+                + "\nDetails: Reiter Material → „Bald fällig / überfällig“."
             )
             cur.execute(
                 "INSERT INTO system_broadcasts (username, title, content, role_target, is_mandatory) "
@@ -179,13 +188,20 @@ def check_due_reminders():
             )
             conn.commit()
             try:
-                from routers.push_api import send_push_to_all
-                send_push_to_all({
-                    "title": "Anstehende Prüffristen",
-                    "body": f"{len(items)} Frist(en) laufen bald ab oder sind überfällig.",
-                    "icon": "/static/favicon.png",
-                    "url": "/dashboard"
-                })
+                from core.notify import notify
+                overdue = sum(1 for it in items if it["overdue"])
+                notify("fristen", "Anstehende Prüffristen",
+                       f"{len(items)} Frist(en) laufen bald ab" + (f", davon {overdue} überfällig." if overdue else "."),
+                       "/dashboard?open=fristen", roles=["admin", "leitung", "geratewart"])
+                # Persönliche Fristen (G26.3, Lehrgänge) zusätzlich an die betroffene Person
+                cur.execute("SELECT p.name, u.username FROM personnel p JOIN users u ON u.personnel_id = p.id")
+                user_by_name = {r["name"]: r["username"] for r in cur.fetchall()}
+                mine = {}
+                for it in items:
+                    if it["type"] in ("g26", "lehrgang") and it["name"] in user_by_name:
+                        mine.setdefault(user_by_name[it["name"]], []).append(it["detail"])
+                for uname, details in mine.items():
+                    notify("fristen", "Deine Frist läuft ab", "; ".join(details)[:300], "/dashboard", usernames=[uname])
             except Exception as push_err:
                 print(f"Reminder-Push fehlgeschlagen: {push_err}")
             from core.mailer import send_reminder_mails

@@ -159,6 +159,58 @@
                         </div>
                     </div>
                 </div>
+                <!-- Benachrichtigungs-Glocke -->
+                <div class="position-relative ms-auto" id="notifBell">
+                    <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 position-relative" @click="toggleNotifPanel" title="Benachrichtigungen">
+                        <i class="fa fa-bell" :class="{'text-warning': notifUnread}"></i>
+                        <span v-if="notifUnread" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ notifUnread > 99 ? '99+' : notifUnread }}</span>
+                    </button>
+                    <div v-if="notifOpen" class="notif-panel card premium-card shadow">
+                        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom border-secondary border-opacity-25">
+                            <strong><i class="fa fa-bell me-2 text-warning"></i>Benachrichtigungen</strong>
+                            <span class="d-flex gap-1">
+                                <button v-if="notifUnread && !notifShowPrefs" class="btn btn-sm btn-outline-secondary py-0 px-2" @click="readAllNotifs()" title="Alle als gelesen markieren"><i class="fa fa-check-double"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" :class="{active: notifShowPrefs}" @click="toggleNotifPrefs" title="Einstellungen"><i class="fa fa-sliders"></i></button>
+                            </span>
+                        </div>
+                        <div v-if="notifShowPrefs" class="p-3">
+                            <div class="small text-muted mb-2">Push aufs Handy je Kategorie. Die Glocke selbst sammelt immer alles.</div>
+                            <div v-for="p in notifPrefs" :key="p.key" class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" :id="'np_'+p.key" :checked="p.push" :disabled="p.locked" @change="setNotifPref(p, $event.target.checked)">
+                                <label class="form-check-label" :for="'np_'+p.key">{{ p.label }} <span v-if="p.locked" class="text-muted small">(immer an)</span></label>
+                            </div>
+                        </div>
+                        <div v-else class="notif-scroll">
+                            <div v-if="!notifCats.length" class="text-center text-muted py-4 small"><i class="fa fa-bell-slash d-block fs-3 mb-2 opacity-50"></i>Keine Benachrichtigungen.</div>
+                            <div v-for="c in notifCats" :key="c.key" class="notif-cat">
+                                <div class="notif-cat-head" @click="toggleNotifCat(c.key)">
+                                    <i class="fa fa-fw" :class="c.icon"></i>
+                                    <span class="fw-semibold flex-grow-1">{{ c.label }}</span>
+                                    <span v-if="c.unread" class="badge rounded-pill bg-danger">{{ c.unread }}</span>
+                                    <span v-else class="badge rounded-pill bg-secondary bg-opacity-50">{{ c.total }}</span>
+                                    <i class="fa fa-chevron-down small opacity-50" :class="{'fa-rotate-180': notifCatOpen[c.key]}"></i>
+                                </div>
+                                <div v-if="notifCatOpen[c.key]">
+                                    <div v-for="n in c.items" :key="n.id" class="notif-item" :class="n.read ? '' : 'unread'" @click="openNotif(n)">
+                                        <div class="d-flex justify-content-between gap-2">
+                                            <span class="notif-title">{{ n.title }}</span>
+                                            <span class="text-muted small text-nowrap">{{ notifAgo(n) }}</span>
+                                        </div>
+                                        <div v-if="n.body" class="notif-body small text-muted">{{ n.body }}</div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center px-3 py-1 small">
+                                        <button v-if="c.items.length < c.total" class="btn btn-link btn-sm p-0" @click="moreNotifs(c)">Weitere laden ({{ c.total - c.items.length }})</button>
+                                        <span v-else></span>
+                                        <span class="d-flex gap-3">
+                                            <button v-if="c.unread" class="btn btn-link btn-sm p-0" @click="readAllNotifs(c.key)">Alle gelesen</button>
+                                            <button v-if="c.items.some(i => i.read)" class="btn btn-link btn-sm p-0 text-danger" @click="clearNotifs(c)">Gelesene löschen</button>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <!-- aPager Live-Status -->
                 <div class="d-none d-lg-flex align-items-center gap-3">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @click="toggleTheme" title="Hell/Dunkel Modus">
@@ -254,7 +306,7 @@
                                 <small class="text-muted fw-bold"><i class="fa fa-user me-1"></i>Leitung: {{ b.autor }}</small>
                             </div>
                             <h5 class="fw-bold text-white m-0 mb-1" style="letter-spacing: -0.3px;">{{ b.title }}</h5>
-                            <p class="text-secondary m-0 small lh-base" style="white-space: pre-wrap;">{{ b.content }}</p>
+                            <p class="text-secondary m-0 small lh-base broadcast-text" style="white-space: pre-wrap;">{{ b.content }}</p>
                         </div>
                     </div>
                     <div class="d-flex gap-2 align-items-center flex-shrink-0 ms-3">
@@ -330,7 +382,7 @@
                                             <tr v-for="s in schedules" :key="s.id">
                                                 <td data-label="Datum" class="fw-bold text-white">{{ formatDateDay(s.date) }}.{{ formatDateMonth(s.date) }}</td>
                                                 <td data-label="Zeit">{{s.time}}</td>
-                                                <td data-label="Thema" class="fw-bold">{{s.title}} <span v-if="s.audience === 'selected'" class="badge bg-secondary fw-normal ms-1" :title="s.audience_ids ? s.audience_ids.length + ' ausgewählte Personen' : 'Nur für ausgewählte Personen'"><i class="fa fa-lock me-1"></i>{{ s.audience_ids ? s.audience_ids.length : 'privat' }}</span></td>
+                                                <td data-label="Thema" class="fw-bold" style="cursor:pointer;" @click="openScheduleDetail(s)" title="Details und Rückmeldung">{{s.title}} <span v-if="s.audience === 'selected'" class="badge bg-secondary fw-normal ms-1" :title="s.audience_ids ? s.audience_ids.length + ' ausgewählte Personen' : 'Nur für ausgewählte Personen'"><i class="fa fa-lock me-1"></i>{{ s.audience_ids ? s.audience_ids.length : 'privat' }}</span><span v-if="s.done_session_id" class="badge bg-success fw-normal ms-1">erfasst</span></td>
                                                 <td data-label="Kategorie"><span class="badge" :class="s.type==='Übung'?'bg-primary':s.type==='Schulung'?'bg-success':'bg-secondary'">{{s.type}}</span></td>
                                                 <td>
                                                     <div v-if="scheduleRsvpMap[s.id]" class="btn-group btn-group-sm" role="group">
@@ -552,8 +604,8 @@
                             <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
                             <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday, 'calendar-cell-clickable': cell.inMonth && canManageDienste}" @click="cell.inMonth && canManageDienste && openCalendarDayModal(cell.key)" :title="cell.inMonth && canManageDienste ? 'Klicken, um einen Termin an diesem Tag anzulegen' : ''">
                                 <div class="calendar-cell-num">{{ cell.day }}</div>
-                                <div v-for="ev in cell.events" :key="ev.type + ev.title + ev.date" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin' && canManageDienste}]" :title="(ev.type === 'termin' && canManageDienste ? 'Klicken zum Bearbeiten — ' : '') + ev.title + (ev.subtitle ? ' — ' + ev.subtitle : '')" @click="ev.type === 'termin' && canManageDienste ? editCalendarTermin(ev, $event) : null">
-                                    {{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
+                                <div v-for="ev in cell.events" :key="ev.type + '|' + (ev.schedule_id || ev.id || '') + '|' + ev.title + '|' + ev.date + '|' + (ev.time || '')" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin', 'calendar-event-done': ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).done_session_id}]" :title="(ev.type === 'termin' ? 'Klicken für Details – ' : '') + ev.title + (ev.subtitle ? ' – ' + ev.subtitle : '')" @click="ev.type === 'termin' ? openCalendarTerminDetail(ev, $event) : null">
+                                    <i v-if="ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).audience === 'selected'" class="fa fa-lock me-1"></i>{{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
                                 </div>
                             </div>
                         </div>
@@ -748,11 +800,14 @@
                         <div v-if="canManageMaterial && dueSoonItems.length > 0" class="card premium-card p-4 mb-4" style="border-color: rgba(255, 193, 7, 0.4) !important;">
                             <h5 class="fw-bold text-white mb-3"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Bald fällig / überfällig (nächste 14 Tage)</h5>
                             <div class="d-flex flex-wrap gap-2">
-                                <span v-for="it in dueSoonItems" :key="it.type + it.name + it.due_date" class="badge rounded-pill px-3 py-2" :class="it.overdue ? 'bg-danger' : 'bg-warning text-dark'">
+                                <span v-for="it in dueSoonShown" :key="it.type + it.name + it.due_date" class="badge rounded-pill px-3 py-2" :class="it.overdue ? 'bg-danger' : 'bg-warning text-dark'">
                                     <i class="fa" :class="{'fa-truck': it.type === 'vehicle', 'fa-user-doctor': it.type === 'g26', 'fa-screwdriver-wrench': it.type === 'equipment', 'fa-graduation-cap': it.type === 'lehrgang', 'fa-clipboard-check': it.type === 'vehicle_check', 'fa-id-card': it.type === 'license', 'fa-building': it.type === 'building', 'fa-handshake': it.type === 'prospect'}"></i>
                                     {{ it.name }} ({{ it.detail }}) - {{ it.overdue ? 'überfällig' : new Date(it.due_date).toLocaleDateString('de-DE') }}
                                 </span>
                             </div>
+                            <button v-if="dueSoonItems.length > 8" class="btn btn-sm btn-outline-warning rounded-pill mt-3" @click="showAllDue = !showAllDue">
+                                {{ showAllDue ? 'Weniger anzeigen' : 'Alle ' + dueSoonItems.length + ' anzeigen (+' + (dueSoonItems.length - 8) + ' weitere)' }}
+                            </button>
                         </div>
                         <div class="row g-3 mb-4">
                             <div class="col-12 col-md-4">
@@ -2713,6 +2768,49 @@
         </div>
 
         <!-- MODAL: SCHEDULE CREATION -->
+        <div class="modal fade" id="scheduleDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-calendar-day me-2"></i>{{ detailSchedule ? detailSchedule.title : '' }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="detailSchedule">
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="badge bg-secondary">{{ detailSchedule.type }}</span>
+                            <span v-if="detailSchedule.audience === 'selected'" class="badge bg-secondary"><i class="fa fa-lock me-1"></i>Nur für ausgewählte Personen</span>
+                            <span v-if="detailSchedule.done_session_id" class="badge bg-success">Dienst bereits erfasst</span>
+                        </div>
+                        <div class="fs-5 fw-bold text-white">{{ detailWhen }}</div>
+                        <div v-if="detailSchedule.description" class="mt-2 text-muted" style="white-space: pre-wrap;">{{ detailSchedule.description }}</div>
+                        <div v-if="detailInvited.length" class="mt-3 small"><span class="text-muted">Eingeladen ({{ detailInvited.length }}):</span> {{ detailInvited.join(', ') }}</div>
+                        <hr class="border-secondary border-opacity-25">
+                        <div v-if="detailRsvp">
+                            <div class="fw-bold text-white mb-2">Deine Rückmeldung</div>
+                            <div v-if="detailRsvp.unlinked" class="small text-warning">Dein Login ist mit keinem Kameraden verknüpft – bitte die Leitung bitten, das zu setzen.</div>
+                            <div v-else class="btn-group w-100" role="group">
+                                <button class="btn" :class="detailRsvp.my_status === 'Ja' ? 'btn-success' : 'btn-outline-success'" @click="submitScheduleRsvp(detailSchedule.id, 'Ja')">Ja, ich komme</button>
+                                <button class="btn" :class="detailRsvp.my_status === 'Vielleicht' ? 'btn-warning' : 'btn-outline-warning'" @click="submitScheduleRsvp(detailSchedule.id, 'Vielleicht')">Vielleicht</button>
+                                <button class="btn" :class="detailRsvp.my_status === 'Nein' ? 'btn-danger' : 'btn-outline-danger'" @click="submitScheduleRsvp(detailSchedule.id, 'Nein')">Nein</button>
+                            </div>
+                            <div v-if="detailRsvp.responses.length" class="small mt-3" style="cursor:pointer; text-decoration: underline;" @click="openRsvpListModal(detailSchedule, detailRsvp)">
+                                <span class="text-success">{{ detailRsvp.responses.filter(r => r.status === 'Ja').length }} Zusage(n)</span>
+                                <span v-if="detailRsvp.responses.filter(r => r.status === 'Vielleicht').length" class="text-warning"> · {{ detailRsvp.responses.filter(r => r.status === 'Vielleicht').length }} vielleicht</span>
+                                <span v-if="detailRsvp.responses.filter(r => r.status === 'Nein').length" class="text-danger"> · {{ detailRsvp.responses.filter(r => r.status === 'Nein').length }} Absage(n)</span>
+                            </div>
+                            <div v-else class="small text-muted mt-3">Noch keine Rückmeldungen.</div>
+                        </div>
+                        <div v-else class="small text-muted">Dieser Termin liegt in der Vergangenheit.</div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 flex-wrap gap-2" v-if="detailSchedule && canManageDienste">
+                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="attendanceFromDetail"><i class="fa fa-clipboard-user me-1"></i>Anwesenheit</button>
+                        <button v-if="!detailSchedule.done_session_id" class="btn btn-outline-light btn-sm rounded-pill" @click="captureFromDetail" title="Dienst-Eintrag mit Datum, Thema und den Zusagen vorausgefüllt öffnen"><i class="fa fa-file-circle-plus me-1"></i>Dienst erfassen</button>
+                        <button class="btn btn-premium btn-sm rounded-pill ms-auto" @click="editFromDetail"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="scheduleModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">

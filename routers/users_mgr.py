@@ -64,6 +64,12 @@ def add_user(data: UserCreateRequest, request: Request):
         raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein!")
     conn = get_db_connection(); cur = conn.cursor()
     try:
+        # Der Login unterscheidet nicht zwischen Gross und Klein - also darf es auch keine zwei Konten geben,
+        # die sich nur darin unterscheiden ("Max" und "max"), sonst waere unklar, welches sich anmeldet.
+        cur.execute("SELECT username FROM users WHERE LOWER(username) = LOWER(%s)", (username_clean,))
+        existing = cur.fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Benutzername existiert bereits (als '{existing[0]}') - Groß-/Kleinschreibung zählt nicht.")
         p_hash = hash_password(data.password)
         cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 1, %s)", (username_clean, p_hash, data.role, data.personnel_id or None))
         conn.commit()

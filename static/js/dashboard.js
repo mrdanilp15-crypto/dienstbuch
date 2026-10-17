@@ -114,6 +114,11 @@ applyChartTheme();
             });
         }
 
+        // new Date().toISOString() liefert das UTC-Datum - zwischen Mitternacht und 1/2 Uhr morgens also "gestern".
+        function localISODate(d) {
+            d = d || new Date();
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        }
         function appConfirm(message, title = 'Bitte bestätigen') {
             return new Promise((resolve) => {
                 const { el, modal } = _appDialogShow(`
@@ -183,7 +188,7 @@ applyChartTheme();
                     ranking: [], showRanking: false, catStats: { Übung: 0, Einsatz: 0, Sonstiges: 0 }, activeS: null,
                     vehicles: [], activeVehicleForLog: null, vehicleLogs: [],
                     activeVehicleForCheck: null, vehicleCheckHistory: [],
-                    currentChecklist: { date: new Date().toISOString().split('T')[0], checker_name: '', status: 'OK', notes: '', items_checked: {'Ölstand': false, 'Beleuchtung': false, 'Funkgeräte (HRT)': false, 'Reifendruck': false} },
+                    currentChecklist: { date: localISODate(), checker_name: '', status: 'OK', notes: '', items_checked: {'Ölstand': false, 'Beleuchtung': false, 'Funkgeräte (HRT)': false, 'Reifendruck': false} },
                     newVehicle: { name: '', radio_name: '', status: 2, tuv_date: '', sp_date: '', milage: 0, next_service: '' },
                     selfPwData: { old_password: '', new_password: '', confirm_password: '' },
                     activeBroadcasts: [],
@@ -194,6 +199,9 @@ applyChartTheme();
                     twoFaEnabled: null,
                     groupListOpen: false,
                     scheduleMemberSearch: '',
+                    detailSchedule: null,
+                    // Glocke
+                    notifOpen: false, notifCats: [], notifUnread: 0, notifCatOpen: {}, notifShowPrefs: false, notifPrefs: [],
                     buildingChecks: [], buildingSuggestions: [], buildingForm: { id: null, name: '', interval_months: 12, last_check: '', responsible: '' },
                     health: null,
                     prospects: [], prospectStatuses: ['Interessent', 'Probe', 'Aufgenommen', 'Abgesagt'],
@@ -224,7 +232,7 @@ applyChartTheme();
                     
                     // Schedules / Dienstplanung
                     schedules: [],
-                    newSchedule: { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: null, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] },
+                    newSchedule: { title: '', date: localISODate(), time: '19:00', description: '', type: 'Übung', group_id: null, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] },
                     schedulePersonnelList: [],
                     activeScheduleForAttendance: null,
                     
@@ -239,7 +247,7 @@ applyChartTheme();
                     eqCategory: '',
                     filterDefectiveOnly: false,
                     activeEquipment: null,
-                    newInspection: { date: new Date().toISOString().split('T')[0], inspector: '', status: 'Bestanden', note: '' },
+                    newInspection: { date: localISODate(), inspector: '', status: 'Bestanden', note: '' },
                     inspectionsHistory: [],
                     batchInspect: { rawBarcodes: '', inspector: '', status: 'Bestanden', note: '' },
                     
@@ -247,18 +255,18 @@ applyChartTheme();
                     personnel: [],
                     personnelSearch: '',
                     activePersonnel: null,
-                    newGear: { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] },
-                    newCourse: { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '', valid_until: '' },
+                    newGear: { item_name: '', size: '', issue_date: localISODate() },
+                    newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
-                    dueSoonItems: [],
+                    dueSoonItems: [], showAllDue: false,
                     mileageChartInstance: null,
                     newLoan: { borrower_name: '', note: '' },
                     vehicleReservations: [],
                     newReservation: { purpose: '', start_datetime: '', end_datetime: '' },
                     vehicleDocuments: [],
                     vehicleMaintenance: [],
-                    newMaintenance: { date: new Date().toISOString().split('T')[0], description: '', workshop: '', cost: 0 },
+                    newMaintenance: { date: localISODate(), description: '', workshop: '', cost: 0 },
                     calendarYear: new Date().getFullYear(),
                     calendarMonth: new Date().getMonth() + 1,
                     calendarEvents: [],
@@ -362,20 +370,20 @@ applyChartTheme();
                         has_jf1: false, has_jf2: false, has_jf3: false, has_wissentest: false, has_leistungsspange: false, has_jugendabzeichen: false, has_mta_basis: false, has_erste_hilfe: false, has_funk: false
                     },
                     youthSessions: [],
-                    newYouthSession: { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} },
+                    newYouthSession: { date: localISODate(), topic: '', duration: 2.0, instructors: '', description: '', attendance: {} },
                     editingYouthSessionId: null,
                     
                     clubTab: 'inventory',
                     clubInventory: [],
                     newClubItem: { item_name: '', quantity: 1, status: 'OK' },
                     clubDonations: [],
-                    newDonation: { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] },
+                    newDonation: { donor: '', amount: 15.00, date: localISODate() },
                     membershipFees: [],
                     feesYear: new Date().getFullYear(),
                     
                     hvoTab: 'protocols',
                     hvoProtocols: [],
-                    newHvoProtocol: { date: new Date().toISOString().split('T')[0], symptoms: '', therapy: '', handover: '' },
+                    newHvoProtocol: { date: localISODate(), symptoms: '', therapy: '', handover: '' },
                     hvoChecks: [],
                     newHvoCheck: { device_name: '' },
                     hvoMaterial: [],
@@ -410,6 +418,17 @@ applyChartTheme();
                 }
             },
             computed: {
+                detailRsvp() { return this.detailSchedule ? (this.scheduleRsvpMap[this.detailSchedule.id] || null) : null; },
+                detailWhen() {
+                    const s = this.detailSchedule; if (!s) return '';
+                    const d = new Date(String(s.date).slice(0, 10) + 'T12:00:00');
+                    return d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + (s.time ? ' · ' + s.time + ' Uhr' : '');
+                },
+                detailInvited() {
+                    const s = this.detailSchedule;
+                    if (!s || s.audience !== 'selected' || !s.audience_ids) return [];
+                    return (this.personnel || []).filter(p => s.audience_ids.includes(p.id)).map(p => p.name).sort((a, b) => a.localeCompare(b, 'de'));
+                },
                 scheduleCandidates() {
                     const q = (this.scheduleMemberSearch || '').trim().toLowerCase();
                     return (this.personnel || [])
@@ -426,6 +445,11 @@ applyChartTheme();
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
+                // Überfällige zuerst, dann nach Datum; ohne Klick nur die ersten 8 (sonst füllen 50 Fristen den Bildschirm)
+                dueSoonShown() {
+                    const sorted = [...this.dueSoonItems].sort((a, b) => (b.overdue - a.overdue) || String(a.due_date).localeCompare(String(b.due_date)));
+                    return this.showAllDue ? sorted : sorted.slice(0, 8);
+                },
                 canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
                 // Backend /billing/... (mission_mgr.py) erlaubt dieselbe Rollenmenge -
                 // eigener Name statt canManageMaterial wiederzuverwenden, damit im Abrechnungs-
@@ -448,11 +472,13 @@ applyChartTheme();
                     const startOffset = (firstOfMonth.getDay() + 6) % 7; // Montag = 0
                     const daysInMonth = new Date(year, month, 0).getDate();
                     const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
-                    const todayStr = new Date().toISOString().split('T')[0];
+                    const todayStr = localISODate();
                     const cells = [];
+                    const pad2 = n => String(n).padStart(2, '0');
                     for (let i = 0; i < startOffset; i++) {
                         const day = daysInPrevMonth - startOffset + i + 1;
-                        cells.push({ key: 'prev-' + day, day, inMonth: false, isToday: false, events: [] });
+                        const pk = `${month === 1 ? year - 1 : year}-${pad2(month === 1 ? 12 : month - 1)}-${pad2(day)}`;
+                        cells.push({ key: pk, day, inMonth: false, isToday: pk === todayStr, events: eventsByDate[pk] || [] });
                     }
                     for (let day = 1; day <= daysInMonth; day++) {
                         const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -460,7 +486,8 @@ applyChartTheme();
                     }
                     let nextDay = 1;
                     while (cells.length % 7 !== 0) {
-                        cells.push({ key: 'next-' + nextDay, day: nextDay, inMonth: false, isToday: false, events: [] });
+                        const nk = `${month === 12 ? year + 1 : year}-${pad2(month === 12 ? 1 : month + 1)}-${pad2(nextDay)}`;
+                        cells.push({ key: nk, day: nextDay, inMonth: false, isToday: nk === todayStr, events: eventsByDate[nk] || [] });
                         nextDay++;
                     }
                     return cells;
@@ -475,8 +502,8 @@ applyChartTheme();
                     return h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend';
                 },
                 nextSchedule() {
-                    const today = new Date().toISOString().split('T')[0];
-                    return [...(this.schedules || [])].filter(s => String(s.date).slice(0, 10) >= today)
+                    const today = localISODate();
+                    return [...(this.schedules || [])].filter(s => String(s.date).slice(0, 10) >= today && !s.done_session_id)
                         .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time).localeCompare(String(b.time)))[0] || null;
                 },
                 activePersonnelForMatrix() {
@@ -733,7 +760,8 @@ applyChartTheme();
                     if (eqBarcode) {
                         window.location.href = '/login?eq_barcode=' + eqBarcode;
                     } else {
-                        window.location.href = '/login';
+                        const openLink = params.get('open');
+                        window.location.href = '/login' + (openLink ? '?open=' + encodeURIComponent(openLink) : '');
                     }
                     return;
                 }
@@ -816,6 +844,10 @@ applyChartTheme();
                 // #app per v-show noch komplett ausgeblendet, eine Karte oder ein Diagramm würde
                 // dann auf eine Fläche von 0x0 gezeichnet.
                 this.$nextTick(() => this.loadDataForActiveTab());
+                if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
+                this.refreshNotifCount();
+                setInterval(() => { if (!document.hidden) this.refreshNotifCount(); }, 60000);
+                document.addEventListener('click', e => { if (this.notifOpen && !e.target.closest('#notifBell')) this.notifOpen = false; });
 
                 if (this.isFirstLoginBlock) {
                     setTimeout(() => {
@@ -1137,17 +1169,11 @@ applyChartTheme();
                     } catch(e) { console.error("Error loading schedules", e); }
                 },
                 async loadScheduleRsvps() {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const upcoming = this.schedules.filter(s => s.date >= todayStr);
-                    const results = await Promise.all(upcoming.map(async s => {
-                        try {
-                            const res = await fetch(`/api/missions/schedules/${s.id}/rsvp`, { credentials: 'include' });
-                            return res.ok ? [s.id, await res.json()] : null;
-                        } catch(e) { return null; }
-                    }));
-                    const map = {};
-                    for (const r of results) { if (r) map[r[0]] = r[1]; }
-                    this.scheduleRsvpMap = map;
+                    // Eine einzige Sammelabfrage statt einer Anfrage pro Termin (bei Serien waren das Dutzende)
+                    try {
+                        const res = await fetch('/api/missions/schedules/rsvp-all', { credentials: 'include' });
+                        this.scheduleRsvpMap = res.ok ? await res.json() : {};
+                    } catch(e) { this.scheduleRsvpMap = {}; }
                 },
                 async submitScheduleRsvp(scheduleId, status) {
                     const res = await fetch(`/api/missions/schedules/${scheduleId}/rsvp`, {
@@ -1178,7 +1204,7 @@ applyChartTheme();
                 async openScheduleModal() {
                     await this.ensurePersonnelLoaded();
                     this.scheduleMemberSearch = '';
-                    this.newSchedule = { title: '', date: new Date().toISOString().split('T')[0], time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] };
+                    this.newSchedule = { title: '', date: localISODate(), time: '19:00', description: '', type: 'Übung', group_id: this.selectedGroup?.id, repeat: '', repeat_until: '', notify: true, audience: 'all', audience_ids: [] };
                     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
                 },
                 async submitSchedule() {
@@ -1383,7 +1409,7 @@ applyChartTheme();
                     });
                 },
                 openLogRideModal() {
-                    this.newLogRide = { date: new Date().toISOString().split('T')[0], mileage_start: this.activeVehicleForLog.milage || 0, mileage_end: (this.activeVehicleForLog.milage || 0) + 10, driver_name: '', purpose: '' };
+                    this.newLogRide = { date: localISODate(), mileage_start: this.activeVehicleForLog.milage || 0, mileage_end: (this.activeVehicleForLog.milage || 0) + 10, driver_name: '', purpose: '' };
                     new bootstrap.Modal(document.getElementById('logRideModal')).show();
                 },
                 async submitLogRide() {
@@ -1664,7 +1690,7 @@ applyChartTheme();
                 },
                 openAddInspectionModal(eq) {
                     this.activeEquipment = eq;
-                    this.newInspection = { date: new Date().toISOString().split('T')[0], inspector: '', status: 'Bestanden', note: '' };
+                    this.newInspection = { date: localISODate(), inspector: '', status: 'Bestanden', note: '' };
                     new bootstrap.Modal(document.getElementById('addInspectionModal')).show();
                 },
                 async submitInspection() {
@@ -1792,7 +1818,7 @@ applyChartTheme();
                 async submitGear() {
                     const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newGear) });
                     if(res.ok) {
-                        this.newGear = { item_name: '', size: '', issue_date: new Date().toISOString().split('T')[0] };
+                        this.newGear = { item_name: '', size: '', issue_date: localISODate() };
                         const gRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/inventar`, { credentials: 'include' });
                         this.activePersonnel.gearList = await gRes.json();
                     }
@@ -1880,7 +1906,7 @@ applyChartTheme();
                 async submitCourse() {
                     const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newCourse) });
                     if(res.ok) {
-                        this.newCourse = { course_name: '', date: new Date().toISOString().split('T')[0], certificate_url: '', valid_until: '' };
+                        this.newCourse = { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' };
                         const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
                         this.activePersonnel.courses = await cRes.json();
                     }
@@ -2502,7 +2528,7 @@ applyChartTheme();
                 },
                 cancelYouthSessionEdit() {
                     this.editingYouthSessionId = null;
-                    this.newYouthSession = { date: new Date().toISOString().split('T')[0], topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
+                    this.newYouthSession = { date: localISODate(), topic: '', duration: 2.0, instructors: '', description: '', attendance: {} };
                 },
                 async submitYouthSession() {
                     if (!this.newYouthSession.date || !this.newYouthSession.topic || this.newYouthSession.topic.trim() === '') {
@@ -2594,7 +2620,7 @@ applyChartTheme();
                         body: JSON.stringify(this.newDonation)
                     });
                     if(res.ok) {
-                        this.newDonation = { donor: '', amount: 15.00, date: new Date().toISOString().split('T')[0] };
+                        this.newDonation = { donor: '', amount: 15.00, date: localISODate() };
                         await this.loadClubData();
                     }
                 },
@@ -2618,7 +2644,7 @@ applyChartTheme();
                         body: JSON.stringify(this.newHvoProtocol)
                     });
                     if(res.ok) {
-                        this.newHvoProtocol = { date: new Date().toISOString().split('T')[0], symptoms: '', therapy: '', handover: '' };
+                        this.newHvoProtocol = { date: localISODate(), symptoms: '', therapy: '', handover: '' };
                         await this.loadHvoData();
                     }
                 },
@@ -2815,6 +2841,124 @@ applyChartTheme();
                     if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte eine Zahl von 0 bis 100 eingeben.'); return; }
                     await this.loadParticipation();
                 },
+                scheduleOf(ev) { return ev && ev.schedule_id ? (this.schedules || []).find(s => s.id === ev.schedule_id) : null; },
+                async openCalendarTerminDetail(ev, domEvent) {
+                    if (domEvent) domEvent.stopPropagation();
+                    let s = this.scheduleOf(ev);
+                    if (!s) { await this.loadSchedules(); s = this.scheduleOf(ev); }
+                    if (!s) { await appAlert('Dieser Termin ist nicht mehr vorhanden.'); return; }
+                    await this.openScheduleDetail(s);
+                },
+                async openScheduleDetail(s) {
+                    if (this.canManageDienste) await this.ensurePersonnelLoaded();
+                    this.detailSchedule = s;
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('scheduleDetailModal')).show();
+                },
+                _closeDetail() { bootstrap.Modal.getInstance(document.getElementById('scheduleDetailModal'))?.hide(); },
+                editFromDetail() { const s = this.detailSchedule; if (!s) return; this._closeDetail(); this.editCalendarTermin({ schedule_id: s.id }); },
+                attendanceFromDetail() { const s = this.detailSchedule; if (!s) return; this._closeDetail(); this.openScheduleAttendance(s); },
+                captureFromDetail() {
+                    const s = this.detailSchedule; if (!s) return;
+                    const g = s.group_id || (this.selectedGroup && this.selectedGroup.id);
+                    if (!g) { appAlert('Bitte zuerst im Dienstbetrieb eine Liste wählen.'); return; }
+                    window.location.href = `/editor?group_id=${g}&from_schedule=${s.id}`;
+                },
+                async refreshNotifCount() {
+                    try {
+                        const res = await fetch('/api/notifications/count', { credentials: 'include' });
+                        if (!res.ok) return;
+                        const n = (await res.json()).unread;
+                        if (n !== this.notifUnread) { this.notifUnread = n; if (this.notifOpen) this.loadNotifs(); }
+                    } catch (e) {}
+                },
+                async loadNotifs() {
+                    try {
+                        const res = await fetch('/api/notifications', { credentials: 'include' });
+                        if (!res.ok) return;
+                        const d = await res.json();
+                        this.notifCats = d.categories; this.notifUnread = d.unread;
+                        // Fenster mit ungelesenen Meldungen starten offen, der Rest zugeklappt - eigene Wahl bleibt
+                        d.categories.forEach(c => { if (!(c.key in this.notifCatOpen)) this.notifCatOpen[c.key] = c.unread > 0; });
+                    } catch (e) { console.error(e); }
+                },
+                toggleNotifPanel() {
+                    this.notifOpen = !this.notifOpen;
+                    this.notifShowPrefs = false;
+                    if (this.notifOpen) { this.notifCatOpen = {}; this.loadNotifs(); }
+                },
+                toggleNotifCat(key) { this.notifCatOpen[key] = !this.notifCatOpen[key]; },
+                notifAgo(n) {
+                    const m = n.age_min;
+                    if (m < 1) return 'gerade eben';
+                    if (m < 60) return `vor ${m} Min.`;
+                    if (m < 1440) return `vor ${Math.floor(m / 60)} Std.`;
+                    if (m < 10080) return `vor ${Math.floor(m / 1440)} Tg.`;
+                    return n.created_at;
+                },
+                async openNotif(n) {
+                    if (!n.read) {
+                        n.read = true; this.notifUnread = Math.max(0, this.notifUnread - 1);
+                        const c = this.notifCats.find(x => x.items.includes(n)); if (c) c.unread = Math.max(0, c.unread - 1);
+                        fetch(`/api/notifications/${n.id}/read`, { method: 'POST', credentials: 'include' }).catch(() => {});
+                    }
+                    this.notifOpen = false;
+                    if (!n.link) return;
+                    const u = new URL(n.link, window.location.origin);
+                    if (u.pathname === '/dashboard' || u.pathname === '/') {
+                        if (u.search) { window.history.replaceState(null, '', '/dashboard' + u.search); await this.handleOpenLink(); }
+                    } else {
+                        window.location.href = u.pathname + u.search;
+                    }
+                },
+                async moreNotifs(c) {
+                    const last = c.items[c.items.length - 1];
+                    const res = await fetch(`/api/notifications/category/${c.key}?before_id=${last.id}`, { credentials: 'include' });
+                    if (res.ok) c.items.push(...await res.json());
+                },
+                async readAllNotifs(key) {
+                    await fetch('/api/notifications/read-all?category=' + (key || ''), { method: 'POST', credentials: 'include' });
+                    await this.loadNotifs();
+                },
+                async clearNotifs(c) {
+                    await fetch(`/api/notifications/category/${c.key}`, { method: 'DELETE', credentials: 'include' });
+                    await this.loadNotifs();
+                },
+                async toggleNotifPrefs() {
+                    this.notifShowPrefs = !this.notifShowPrefs;
+                    if (this.notifShowPrefs) {
+                        const res = await fetch('/api/notifications/prefs', { credentials: 'include' });
+                        if (res.ok) this.notifPrefs = await res.json();
+                    }
+                },
+                async setNotifPref(p, on) {
+                    p.push = on;
+                    const res = await fetch(`/api/notifications/prefs/${p.key}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ push: on }) });
+                    if (!res.ok) { p.push = !on; await appAlert('Einstellung konnte nicht gespeichert werden.'); }
+                },
+                async handleOpenLink() {
+                    // Links aus Push/E-Mail: /dashboard?open=termin:123 | einsatz:45 | fristen | alarm | kalender
+                    const raw = new URLSearchParams(window.location.search).get('open');
+                    if (!raw) return;
+                    window.history.replaceState(null, '', window.location.pathname);
+                    const [type, id] = raw.split(':');
+                    try {
+                        if (type === 'termin') {
+                            let s = (this.schedules || []).find(x => String(x.id) === id);
+                            if (!s) { await this.loadSchedules(); s = (this.schedules || []).find(x => String(x.id) === id); }
+                            if (!s) { await appAlert('Dieser Termin existiert nicht mehr oder ist nicht für dich bestimmt.'); return; }
+                            this.activeTab = 'dienste';
+                            await this.openScheduleDetail(s);
+                        } else if (type === 'einsatz' && id) {
+                            window.location.href = `/editor?mission_id=${encodeURIComponent(id)}`;
+                        } else if (type === 'fristen') {
+                            this.activeTab = this.canManageMaterial ? 'material' : 'dienste';
+                        } else if (type === 'alarm') {
+                            this.activeTab = 'apager';
+                        } else if (type === 'kalender') {
+                            this.activeTab = 'kalender';
+                        }
+                    } catch (e) { console.error('Link konnte nicht geöffnet werden:', e); }
+                },
                 async loadMyContact() {
                     this.myContact = null;
                     try {
@@ -2975,7 +3119,7 @@ applyChartTheme();
                 // Vehicles Form Actions
                 async openChecklist(veh) {
                     this.activeVehicleForCheck = veh;
-                    this.currentChecklist = { date: new Date().toISOString().split('T')[0], checker_name: this.username, status: 'OK', notes: '', items_checked: {'Ölstand (Motor)': false, 'Reifendruck': false, 'Beleuchtung / Blaulicht': false, 'Funkgeräte (HRT/MRT)': false, 'Erste-Hilfe-Rucksack': false, 'Atemschutzgeräte': false} };
+                    this.currentChecklist = { date: localISODate(), checker_name: this.username, status: 'OK', notes: '', items_checked: {'Ölstand (Motor)': false, 'Reifendruck': false, 'Beleuchtung / Blaulicht': false, 'Funkgeräte (HRT/MRT)': false, 'Erste-Hilfe-Rucksack': false, 'Atemschutzgeräte': false} };
                     await this.loadCheckHistory(veh.id);
                     new bootstrap.Modal(document.getElementById('vehicleCheckModal')).show();
                 },
@@ -3040,7 +3184,7 @@ applyChartTheme();
                         body: JSON.stringify(this.newMaintenance)
                     });
                     if (res.ok) {
-                        this.newMaintenance = { date: new Date().toISOString().split('T')[0], description: '', workshop: '', cost: 0 };
+                        this.newMaintenance = { date: localISODate(), description: '', workshop: '', cost: 0 };
                         await this.loadVehicleMaintenance(this.activeVehicle.id);
                     }
                 },
@@ -3136,9 +3280,17 @@ applyChartTheme();
                     URL.revokeObjectURL(url);
                 },
                 async loadCalendar() {
+                    // Auch Vor- und Folgemonat laden: das Raster zeigt ja die Randtage dieser Monate mit an -
+                    // vorher blieben Termine an diesen Tagen unsichtbar.
                     try {
-                        const res = await fetch(`/api/calendar?year=${this.calendarYear}&month=${this.calendarMonth}`, { credentials: 'include' });
-                        this.calendarEvents = res.ok ? await res.json() : [];
+                        const months = [-1, 0, 1].map(d => {
+                            let m = this.calendarMonth + d, y = this.calendarYear;
+                            if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+                            return { y, m };
+                        });
+                        const parts = await Promise.all(months.map(({ y, m }) =>
+                            fetch(`/api/calendar?year=${y}&month=${m}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).catch(() => [])));
+                        this.calendarEvents = parts.flat();
                     } catch(e) { this.calendarEvents = []; }
                 },
                 shiftCalendarMonth(delta) {

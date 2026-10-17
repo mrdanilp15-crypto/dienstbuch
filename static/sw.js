@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v66';
+const CACHE_NAME = 'fw-app-cache-v67';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -167,17 +167,18 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(windowClients => {
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
-        if (client.url.includes('/') && 'focus' in client) {
-          return client.focus();
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Ist die App schon offen: dasselbe Fenster zum genauen Ziel schicken (frueher wurde es nur
+      // nach vorn geholt - der Link in der Benachrichtigung tat dann nichts).
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          return client.focus().then(c => (c && 'navigate' in c) ? c.navigate(target) : clients.openWindow(target))
+                               .catch(() => clients.openWindow(target));
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url || '/');
-      }
+      return clients.openWindow(target);
     })
   );
 });

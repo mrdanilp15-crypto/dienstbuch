@@ -105,6 +105,9 @@ def record_mail_result(error):
         conn.commit()
         cur.close()
         conn.close()
+        if error is not None:
+            from core.notify import notify_admins
+            notify_admins("E-Mail-Versand fehlgeschlagen", str(error)[:300])
     except Exception as e:
         print(f"Mail-Status konnte nicht gespeichert werden: {e}")
 
@@ -145,7 +148,7 @@ def send_alarm_mail(title: str, stichwort: str, adresse: str, meldung: str):
             return
         body = f"{title}\n\nStichwort: {stichwort}\nOrt: {adresse}\nMeldung: {meldung}\n"
         if s.get("app_url"):
-            body += f"\nDienstbuch öffnen: {s['app_url']}/dashboard\n"
+            body += f"\nAlarm im Dienstbuch öffnen: {s['app_url']}/dashboard?open=alarm\n"
         send_mail_background(get_active_member_emails(), f"{title}: {stichwort}", body, bcc=True)
     except Exception as e:
         print(f"Alarm-Mail fehlgeschlagen: {e}")

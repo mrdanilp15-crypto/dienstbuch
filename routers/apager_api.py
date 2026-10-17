@@ -221,13 +221,8 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     
     # Push-Nachricht senden
     try:
-        from routers.push_api import send_push_to_all
-        send_push_to_all({
-            "title": f"Neuer Alarm: {stichwort}",
-            "body": f"Ort: {adresse}\nMeldung: {meldung}",
-            "icon": "/static/favicon.png",
-            "url": "/dashboard"
-        })
+        from core.notify import notify
+        notify("einsatz", f"Neuer Alarm: {stichwort}", f"Ort: {adresse}\nMeldung: {meldung}", "/dashboard?open=alarm")
     except Exception as e:
         print("Push error:", e)
     from core.mailer import send_alarm_mail
@@ -331,7 +326,7 @@ async def send_test_alarm(data: dict, request: Request):
             "title": f"Test-Alarm: {stichwort}",
             "body": f"Ort: {adresse}",
             "icon": "/static/favicon.png",
-            "url": "/dashboard"
+            "url": "/dashboard?open=alarm"
         })
     except Exception as e:
         print(f"Push-Versand beim Test-Alarm fehlgeschlagen: {e}")

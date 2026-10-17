@@ -339,6 +339,7 @@
     <div v-if="isLoading && !showTypeModal" class="editor-loading"><span class="spinner-border spinner-border-sm me-2"></span>Wird geladen …</div>
 
     <div class="main-content" v-if="!showTypeModal">
+        <div v-if="fromScheduleNote" class="alert alert-info py-2 small mb-3" style="max-width: 1100px; margin-left: auto; margin-right: auto;"><i class="fa fa-circle-info me-1"></i>{{ fromScheduleNote }}</div>
         <div class="editor-card">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h5 class="fw-bold text-white m-0"><i class="fa-regular fa-file-lines text-danger me-2"></i>{{ mode === 'mission' ? 'Einsatz-Stammdaten' : 'Dienst-Stammdaten' }}</h5>
@@ -811,7 +812,7 @@
             ? pf(`/groups/${_qs.get('group_id')}/attendance?session_id=${_qs.get('session_id')}`) : null,
     };
     // Typ steht bei bestehenden Eintraegen schon in der Adresse -> sofort bekannt, nichts zu "berechnen".
-    const _isNewEntry = !_qs.get('mission_id') && !_qs.get('session_id') && !_qs.get('new_type');
+    const _isNewEntry = !_qs.get('mission_id') && !_qs.get('session_id') && !_qs.get('new_type') && !_qs.get('from_schedule');
 
     const { createApp } = Vue;
     let sigPad = null, sigModal = null, saveTimer = null, savingPromise = null;
@@ -928,6 +929,7 @@
                 // Neuer Eintrag: Typ-Auswahl (Einsatz/Übung/Sonstiges) sofort zeigen, ohne auf irgendeine Abfrage zu warten.
                 showTypeModal: _isNewEntry,
                 refsReady: Promise.resolve(),
+                fromScheduleId: null, fromScheduleNote: '',
                 globalVehicles: [], persons: [], pool: [], groupPersons: [], groups: [],
                 topicOptions: [], instrOptions: [],
                 q: '', poolSearch: '', category: 'Übung', duration: 2.0,
@@ -1020,6 +1022,7 @@
             this.groupId = p.get('group_id');
             this.sessionId = p.get('session_id');
             this.missionId = p.get('mission_id');
+            this.fromScheduleId = p.get('from_schedule'); // "Dienst erfassen" aus einem Termin heraus
             const newType = p.get('new_type'); // 'Einsatz' | 'Übung' | 'Sonstiges' - überspringt das Anlege-Modal, wenn der Aufrufer den Typ schon kennt (z.B. Button "Einsatz erfassen")
 
             // Gemeinsame Referenzdaten, unabhängig vom Typ (werden für Übung/Sonstiges UND
@@ -1051,6 +1054,8 @@
                     } catch(e) {}
                 })());
                 promises.push(this.loadTemplates());
+            } else if (this.fromScheduleId) {
+                promises.push(this.startFromSchedule());
             } else if (newType) {
                 // Aufrufer kennt den Typ schon (z.B. "Einsatz erfassen"-Button oder #new_mission-Link)
                 // -> Anlege-Modal überspringen und direkt in den passenden Modus wechseln.
@@ -1098,6 +1103,42 @@
         },
         methods: {
             // --- TYPWAHL FÜR NEUE EINTRÄGE ---
+            async startFromSchedule() {
+                // Dienst aus einem geplanten Termin vorbereiten: Datum, Thema, Uhrzeit und die Zusagen
+                // werden uebernommen - spart das Abtippen. Gespeichert wird erst, wenn jemand etwas aendert.
+                try {
+                    if (!this.groupId) { await appAlert("Bitte den Dienst im Portal unter 'Dienstbetrieb' über eine Liste erfassen."); this.goBack(); return; }
+                    const [listRes, rsvpRes] = await Promise.all([
+                        fetch('/api/missions/schedules/list', { credentials: 'include' }),
+                        fetch(`/api/missions/schedules/${this.fromScheduleId}/rsvp`, { credentials: 'include' })
+                    ]);
+                    const sch = (await listRes.json()).find(s => String(s.id) === String(this.fromScheduleId));
+                    if (!sch) { await appAlert('Der Termin wurde nicht gefunden.'); this.showTypeModal = true; return; }
+                    const rsvp = rsvpRes.ok ? await rsvpRes.json() : { responses: [] };
+                    await this.chooseType(sch.type === 'Sonstiges' ? 'Sonstiges' : 'Übung');
+                    this.currentDate = String(sch.date).slice(0, 10);
+                    this.time = sch.time || '';
+                    this.description = sch.title;
+                    try {
+                        const gpRes = await fetch(`/groups/${this.groupId}/persons`, { credentials: 'include' });
+                        this.groupPersons = await gpRes.json();
+                    } catch(e) {}
+                    const yes = (rsvp.responses || []).filter(r => r.status === 'Ja').map(r => r.name);
+                    yes.forEach(name => {
+                        const gp = this.groupPersons.find(x => x.name === name);
+                        const pe = this.pool.find(x => x.name === name);
+                        if (gp && !this.persons.find(x => x.name === name)) {
+                            this.persons.push({ id: gp.id, name, is_present: true, vehicle: '', signature: null, personnel_id: pe ? pe.id : null, has_picture: pe ? pe.has_picture : false, g26_expired: pe ? pe.g26_expired : false });
+                        }
+                    });
+                    this.fromScheduleNote = yes.length
+                        ? `Aus dem Termin „${sch.title}“ übernommen: ${yes.length} Zusage(n) sind als anwesend vorausgewählt – bitte prüfen und anpassen.`
+                        : `Aus dem Termin „${sch.title}“ übernommen. Es gibt noch keine Zusagen – bitte die Anwesenden eintragen.`;
+                } catch (e) {
+                    console.error(e);
+                    this.showTypeModal = true;
+                }
+            },
             async chooseType(type) {
                 await this.refsReady;  // Personalliste muss da sein (Einsatz-Mannschaftsliste wird daraus gebaut)
                 this.showTypeModal = false;
@@ -1219,6 +1260,11 @@
                     const rd = await res.json();
                     if(rd.session_id && !this.sessionId) {
                         this.sessionId = rd.session_id;
+                        if (this.fromScheduleId) {
+                            // Termin als "Dienst erfasst" markieren (im Kalender dann nicht mehr doppelt)
+                            fetch(`/api/missions/schedules/${this.fromScheduleId}/link-session`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: this.sessionId }) }).catch(() => {});
+                            this.fromScheduleId = null;
+                        }
                         window.history.replaceState({}, '', `${window.location.pathname}?group_id=${this.groupId}&session_id=${this.sessionId}`);
                     }
                     this.saveState = 'saved';

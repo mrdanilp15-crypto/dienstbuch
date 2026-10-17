@@ -373,6 +373,21 @@
             sessionStorage.setItem('eq_barcode_redirect', eqBarcode);
         }
 
+        // Link aus Push/E-Mail (z.B. /dashboard?open=termin:12): nach dem Login genau dorthin weiter
+        const openLink = params.get('open');
+        if (openLink) {
+            sessionStorage.setItem('open_after_login', openLink);
+        }
+        function goAfterLogin(defaultUrl) {
+            const o = sessionStorage.getItem('open_after_login');
+            if (o) {
+                sessionStorage.removeItem('open_after_login');
+                window.location.href = '/dashboard?open=' + encodeURIComponent(o);
+            } else {
+                window.location.href = defaultUrl;
+            }
+        }
+
         async function handleLogin(event) {
             event.preventDefault();
             
@@ -451,7 +466,7 @@
                     sessionStorage.removeItem('eq_barcode_redirect');
                     window.location.href = '/dashboard?eq_barcode=' + savedBarcode;
                 } else {
-                    window.location.href = data.redirect;
+                    goAfterLogin(data.redirect);
                 }
 
             } catch (error) {
@@ -552,7 +567,7 @@
                 localStorage.setItem('isLoggedIn', 'true');
                 localStorage.setItem('userRole', data.role);
                 localStorage.setItem('userName', data.username);
-                window.location.href = data.redirect;
+                goAfterLogin(data.redirect);
             } catch (error) {
                 errorBox.innerHTML = `<i class="fa fa-exclamation-circle me-1"></i> Verbindung zum Server fehlgeschlagen!`;
                 errorBox.style.display = 'block';

@@ -139,7 +139,7 @@ async def forgot_password(request: Request):
     cur.execute("""
         SELECT u.id, u.username, p.email FROM users u
         JOIN personnel p ON p.id = u.personnel_id
-        WHERE (u.username = %s OR LOWER(p.email) = LOWER(%s)) AND p.email IS NOT NULL AND p.email != ''
+        WHERE (LOWER(u.username) = LOWER(%s) OR LOWER(p.email) = LOWER(%s)) AND p.email IS NOT NULL AND p.email != ''
     """, (identifier, identifier))
     accounts = cur.fetchall()
 
@@ -157,17 +157,38 @@ async def forgot_password(request: Request):
         )
         conn.commit()
         body = (
-            f"Hallo,\n\nfür das Konto \"{acc['username']}\" wurde ein neues Passwort angefordert.\n\n"
+            f"Hallo,\n\nfür das Konto \"{acc['username']}\" wurde ein neues Passwort angefordert.\n"
+            f"Mit diesem Benutzernamen meldest du dich später an (Groß-/Kleinschreibung ist egal).\n\n"
             f"Über diesen Link kannst du innerhalb von {_RESET_VALID_MINUTES} Minuten ein neues Passwort festlegen:\n"
             f"{app_url}/reset-password?token={token}\n\n"
             "Falls du das nicht warst, kannst du diese E-Mail ignorieren - dein Passwort bleibt unverändert."
         )
-        send_mail_background([acc["email"]], "Passwort zurücksetzen - Dienstbuch", body)
+        # Benutzername im Betreff: gehoeren mehrere Konten zu einer Adresse, ist sofort klar, welche Mail fuer welches Konto ist
+        send_mail_background([acc["email"]], f"Passwort zurücksetzen für „{acc['username']}“ - Dienstbuch", body)
         log_audit_action(acc["username"], "PASSWORT_RESET_ANGEFORDERT", "Link zum Zurücksetzen per E-Mail verschickt.")
 
     cur.close()
     conn.close()
     return generic
+
+
+@router.get("/api/auth/reset-password/info")
+def reset_password_info(token: str = ""):
+    """Fuer die Reset-Seite: zu welchem Konto gehoert der Link, und ist er noch gueltig?
+    Verraet nur dem Inhaber des (geheimen, einmaligen) Links den Kontonamen."""
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "SELECT u.username, TIMESTAMPDIFF(MINUTE, NOW(), r.expires_at) AS minutes_left FROM password_resets r "
+        "JOIN users u ON u.id = r.user_id WHERE r.token_hash = %s AND r.used = 0 AND r.expires_at > NOW()",
+        (_token_hash(token.strip()),),
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return {"valid": False}
+    return {"valid": True, "username": row["username"], "minutes_left": max(int(row["minutes_left"] or 0), 0)}
 
 
 @router.post("/api/auth/reset-password")

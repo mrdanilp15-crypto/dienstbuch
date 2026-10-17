@@ -1028,6 +1028,7 @@ def create_schedule(s: ScheduleCreate, request: Request, background_tasks: Backg
     series_id = str(uuid.uuid4()) if len(dates) > 1 else None
     conn = get_db_connection(); cur = conn.cursor()
     audience_ids = _clean_audience(cur, s)
+    new_ids = []
     for d in dates:
         cur.execute("""
             INSERT INTO schedules (title, date, time, description, type, group_id, series_id, audience, created_by)
@@ -1035,12 +1036,13 @@ def create_schedule(s: ScheduleCreate, request: Request, background_tasks: Backg
         """, (s.title.strip(), d.isoformat(), s.time, s.description, s.type, s.group_id, series_id,
                "selected" if audience_ids else "all", user["username"]))
         new_id = cur.lastrowid
+        new_ids.append(new_id)
         for pid in audience_ids or []:
             cur.execute("INSERT INTO schedule_audience (schedule_id, personnel_id) VALUES (%s, %s)", (new_id, pid))
     conn.commit(); cur.close(); conn.close()
     if s.notify:
         from core.schedule_notify import notify_new_schedule
-        background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, dates, s.group_id, audience_ids)
+        background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, dates, s.group_id, audience_ids, new_ids[0])
     return {"status": "success", "created": len(dates)}
 
 @router.put("/schedules/{sch_id}")
@@ -1071,7 +1073,7 @@ def update_schedule(sch_id: int, s: ScheduleCreate, request: Request, background
         except ValueError:
             when = []
         if when:
-            background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, when, s.group_id, added)
+            background_tasks.add_task(notify_new_schedule, s.title.strip(), s.type, s.time, when, s.group_id, added, sch_id)
     return {"status": "success"}
 
 @router.delete("/schedules/{sch_id}")
@@ -1201,6 +1203,48 @@ def _resolve_own_personnel_id(cur, username):
         cur.execute("UPDATE users SET personnel_id = %s WHERE username = %s", (fallback["id"], username))
         return fallback["id"]
     return None
+
+@router.get("/schedules/rsvp-all")
+def get_all_schedule_rsvps(request: Request):
+    """Alle Rueckmeldungen der kommenden Termine (die der Nutzer sehen darf) in EINER Abfrage.
+    Vorher fragte das Portal fuer jeden Termin einzeln nach - bei einer Terminserie mit 50 Terminen
+    waren das 50 Anfragen bei jedem Seitenaufruf."""
+    user = check_auth(request)
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    vis_sql, vis_params = visibility_sql(cur, user, "s")
+    cur.execute(f"SELECT s.id FROM schedules s WHERE s.date >= CURDATE() AND {vis_sql}", vis_params)
+    ids = [r["id"] for r in cur.fetchall()]
+    personnel_id = _resolve_own_personnel_id(cur, user["username"])
+    result = {i: {"my_status": None, "unlinked": personnel_id is None, "responses": []} for i in ids}
+    if ids:
+        cur.execute(
+            "SELECT r.schedule_id, r.status, r.personnel_id, p.name FROM schedule_rsvp r JOIN personnel p ON r.personnel_id = p.id "
+            "WHERE r.schedule_id IN (%s) ORDER BY p.name ASC" % ", ".join(["%s"] * len(ids)), tuple(ids))
+        for r in cur.fetchall():
+            entry = result[r["schedule_id"]]
+            entry["responses"].append({"status": r["status"], "name": r["name"]})
+            if personnel_id and r["personnel_id"] == personnel_id:
+                entry["my_status"] = r["status"]
+    conn.commit(); cur.close(); conn.close()
+    return result
+
+
+@router.post("/schedules/{sch_id}/link-session")
+def link_schedule_to_session(sch_id: int, data: dict, request: Request):
+    """Merkt: aus diesem Termin wurde ein Dienst erfasst (Kalender zeigt ihn dann nicht doppelt)."""
+    user = check_auth(request)
+    if user["role"] not in EDITOR_ROLES:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    try:
+        session_id = int(data.get("session_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Ungültige Dienst-ID.")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    _assert_can_view(cur, user, sch_id)
+    cur.execute("UPDATE schedules SET done_session_id = %s WHERE id = %s", (session_id, sch_id))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
 
 @router.get("/schedules/{sch_id}/rsvp")
 def get_schedule_rsvp(sch_id: int, request: Request):
