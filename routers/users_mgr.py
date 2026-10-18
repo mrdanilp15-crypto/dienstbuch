@@ -80,7 +80,7 @@ def add_user(data: UserCreateRequest, request: Request):
         from core.mailer import get_mail_settings, is_mail_configured
         s = get_mail_settings()
         if not (is_mail_configured(s) and s.get("app_url")):
-            raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet (Verwaltung → E-Mail). Bitte ein Passwort vergeben.")
+            raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet (Einstellungen → E-Mail-Versand). Bitte ein Passwort vergeben.")
         if not data.personnel_id:
             raise HTTPException(status_code=400, detail="Für eine Einladung bitte einen Kameraden verknüpfen - die Mail geht an dessen Adresse.")
         c0 = get_db_connection(); k0 = c0.cursor(dictionary=True)

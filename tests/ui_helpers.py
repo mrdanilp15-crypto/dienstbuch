@@ -47,4 +47,5 @@ def set_theme(page, dark: bool):
 
 
 def sidebar_items(page):
-    return page.evaluate("() => [...document.querySelectorAll('.sidebar .sidebar-btn')].filter(b => b.offsetParent).map(b => b.innerText.replace(/\\s+/g, ' ').trim())")
+    """Beschriftungen der sichtbaren Seitenleisten-Einträge (ohne Zähler-Badges wie bei "Fristen")."""
+    return page.evaluate(r"() => [...document.querySelectorAll('.sidebar .sidebar-btn')].filter(b => b.offsetParent).map(b => { const c = b.cloneNode(true); c.querySelectorAll('.badge').forEach(x => x.remove()); return c.innerText.replace(/\s+/g, ' ').trim(); })")

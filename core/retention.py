@@ -46,7 +46,7 @@ def run_retention(force: bool = False, now=None) -> dict:
     if cands:
         from core.notify import notify
         notify("verwaltung", "Datenschutz: ausgeschiedene Mitglieder prüfen",
-               f"{len(cands)} ausgeschiedene Mitglieder liegen über der Aufbewahrungsfrist. Unter Verwaltung → System → Datenschutz kann der Personenbezug entfernt werden.",
+               f"{len(cands)} ausgeschiedene Mitglieder liegen über der Aufbewahrungsfrist. Unter Einstellungen → Sicherheit & Datenschutz kann der Personenbezug entfernt werden.",
                "/dashboard", roles=["admin"], push=False, dedupe_hours=24 * 30)
     return out
 

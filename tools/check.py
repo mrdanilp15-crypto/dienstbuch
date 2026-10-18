@@ -187,7 +187,6 @@ MUSTACHE_RE = re.compile(r"\{\{(.*?)\}\}", re.S)
 VUE_PAGES = [
     ("static/dashboard.html", "static/js/dashboard.js"),
     ("static/alarmdisplay.html", "static/alarmdisplay.html"),
-    ("static/personnel.html", "static/personnel.html"),
     ("static/editor.html", "static/editor.html"),
 ]
 

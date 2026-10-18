@@ -19,19 +19,19 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
-BASE_ITEMS = ["Dienstbetrieb", "Kalender", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch",
+BASE_ITEMS = ["Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch",
               "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
               "Fahrzeugpool", "Geräte & Material", "Dokumente & Archiv"]
-MANAGER_ITEMS = ["Dienstbetrieb", "Kalender", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch", "Statistiken",
+MANAGER_ITEMS = ["Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch", "Statistiken",
                  "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
-                 "Fahrzeugpool", "Geräte & Material", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Bank", "Dokumente & Archiv",
+                 "Fahrzeugpool", "Geräte & Material", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
                  "Einstellungen"]
 EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS}
 for r in ROLES:
     EXPECT.setdefault(r, BASE_ITEMS)
 # Reiter innerhalb von Einstellungen / Geräte & Material je Rolle
-SETTINGS_TABS = {"admin": ["System-Logins", "Aktivitäts-Log", "Sicherheit & Datenschutz", "Systemzustand & Sicherung", "E-Mail-Versand", "Kalender-Abo", "Feuerwache-Standort"],
-                 "leitung": ["Kalender-Abo", "Feuerwache-Standort"]}
+SETTINGS_TABS = {"admin": ["System-Logins", "Aktivitäts-Log", "Sicherheit & Datenschutz", "Systemzustand & Sicherung", "Wache & Fristen", "E-Mail-Versand"],
+                 "leitung": ["Wache & Fristen"]}
 MATERIAL_HAS_GERAETEHAUS = {"admin", "leitung", "geratewart"}
 
 make_role_users()

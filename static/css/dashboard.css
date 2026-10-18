@@ -1453,3 +1453,41 @@ body { color: var(--text-color); }
 }
 .small, small { font-size: max(12px, 0.875em); }
 .settings-nav .pill-nav { flex-wrap: wrap !important; overflow: visible !important; max-width: 100%; }
+
+/* =====================================================================================================
+   FRISTEN-STREIFEN (Fristen nach Bereich) und Handy-Layout
+   ===================================================================================================== */
+.due-strip { padding: 0; overflow: hidden; }
+.due-strip-head { display: flex; align-items: center; gap: .6rem; width: 100%; background: none; border: 0; color: var(--text-color); padding: .75rem 1rem; text-align: left; flex-wrap: wrap; }
+.due-strip-head > i:first-child { color: var(--c-warning); }
+.due-strip.has-overdue .due-strip-head > i:first-child { color: var(--c-danger); }
+.due-strip-title { font-weight: 700; }
+.due-strip-count { color: var(--muted-text); font-size: .9rem; flex: 1 1 auto; }
+.due-chevron { margin-left: auto; transition: transform .2s; }
+.due-rows { padding: 0 1rem 1rem; }
+.due-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: .35rem .75rem; align-items: center; padding: .6rem 0; border-top: 1px solid rgba(128, 128, 128, .2); }
+.due-icon { color: var(--muted-text); }
+.due-text { min-width: 0; }
+.due-name { font-weight: 600; overflow-wrap: anywhere; }
+.due-detail { color: var(--muted-text); font-size: .85rem; overflow-wrap: anywhere; }
+.due-when { font-size: .85rem; text-align: right; }
+.due-row.is-overdue .due-when { color: var(--c-danger); font-weight: 600; }
+.due-row.is-soon .due-when { color: var(--c-warning); font-weight: 600; }
+.due-actions { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
+.due-first { margin-top: .75rem; padding-top: .5rem; border-top: 2px dashed rgba(128, 128, 128, .3); }
+.due-first-head { font-weight: 700; font-size: .9rem; margin-bottom: .25rem; }
+.settings-details > summary { list-style: none; cursor: pointer; display: inline-block; }
+.settings-details > summary::-webkit-details-marker { display: none; }
+
+@media (max-width: 575px) {
+    .due-row { grid-template-columns: auto 1fr; }
+    .due-when { grid-column: 2; text-align: left; }
+    .due-actions { grid-column: 1 / -1; justify-content: flex-start; }
+    /* Kopfzeilen-Knöpfe und Reiter-Leisten brechen um statt rechts aus dem Bild zu laufen */
+    .main-content .d-flex.gap-2 { flex-wrap: wrap; }
+    .main-content .btn { white-space: normal; max-width: 100%; }
+    .pill-nav { display: flex; flex-wrap: wrap !important; overflow: visible !important; max-width: 100%; }
+    .pill-nav .nav-link { padding: .45rem .75rem; }
+    .pill-nav .nav-item.ms-auto { margin-left: 0 !important; }
+    .pill-nav .btn.ms-3 { margin-left: 0 !important; }
+}

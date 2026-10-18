@@ -335,6 +335,21 @@ def add_member(m: PersonnelMember, request: Request):
     log_audit_action(user["username"], "PERSONAL_ANLEGEN", f"Mitglied '{clean_name}' neu angelegt.")
     return {"status": "success"}
 
+@router.post("/license-checked")
+def mark_licenses_checked(data: dict, request: Request):
+    """Führerscheinkontrolle für eine oder mehrere Personen als heute durchgeführt eintragen (Erstkontrolle oder Wiederholung)."""
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    ids = [int(i) for i in (data.get("ids") or []) if str(i).isdigit()]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Keine Personen angegeben.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("UPDATE personnel SET license_checked_date = CURDATE() WHERE id IN (%s)" % ", ".join(["%s"] * len(ids)), tuple(ids))
+    n = cur.rowcount
+    conn.commit(); cur.close(); conn.close()
+    log_audit_action(user["username"], "FUEHRERSCHEIN_KONTROLLE", f"Führerscheinkontrolle für {n} Person(en) als heute durchgeführt eingetragen.")
+    return {"status": "success", "updated": n}
+
+
 @router.post("/update/{member_id}")
 def update_member(member_id: int, m: PersonnelMember, request: Request):
     user = check_auth(request, allowed_roles=("admin", "leitung"))

@@ -260,7 +260,7 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
-                    dueSoonItems: [], showAllDue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    dueItems: [], dueOnlyOverdue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     audienceInfo: null, detailPending: [],
                     backupInfo: null, backupBusy: false, offsiteForm: { enabled: false, url: '', username: '', password: '' }, privacy: null,
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
@@ -329,7 +329,8 @@ applyChartTheme();
                     
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
-                    verwaltungTab: '', vereinTab: 'kasse',
+                    verwaltungTab: '',
+                    intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30 },
                     
                     // Mängelmelder
                     defectReports: [],
@@ -454,12 +455,12 @@ applyChartTheme();
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
-                // Überfällige zuerst, dann nach Datum; ohne Klick nur die ersten 8 (sonst füllen 50 Fristen den Bildschirm)
-                dueSoonShown() {
-                    const sorted = [...this.dueSoonItems].sort((a, b) => (b.overdue - a.overdue) || String(a.due_date).localeCompare(String(b.due_date)));
-                    return this.showAllDue ? sorted : sorted.slice(0, 8);
+                dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
+                dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
+                dueAreas() {
+                    const labels = { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen' };
+                    return Object.keys(labels).filter(k => this.dueItemsFiltered.some(i => i.area === k)).map(k => ({ key: k, label: labels[k] }));
                 },
-                // Einstellungen (früher "Verwaltung & VB"): Reiter nach Themen gruppiert, je nach Rolle
                 canSeeSettings() { return ['admin', 'leitung'].includes(this.role); },
                 canSeeFinance() { return ['admin', 'leitung'].includes(this.role); },
                 canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
@@ -472,11 +473,10 @@ applyChartTheme();
                             { key: 'sicherheit', label: 'Sicherheit & Datenschutz', icon: 'fa-shield-halved', show: admin } ] },
                         { label: 'Betrieb', tabs: [
                             { key: 'betrieb', label: 'Systemzustand & Sicherung', icon: 'fa-heart-pulse', show: admin } ] },
+                        { label: 'Organisation', tabs: [
+                            { key: 'wache', label: 'Wache & Fristen', icon: 'fa-map-pin', show: this.canSeeSettings } ] },
                         { label: 'Kommunikation', tabs: [
-                            { key: 'mail', label: 'E-Mail-Versand', icon: 'fa-envelope', show: admin },
-                            { key: 'kalender', label: 'Kalender-Abo', icon: 'fa-calendar-check', show: this.canSeeSettings } ] },
-                        { label: 'Wache', tabs: [
-                            { key: 'standort', label: 'Feuerwache-Standort', icon: 'fa-map-pin', show: this.canSeeSettings } ] }
+                            { key: 'mail', label: 'E-Mail-Versand', icon: 'fa-envelope', show: admin } ] }
                     ];
                     return groups.map(g => ({ label: g.label, tabs: g.tabs.filter(t => t.show) })).filter(g => g.tabs.length);
                 },
@@ -750,6 +750,7 @@ applyChartTheme();
                         localStorage.setItem('activeDashboardTab', newTab);
                     }
                     if (newTab === 'verwaltung') this.ensureSettingsTab();
+                    this.loadDueItems();
                     // Einziger Ort, an dem beim Reiterwechsel Daten nachgeladen werden. Vorher
                     // hingen die Ladeaufrufe an den @click-Handlern der Menü-Schaltflächen - wer
                     // den Reiter auf anderem Weg wechselte (globale Suche, Sprung nach einem
@@ -882,6 +883,7 @@ applyChartTheme();
                 this.$nextTick(() => this.loadDataForActiveTab());
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
+                this.loadDueItems();
                 PasswordPolicy.load().then(() => this.pwPolicyTick++);
                 fetch('/api/auth/mail-enabled').then(r => r.json()).then(d => { this.mailInviteOk = !!d.enabled; }).catch(() => {});
                 setInterval(() => { if (!document.hidden) this.refreshNotifCount(); }, 60000);
@@ -1568,13 +1570,40 @@ applyChartTheme();
                         }
                     }
                     await this.loadDefectReports();
-                    if (this.canManageMaterial) await this.loadDueSoon();
                 },
-                async loadDueSoon() {
+                async loadDueItems() {
                     try {
-                        const res = await fetch('/api/admin/stats/due-soon', { credentials: 'include' });
-                        this.dueSoonItems = res.ok ? await res.json() : [];
-                    } catch(e) { this.dueSoonItems = []; }
+                        const res = await fetch('/api/due-items', { credentials: 'include' });
+                        this.dueItems = res.ok ? await res.json() : [];
+                    } catch(e) { this.dueItems = []; }
+                },
+                goToDue(it) {
+                    const t = it.type;
+                    if (t === 'equipment') { this.activeTab = 'material'; this.materialSubTab = 'geraete'; this.eqSearch = it.name; }
+                    else if (t === 'low_stock') { this.activeTab = 'material'; this.materialSubTab = 'verbrauch'; this.loadConsumables(); }
+                    else if (t === 'vehicle' || t === 'vehicle_check') { this.activeTab = 'fahrzeuge'; }
+                    else if (t === 'building') { this.activeTab = 'material'; this.materialSubTab = 'gebaeude'; this.loadBuilding(); }
+                    else if (t === 'hvo_material') { this.activeTab = 'hvo'; }
+                    else if (t === 'prospect') { this.activeTab = 'personal'; this.openProspectsModal(); }
+                    else { this.activeTab = 'personal'; this.personnelSearch = it.name; }
+                },
+                async doneDue(it) {
+                    // Direkt als erledigt eintragen, wo es dafür eine einfache Aktion gibt
+                    if (it.type === 'building' && it.ref_id) {
+                        const res = await fetch(`/api/building/checks/${it.ref_id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                        if (res.ok) await this.loadDueItems();
+                    } else if (it.type === 'license' && it.personnel_id) {
+                        if (!await appConfirm(`Führerscheinkontrolle für „${it.name}“ als heute durchgeführt eintragen?`)) return;
+                        const res = await fetch('/api/personnel/license-checked', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [it.personnel_id] }) });
+                        if (res.ok) await this.loadDueItems();
+                    }
+                },
+                async doneDueBulk(items) {
+                    const ids = items.filter(i => i.type === 'license' && i.personnel_id).map(i => i.personnel_id);
+                    if (!ids.length) return;
+                    if (!await appConfirm(`Führerscheinkontrolle für ${ids.length} Person(en) als heute durchgeführt eintragen?`)) return;
+                    const res = await fetch('/api/personnel/license-checked', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+                    if (res.ok) await this.loadDueItems();
                 },
                 // Einzige Stelle, die weiss, welcher Reiter welche Daten braucht. Aufgerufen aus
                 // dem activeTab-Watcher (jeder Reiterwechsel) und aus mounted() (Seitenstart, wo
@@ -1595,6 +1624,7 @@ applyChartTheme();
                         arbeitsbescheinigung: () => this.loadEmployerCertificates(),
                         archiv: () => this.loadArchiveFiles(),
                         stats: () => this.loadStats(),
+                        apager: () => { if (this.canSeeSettings) this.loadAccessTokens(); },
                         verein: () => this.loadClubData()
                     };
                     const load = loaders[tab || this.activeTab];
@@ -2938,9 +2968,23 @@ applyChartTheme();
                         logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(),
                         sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
                         betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
-                        mail: () => this.loadMailSettings(), kalender: () => this.loadAccessTokens()
+                        mail: () => this.loadMailSettings(), wache: () => this.loadIntervals()
                     };
                     if (loaders[key]) loaders[key]();
+                },
+                async loadIntervals() {
+                    try {
+                        const res = await fetch('/api/personnel/settings', { credentials: 'include' });
+                        if (res.ok) { const d = await res.json(); this.intervals = { ...this.intervals, ...d }; }
+                    } catch (e) {}
+                },
+                async saveIntervals() {
+                    const res = await fetch('/api/personnel/settings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.intervals) });
+                    await appAlert(res.ok ? 'Gespeichert.' : 'Speichern fehlgeschlagen (keine Berechtigung?).');
+                },
+                async openCalendarFeed() {
+                    await this.loadAccessTokens();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('calendarFeedModal')).show();
                 },
                 async loadBackupInfo() {
                     if (!this.isAdmin) return;
@@ -3122,7 +3166,7 @@ applyChartTheme();
                         } else if (type === 'einsatz' && id) {
                             window.location.href = `/editor?mission_id=${encodeURIComponent(id)}`;
                         } else if (type === 'fristen') {
-                            this.activeTab = this.canManageMaterial ? 'material' : 'dienste';
+                            this.activeTab = 'fristen';
                         } else if (type === 'alarm') {
                             this.activeTab = 'apager';
                         } else if (type === 'kalender') {
@@ -4158,6 +4202,71 @@ applyChartTheme();
                     }
                 }
             }
+        });
+        // Fristen-Streifen: zeigt die Fristen EINES Bereichs kompakt (aufklappbar), in der Fristen-Übersicht ausgeklappt
+        app.component('due-strip', {
+            props: { area: String, items: { type: Array, default: () => [] }, expanded: Boolean },
+            emits: ['goto', 'done', 'done-bulk'],
+            data() { return { open: this.expanded, all: false }; },
+            computed: {
+                labelMap() { return { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen' }; },
+                label() { return this.labelMap[this.area] || ''; },
+                mine() { return this.items.filter(i => i.area === this.area); },
+                rows() { return this.mine.filter(i => !i.first_check).sort((a, b) => (b.overdue - a.overdue) || String(a.due_date).localeCompare(String(b.due_date))); },
+                firstRows() { return this.mine.filter(i => i.first_check); },
+                shown() { return (this.all || this.expanded) ? this.rows : this.rows.slice(0, 5); },
+                overdueCount() { return this.rows.filter(i => i.overdue).length; },
+                summary() {
+                    const o = this.overdueCount, s = this.rows.length - o, f = this.firstRows.length, p = [];
+                    if (o) p.push(o + ' überfällig'); if (s) p.push(s + ' bald fällig'); if (f) p.push(f + ' Erstkontrolle offen');
+                    return p.join(' · ');
+                },
+                canBulk() { return this.firstRows.some(i => i.type === 'license'); }
+            },
+            methods: {
+                icon(it) { return ({ equipment: 'fa-screwdriver-wrench', low_stock: 'fa-boxes-stacked', vehicle: 'fa-truck', vehicle_check: 'fa-clipboard-check', building: 'fa-building', hvo_material: 'fa-kit-medical', g26: 'fa-user-doctor', lehrgang: 'fa-graduation-cap', license: 'fa-id-card', prospect: 'fa-handshake' })[it.type] || 'fa-clock'; },
+                clean(d) { return String(d || '').replace(' (noch nie erfasst)', ''); },
+                when(it) {
+                    if (it.first_check) return 'noch nie dokumentiert';
+                    if (it.overdue) return 'seit ' + Math.abs(it.days) + (Math.abs(it.days) === 1 ? ' Tag' : ' Tagen') + ' überfällig';
+                    if (it.days === 0) return 'heute fällig';
+                    return 'in ' + it.days + (it.days === 1 ? ' Tag' : ' Tagen') + ' (' + new Date(it.due_date).toLocaleDateString('de-DE') + ')';
+                },
+                canDone(it) { return it.type === 'building' || it.type === 'license'; }
+            },
+            template: `
+                <div v-if="rows.length || firstRows.length" class="due-strip card premium-card mb-3" :class="{ 'has-overdue': overdueCount }">
+                    <button type="button" class="due-strip-head" @click="open = !open">
+                        <i class="fa fa-triangle-exclamation"></i>
+                        <span class="due-strip-title">{{ expanded ? label : 'Fristen: ' + label }}</span>
+                        <span class="due-strip-count">{{ summary }}</span>
+                        <i class="fa fa-chevron-down due-chevron" :class="{ 'fa-rotate-180': open }"></i>
+                    </button>
+                    <div v-show="open" class="due-rows">
+                        <div v-for="it in shown" :key="it.type + it.name + it.detail + it.due_date" class="due-row" :class="it.overdue ? 'is-overdue' : 'is-soon'">
+                            <i class="fa fa-fw due-icon" :class="icon(it)"></i>
+                            <div class="due-text"><div class="due-name">{{ it.name }}</div><div class="due-detail">{{ clean(it.detail) }}</div></div>
+                            <div class="due-when">{{ when(it) }}</div>
+                            <div class="due-actions">
+                                <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
+                                <button v-if="canDone(it)" type="button" class="btn btn-sm btn-outline-success rounded-pill" @click="$emit('done', it)">Erledigt</button>
+                            </div>
+                        </div>
+                        <button v-if="!expanded && !all && rows.length > 5" type="button" class="btn btn-sm btn-outline-light rounded-pill mt-2" @click="all = true">Alle {{ rows.length }} anzeigen</button>
+                        <div v-if="firstRows.length" class="due-first">
+                            <div class="due-first-head">Erstkontrolle fehlt <span class="text-muted">- noch nie dokumentiert, kein Verzug</span></div>
+                            <div v-for="it in firstRows" :key="'f' + it.type + it.name" class="due-row is-first">
+                                <i class="fa fa-fw due-icon" :class="icon(it)"></i>
+                                <div class="due-text"><div class="due-name">{{ it.name }}</div><div class="due-detail">{{ clean(it.detail) }}</div></div>
+                                <div class="due-actions">
+                                    <button v-if="canDone(it)" type="button" class="btn btn-sm btn-outline-success rounded-pill" @click="$emit('done', it)">Kontrolliert</button>
+                                    <button v-else type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
+                                </div>
+                            </div>
+                            <button v-if="canBulk" type="button" class="btn btn-sm btn-outline-success rounded-pill mt-2" @click="$emit('done-bulk', firstRows)">Alle {{ firstRows.filter(i => i.type === 'license').length }} als heute kontrolliert eintragen</button>
+                        </div>
+                    </div>
+                </div>`
         });
         window.vueApp = app.mount('#app');
 

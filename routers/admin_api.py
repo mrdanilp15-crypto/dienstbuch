@@ -624,7 +624,7 @@ def system_health(request: Request):
             elif off == "error":
                 add("backup_offsite", "Kopie an zweiten Ort", "error", f"Letzte Kopie fehlgeschlagen: {st['offsite_detail']}")
             else:
-                add("backup_offsite", "Kopie an zweiten Ort", "info", "Nicht eingerichtet. Empfohlen: sonst liegen Datenbank und Sicherungen am selben Ort (Verwaltung → System → Datensicherung).")
+                add("backup_offsite", "Kopie an zweiten Ort", "info", "Nicht eingerichtet. Empfohlen: sonst liegen Datenbank und Sicherungen am selben Ort (Einstellungen → Systemzustand & Sicherung).")
         except Exception:
             pass
         usage = shutil.disk_usage(bdir)
@@ -713,13 +713,18 @@ async def set_participation_threshold(request: Request):
     return {"status": "success"}
 
 
-@router.get("/api/admin/stats/due-soon")
+@router.get("/api/due-items")
+@router.get("/api/admin/stats/due-soon")  # alter Pfad, bleibt für Kompatibilität
 def get_due_soon(request: Request):
+    """Fristen, soweit die Rolle zuständig ist (siehe core/reminders.visible_items); jede Person sieht dazu ihre eigenen persönlichen."""
     user = get_current_user(request)
-    if not user or user["role"] not in ["admin", "leitung", "geratewart"]:
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    from core.reminders import get_due_items
-    return get_due_items()
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    from core.reminders import get_due_items, visible_items
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT personnel_id FROM users WHERE username = %s", (user["username"],))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return visible_items(get_due_items(), user["role"], row[0] if row else None)
 
 @router.get("/api/admin/audit-log")
 def get_audit_log(request: Request, limit: int = 200):

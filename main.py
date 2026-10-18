@@ -35,7 +35,7 @@ from routers import prospects_api
 from routers import legal_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.66"
+CURRENT_VERSION = "2.67"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -1420,13 +1420,10 @@ def get_notes_page(request: Request):
     if not get_current_user(request): return FileResponse("static/login.html")
     return RedirectResponse(url="/")
 
-@app.get("/personal", response_class=FileResponse)
-def get_personnel_page(request: Request):
-    user = get_current_user(request)
-    if not user or user["role"] != "admin": return FileResponse("static/dashboard.html")
-    # Führt die Synchronisation aus, sobald der Admin den Personalreiter öffnet
-    sync_personnel_to_editor_groups()
-    return FileResponse("static/personnel.html") 
+@app.get("/personal", include_in_schema=False)
+def old_personnel_page():
+    # Die frühere eigene Personalseite ist im Dashboard aufgegangen (Personalverwaltung; Fristen-Intervalle unter Einstellungen)
+    return RedirectResponse(url="/") 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon(): return FileResponse("static/favicon.svg") if os.path.exists("static/favicon.svg") else Response(status_code=204)

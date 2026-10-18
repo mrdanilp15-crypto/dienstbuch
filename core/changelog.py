@@ -6,6 +6,23 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 17,
+        "version": "2.67",
+        "date": "2026-10-18",
+        "items": [
+            {"type": "new", "tag": "Fristen", "title": "Fristen nach Zuständigkeit",
+             "text": "Die Sammel-Karte in „Geräte & Material“ ist weg. Jeder Bereich zeigt nur seine eigenen Fristen (Fahrzeuge, Geräte & Material, Gerätehaus, Sanitätsmaterial, Personen), kompakt und aufklappbar, mit „Zur Prüfung“ und – wo möglich – „Erledigt“. Neu: die Seite „Fristen“ in der Seitenleiste mit allem auf einen Blick; jede Rolle sieht dort nur ihre Zuständigkeit (Gerätewart: Technik, Atemschutzwart: G26.3 und Atemschutz-Lehrgänge, Leitung: alles) plus die eigenen persönlichen Fristen."},
+            {"type": "new", "tag": "Fristen", "title": "Erstkontrolle statt falschem Alarm",
+             "text": "Was noch nie dokumentiert wurde (Führerscheinkontrolle, erste Fahrzeugkontrolle), steht getrennt als „Erstkontrolle fehlt“, nicht als Verzug – mit Sammelaktion „alle als heute kontrolliert eintragen“."},
+            {"type": "new", "tag": "Glocke", "title": "Fristen getrennt nach Technik und Personen",
+             "text": "In der Glocke und in den Erinnerungs-Mails bekommt jede Rolle nur noch ihren Bereich. Das gelbe Fristen-Banner für alle entfällt."},
+            {"type": "new", "tag": "Oberfläche", "title": "Einstellungen dort, wo sie wirken",
+             "text": "Dienststempel jetzt bei den Arbeitsbescheinigungen, IBAN/BIC/Stundensatz bei der Abrechnung, Hallen-Display (Link, Lauftext, Warnregion) bei der Alarmierung, „Kalender abonnieren“ direkt im Kalender. Unter Einstellungen gibt es „Wache & Fristen“ mit den Fristen-Intervallen, dem Erinnerungs-Vorlauf und der Sitzungsdauer (diese waren nur noch auf einer nicht mehr verlinkten Seite erreichbar)."},
+            {"type": "fix", "tag": "Handy", "title": "Layout auf dem Smartphone",
+             "text": "Kopfzeilen-Knöpfe, Reiter-Leisten und Fristen brechen um statt rechts aus dem Bild zu laufen; ein automatischer Test prüft das künftig."},
+        ],
+    },
+    {
         "id": 16,
         "version": "2.66",
         "date": "2026-10-18",

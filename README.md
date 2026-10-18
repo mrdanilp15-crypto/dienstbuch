@@ -53,7 +53,7 @@ Das Dienstbuch ist so gebaut, dass es bei der Erfüllung von DSGVO-, GoBD- und F
    - `TOWN_NAME`: Name deiner Wehr
    - `STAPEL_PFAD`: Ordner auf dem Server für die Datenbank
 3. Stack deployen, Seite öffnen – beim ersten Start wird das Admin-Konto angelegt.
-4. Unter **Verwaltung → E-Mail-Versand** das Postfach der Wehr eintragen (optional).
+4. Unter **Einstellungen → E-Mail-Versand** das Postfach der Wehr eintragen (optional).
 
 > **Wichtig:** Passwörter und Schlüssel gehören nur in die Umgebungsvariablen des Stacks (oder eine lokale `.env`), **niemals** ins Git-Repo.
 

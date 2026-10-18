@@ -261,6 +261,7 @@
                     <div class="sidebar-section-header">Organisation</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
@@ -278,7 +279,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
-                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Bank</button>
+                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Inventar</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
 
                     <div class="sidebar-section-header" v-if="canSeeSettings">Verwaltung</div>
@@ -604,6 +605,7 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Gemeinsamer Kalender</h2>
                             <small class="text-muted">Dienste, Einsätze, Fahrzeug-Reservierungen & Jubiläen im Überblick</small>
                         </div>
+                        <button v-if="canSeeSettings" class="btn btn-outline-light btn-sm rounded-pill" @click="openCalendarFeed"><i class="fa fa-rss me-1"></i>Kalender abonnieren</button>
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-outline-light btn-sm rounded-pill" @click="shiftCalendarMonth(-1)"><i class="fa fa-chevron-left"></i></button>
                             <div class="fw-bold text-white" style="min-width:160px;text-align:center;">{{ calendarMonthLabel }}</div>
@@ -685,6 +687,7 @@
                         </div>
                         <button v-if="canManageMaterial" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
                     </div>
+                    <due-strip area="fahrzeuge" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
 
                     <div class="row g-4">
                         <div class="col-12 col-lg-5">
@@ -818,18 +821,7 @@
 
                     <!-- Geräteliste -->
                     <div v-show="materialSubTab === 'geraete'">
-                        <div v-if="canManageMaterial && dueSoonItems.length > 0" class="card premium-card p-4 mb-4" style="border-color: rgba(255, 193, 7, 0.4) !important;">
-                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Bald fällig / überfällig (nächste 14 Tage)</h5>
-                            <div class="d-flex flex-wrap gap-2">
-                                <span v-for="it in dueSoonShown" :key="it.type + it.name + it.due_date" class="badge rounded-pill px-3 py-2" :class="it.overdue ? 'bg-danger' : 'bg-warning text-dark'">
-                                    <i class="fa" :class="{'fa-truck': it.type === 'vehicle', 'fa-user-doctor': it.type === 'g26', 'fa-screwdriver-wrench': it.type === 'equipment', 'fa-graduation-cap': it.type === 'lehrgang', 'fa-clipboard-check': it.type === 'vehicle_check', 'fa-id-card': it.type === 'license', 'fa-building': it.type === 'building', 'fa-handshake': it.type === 'prospect'}"></i>
-                                    {{ it.name }} ({{ it.detail }}) - {{ it.overdue ? 'überfällig' : new Date(it.due_date).toLocaleDateString('de-DE') }}
-                                </span>
-                            </div>
-                            <button v-if="dueSoonItems.length > 8" class="btn btn-sm btn-outline-warning rounded-pill mt-3" @click="showAllDue = !showAllDue">
-                                {{ showAllDue ? 'Weniger anzeigen' : 'Alle ' + dueSoonItems.length + ' anzeigen (+' + (dueSoonItems.length - 8) + ' weitere)' }}
-                            </button>
-                        </div>
+                        <due-strip area="material" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
                         <div class="row g-3 mb-4">
                             <div class="col-12 col-md-4">
                                 <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
@@ -1116,6 +1108,7 @@
                     </div>
                 
                 <div v-show="materialSubTab === 'gebaeude'" v-if="canManageMaterial">
+                    <due-strip area="gebaeude" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
                                             <div class="card premium-card p-4">
                                                 <h5 class="fw-bold text-white mb-1"><i class="fa fa-building me-2"></i>Gerätehaus-Prüfungen</h5>
                                                 <small class="text-muted d-block mb-3">Wiederkehrende Prüfungen am Gebäude. Fällige Prüfungen erscheinen automatisch in den Erinnerungen. Die Vorschläge sind nur Richtwerte – bitte mit eurer Gemeinde und Versicherung abgleichen.</small>
@@ -1172,6 +1165,7 @@
                             <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
                         </div>
                     </div>
+                    <due-strip area="personal" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
 
                     <div class="row g-3 mb-4">
                         <div class="col-12 col-md-6">
@@ -1344,6 +1338,30 @@
                             </div>
                         </div>
                     </div>
+                
+                    <div v-if="canSeeSettings" class="mt-4"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-desktop text-danger me-2"></i>Hallen-Display & Wetterwarnung</h5>
+                                                            <p class="text-muted small">Auf einem Bildschirm im Gerätehaus, der dauerhaft ohne Anmeldung laufen soll, diesen Link EINMAL öffnen - der Browser merkt sich den Zugang danach von selbst. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
+                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ displayUrl }}</code>
+                                                            </div>
+                                                            <div class="d-flex gap-2 flex-wrap">
+                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                                                <a :href="displayUrl" target="_blank" class="btn btn-premium rounded-pill"><i class="fa fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
+                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('display')" title="Bisherige Kiosk-Bildschirme müssen den Link dann neu öffnen"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
+                                                            </div>
+                                                        
+                            <hr class="border-secondary border-opacity-25">
+                            <div class="mb-3">
+                                                                <label class="form-label text-white"><i class="fa fa-bullhorn text-warning me-2"></i>Hallendisplay Lauftext / Wach-Ticker</label>
+                                                                <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
+                                                            </div>
+                            <div class="mb-3">
+                                                                <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>Gemeindeschlüssel (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Amtlicher Gemeindeschlüssel (AGS) deiner Gemeinde/deines Landkreises, mit Nullen auf 12 Stellen aufgefüllt. Zu finden z.B. im Wikipedia-Artikel deiner Gemeinde unter 'Gemeindeschlüssel' (8-stellig - dann mit 0000 auf 12 Stellen auffüllen). Falls für die einzelne Gemeinde keine Warnung angezeigt wird, den Schlüssel des Landkreises probieren (5-stellig + 0000000)."></i></label>
+                                                                <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 066310050000">
+                                                            </div>
+                            <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-floppy-disk me-1"></i>Lauftext und Warnregion speichern</button>
+                        </div></div>
                 </div>
 
                 <div v-show="activeTab === 'abrechnung'">
@@ -1439,6 +1457,26 @@
                             </div>
                         </div>
                     </div>
+                    <details class="mb-4 settings-details">
+                        <summary class="btn btn-outline-light btn-sm rounded-pill"><i class="fa fa-university me-1"></i>Abrechnungsdaten (IBAN, BIC, Stundensatz)</summary>
+                        <div class="mt-3"><div class="card premium-card p-4 ">
+                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-university text-danger me-2"></i>Bankverbindung / Abrechnungsdaten</h5>
+                                                        <p class="text-muted small">Diese Daten werden automatisch auf Kostenbescheiden und Rechnungen angedruckt.</p>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">IBAN</label>
+                                                            <input type="text" v-model="stationConfig.iban" class="form-control bg-dark border-secondary text-white" placeholder="DE12 3456 7890 1234 5678 90">
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">BIC</label>
+                                                            <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">Standard-Stundensatz (€) <i class="fa fa-question-circle text-muted" title="Wird als Vorschlag beim Öffnen der Abrechnung genutzt, statt jedes Jahr neu eingetragen werden zu müssen."></i></label>
+                                                            <input type="number" step="0.01" v-model.number="stationConfig.default_hourly_rate" class="form-control bg-dark border-secondary text-white">
+                                                        </div>
+                                                        <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
+                                                    </div></div>
+                    </details>
                 </div>
 
                 <!-- TAB 8: VERWALTUNG & VB -->
@@ -1520,15 +1558,12 @@
                 <div v-show="activeTab === 'verein'" v-if="canSeeFinance">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-columns text-danger me-2"></i>Vereinskasse & Bank</h2>
-                            <small class="text-muted">Kasse, Spenden, Mitgliedsbeiträge, Vereinsinventar und Bankverbindung</small>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-columns text-danger me-2"></i>Vereinskasse & Inventar</h2>
+                            <small class="text-muted">Kasse, Spenden, Mitgliedsbeiträge und Vereinsinventar</small>
                         </div>
                     </div>
-                    <ul class="nav nav-pills mb-4 flex-wrap gap-2 pill-nav">
-                        <li class="nav-item"><button class="nav-link" :class="vereinTab === 'kasse' ? 'active bg-danger' : ''" @click="vereinTab = 'kasse'"><i class="fa fa-building-columns me-1"></i>Kasse & Inventar</button></li>
-                        <li class="nav-item"><button class="nav-link" :class="vereinTab === 'bank' ? 'active bg-danger' : ''" @click="vereinTab = 'bank'"><i class="fa fa-university me-1"></i>Bankdaten</button></li>
-                    </ul>
-                <div v-show="vereinTab === 'kasse'">
+                    
+                <div>
                                             <div class="row g-4">
                                                 <!-- Club finances and inventory -->
                                                 <div class="col-12 col-lg-8">
@@ -1648,30 +1683,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                <div v-show="vereinTab === 'bank'">
-                                            <div class="row g-4">
-                                                <div class="col-12 col-lg-6">
-                                                    <div class="card premium-card p-4 ">
-                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-university text-danger me-2"></i>Bankverbindung / Abrechnungsdaten</h5>
-                                                        <p class="text-muted small">Diese Daten werden automatisch auf Kostenbescheiden und Rechnungen angedruckt.</p>
-                                                        <div class="mb-3">
-                                                            <label class="form-label text-white">IBAN</label>
-                                                            <input type="text" v-model="stationConfig.iban" class="form-control bg-dark border-secondary text-white" placeholder="DE12 3456 7890 1234 5678 90">
-                                                        </div>
-                                                        <div class="mb-3">
-                                                            <label class="form-label text-white">BIC</label>
-                                                            <input type="text" v-model="stationConfig.bic" class="form-control bg-dark border-secondary text-white" placeholder="ABCDEF12XXX">
-                                                        </div>
-                                                        <div class="mb-3">
-                                                            <label class="form-label text-white">Standard-Stundensatz (€) <i class="fa fa-question-circle text-muted" title="Wird als Vorschlag beim Öffnen der Abrechnung genutzt, statt jedes Jahr neu eingetragen werden zu müssen."></i></label>
-                                                            <input type="number" step="0.01" v-model.number="stationConfig.default_hourly_rate" class="form-control bg-dark border-secondary text-white">
-                                                        </div>
-                                                        <button class="btn btn-outline-warning w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Bankdaten speichern</button>
-                                                    </div>
-
-                                                </div>
-                                            </div>
-                                        </div>
+                
                 </div>
 
                 <div v-show="activeTab === 'verwaltung'">
@@ -2032,57 +2044,15 @@
                                                 </div>
                                             </div>
 
-                    <div v-show="verwaltungTab === 'kalender'" v-if="canSeeSettings">
-                                                <div class="row g-4">
-                                                    <div class="col-12 col-lg-6">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
-                                                            <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
-                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
-                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ calendarFeedUrl }}</code>
-                                                            </div>
-                                                            <div class="d-flex gap-2 flex-wrap">
-                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
-                                                                <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics?token='+accessTokens.calendar_token" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
-                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('calendar')" title="Alte Links werden damit ungültig"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-12 col-lg-6">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Kompatibilität</h5>
-                                                            <ul class="list-unstyled text-muted small">
-                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Microsoft Outlook</strong> – Datei → Kontoeinstellungen → Internetkalender hinzufügen</li>
-                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Apple Kalender</strong> – Datei → Neues Kalenderabonnement</li>
-                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Google Kalender</strong> – Andere Kalender → Per URL hinzufügen</li>
-                                                                <li><i class="fa fa-mobile text-success me-2"></i><strong class="text-white">iOS / Android</strong> – Link direkt öffnen → Kalender-App öffnet automatisch</li>
-                                                            </ul>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-12">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-desktop text-danger me-2"></i>Hallen-Display (Kiosk-Bildschirm)</h5>
-                                                            <p class="text-muted small">Auf einem Bildschirm im Gerätehaus, der dauerhaft ohne Anmeldung laufen soll, diesen Link EINMAL öffnen - der Browser merkt sich den Zugang danach von selbst. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
-                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
-                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ displayUrl }}</code>
-                                                            </div>
-                                                            <div class="d-flex gap-2 flex-wrap">
-                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
-                                                                <a :href="displayUrl" target="_blank" class="btn btn-premium rounded-pill"><i class="fa fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
-                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('display')" title="Bisherige Kiosk-Bildschirme müssen den Link dann neu öffnen"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                    
 
                     <!-- Wache -->
-                    <div v-show="verwaltungTab === 'standort'" v-if="canSeeSettings">
-                                                <div class="row g-4">
-                                                    <div class="col-12 col-lg-6">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-pin text-danger me-2"></i>Feuerwache & Standort-Einstellungen</h5>
-                                                            <p class="text-muted small">Lege hier den Namen und die geografischen Koordinaten deiner Feuerwache fest. Diese werden als Zentrum für alle Einsatzkarten (Dashboard & Hallendisplay) verwendet.</p>
+                    <div v-show="verwaltungTab === 'wache'" v-if="canSeeSettings">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-pin text-danger me-2"></i>Name und Standort der Wache</h5>
+                                                            <p class="text-muted small">Name und Koordinaten der Wache. Sie sind das Zentrum aller Einsatzkarten (Dashboard, Lagekarte und Hallen-Display).</p>
                                         
                                                             <div class="mb-3">
                                                                 <label class="form-label text-white">Name der Feuerwache / Wache</label>
@@ -2106,19 +2076,13 @@
                                                                 <label class="form-label text-white">Standard Zoomstufe (Map Zoom)</label>
                                                                 <input type="number" v-model.number="stationConfig.zoom" class="form-control bg-dark border-secondary text-white" min="1" max="20">
                                                             </div>
-                                                            <div class="mb-3">
-                                                                <label class="form-label text-white"><i class="fa fa-bullhorn text-warning me-2"></i>Hallendisplay Lauftext / Wach-Ticker</label>
-                                                                <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
-                                                            </div>
-                                                            <div class="mb-3">
-                                                                <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>Gemeindeschlüssel (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Amtlicher Gemeindeschlüssel (AGS) deiner Gemeinde/deines Landkreises, mit Nullen auf 12 Stellen aufgefüllt. Zu finden z.B. im Wikipedia-Artikel deiner Gemeinde unter 'Gemeindeschlüssel' (8-stellig - dann mit 0000 auf 12 Stellen auffüllen). Falls für die einzelne Gemeinde keine Warnung angezeigt wird, den Schlüssel des Landkreises probieren (5-stellig + 0000000)."></i></label>
-                                                                <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 066310050000">
-                                                            </div>
+                                                            
+                                                            
                                                             <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
                                                         </div>
-                                                    </div>
-                                                    <div class="col-12 col-lg-6">
-                                                        <div class="card premium-card p-4">
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card premium-card p-4">
                                                             <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-question text-danger me-2"></i>Wie finde ich die Koordinaten?</h5>
                                                             <p class="text-muted small">Du kannst z.B. Google Maps oder OpenStreetMap aufrufen, mit der rechten Maustaste auf den Standort deiner Wache klicken und die Koordinaten kopieren.</p>
                                                             <hr class="border-secondary border-opacity-10 my-3">
@@ -2130,34 +2094,41 @@
                                                                 <tr><td>Zoom:</td><td class="text-white">{{ stationConfig.zoom }}</td></tr>
                                                             </table>
                                                         </div>
-                                                    </div>
-                                                    <div class="col-12">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-scale-balanced text-danger me-2"></i>Rechtliches (Impressum & Datenschutz)</h5>
-                                                            <p class="text-muted small mb-3"><i class="fa fa-lock me-1"></i>Aus rechtlichen Gründen (§ 5 DDG: verantwortlich ist eine konkret benannte Person) fest im Quellcode hinterlegt und hier nicht änderbar. Angezeigt auf jeder Seite der Anwendung (Login, Dashboard, Editor, Hallen-Display, Personalverwaltung).</p>
-                                                            <div class="d-flex gap-2">
-                                                                <button class="btn btn-outline-light rounded-pill btn-sm" @click="openLegalModal('impressum')"><i class="fa fa-eye me-1"></i>Impressum ansehen</button>
-                                                                <button class="btn btn-outline-light rounded-pill btn-sm" @click="openLegalModal('datenschutz')"><i class="fa fa-eye me-1"></i>Datenschutzerklärung ansehen</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-12">
-                                                        <div class="card premium-card p-4">
-                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-stamp text-danger me-2"></i>Dienstsiegel / Stempel</h5>
-                                                            <p class="text-muted small">Wird automatisch in jede neu erstellte Arbeitsbescheinigung eingefügt, statt einer leeren Box zum manuellen Aufstempeln.</p>
-                                                            <div class="d-flex align-items-center gap-3 flex-wrap">
-                                                                <div v-if="stationConfig.stamp_image" class="p-2 bg-white rounded-3 border border-secondary border-opacity-25">
-                                                                    <img :src="stationConfig.stamp_image" style="height:70px;">
-                                                                </div>
-                                                                <input type="file" ref="stampFileInput" accept="image/*" class="form-control bg-dark border-secondary text-white" style="max-width:320px;" @change="uploadStampImage">
-                                                                <button v-if="stationConfig.stamp_image" class="btn btn-outline-danger rounded-pill btn-sm" @click="removeStampImage"><i class="fa fa-trash me-1"></i>Entfernen</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                            </div>
+                            <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                                <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-user-clock text-danger me-2"></i>Fristen & Intervalle</h5>
+                                <p class="text-muted small">Bestimmt, wann Untersuchungen und Unterweisungen als fällig gelten, wie früh erinnert wird und wie lange eine Anmeldung gültig bleibt.</p>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6"><label class="form-label">G26.3 Atemschutzuntersuchung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_g26"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Jährlicher Belastungslauf (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_belastung"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">UVV-Sicherheitsunterweisung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_unterweisung"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Erinnerungs-Vorlauf (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.reminder_window_days"><div class="form-text">So viele Tage vor einer Frist erscheint sie als „bald fällig“.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Anmeldung bleibt gültig (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.session_max_days"><div class="form-text">Danach muss sich jeder neu anmelden.</div></div>
+                                </div>
+                                <button class="btn btn-outline-warning rounded-pill fw-bold mt-3" @click="saveIntervals"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
+
+                <!-- TAB: FRISTEN (zentrale Übersicht, nach Bereich gegliedert; jede Rolle sieht nur ihre Zuständigkeit) -->
+                <div v-show="activeTab === 'fristen'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-clock text-danger me-2"></i>Fristen</h2>
+                            <small class="text-muted">Alles, was bald fällig oder überfällig ist - gegliedert nach Bereich. Du siehst, wofür du zuständig bist, und deine eigenen Fristen.</small>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="dueOnlyOverdue" v-model="dueOnlyOverdue">
+                            <label class="form-check-label" for="dueOnlyOverdue">Nur Überfälliges</label>
+                        </div>
+                    </div>
+                    <div v-if="!dueItemsFiltered.length" class="card premium-card p-4 text-center text-muted"><i class="fa fa-circle-check text-success fs-3 d-block mb-2"></i>Nichts fällig - alles im grünen Bereich.</div>
+                    <due-strip v-for="a in dueAreas" :key="a.key" :area="a.key" :items="dueItemsFiltered" :expanded="true" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+                </div>
 
                 <!-- TAB: STATISTIKEN -->
                 <div v-show="activeTab === 'stats'">
@@ -2257,6 +2228,17 @@
                             <small class="text-muted">Bescheinigung über die Einsatzteilnahme zur Vorlage beim Arbeitgeber erstellen und verwalten</small>
                         </div>
                     </div>
+                    <div class="mb-4"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-2"><i class="fa fa-stamp text-danger me-2"></i>Dienstsiegel / Stempel</h5>
+                                                            <p class="text-muted small">Wird automatisch in jede neu erstellte Arbeitsbescheinigung eingefügt, statt einer leeren Box zum manuellen Aufstempeln.</p>
+                                                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                                                <div v-if="stationConfig.stamp_image" class="p-2 bg-white rounded-3 border border-secondary border-opacity-25">
+                                                                    <img :src="stationConfig.stamp_image" style="height:70px;">
+                                                                </div>
+                                                                <input type="file" ref="stampFileInput" accept="image/*" class="form-control bg-dark border-secondary text-white" style="max-width:320px;" @change="uploadStampImage">
+                                                                <button v-if="stationConfig.stamp_image" class="btn btn-outline-danger rounded-pill btn-sm" @click="removeStampImage"><i class="fa fa-trash me-1"></i>Entfernen</button>
+                                                            </div>
+                                                        </div></div>
                     <div class="row g-4">
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4">
@@ -2282,7 +2264,7 @@
                                         <img v-if="newCertSignature" :src="newCertSignature" style="max-height:80px; max-width:100%;">
                                         <span v-else class="small" style="color:#495057 !important;"><i class="fa fa-signature me-1"></i>Zum Unterschreiben klicken</span>
                                     </div>
-                                    <small class="text-muted d-block mt-1">Optional – kann auch später direkt im PDF nachgetragen werden. Das Dienstsiegel wird automatisch eingefügt, falls unter Verwaltung → Standort hinterlegt.</small>
+                                    <small class="text-muted d-block mt-1">Optional – kann auch später direkt im PDF nachgetragen werden. Das Dienstsiegel wird automatisch eingefügt, falls oben unter „Dienstsiegel / Stempel“ hinterlegt.</small>
                                 </div>
                                 <button class="btn btn-premium w-100 rounded-pill" :disabled="!newCertMissionId || !newCertPersonnelId" @click="submitEmployerCertificate"><i class="fa fa-file-export me-1"></i>Bescheinigung erstellen & öffnen</button>
                             </div>
@@ -2608,6 +2590,7 @@
                             <small class="text-muted">Dokumentation von Helfer vor Ort (HvO) Einsätzen – Patientendaten DSGVO-konform verschlüsselt</small>
                         </div>
                     </div>
+                    <due-strip area="hvo" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
 
                     <ul class="nav nav-pills mb-4 flex-wrap gap-2 pill-nav">
                         <li class="nav-item">
@@ -4326,6 +4309,43 @@
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
                             <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4" @click="saveYouthModal"><i class="fa fa-save me-1"></i> Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: KALENDER ABONNIEREN -->
+        <div class="modal fade" id="calendarFeedModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-rss text-danger me-2"></i>Kalender abonnieren</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-6"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
+                                                            <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
+                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ calendarFeedUrl }}</code>
+                                                            </div>
+                                                            <div class="d-flex gap-2 flex-wrap">
+                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                                                <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics?token='+accessTokens.calendar_token" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('calendar')" title="Alte Links werden damit ungültig"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
+                                                            </div>
+                                                        </div></div>
+                            <div class="col-12 col-lg-6"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Kompatibilität</h5>
+                                                            <ul class="list-unstyled text-muted small">
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Microsoft Outlook</strong> – Datei → Kontoeinstellungen → Internetkalender hinzufügen</li>
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Apple Kalender</strong> – Datei → Neues Kalenderabonnement</li>
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Google Kalender</strong> – Andere Kalender → Per URL hinzufügen</li>
+                                                                <li><i class="fa fa-mobile text-success me-2"></i><strong class="text-white">iOS / Android</strong> – Link direkt öffnen → Kalender-App öffnet automatisch</li>
+                                                            </ul>
+                                                        </div></div>
                         </div>
                     </div>
                 </div>

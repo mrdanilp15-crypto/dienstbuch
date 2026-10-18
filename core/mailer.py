@@ -154,40 +154,70 @@ def send_alarm_mail(title: str, stichwort: str, adresse: str, meldung: str):
         print(f"Alarm-Mail fehlgeschlagen: {e}")
 
 
-def send_reminder_mails(items: list, summary_lines: list):
-    """Fristen-Erinnerung: Zusammenfassung an Admins/Leitung, dazu jedem Kameraden seine
-    eigenen persönlichen Fristen (G26.3, Lehrgänge)."""
+def _due_lines(items):
+    """Fristen als Text, nach Bereich gegliedert; Erstkontrollen getrennt (kein Verzug)."""
+    from core.reminders import AREA_LABEL, AREA_ORDER
+    lines = []
+    real = [i for i in items if not i.get("first_check")]
+    for area in AREA_ORDER:
+        part = [i for i in real if i["area"] == area]
+        if not part:
+            continue
+        lines.append(AREA_LABEL[area].upper())
+        for it in part:
+            due = it["due_date"].split("-")
+            status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due[2]}.{due[1]}.{due[0]}"
+            lines.append(f"  - {it['name']} ({it['detail']}): {status}")
+        lines.append("")
+    first = [i for i in items if i.get("first_check")]
+    if first:
+        lines.append("ERSTKONTROLLE NOCH OFFEN (noch nie dokumentiert)")
+        lines += [f"  - {it['name']} ({it['detail'].replace(' (noch nie erfasst)', '')})" for it in first]
+    return lines
+
+
+def send_reminder_mails(items: list, summary_lines: list = None):
+    """Fristen-Erinnerung nach Zuständigkeit: Admin/Leitung bekommen alles, der Gerätewart nur Technik, der
+    Atemschutzwart nur G26.3/Atemschutz-Lehrgänge - und jede Person ihre eigenen persönlichen Fristen."""
     try:
         s = get_mail_settings()
         if not (is_mail_configured(s) and s.get("reminder_mail")):
             return
+        from core.reminders import OWN_TYPES, visible_items
         conn = get_db_connection()
         cur = conn.cursor(dictionary=True)
-        cur.execute("""
-            SELECT DISTINCT p.email FROM users u JOIN personnel p ON p.id = u.personnel_id
-            WHERE u.role IN ('admin', 'leitung') AND p.email IS NOT NULL AND p.email != ''
-        """)
-        leaders = [r["email"] for r in cur.fetchall()]
-        cur.execute("SELECT name, email FROM personnel WHERE email IS NOT NULL AND email != ''")
-        email_by_name = {r["name"]: r["email"] for r in cur.fetchall()}
+        mails_by_role = {}
+        for role in ("admin", "leitung", "geratewart", "atemschutzwart"):
+            cur.execute("""
+                SELECT DISTINCT p.email FROM users u JOIN personnel p ON p.id = u.personnel_id
+                WHERE u.role = %s AND p.email IS NOT NULL AND p.email != ''
+            """, (role,))
+            mails_by_role[role] = [r["email"] for r in cur.fetchall()]
+        cur.execute("SELECT id, email FROM personnel WHERE email IS NOT NULL AND email != ''")
+        email_by_pid = {r["id"]: r["email"] for r in cur.fetchall()}
         cur.close()
         conn.close()
 
-        if leaders:
-            send_mail_background(leaders, "Anstehende Prüf- und Fälligkeitsfristen",
-                                 "Folgende Fristen sind in Kürze fällig oder bereits überfällig:\n\n" + "\n".join(summary_lines), bcc=True)
+        sent_to = set()
+        for role in ("admin", "leitung", "geratewart", "atemschutzwart"):
+            part = visible_items(items, role)
+            recipients = [e for e in mails_by_role[role] if e not in sent_to]
+            if part and recipients:
+                send_mail_background(recipients, "Anstehende Prüf- und Fälligkeitsfristen",
+                                     "Folgende Fristen in deinem Bereich sind in Kürze fällig oder bereits überfällig:\n\n" + "\n".join(_due_lines(part)), bcc=True)
+                sent_to.update(recipients)
 
         personal = {}
         for it in items:
-            if it["type"] in ("g26", "lehrgang") and it["name"] in email_by_name:
+            if it["type"] in OWN_TYPES and not it.get("first_check") and it.get("personnel_id") in email_by_pid:
                 due = it["due_date"].split("-")
                 status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due[2]}.{due[1]}.{due[0]}"
-                personal.setdefault(email_by_name[it["name"]], []).append(f"- {it['detail']}: {status}")
+                personal.setdefault(email_by_pid[it["personnel_id"]], []).append(f"- {it['detail']}: {status}")
         from core.digest import digest_emails
         skip = digest_emails()
         for email, lines in personal.items():
-            if email in skip:
-                continue  # Tageszusammenfassung gewählt
+            if email in skip or email in sent_to:
+                continue  # Tageszusammenfassung gewählt bzw. steht schon in der Übersicht oben
             send_mail_background([email], "Deine anstehenden Fristen im Dienstbuch",
                                  "Hallo,\n\nfür dich stehen folgende Fristen an:\n\n" + "\n".join(lines) +
                                  "\n\nBitte kümmere dich rechtzeitig um einen Termin.")
