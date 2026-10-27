@@ -33,9 +33,11 @@ from routers import mail_api
 from routers import building_api
 from routers import prospects_api
 from routers import legal_api
+from routers import due_api
+from routers import aao_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.67"
+CURRENT_VERSION = "2.68"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -204,6 +206,8 @@ app.include_router(security_api.router)
 app.include_router(ops_api.router)
 app.include_router(mail_api.router)
 app.include_router(building_api.router)
+app.include_router(due_api.router)
+app.include_router(aao_api.router)
 app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
 
@@ -747,6 +751,41 @@ def init_db_extensions():
                 schedule_id INT NOT NULL,
                 personnel_id INT NOT NULL,
                 PRIMARY KEY (schedule_id, personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+
+        # Eigene Fristarten (z.B. "Drohnenpilot Landkreis") mit Zuständigkeit, und die einzelnen Fristen dazu
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS due_types (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                subject VARCHAR(12) NOT NULL DEFAULT 'person',
+                interval_months INT NULL,
+                lead_days INT NULL,
+                responsible_role VARCHAR(30) NOT NULL DEFAULT '',
+                responsible_pid INT NULL
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS due_entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                type_id INT NOT NULL,
+                personnel_id INT NULL,
+                vehicle_id INT NULL,
+                equipment_id INT NULL,
+                due_date DATE NULL,
+                last_done DATE NULL,
+                note VARCHAR(300) NOT NULL DEFAULT '',
+                INDEX idx_due_entries_type (type_id)
+            ) ENGINE=InnoDB;
+        """)
+        # Ausrückeordnung fürs Hallen-Display: Stichwort-Muster -> Fahrzeuge in Reihenfolge (JSON-Text)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS aao_rules (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                pattern VARCHAR(120) NOT NULL,
+                entries TEXT NOT NULL,
+                sort_order INT NOT NULL DEFAULT 0
             ) ENGINE=InnoDB;
         """)
 

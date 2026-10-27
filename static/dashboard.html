@@ -1362,6 +1362,41 @@
                                                             </div>
                             <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-floppy-disk me-1"></i>Lauftext und Warnregion speichern</button>
                         </div></div>
+
+                    <!-- AAO: welche Fahrzeuge bei welchem Stichwort ausrücken (das Hallen-Display zeigt die passendste Regel) -->
+                    <div v-if="aaoRules.length || aaoCanEdit" class="mt-4"><div class="card premium-card p-4">
+                        <h5 class="fw-bold text-white mb-1"><i class="fa fa-route text-danger me-2"></i>AAO fürs Hallen-Display</h5>
+                        <p class="text-muted small">Welche Fahrzeuge bei welchem Stichwort in welcher Reihenfolge ausrücken. Das Hallen-Display zeigt die passendste Regel an; passt keine, zeigt es nichts an.
+                            Ein Muster passt, wenn es im Stichwort vorkommt („B2“ passt auch auf „B2 - Wohnungsbrand“). Mehrere Muster mit Komma trennen, „*“ gilt für alle übrigen. Bei mehreren Treffern gewinnt das spezifischste (längste) Muster.</p>
+                        <div v-if="!aaoRules.length" class="text-muted small mb-3">Noch keine Regel angelegt.</div>
+                        <div v-for="r in aaoRules" :key="r.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
+                            <div style="min-width:0">
+                                <div class="fw-bold text-white">Stichwort: <code>{{ r.pattern }}</code></div>
+                                <div class="small text-muted"><span v-for="(e, i) in r.entries" :key="i">{{ i + 1 }}. {{ e.vehicle }}<span v-if="e.role"> ({{ e.role }})</span><span v-if="i < r.entries.length - 1"> &rarr; </span></span></div>
+                            </div>
+                            <div v-if="aaoCanEdit" class="d-flex gap-1 flex-shrink-0">
+                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="editAaoRule(r)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteAaoRule(r)" title="Löschen"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div v-if="aaoCanEdit" class="mt-3">
+                            <h6 class="fw-bold text-white">{{ aaoForm.id ? 'Regel bearbeiten' : 'Neue Regel' }}</h6>
+                            <label class="form-label">Stichwort-Muster</label>
+                            <input type="text" class="form-control mb-3" v-model="aaoForm.pattern" maxlength="120" placeholder="z. B. B2, Wohnungsbrand   oder   THL   oder   *">
+                            <label class="form-label">Fahrzeuge in Ausrückreihenfolge</label>
+                            <datalist id="aaoVehicleList"><option v-for="v in vehicles" :key="v.id" :value="v.name"></option></datalist>
+                            <div v-for="(e, i) in aaoForm.entries" :key="i" class="row g-2 mb-2 align-items-center">
+                                <div class="col-12 col-md-5"><input type="text" class="form-control" list="aaoVehicleList" v-model="e.vehicle" maxlength="60" :placeholder="(i + 1) + '. Fahrzeug'"></div>
+                                <div class="col-9 col-md-5"><input type="text" class="form-control" v-model="e.role" maxlength="100" placeholder="Aufgabe (z. B. Angriffstrupp)"></div>
+                                <div class="col-3 col-md-2"><button class="btn btn-outline-danger rounded-pill" @click="aaoForm.entries.splice(i, 1)" :disabled="aaoForm.entries.length === 1" title="Fahrzeug entfernen"><i class="fa fa-xmark"></i></button></div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap mt-2">
+                                <button class="btn btn-outline-light rounded-pill" @click="aaoForm.entries.push({ vehicle: '', role: '' })" :disabled="aaoForm.entries.length >= 12"><i class="fa fa-plus me-1"></i>Fahrzeug</button>
+                                <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveAaoRule"><i class="fa fa-floppy-disk me-1"></i>{{ aaoForm.id ? 'Änderung speichern' : 'Regel speichern' }}</button>
+                                <button v-if="aaoForm.id" class="btn btn-outline-light rounded-pill" @click="resetAaoForm">Abbrechen</button>
+                            </div>
+                        </div>
+                    </div></div>
                 </div>
 
                 <div v-show="activeTab === 'abrechnung'">
@@ -2109,6 +2144,54 @@
                                 <button class="btn btn-outline-warning rounded-pill fw-bold mt-3" @click="saveIntervals"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
                             </div>
                             </div>
+                            <div class="col-12" v-if="dueCanCreate">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-clipboard-list text-danger me-2"></i>Eigene Fristarten</h5>
+                                    <p class="text-muted small">Für Fristen, die es nur bei euch gibt – etwa „Drohnenpilot Landkreis“. Du legst fest, worauf sie sich beziehen, wie oft sie wiederkehren und wer zuständig ist. Die Fristen selbst trägst du (oder die Zuständigen) auf der Seite <strong>Fristen</strong> ein.
+                                        Zuständige sehen und bearbeiten nur ihre Fristarten und werden per Glocke und Mail erinnert; die betroffene Person sieht ihre eigene Frist.</p>
+                                    <div v-if="!dueTypes.length" class="text-muted small mb-3">Noch keine eigene Fristart angelegt.</div>
+                                    <div v-for="t in dueTypes" :key="t.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
+                                        <div style="min-width:0">
+                                            <div class="fw-bold text-white">{{ t.name }}</div>
+                                            <div class="small text-muted">Bezug: {{ dueSubjectLabel(t.subject) }} · <span v-if="t.interval_months">alle {{ t.interval_months }} Monate</span><span v-else>einmalig</span><span v-if="t.lead_days"> · Vorlauf {{ t.lead_days }} Tage</span> · Zuständig: {{ dueResponsible(t) }}</div>
+                                        </div>
+                                        <div class="d-flex gap-1 flex-shrink-0">
+                                            <button class="btn btn-sm btn-outline-light rounded-pill" @click="editDueType(t)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteDueType(t)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <h6 class="fw-bold text-white mt-3">{{ dueTypeForm.id ? 'Fristart bearbeiten' : 'Neue Fristart' }}</h6>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6"><label class="form-label">Name</label><input type="text" class="form-control" v-model="dueTypeForm.name" maxlength="120" placeholder="z. B. Drohnenpilot Landkreis"></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Bezieht sich auf</label>
+                                            <select class="form-select" v-model="dueTypeForm.subject">
+                                                <option value="person">Person (z. B. Zeugnis, Übungsflug)</option>
+                                                <option value="vehicle">Fahrzeug</option>
+                                                <option value="equipment">Gerät (z. B. Drohne: Versicherung, Wartung)</option>
+                                                <option value="general">Allgemein, ohne Bezug</option>
+                                            </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Wiederholung (Monate)</label><input type="number" min="1" max="240" class="form-control" v-model.number="dueTypeForm.interval_months" placeholder="leer = einmalig"><div class="form-text">Beim Abhaken rückt die Frist um so viele Monate weiter.</div></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Vorlauf (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="dueTypeForm.lead_days" placeholder="leer = allgemeiner Vorlauf"><div class="form-text">So früh vorher erscheint sie als „bald fällig“.</div></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Zuständige Rolle</label>
+                                            <select class="form-select" v-model="dueTypeForm.responsible_role">
+                                                <option value="">keine (nur Admin/Leitung)</option>
+                                                <option value="geratewart">Gerätewart</option>
+                                                <option value="atemschutzwart">Atemschutzwart</option>
+                                                <option value="gruppenfuehrer">Gruppenführer</option>
+                                                <option value="jugendwarte">Jugendwart</option>
+                                            </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Zuständige Person <span class="text-muted">(zusätzlich)</span></label>
+                                            <select class="form-select" v-model="dueTypeForm.responsible_pid">
+                                                <option :value="null">keine</option>
+                                                <option v-for="p in (dueSubjects.person || [])" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            </select><div class="form-text">Die Person braucht ein Benutzerkonto, das mit ihr verknüpft ist, um die Frist zu sehen.</div></div>
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap mt-3">
+                                        <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveDueType"><i class="fa fa-floppy-disk me-1"></i>{{ dueTypeForm.id ? 'Änderung speichern' : 'Fristart speichern' }}</button>
+                                        <button v-if="dueTypeForm.id" class="btn btn-outline-light rounded-pill" @click="resetDueTypeForm">Abbrechen</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2128,6 +2211,47 @@
                     </div>
                     <div v-if="!dueItemsFiltered.length" class="card premium-card p-4 text-center text-muted"><i class="fa fa-circle-check text-success fs-3 d-block mb-2"></i>Nichts fällig - alles im grünen Bereich.</div>
                     <due-strip v-for="a in dueAreas" :key="a.key" :area="a.key" :items="dueItemsFiltered" :expanded="true" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+
+                    <!-- Eigene Fristen eintragen und abhaken (nur für Zuständige und Admin/Leitung) -->
+                    <div v-if="dueTypes.length" class="card premium-card p-4 mt-4">
+                        <h5 class="fw-bold text-white mb-1"><i class="fa fa-clipboard-list text-danger me-2"></i>Eigene Fristen verwalten</h5>
+                        <p class="text-muted small">Hier trägst du die Fristen deiner Fristarten ein und hakst sie ab. Bei „Erledigt“ rückt eine wiederkehrende Frist automatisch weiter.</p>
+                        <div v-if="!dueEntries.length" class="text-muted small mb-3">Noch keine Frist eingetragen.</div>
+                        <div v-for="e in dueEntries" :key="e.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
+                            <div style="min-width:0">
+                                <div class="fw-bold text-white">{{ e.type_name }}<span v-if="e.subject_name"> – {{ e.subject_name }}</span></div>
+                                <div class="small text-muted">
+                                    <span v-if="e.due_date">fällig am {{ new Date(e.due_date).toLocaleDateString('de-DE') }}</span><span v-else>erledigt, keine weitere Frist</span>
+                                    <span v-if="e.last_done"> · zuletzt erledigt {{ new Date(e.last_done).toLocaleDateString('de-DE') }}</span>
+                                    <span v-if="e.note"> · {{ e.note }}</span>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-1 flex-shrink-0">
+                                <button v-if="e.due_date" class="btn btn-sm btn-outline-success rounded-pill" @click="doneDueEntry(e)">Erledigt</button>
+                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="editDueEntry(e)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteDueEntry(e)" title="Löschen"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <h6 class="fw-bold text-white mt-3">{{ dueEntryForm.id ? 'Frist bearbeiten' : 'Neue Frist eintragen' }}</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><label class="form-label">Fristart</label>
+                                <select class="form-select" v-model="dueEntryForm.type_id" @change="onDueEntryTypeChange" :disabled="!!dueEntryForm.id">
+                                    <option :value="null" disabled>bitte wählen</option>
+                                    <option v-for="t in dueTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
+                                </select></div>
+                            <div class="col-12 col-md-6" v-if="dueEntryType() && dueEntryType().subject !== 'general'"><label class="form-label">{{ dueSubjectLabel(dueEntryType().subject) }}</label>
+                                <select class="form-select" v-model="dueEntryForm.subject_id">
+                                    <option :value="null" disabled>bitte wählen</option>
+                                    <option v-for="s in (dueSubjects[dueEntryType().subject] || [])" :key="s.id" :value="s.id">{{ s.name }}</option>
+                                </select></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Läuft ab am</label><input type="date" class="form-control" v-model="dueEntryForm.due_date"></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Notiz <span class="text-muted">(optional)</span></label><input type="text" class="form-control" v-model="dueEntryForm.note" maxlength="300" placeholder="z. B. Zeugnis-Nr., Kontaktstelle beim Landkreis"></div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mt-3">
+                            <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveDueEntry" :disabled="!dueEntryForm.type_id"><i class="fa fa-floppy-disk me-1"></i>{{ dueEntryForm.id ? 'Änderung speichern' : 'Frist speichern' }}</button>
+                            <button v-if="dueEntryForm.id" class="btn btn-outline-light rounded-pill" @click="resetDueEntryForm">Abbrechen</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- TAB: STATISTIKEN -->

@@ -15,6 +15,7 @@ CATEGORIES = {
     "termine": ("Termine", "fa-calendar-days"),
     "fristen_technik": ("Fristen: Technik", "fa-screwdriver-wrench"),
     "fristen_personen": ("Fristen: Personen", "fa-user-clock"),
+    "fristen_eigene": ("Fristen: Eigene", "fa-clipboard-list"),
     "fristen": ("Fristen", "fa-clock"),
     "verwaltung": ("Verwaltung", "fa-clipboard-list"),
     "system": ("System", "fa-gear"),

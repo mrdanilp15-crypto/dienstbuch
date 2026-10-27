@@ -17,9 +17,12 @@ AREA_OF_TYPE = {
     "building": "gebaeude",
     "hvo_material": "hvo",
     "g26": "personal", "lehrgang": "personal", "license": "personal", "prospect": "personal",
+    "custom": "sonstige",  # eigene Fristarten: der Bereich folgt dem Bezug (siehe CUSTOM_AREA)
 }
-AREA_LABEL = {"fahrzeuge": "Fahrzeuge", "material": "Geräte & Material", "gebaeude": "Gerätehaus", "hvo": "Sanitätsmaterial", "personal": "Personen"}
-AREA_ORDER = ["fahrzeuge", "material", "gebaeude", "hvo", "personal"]
+# Bezug einer eigenen Fristart -> Bereich
+CUSTOM_AREA = {"person": "personal", "vehicle": "fahrzeuge", "equipment": "material", "general": "sonstige"}
+AREA_LABEL = {"fahrzeuge": "Fahrzeuge", "material": "Geräte & Material", "gebaeude": "Gerätehaus", "hvo": "Sanitätsmaterial", "personal": "Personen", "sonstige": "Sonstige Fristen"}
+AREA_ORDER = ["fahrzeuge", "material", "gebaeude", "hvo", "personal", "sonstige"]
 TECHNIK_AREAS = ("fahrzeuge", "material", "gebaeude", "hvo")
 # Eigene persönliche Fristen sieht jede Person selbst (G26.3, Lehrgänge, Führerscheinkontrolle)
 OWN_TYPES = ("g26", "lehrgang", "license")
@@ -42,10 +45,11 @@ def get_due_items(window_days: int = None):
     window_end = today + datetime.timedelta(days=window_days)
     items = []
 
-    def add_item(item_type, name, detail, due_date, ref_id=None, personnel_id=None, first_check=False, atemschutz=False):
+    def add_item(item_type, name, detail, due_date, ref_id=None, personnel_id=None, first_check=False, atemschutz=False, area=None, **extra):
         items.append({
+            **extra,
             "type": item_type,
-            "area": AREA_OF_TYPE[item_type],
+            "area": area or AREA_OF_TYPE[item_type],
             "name": name,
             "detail": detail,
             "due_date": due_date.isoformat(),
@@ -152,6 +156,29 @@ def get_due_items(window_days: int = None):
     for c in cur.fetchall():
         add_item("low_stock", f"{c['item_name']} ({c['size']})", f"Kleiderkammer: Bestand {c['quantity']}/{c['min_quantity']}", today)
 
+    # Eigene Fristarten (z.B. Drohnenpilot): jede Frist hat ihr Datum, ihren Vorlauf und ihre Zuständigen
+    cur.execute("""
+        SELECT e.id, e.due_date, e.note, e.personnel_id, e.vehicle_id, e.equipment_id,
+               t.name AS tname, t.subject, t.lead_days, t.responsible_role, t.responsible_pid,
+               p.name AS pname, v.name AS vname, q.name AS qname
+        FROM due_entries e JOIN due_types t ON t.id = e.type_id
+        LEFT JOIN personnel p ON p.id = e.personnel_id
+        LEFT JOIN vehicles v ON v.id = e.vehicle_id
+        LEFT JOIN equipment q ON q.id = e.equipment_id
+        WHERE e.due_date IS NOT NULL AND (p.id IS NULL OR p.exit_date IS NULL OR p.exit_date > CURDATE())
+    """)
+    for c in cur.fetchall():
+        end = today + datetime.timedelta(days=c["lead_days"]) if c["lead_days"] else window_end
+        subject_name = {"person": c["pname"], "vehicle": c["vname"], "equipment": c["qname"], "general": c["tname"]}.get(c["subject"])
+        if c["due_date"] > end or not subject_name:
+            continue  # nicht im Vorlauf, oder die Person/das Fahrzeug/das Gerät gibt es nicht mehr
+        detail = c["tname"] if c["subject"] != "general" else (c["note"] or "Frist")
+        if c["subject"] != "general" and c["note"]:
+            detail += f" - {c['note']}"
+        add_item("custom", subject_name, detail, c["due_date"], ref_id=c["id"], personnel_id=c["personnel_id"],
+                 area=CUSTOM_AREA.get(c["subject"], "sonstige"),
+                 responsible_role=c["responsible_role"] or "", responsible_pid=c["responsible_pid"])
+
     cur.close(); conn.close()
     items.sort(key=lambda x: x["due_date"])
     return items
@@ -159,9 +186,17 @@ def get_due_items(window_days: int = None):
 
 def visible_items(items, role, own_pid=None):
     """Welche Fristen sieht diese Rolle? Admin/Leitung alles; Gerätewart Technik (Fahrzeuge, Geräte, Material, Gerätehaus);
-    Atemschutzwart G26.3 und Atemschutz-Lehrgänge; jede Person zusätzlich ihre eigenen persönlichen Fristen."""
+    Atemschutzwart G26.3 und Atemschutz-Lehrgänge; jede Person zusätzlich ihre eigenen persönlichen Fristen.
+    Eigene Fristarten sieht, wer dafür zuständig ist (Rolle oder Person) - und die betroffene Person selbst;
+    "can_done" sagt, wer sie abhaken darf (die Zuständigen, nicht die betroffene Person)."""
     out = []
     for it in items:
+        if it["type"] == "custom":
+            manages = (role in ("admin", "leitung") or (bool(it.get("responsible_role")) and it["responsible_role"] == role)
+                       or (own_pid is not None and it.get("responsible_pid") == own_pid))
+            if manages or (own_pid is not None and it.get("personnel_id") == own_pid):
+                out.append({**it, "can_done": manages})
+            continue
         mine = own_pid is not None and it.get("personnel_id") == own_pid and it["type"] in OWN_TYPES
         if role in ("admin", "leitung"):
             ok = True
@@ -219,8 +254,9 @@ def check_due_reminders():
             try:
                 from core.notify import notify
                 # Pro Rolle nur der eigene Zuständigkeitsbereich, getrennt nach Technik und Personen
+                standard = [i for i in items if i["type"] != "custom"]
                 for role in ("admin", "leitung", "geratewart", "atemschutzwart"):
-                    mine = visible_items(items, role)
+                    mine = visible_items(standard, role)
                     technik = [i for i in mine if i["area"] in TECHNIK_AREAS]
                     personen = [i for i in mine if i["area"] == "personal"]
                     if technik:
@@ -238,6 +274,15 @@ def check_due_reminders():
                         mine_by_user.setdefault(user_by_pid[it["personnel_id"]], []).append(it["detail"])
                 for uname, details in mine_by_user.items():
                     notify("fristen_personen", "Deine Frist läuft ab", "; ".join(details)[:300], "/dashboard?open=fristen", usernames=[uname])
+                # Eigene Fristarten: jeder Zuständige bzw. jede betroffene Person mit Konto bekommt ihre Teilmenge
+                custom = [i for i in items if i["type"] == "custom"]
+                if custom:
+                    cur.execute("SELECT username, role, personnel_id FROM users")
+                    for u in cur.fetchall():
+                        part = visible_items(custom, u["role"], u["personnel_id"])
+                        if part:
+                            names = ", ".join(dict.fromkeys(f"{i['name']} ({i['detail']})" for i in part))
+                            notify("fristen_eigene", "Eigene Fristen", f"{summarize(part)}. {names}"[:300], "/dashboard?open=fristen", usernames=[u["username"]])
             except Exception as push_err:
                 print(f"Fristen-Meldung fehlgeschlagen: {push_err}")
             from core.mailer import send_reminder_mails

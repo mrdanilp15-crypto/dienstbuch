@@ -260,7 +260,11 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
-                    dueItems: [], dueOnlyOverdue: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    dueItems: [], dueOnlyOverdue: false,
+                    aaoRules: [], aaoCanEdit: false, aaoForm: { id: null, pattern: '', entries: [{ vehicle: '', role: '' }] },
+                    dueTypes: [], dueEntries: [], dueCanCreate: false, dueSubjects: {},
+                    dueTypeForm: { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null },
+                    dueEntryForm: { id: null, type_id: null, subject_id: null, due_date: '', note: '' }, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     audienceInfo: null, detailPending: [],
                     backupInfo: null, backupBusy: false, offsiteForm: { enabled: false, url: '', username: '', password: '' }, privacy: null,
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
@@ -458,7 +462,7 @@ applyChartTheme();
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
                 dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
                 dueAreas() {
-                    const labels = { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen' };
+                    const labels = { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen', sonstige: 'Sonstige Fristen' };
                     return Object.keys(labels).filter(k => this.dueItemsFiltered.some(i => i.area === k)).map(k => ({ key: k, label: labels[k] }));
                 },
                 canSeeSettings() { return ['admin', 'leitung'].includes(this.role); },
@@ -1585,11 +1589,15 @@ applyChartTheme();
                     else if (t === 'building') { this.activeTab = 'material'; this.materialSubTab = 'gebaeude'; this.loadBuilding(); }
                     else if (t === 'hvo_material') { this.activeTab = 'hvo'; }
                     else if (t === 'prospect') { this.activeTab = 'personal'; this.openProspectsModal(); }
+                    else if (t === 'custom') { this.activeTab = 'fristen'; }
                     else { this.activeTab = 'personal'; this.personnelSearch = it.name; }
                 },
                 async doneDue(it) {
                     // Direkt als erledigt eintragen, wo es dafür eine einfache Aktion gibt
-                    if (it.type === 'building' && it.ref_id) {
+                    if (it.type === 'custom' && it.ref_id) {
+                        const res = await fetch(`/api/due/entries/${it.ref_id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                        if (res.ok) { await this.loadDueItems(); if (this.dueTypes.length) await this.loadDueManager(); }
+                    } else if (it.type === 'building' && it.ref_id) {
                         const res = await fetch(`/api/building/checks/${it.ref_id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
                         if (res.ok) await this.loadDueItems();
                     } else if (it.type === 'license' && it.personnel_id) {
@@ -1604,6 +1612,92 @@ applyChartTheme();
                     if (!await appConfirm(`Führerscheinkontrolle für ${ids.length} Person(en) als heute durchgeführt eintragen?`)) return;
                     const res = await fetch('/api/personnel/license-checked', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
                     if (res.ok) await this.loadDueItems();
+                },
+                // ---- Eigene Fristarten und ihre Fristen (Einstellungen → Wache & Fristen, Fristen-Seite)
+                async loadDueManager() {
+                    try {
+                        const [t, e] = await Promise.all([fetch('/api/due/types', { credentials: 'include' }), fetch('/api/due/entries', { credentials: 'include' })]);
+                        if (t.ok) { const d = await t.json(); this.dueTypes = d.types; this.dueCanCreate = d.can_create; }
+                        if (e.ok) this.dueEntries = await e.json();
+                    } catch (err) {}
+                    if (this.dueCanCreate) this.loadDueSubjects('person');
+                    if (!this.dueEntryForm.type_id && this.dueTypes.length === 1) { this.dueEntryForm.type_id = this.dueTypes[0].id; this.onDueEntryTypeChange(); }
+                },
+                dueSubjectLabel(s) { return ({ person: 'Person', vehicle: 'Fahrzeug', equipment: 'Gerät', general: 'Allgemein (ohne Bezug)' })[s] || s; },
+                dueRoleLabel(r) { return ({ geratewart: 'Gerätewart', atemschutzwart: 'Atemschutzwart', gruppenfuehrer: 'Gruppenführer', jugendwarte: 'Jugendwart' })[r] || ''; },
+                dueResponsible(t) { return [this.dueRoleLabel(t.responsible_role), t.responsible_name].filter(Boolean).join(' + ') || 'nur Admin/Leitung'; },
+                async loadDueSubjects(kind) {
+                    if (this.dueSubjects[kind]) return;
+                    try {
+                        const res = await fetch('/api/due/subjects?kind=' + kind, { credentials: 'include' });
+                        if (res.ok) this.dueSubjects = { ...this.dueSubjects, [kind]: await res.json() };
+                    } catch (err) {}
+                },
+                resetDueTypeForm() { this.dueTypeForm = { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null }; },
+                editDueType(t) { this.dueTypeForm = { id: t.id, name: t.name, subject: t.subject, interval_months: t.interval_months, lead_days: t.lead_days, responsible_role: t.responsible_role || '', responsible_pid: t.responsible_pid }; },
+                async saveDueType() {
+                    const f = this.dueTypeForm;
+                    const body = { name: f.name, subject: f.subject, interval_months: f.interval_months || null, lead_days: f.lead_days || null, responsible_role: f.responsible_role || '', responsible_pid: f.responsible_pid || null };
+                    const res = await fetch(f.id ? `/api/due/types/${f.id}` : '/api/due/types', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
+                    this.resetDueTypeForm();
+                    await this.loadDueManager(); await this.loadDueItems();
+                },
+                async deleteDueType(t) {
+                    const n = this.dueEntries.filter(e => e.type_id === t.id).length;
+                    if (!await appConfirm(`Fristart „${t.name}“ löschen?` + (n ? ` Die ${n} eingetragene(n) Frist(en) dazu werden mitgelöscht.` : ''))) return;
+                    const res = await fetch(`/api/due/types/${t.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) { await this.loadDueManager(); await this.loadDueItems(); }
+                },
+                dueEntryType() { return this.dueTypes.find(t => t.id === this.dueEntryForm.type_id) || null; },
+                async onDueEntryTypeChange() {
+                    this.dueEntryForm.subject_id = null;
+                    const t = this.dueEntryType();
+                    if (t && t.subject !== 'general') await this.loadDueSubjects(t.subject);
+                },
+                resetDueEntryForm() { this.dueEntryForm = { id: null, type_id: this.dueTypes.length === 1 ? this.dueTypes[0].id : null, subject_id: null, due_date: '', note: '' }; if (this.dueEntryForm.type_id) this.onDueEntryTypeChange(); },
+                async editDueEntry(e) {
+                    this.dueEntryForm = { id: e.id, type_id: e.type_id, subject_id: e.personnel_id || e.vehicle_id || e.equipment_id || null, due_date: e.due_date || '', note: e.note || '' };
+                    const t = this.dueEntryType();
+                    if (t && t.subject !== 'general') await this.loadDueSubjects(t.subject);
+                },
+                async saveDueEntry() {
+                    const f = this.dueEntryForm;
+                    const res = await fetch(f.id ? `/api/due/entries/${f.id}` : '/api/due/entries', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type_id: f.type_id, subject_id: f.subject_id, due_date: f.due_date || null, note: f.note }) });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
+                    this.resetDueEntryForm();
+                    await this.loadDueManager(); await this.loadDueItems();
+                },
+                async doneDueEntry(e) {
+                    const res = await fetch(`/api/due/entries/${e.id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                    if (res.ok) { await this.loadDueManager(); await this.loadDueItems(); }
+                },
+                async deleteDueEntry(e) {
+                    if (!await appConfirm(`Frist „${e.type_name}“ für ${e.subject_name || 'alle'} löschen?`)) return;
+                    const res = await fetch(`/api/due/entries/${e.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) { await this.loadDueManager(); await this.loadDueItems(); }
+                },
+                // ---- AAO fürs Hallen-Display
+                async loadAao() {
+                    try {
+                        const res = await fetch('/api/aao', { credentials: 'include' });
+                        if (res.ok) { const d = await res.json(); this.aaoRules = d.rules; this.aaoCanEdit = d.can_edit; }
+                    } catch (err) {}
+                },
+                resetAaoForm() { this.aaoForm = { id: null, pattern: '', entries: [{ vehicle: '', role: '' }] }; },
+                editAaoRule(r) { this.aaoForm = { id: r.id, pattern: r.pattern, entries: r.entries.map(e => ({ ...e })) }; },
+                async saveAaoRule() {
+                    const f = this.aaoForm;
+                    const entries = f.entries.filter(e => (e.vehicle || '').trim());
+                    const res = await fetch(f.id ? `/api/aao/${f.id}` : '/api/aao', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pattern: f.pattern, entries }) });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte Muster und mindestens ein Fahrzeug angeben.'); return; }
+                    this.resetAaoForm();
+                    await this.loadAao();
+                },
+                async deleteAaoRule(r) {
+                    if (!await appConfirm(`AAO-Regel „${r.pattern}“ löschen?`)) return;
+                    const res = await fetch(`/api/aao/${r.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadAao();
                 },
                 // Einzige Stelle, die weiss, welcher Reiter welche Daten braucht. Aufgerufen aus
                 // dem activeTab-Watcher (jeder Reiterwechsel) und aus mounted() (Seitenstart, wo
@@ -1624,7 +1718,8 @@ applyChartTheme();
                         arbeitsbescheinigung: () => this.loadEmployerCertificates(),
                         archiv: () => this.loadArchiveFiles(),
                         stats: () => this.loadStats(),
-                        apager: () => { if (this.canSeeSettings) this.loadAccessTokens(); },
+                        apager: () => { this.loadAao(); if (this.canSeeSettings) this.loadAccessTokens(); },
+                        fristen: () => this.loadDueManager(),
                         verein: () => this.loadClubData()
                     };
                     const load = loaders[tab || this.activeTab];
@@ -2968,7 +3063,7 @@ applyChartTheme();
                         logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(),
                         sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
                         betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
-                        mail: () => this.loadMailSettings(), wache: () => this.loadIntervals()
+                        mail: () => this.loadMailSettings(), wache: () => { this.loadIntervals(); this.loadDueManager(); }
                     };
                     if (loaders[key]) loaders[key]();
                 },
@@ -4209,7 +4304,7 @@ applyChartTheme();
             emits: ['goto', 'done', 'done-bulk'],
             data() { return { open: this.expanded, all: false }; },
             computed: {
-                labelMap() { return { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen' }; },
+                labelMap() { return { fahrzeuge: 'Fahrzeuge', material: 'Geräte & Material', gebaeude: 'Gerätehaus', hvo: 'Sanitätsmaterial', personal: 'Personen', sonstige: 'Sonstige Fristen' }; },
                 label() { return this.labelMap[this.area] || ''; },
                 mine() { return this.items.filter(i => i.area === this.area); },
                 rows() { return this.mine.filter(i => !i.first_check).sort((a, b) => (b.overdue - a.overdue) || String(a.due_date).localeCompare(String(b.due_date))); },
@@ -4224,7 +4319,7 @@ applyChartTheme();
                 canBulk() { return this.firstRows.some(i => i.type === 'license'); }
             },
             methods: {
-                icon(it) { return ({ equipment: 'fa-screwdriver-wrench', low_stock: 'fa-boxes-stacked', vehicle: 'fa-truck', vehicle_check: 'fa-clipboard-check', building: 'fa-building', hvo_material: 'fa-kit-medical', g26: 'fa-user-doctor', lehrgang: 'fa-graduation-cap', license: 'fa-id-card', prospect: 'fa-handshake' })[it.type] || 'fa-clock'; },
+                icon(it) { return ({ equipment: 'fa-screwdriver-wrench', low_stock: 'fa-boxes-stacked', vehicle: 'fa-truck', vehicle_check: 'fa-clipboard-check', building: 'fa-building', hvo_material: 'fa-kit-medical', g26: 'fa-user-doctor', lehrgang: 'fa-graduation-cap', license: 'fa-id-card', prospect: 'fa-handshake', custom: 'fa-clipboard-list' })[it.type] || 'fa-clock'; },
                 clean(d) { return String(d || '').replace(' (noch nie erfasst)', ''); },
                 when(it) {
                     if (it.first_check) return 'noch nie dokumentiert';
@@ -4232,7 +4327,7 @@ applyChartTheme();
                     if (it.days === 0) return 'heute fällig';
                     return 'in ' + it.days + (it.days === 1 ? ' Tag' : ' Tagen') + ' (' + new Date(it.due_date).toLocaleDateString('de-DE') + ')';
                 },
-                canDone(it) { return it.type === 'building' || it.type === 'license'; }
+                canDone(it) { return it.type === 'building' || it.type === 'license' || (it.type === 'custom' && it.can_done); }
             },
             template: `
                 <div v-if="rows.length || firstRows.length" class="due-strip card premium-card mb-3" :class="{ 'has-overdue': overdueCount }">

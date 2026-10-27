@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 18,
+        "version": "2.68",
+        "date": "2026-10-27",
+        "items": [
+            {"type": "new", "tag": "Alarmierung", "title": "AAO fürs Hallen-Display selbst festlegen",
+             "text": "Unter Alarmierung legst du fest, welche Fahrzeuge bei welchem Stichwort in welcher Reihenfolge ausrücken und mit welcher Aufgabe. Das Hallen-Display zeigt genau diese Vorgaben. Die bisher fest eingebauten Fahrzeuge „HLF 20“ und „MZF“ entfallen; ohne passende Regel erscheint kein Vorschlag mehr."},
+            {"type": "new", "tag": "Fristen", "title": "Eigene Fristarten (z. B. Drohnenpilot)",
+             "text": "Unter Einstellungen → Wache & Fristen legst du eigene Fristarten an – mit Bezug (Person, Fahrzeug, Gerät oder allgemein), Wiederholungsintervall, Vorlauf und Zuständigkeit (Rolle und/oder Person). Die Fristen erscheinen in der Fristen-Seite, in der Glocke („Fristen: Eigene“) und in den Erinnerungs-Mails – nur bei den Zuständigen und bei der betroffenen Person. Zuständige tragen sie auf der Fristen-Seite ein und haken sie dort ab; das nächste Datum folgt automatisch."},
+        ],
+    },
+    {
         "id": 17,
         "version": "2.67",
         "date": "2026-10-18",
