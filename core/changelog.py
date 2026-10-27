@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 19,
+        "version": "2.69",
+        "date": "2026-10-27",
+        "items": [
+            {"type": "new", "tag": "Logbücher", "title": "Frei definierbare Logbücher (z. B. Flugbuch)",
+             "text": "Unter Einstellungen → Wache & Fristen legst du eigene Logbücher an – mit selbst gewählten Feldern (Text, Zahl, Datum, Uhrzeit, Ja/Nein, Auswahl, Dauer aus Start und Ende), Bezug auf ein Gerät oder Fahrzeug und festgelegten Mitgliedern. Per Klick gibt es eine Vorlage „Flugbuch“. Die Einträge stehen im Menü unter „Logbücher“: Mitglieder tragen eigene Einträge ein und sehen ihre eigenen, Zuständige und Leitung sehen alles."},
+            {"type": "new", "tag": "Logbücher", "title": "Auswertung und CSV-Export",
+             "text": "Anzahl und Summen (z. B. Flugstunden) gesamt, je Person, je Gerät und nach selbst gewählten Feldern wie der Art des Flugs – für ein Jahr oder alle Jahre. Zuständige und Leitung können alle Einträge als CSV für Excel exportieren."},
+            {"type": "new", "tag": "Fristen", "title": "Fristen aus dem Logbuch",
+             "text": "Eine eigene Fristart kann sich auf ein Logbuch stützen, z. B. „Pflicht-Übungsflug alle 3 Monate“: Für jedes Mitglied zählt der letzte Eintrag plus die Wiederholung. Ein neuer Eintrag erledigt die Frist; wer noch nie einen Eintrag hat, steht als Erstkontrolle da."},
+        ],
+    },
+    {
         "id": 18,
         "version": "2.68",
         "date": "2026-10-27",

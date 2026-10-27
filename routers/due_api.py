@@ -28,6 +28,7 @@ class TypeIn(BaseModel):
     lead_days: Optional[int] = None
     responsible_role: Optional[str] = ""
     responsible_pid: Optional[int] = None
+    logbook_id: Optional[int] = None  # Frist ergibt sich aus den Einträgen dieses Logbuchs
 
 
 class EntryIn(BaseModel):
@@ -79,6 +80,12 @@ def _validate_type(data: TypeIn, cur):
         cur.execute("SELECT 1 FROM personnel WHERE id = %s", (data.responsible_pid,))
         if not cur.fetchone():
             raise HTTPException(status_code=400, detail="Die zuständige Person gibt es nicht.")
+    if data.logbook_id is not None:
+        cur.execute("SELECT 1 FROM logbooks WHERE id = %s", (data.logbook_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=400, detail="Das Logbuch gibt es nicht.")
+        if data.subject != "person" or not data.interval_months:
+            raise HTTPException(status_code=400, detail="Eine Frist aus einem Logbuch braucht den Bezug „Person“ und eine Wiederholung in Monaten.")
     return name, role
 
 
@@ -98,8 +105,8 @@ def create_type(data: TypeIn, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     name, role = _validate_type(data, cur)
     cur.execute(
-        "INSERT INTO due_types (name, subject, interval_months, lead_days, responsible_role, responsible_pid) VALUES (%s, %s, %s, %s, %s, %s)",
-        (name, data.subject, data.interval_months, data.lead_days, role, data.responsible_pid),
+        "INSERT INTO due_types (name, subject, interval_months, lead_days, responsible_role, responsible_pid, logbook_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (name, data.subject, data.interval_months, data.lead_days, role, data.responsible_pid, data.logbook_id),
     )
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "FRISTART_ANGELEGT", name)
@@ -112,8 +119,8 @@ def update_type(type_id: int, data: TypeIn, request: Request):
     conn = get_db_connection(); cur = conn.cursor()
     name, role = _validate_type(data, cur)
     cur.execute(
-        "UPDATE due_types SET name=%s, subject=%s, interval_months=%s, lead_days=%s, responsible_role=%s, responsible_pid=%s WHERE id=%s",
-        (name, data.subject, data.interval_months, data.lead_days, role, data.responsible_pid, type_id),
+        "UPDATE due_types SET name=%s, subject=%s, interval_months=%s, lead_days=%s, responsible_role=%s, responsible_pid=%s, logbook_id=%s WHERE id=%s",
+        (name, data.subject, data.interval_months, data.lead_days, role, data.responsible_pid, data.logbook_id, type_id),
     )
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "FRISTART_GEAENDERT", name)
@@ -206,6 +213,9 @@ def create_entry(data: EntryIn, request: Request):
     if not _manages(user, pid, t):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Keine Berechtigung für diese Fristart")
+    if t["logbook_id"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Diese Frist ergibt sich aus dem Logbuch - dort einen Eintrag machen.")
     col, due, note = _entry_values(data, t, cur)
     cols, vals = ["type_id", "due_date", "note"], [t["id"], due, note]
     if col:

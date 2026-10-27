@@ -179,9 +179,38 @@ def get_due_items(window_days: int = None):
                  area=CUSTOM_AREA.get(c["subject"], "sonstige"),
                  responsible_role=c["responsible_role"] or "", responsible_pid=c["responsible_pid"])
 
+    # Fristarten, die sich aus einem Logbuch ergeben (z.B. Pflicht-Übungsflug): je Mitglied des Logbuchs gilt der letzte Eintrag
+    # plus Intervall; wer noch nie einen Eintrag hat, ist eine Erstkontrolle (kein Verzug).
+    cur.execute("""
+        SELECT t.id, t.name, t.interval_months, t.lead_days, t.responsible_role, t.responsible_pid, t.logbook_id
+        FROM due_types t JOIN logbooks b ON b.id = t.logbook_id
+        WHERE t.subject = 'person' AND t.interval_months IS NOT NULL
+    """)
+    for t in cur.fetchall():
+        end = today + datetime.timedelta(days=t["lead_days"]) if t["lead_days"] else window_end
+        cur.execute("""
+            SELECT p.id, p.name, (SELECT MAX(e.entry_date) FROM logbook_entries e WHERE e.logbook_id = m.logbook_id AND e.personnel_id = p.id) AS last_entry
+            FROM logbook_members m JOIN personnel p ON p.id = m.personnel_id
+            WHERE m.logbook_id = %s AND (p.exit_date IS NULL OR p.exit_date > CURDATE())
+        """, (t["logbook_id"],))
+        for p in cur.fetchall():
+            last = p["last_entry"]
+            due_date = _add_months(last, t["interval_months"]) if last else today
+            if due_date > end:
+                continue
+            detail = f"{t['name']} (letzter Eintrag {last.strftime('%d.%m.%Y')})" if last else f"{t['name']} (noch kein Eintrag)"
+            add_item("custom", p["name"], detail, due_date, personnel_id=p["id"], first_check=not last, area="personal",
+                     responsible_role=t["responsible_role"] or "", responsible_pid=t["responsible_pid"], auto=True, logbook_id=t["logbook_id"])
+
     cur.close(); conn.close()
     items.sort(key=lambda x: x["due_date"])
     return items
+
+
+def _add_months(d: datetime.date, n: int) -> datetime.date:
+    import calendar
+    y, m = divmod(d.month - 1 + n, 12)
+    return datetime.date(d.year + y, m + 1, min(d.day, calendar.monthrange(d.year + y, m + 1)[1]))
 
 
 def visible_items(items, role, own_pid=None):
@@ -195,7 +224,7 @@ def visible_items(items, role, own_pid=None):
             manages = (role in ("admin", "leitung") or (bool(it.get("responsible_role")) and it["responsible_role"] == role)
                        or (own_pid is not None and it.get("responsible_pid") == own_pid))
             if manages or (own_pid is not None and it.get("personnel_id") == own_pid):
-                out.append({**it, "can_done": manages})
+                out.append({**it, "can_done": manages and not it.get("auto")})  # aus dem Logbuch abgeleitete Fristen erledigt der nächste Eintrag
             continue
         mine = own_pid is not None and it.get("personnel_id") == own_pid and it["type"] in OWN_TYPES
         if role in ("admin", "leitung"):

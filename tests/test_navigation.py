@@ -8,7 +8,7 @@ except ImportError:
     print("SKIP   Playwright nicht installiert")
     sys.exit(0)
 
-from tests.ui_helpers import ROLES, browser_page, close_modals, make_role_users, sidebar_items
+from tests.ui_helpers import ROLES, browser_page, close_modals, ensure_demo_logbook, make_role_users, sidebar_items
 
 fails = []
 
@@ -27,7 +27,7 @@ def items_for(*, personal, youth):
 
 
 MANAGER_ITEMS = ["Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch", "Statistiken",
-                 "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
+                 "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder", "Logbücher",
                  "Fahrzeugpool", "Geräte & Material", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
                  "Einstellungen"]
 EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS,
@@ -42,6 +42,7 @@ SETTINGS_TABS = {"admin": ["System-Logins", "Aktivitäts-Log", "Sicherheit & Dat
 MATERIAL_HAS_GERAETEHAUS = {"admin", "leitung", "geratewart"}
 
 make_role_users()
+ensure_demo_logbook()
 with sync_playwright() as pw:
     for role in ["demo"] + ROLES:
         label = "admin" if role == "demo" else role

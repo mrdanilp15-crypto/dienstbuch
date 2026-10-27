@@ -9,7 +9,7 @@ except ImportError:
     print("SKIP   Playwright nicht installiert")
     sys.exit(0)
 
-from tests.ui_helpers import browser_page, close_modals, set_theme, sidebar_items, vm_eval
+from tests.ui_helpers import browser_page, close_modals, ensure_demo_logbook, set_theme, sidebar_items, vm_eval
 
 AUDIT_JS = open(os.path.join(os.path.dirname(__file__), "contrast_audit.js"), encoding="utf-8").read()
 # Bewusst zugelassene Ausnahmen (Schlüssel wie in der Ausgabe) - hier möglichst nichts eintragen, sondern die Farbe korrigieren.
@@ -34,6 +34,7 @@ def audit(page, label, root=None):
         e["pages"].append(label)
 
 
+ensure_demo_logbook()
 with sync_playwright() as pw:
     browser, page = browser_page(pw, "demo")
     for dark in (True, False):
@@ -57,6 +58,12 @@ with sync_playwright() as pw:
                 except Exception:
                     continue
                 audit(page, f"{mode}: {name} > {sub_name}")
+        # Editoren, die nur nach einem Klick erscheinen: Logbuch-Editor, Eintrag bearbeiten, Fristart-Formular
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.activeTab = 'verwaltung'; vm.openSettingsTab('wache'); vm.newLogbookForm(true); }")
+        audit(page, f"{mode}: Einstellungen > Logbuch-Editor")
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.lbForm = null; vm.activeTab = 'logbuch'; vm.logbookView = 'entries'; }")
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.editLbEntry(vm.lbEntries[0]); }")
+        audit(page, f"{mode}: Logbuch > Eintrag bearbeiten")
         # Fenster und Panels
         page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.activeTab = 'dienste'; }")
         page.evaluate("() => document.querySelector('#notifBell button').click()")

@@ -263,8 +263,11 @@ applyChartTheme();
                     dueItems: [], dueOnlyOverdue: false,
                     aaoRules: [], aaoCanEdit: false, aaoForm: { id: null, pattern: '', entries: [{ vehicle: '', role: '' }] },
                     dueTypes: [], dueEntries: [], dueCanCreate: false, dueSubjects: {},
-                    dueTypeForm: { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null },
-                    dueEntryForm: { id: null, type_id: null, subject_id: null, due_date: '', note: '' }, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    dueTypeForm: { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null, logbook_id: null },
+                    dueEntryForm: { id: null, type_id: null, subject_id: null, due_date: '', note: '' },
+                    logbooks: [], logbooksLoaded: false, activeLogbookId: null, logbookView: 'entries', logbookYear: new Date().getFullYear(),
+                    lbEntries: [], lbEval: null, lbChoices: { people: [], subjects: [] }, lbEntryForm: { id: null, entry_date: '', personnel_id: null, subject_id: null, values: {} },
+                    lbForm: null, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     audienceInfo: null, detailPending: [],
                     backupInfo: null, backupBusy: false, offsiteForm: { enabled: false, url: '', username: '', password: '' }, privacy: null,
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
@@ -466,6 +469,9 @@ applyChartTheme();
                     return Object.keys(labels).filter(k => this.dueItemsFiltered.some(i => i.area === k)).map(k => ({ key: k, label: labels[k] }));
                 },
                 canSeeSettings() { return ['admin', 'leitung'].includes(this.role); },
+                activeLogbook() { return this.logbooks.find(b => b.id === this.activeLogbookId) || null; },
+                logbookYears() { const y = new Date().getFullYear(); return [y, y - 1, y - 2, y - 3, y - 4]; },
+                dueManualTypes() { return this.dueTypes.filter(t => !t.logbook_id); },
                 // Personalverwaltung: Wehrführung, Gruppenführer (Einsatzplanung), Gerätewart (Kleiderkammer), Atemschutzwart (G26.3).
                 // Jugendfeuerwehr (Daten Minderjähriger): nur Wehrführung und Jugendwarte - die ordnen auch den Nachwuchs von dort aus.
                 canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role); },
@@ -892,6 +898,7 @@ applyChartTheme();
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
                 this.loadDueItems();
+                this.loadLogbooks();
                 PasswordPolicy.load().then(() => this.pwPolicyTick++);
                 fetch('/api/auth/mail-enabled').then(r => r.json()).then(d => { this.mailInviteOk = !!d.enabled; }).catch(() => {});
                 setInterval(() => { if (!document.hidden) this.refreshNotifCount(); }, 60000);
@@ -1593,7 +1600,10 @@ applyChartTheme();
                     else if (t === 'building') { this.activeTab = 'material'; this.materialSubTab = 'gebaeude'; this.loadBuilding(); }
                     else if (t === 'hvo_material') { this.activeTab = 'hvo'; }
                     else if (t === 'prospect') { this.activeTab = 'personal'; this.openProspectsModal(); }
-                    else if (t === 'custom') { this.activeTab = 'fristen'; }
+                    else if (t === 'custom') {
+                        if (it.auto && this.logbooks.some(b => b.id === it.logbook_id)) { this.activeLogbookId = it.logbook_id; this.logbookView = 'entries'; this.activeTab = 'logbuch'; }
+                        else this.activeTab = 'fristen';
+                    }
                     else { this.activeTab = 'personal'; this.personnelSearch = it.name; }
                 },
                 async doneDue(it) {
@@ -1625,7 +1635,7 @@ applyChartTheme();
                         if (e.ok) this.dueEntries = await e.json();
                     } catch (err) {}
                     if (this.dueCanCreate) this.loadDueSubjects('person');
-                    if (!this.dueEntryForm.type_id && this.dueTypes.length === 1) { this.dueEntryForm.type_id = this.dueTypes[0].id; this.onDueEntryTypeChange(); }
+                    if (!this.dueEntryForm.type_id && this.dueManualTypes.length === 1) { this.dueEntryForm.type_id = this.dueManualTypes[0].id; this.onDueEntryTypeChange(); }
                 },
                 dueSubjectLabel(s) { return ({ person: 'Person', vehicle: 'Fahrzeug', equipment: 'Gerät', general: 'Allgemein (ohne Bezug)' })[s] || s; },
                 dueRoleLabel(r) { return ({ geratewart: 'Gerätewart', atemschutzwart: 'Atemschutzwart', gruppenfuehrer: 'Gruppenführer', jugendwarte: 'Jugendwart' })[r] || ''; },
@@ -1637,11 +1647,11 @@ applyChartTheme();
                         if (res.ok) this.dueSubjects = { ...this.dueSubjects, [kind]: await res.json() };
                     } catch (err) {}
                 },
-                resetDueTypeForm() { this.dueTypeForm = { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null }; },
-                editDueType(t) { this.dueTypeForm = { id: t.id, name: t.name, subject: t.subject, interval_months: t.interval_months, lead_days: t.lead_days, responsible_role: t.responsible_role || '', responsible_pid: t.responsible_pid }; },
+                resetDueTypeForm() { this.dueTypeForm = { id: null, name: '', subject: 'person', interval_months: null, lead_days: null, responsible_role: '', responsible_pid: null, logbook_id: null }; },
+                editDueType(t) { this.dueTypeForm = { id: t.id, name: t.name, subject: t.subject, interval_months: t.interval_months, lead_days: t.lead_days, responsible_role: t.responsible_role || '', responsible_pid: t.responsible_pid, logbook_id: t.logbook_id || null }; },
                 async saveDueType() {
                     const f = this.dueTypeForm;
-                    const body = { name: f.name, subject: f.subject, interval_months: f.interval_months || null, lead_days: f.lead_days || null, responsible_role: f.responsible_role || '', responsible_pid: f.responsible_pid || null };
+                    const body = { name: f.name, subject: f.subject, interval_months: f.interval_months || null, lead_days: f.lead_days || null, responsible_role: f.responsible_role || '', responsible_pid: f.responsible_pid || null, logbook_id: f.logbook_id || null };
                     const res = await fetch(f.id ? `/api/due/types/${f.id}` : '/api/due/types', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
                     this.resetDueTypeForm();
@@ -1659,7 +1669,7 @@ applyChartTheme();
                     const t = this.dueEntryType();
                     if (t && t.subject !== 'general') await this.loadDueSubjects(t.subject);
                 },
-                resetDueEntryForm() { this.dueEntryForm = { id: null, type_id: this.dueTypes.length === 1 ? this.dueTypes[0].id : null, subject_id: null, due_date: '', note: '' }; if (this.dueEntryForm.type_id) this.onDueEntryTypeChange(); },
+                resetDueEntryForm() { this.dueEntryForm = { id: null, type_id: this.dueManualTypes.length === 1 ? this.dueManualTypes[0].id : null, subject_id: null, due_date: '', note: '' }; if (this.dueEntryForm.type_id) this.onDueEntryTypeChange(); },
                 async editDueEntry(e) {
                     this.dueEntryForm = { id: e.id, type_id: e.type_id, subject_id: e.personnel_id || e.vehicle_id || e.equipment_id || null, due_date: e.due_date || '', note: e.note || '' };
                     const t = this.dueEntryType();
@@ -1680,6 +1690,108 @@ applyChartTheme();
                     if (!await appConfirm(`Frist „${e.type_name}“ für ${e.subject_name || 'alle'} löschen?`)) return;
                     const res = await fetch(`/api/due/entries/${e.id}`, { method: 'DELETE', credentials: 'include' });
                     if (res.ok) { await this.loadDueManager(); await this.loadDueItems(); }
+                },
+                // ---- Logbücher (z.B. Flugbuch): Tab "Logbücher" und Editor unter Einstellungen → Wache & Fristen
+                async loadLogbooks() {
+                    try {
+                        const res = await fetch('/api/logbooks', { credentials: 'include' });
+                        if (res.ok) {
+                            this.logbooks = await res.json();
+                            if (!this.logbooks.some(b => b.id === this.activeLogbookId)) this.activeLogbookId = this.logbooks.length ? this.logbooks[0].id : null;
+                        }
+                    } catch (err) {}
+                    this.logbooksLoaded = true;
+                    if (this.activeTab === 'logbuch') { if (!this.logbooks.length) this.activeTab = 'dienste'; else this.loadLogbookData(); }
+                },
+                selectLogbook(id) { this.activeLogbookId = id; this.logbookView = 'entries'; this.resetLbEntryForm(); this.loadLogbookData(); },
+                async loadLogbookData() {
+                    const b = this.activeLogbook;
+                    if (!b) return;
+                    const y = this.logbookYear || 0;
+                    try {
+                        const [e, v, c] = await Promise.all([fetch(`/api/logbooks/${b.id}/entries?year=${y}`, { credentials: 'include' }), fetch(`/api/logbooks/${b.id}/evaluation?year=${y}`, { credentials: 'include' }), fetch(`/api/logbooks/${b.id}/choices`, { credentials: 'include' })]);
+                        this.lbEntries = e.ok ? await e.json() : [];
+                        this.lbEval = v.ok ? await v.json() : null;
+                        if (c.ok) this.lbChoices = await c.json();
+                    } catch (err) { this.lbEntries = []; this.lbEval = null; }
+                    if (!this.lbEntryForm.id) this.resetLbEntryForm();
+                },
+                resetLbEntryForm() {
+                    const people = this.lbChoices.people || [];
+                    this.lbEntryForm = { id: null, entry_date: new Date().toISOString().slice(0, 10), personnel_id: people.length === 1 ? people[0].id : null, subject_id: null, values: {} };
+                },
+                printPage() { window.print(); },
+                fmtMinutes(m) { return m === null || m === undefined ? '' : Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ' h'; },
+                lbLiveDuration(f) {
+                    const v = this.lbEntryForm.values, a = v[f.config.start], z = v[f.config.end];
+                    if (!a || !z) return '';
+                    const m = (t) => { const [h, mi] = String(t).split(':'); return (+h) * 60 + (+mi); };
+                    let d = m(z) - m(a); if (d < 0) d += 1440;
+                    return this.fmtMinutes(d);
+                },
+                lbShow(e, f) {
+                    if (f.ftype === 'duration') return this.fmtMinutes(e.durations[f.id]);
+                    const v = e.values[f.id];
+                    if (v === undefined || v === null || v === '') return '';
+                    if (f.ftype === 'bool') return v ? 'Ja' : 'Nein';
+                    if (f.ftype === 'date') return new Date(v).toLocaleDateString('de-DE');
+                    return f.unit ? v + ' ' + f.unit : v;
+                },
+                editLbEntry(e) {
+                    this.lbEntryForm = { id: e.id, entry_date: e.entry_date, personnel_id: e.personnel_id, subject_id: e.subject_id, values: { ...e.values } };
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                },
+                async saveLbEntry() {
+                    const f = this.lbEntryForm, b = this.activeLogbook;
+                    const res = await fetch(f.id ? `/api/logbooks/entries/${f.id}` : `/api/logbooks/${b.id}/entries`, { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entry_date: f.entry_date, personnel_id: f.personnel_id, subject_id: f.subject_id, values: f.values }) });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
+                    this.resetLbEntryForm(); await this.loadLogbookData(); this.loadDueItems();
+                },
+                async deleteLbEntry(e) {
+                    if (!await appConfirm('Diesen Eintrag löschen?')) return;
+                    const res = await fetch(`/api/logbooks/entries/${e.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) { await this.loadLogbookData(); this.loadDueItems(); }
+                },
+                // Editor (Admin/Leitung)
+                lbNewUid() { return 'n' + Math.random().toString(36).slice(2, 8); },
+                lbBlankField() { return { uid: this.lbNewUid(), label: '', ftype: 'text', unit: '', optionsText: '', required: false, evaluate: 'none', config: {} }; },
+                lbPreset() {
+                    const a = this.lbNewUid(), z = this.lbNewUid();
+                    const f = (label, ftype, extra) => ({ ...this.lbBlankField(), label, ftype, ...extra });
+                    return { id: null, name: 'Flugbuch', subject: 'equipment', responsible_role: '', responsible_pid: null, open_to_all: false, member_ids: [], fields: [
+                        f('Start', 'time', { uid: a, required: true }), f('Landung', 'time', { uid: z, required: true }),
+                        f('Flugdauer', 'duration', { evaluate: 'sum', config: { start: a, end: z } }),
+                        f('Art', 'select', { optionsText: 'Einsatz, Übung, Training, Test', required: true, evaluate: 'group' }),
+                        f('Ort', 'text', {}), f('Akku', 'text', {}), f('Vorfall / Störung', 'bool', { evaluate: 'group' }), f('Bemerkung', 'text', {})] };
+                },
+                newLogbookForm(preset) {
+                    this.lbForm = preset ? this.lbPreset() : { id: null, name: '', subject: 'none', responsible_role: '', responsible_pid: null, open_to_all: false, member_ids: [], fields: [this.lbBlankField()] };
+                    this.loadDueSubjects('person');
+                },
+                editLogbook(b) {
+                    this.lbForm = { id: b.id, name: b.name, subject: b.subject, responsible_role: b.responsible_role || '', responsible_pid: b.responsible_pid, open_to_all: b.open_to_all, member_ids: [...b.member_ids],
+                        fields: b.fields.map(f => ({ uid: String(f.id), id: f.id, label: f.label, ftype: f.ftype, unit: f.unit || '', optionsText: (f.options || []).join(', '), required: f.required, evaluate: f.evaluate,
+                            config: f.ftype === 'duration' ? { start: String(f.config.start), end: String(f.config.end) } : {} })) };
+                    this.loadDueSubjects('person');
+                },
+                lbAddField() { this.lbForm.fields.push(this.lbBlankField()); },
+                lbMoveField(i, d) { const a = this.lbForm.fields, j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; },
+                lbTimeFields() { return this.lbForm.fields.filter(f => f.ftype === 'time'); },
+                lbToggleMember(id) { const m = this.lbForm.member_ids, i = m.indexOf(id); if (i >= 0) m.splice(i, 1); else m.push(id); },
+                async saveLogbook() {
+                    const f = this.lbForm;
+                    const evalFor = (x) => (x.ftype === 'number' || x.ftype === 'duration') ? (x.evaluate === 'sum' ? 'sum' : 'none') : (['select', 'bool', 'text'].includes(x.ftype) ? (x.evaluate === 'group' ? 'group' : 'none') : 'none');
+                    const fields = f.fields.map(x => ({ uid: x.uid, id: x.id || null, label: x.label, ftype: x.ftype, unit: x.unit || '', required: !!x.required, evaluate: evalFor(x),
+                        options: x.ftype === 'select' ? x.optionsText.split(/[,\n]/).map(o => o.trim()).filter(Boolean) : null, config: x.ftype === 'duration' ? x.config : null }));
+                    const body = { name: f.name, subject: f.subject, responsible_role: f.responsible_role || '', responsible_pid: f.responsible_pid || null, open_to_all: !!f.open_to_all, member_ids: f.member_ids, fields };
+                    const res = await fetch(f.id ? `/api/logbooks/${f.id}` : '/api/logbooks', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
+                    this.lbForm = null; await this.loadLogbooks();
+                },
+                async deleteLogbook(b) {
+                    if (!await appConfirm(`Logbuch „${b.name}“ samt allen Einträgen löschen?`)) return;
+                    const res = await fetch(`/api/logbooks/${b.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) { await this.loadLogbooks(); await this.loadDueManager(); await this.loadDueItems(); }
                 },
                 // ---- AAO fürs Hallen-Display
                 async loadAao() {
@@ -1724,6 +1836,7 @@ applyChartTheme();
                         stats: () => this.loadStats(),
                         apager: () => { this.loadAao(); if (this.canSeeSettings) this.loadAccessTokens(); },
                         fristen: () => this.loadDueManager(),
+                        logbuch: () => this.loadLogbookData(),
                         verein: () => this.loadClubData()
                     };
                     const load = loaders[tab || this.activeTab];
@@ -3054,6 +3167,7 @@ applyChartTheme();
                     if (tab === 'stats') return this.canSeeStats;
                     if (tab === 'personal') return this.canSeePersonnel;
                     if (tab === 'jugend') return this.canSeeYouth;
+                    if (tab === 'logbuch') return !this.logbooksLoaded || this.logbooks.length > 0;
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
                 },
@@ -3069,7 +3183,7 @@ applyChartTheme();
                         logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(),
                         sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
                         betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
-                        mail: () => this.loadMailSettings(), wache: () => { this.loadIntervals(); this.loadDueManager(); }
+                        mail: () => this.loadMailSettings(), wache: () => { this.loadIntervals(); this.loadDueManager(); this.loadLogbooks(); }
                     };
                     if (loaders[key]) loaders[key]();
                 },

@@ -35,9 +35,10 @@ from routers import prospects_api
 from routers import legal_api
 from routers import due_api
 from routers import aao_api
+from routers import logbook_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.68"
+CURRENT_VERSION = "2.69"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -208,6 +209,7 @@ app.include_router(mail_api.router)
 app.include_router(building_api.router)
 app.include_router(due_api.router)
 app.include_router(aao_api.router)
+app.include_router(logbook_api.router)
 app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
 
@@ -779,6 +781,58 @@ def init_db_extensions():
                 INDEX idx_due_entries_type (type_id)
             ) ENGINE=InnoDB;
         """)
+        # Frist, die sich aus einem Logbuch ergibt ("mindestens ein Eintrag in X Monaten je Person", z.B. Pflicht-Übungsflug)
+        try:
+            cur.execute("ALTER TABLE due_types ADD COLUMN logbook_id INT NULL")
+        except mysql.connector.Error as err:
+            if err.errno != 1060: raise
+
+        # Frei definierbare Logbücher (z.B. Flugbuch): Logbuch, seine Felder, die berechtigten Personen und die Einträge
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS logbooks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                subject VARCHAR(12) NOT NULL DEFAULT 'none',
+                responsible_role VARCHAR(30) NOT NULL DEFAULT '',
+                responsible_pid INT NULL,
+                open_to_all TINYINT(1) NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS logbook_fields (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                logbook_id INT NOT NULL,
+                label VARCHAR(80) NOT NULL,
+                ftype VARCHAR(12) NOT NULL DEFAULT 'text',
+                unit VARCHAR(20) NOT NULL DEFAULT '',
+                options TEXT NULL,
+                required TINYINT(1) NOT NULL DEFAULT 0,
+                evaluate VARCHAR(8) NOT NULL DEFAULT 'none',
+                config TEXT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                INDEX idx_logbook_fields_lb (logbook_id)
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS logbook_members (
+                logbook_id INT NOT NULL,
+                personnel_id INT NOT NULL,
+                PRIMARY KEY (logbook_id, personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS logbook_entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                logbook_id INT NOT NULL,
+                entry_date DATE NOT NULL,
+                personnel_id INT NULL,
+                subject_id INT NULL,
+                data TEXT NULL,
+                created_by VARCHAR(100) NOT NULL DEFAULT '',
+                INDEX idx_logbook_entries_lb (logbook_id, entry_date)
+            ) ENGINE=InnoDB;
+        """)
+
         # Ausrückeordnung fürs Hallen-Display: Stichwort-Muster -> Fahrzeuge in Reihenfolge (JSON-Text)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS aao_rules (

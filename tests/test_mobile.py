@@ -7,7 +7,7 @@ except ImportError:
     print("SKIP   Playwright nicht installiert")
     sys.exit(0)
 
-from tests.ui_helpers import browser_page, close_modals, make_role_users, vm_eval
+from tests.ui_helpers import browser_page, close_modals, ensure_demo_logbook, make_role_users, vm_eval
 
 OVERFLOW_JS = """() => {
   // Sichtbar abgeschnitten = ein Element ragt über den Rand des Bereichs hinaus, der es beschneidet (oder des Bildschirms).
@@ -37,6 +37,7 @@ def check(name, cond, extra=""):
 
 
 make_role_users()
+ensure_demo_logbook()
 with sync_playwright() as pw:
     for user, label in (("demo", "admin"), ("r_mannschaft", "mannschaft")):
         browser, page = browser_page(pw, user, 390, 844)

@@ -213,7 +213,7 @@ def send_reminder_mails(items: list, summary_lines: list = None):
                 due = it["due_date"].split("-")
                 status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due[2]}.{due[1]}.{due[0]}"
                 personal.setdefault(email_by_pid[it["personnel_id"]], []).append(f"- {it['detail']}: {status}")
-            elif it["type"] == "custom":  # eigene Fristarten: die betroffene Person und die zuständige Person
+            elif it["type"] == "custom" and not it.get("first_check"):  # eigene Fristarten: die betroffene Person und die zuständige Person
                 due = it["due_date"].split("-")
                 status = "ÜBERFÄLLIG" if it["overdue"] else f"fällig am {due[2]}.{due[1]}.{due[0]}"
                 for pid in {it.get("personnel_id"), it.get("responsible_pid")} - {None}:

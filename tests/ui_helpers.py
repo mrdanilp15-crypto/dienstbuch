@@ -49,3 +49,27 @@ def set_theme(page, dark: bool):
 def sidebar_items(page):
     """Beschriftungen der sichtbaren Seitenleisten-Einträge (ohne Zähler-Badges wie bei "Fristen")."""
     return page.evaluate(r"() => [...document.querySelectorAll('.sidebar .sidebar-btn')].filter(b => b.offsetParent).map(b => { const c = b.cloneNode(true); c.querySelectorAll('.badge').forEach(x => x.remove()); return c.innerText.replace(/\s+/g, ' ').trim(); })")
+
+
+def ensure_demo_logbook():
+    """Legt (falls nötig) ein Demo-Flugbuch mit Einträgen an, damit die Oberflächen-Tests auch die Seite "Logbücher" prüfen.
+    Mitglied ist nur Laura Schmitt (mit der kein Test-Login verknüpft ist) - sichtbar ist es also nur für Admin/Leitung."""
+    import httpx
+    c = httpx.Client(base_url=BASE, timeout=30)
+    assert c.post("/api/login", json={"username": "demo", "password": PASSWORD}).status_code == 200
+    if any(b["name"] == "Flugbuch" for b in c.get("/api/logbooks").json()):
+        return
+    laura = int(sql("select id from personnel where name = 'Laura Schmitt'"))
+    eq = int(sql("select id from equipment order by id limit 1"))
+    book = {"name": "Flugbuch", "subject": "equipment", "responsible_role": "", "responsible_pid": None, "open_to_all": False, "member_ids": [laura],
+            "fields": [{"uid": "a", "label": "Start", "ftype": "time", "required": True}, {"uid": "b", "label": "Landung", "ftype": "time", "required": True},
+                       {"uid": "c", "label": "Flugdauer", "ftype": "duration", "evaluate": "sum", "config": {"start": "a", "end": "b"}},
+                       {"uid": "d", "label": "Art", "ftype": "select", "options": ["Einsatz", "Übung", "Training", "Test"], "required": True, "evaluate": "group"},
+                       {"uid": "e", "label": "Ort", "ftype": "text"}, {"uid": "f", "label": "Vorfall / Störung", "ftype": "bool", "evaluate": "group"}]}
+    lid = c.post("/api/logbooks", json=book).json()["id"]
+    f = {x["label"]: str(x["id"]) for x in c.get("/api/logbooks").json()[0]["fields"]}
+    import datetime
+    for days, start, end, art in ((3, "09:00", "09:40", "Übung"), (10, "18:30", "19:15", "Einsatz"), (20, "10:00", "10:25", "Training")):
+        day = (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
+        assert c.post(f"/api/logbooks/{lid}/entries", json={"entry_date": day, "personnel_id": laura, "subject_id": eq,
+                      "values": {f["Start"]: start, f["Landung"]: end, f["Art"]: art, f["Ort"]: "Übungsplatz Nord", f["Vorfall / Störung"]: False}}).status_code == 200
