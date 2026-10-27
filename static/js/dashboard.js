@@ -466,6 +466,10 @@ applyChartTheme();
                     return Object.keys(labels).filter(k => this.dueItemsFiltered.some(i => i.area === k)).map(k => ({ key: k, label: labels[k] }));
                 },
                 canSeeSettings() { return ['admin', 'leitung'].includes(this.role); },
+                // Personalverwaltung: Wehrführung, Gruppenführer (Einsatzplanung), Gerätewart (Kleiderkammer), Atemschutzwart (G26.3).
+                // Jugendfeuerwehr (Daten Minderjähriger): nur Wehrführung und Jugendwarte - die ordnen auch den Nachwuchs von dort aus.
+                canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role); },
+                canSeeYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
                 canSeeFinance() { return ['admin', 'leitung'].includes(this.role); },
                 canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
                 settingsGroups() {
@@ -3048,6 +3052,8 @@ applyChartTheme();
                     if (!this.role) return true; // Rolle noch nicht geladen
                     if (['abrechnung', 'arbeitsbescheinigung', 'verein'].includes(tab)) return this.canSeeFinance;
                     if (tab === 'stats') return this.canSeeStats;
+                    if (tab === 'personal') return this.canSeePersonnel;
+                    if (tab === 'jugend') return this.canSeeYouth;
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
                 },
@@ -4327,7 +4333,9 @@ applyChartTheme();
                     if (it.days === 0) return 'heute fällig';
                     return 'in ' + it.days + (it.days === 1 ? ' Tag' : ' Tagen') + ' (' + new Date(it.due_date).toLocaleDateString('de-DE') + ')';
                 },
-                canDone(it) { return it.type === 'building' || it.type === 'license' || (it.type === 'custom' && it.can_done); }
+                canDone(it) { return it.type === 'building' || it.type === 'license' || (it.type === 'custom' && it.can_done); },
+                // "Zur Prüfung" nur, wenn die Rolle den Reiter dahinter überhaupt sieht (eigene G26/Lehrgänge führen sonst ins Leere)
+                canGoto(it) { return !['g26', 'lehrgang', 'license', 'prospect'].includes(it.type) || this.$root.tabAllowed('personal'); }
             },
             template: `
                 <div v-if="rows.length || firstRows.length" class="due-strip card premium-card mb-3" :class="{ 'has-overdue': overdueCount }">
@@ -4343,7 +4351,7 @@ applyChartTheme();
                             <div class="due-text"><div class="due-name">{{ it.name }}</div><div class="due-detail">{{ clean(it.detail) }}</div></div>
                             <div class="due-when">{{ when(it) }}</div>
                             <div class="due-actions">
-                                <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
+                                <button v-if="canGoto(it)" type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
                                 <button v-if="canDone(it)" type="button" class="btn btn-sm btn-outline-success rounded-pill" @click="$emit('done', it)">Erledigt</button>
                             </div>
                         </div>
@@ -4355,7 +4363,7 @@ applyChartTheme();
                                 <div class="due-text"><div class="due-name">{{ it.name }}</div><div class="due-detail">{{ clean(it.detail) }}</div></div>
                                 <div class="due-actions">
                                     <button v-if="canDone(it)" type="button" class="btn btn-sm btn-outline-success rounded-pill" @click="$emit('done', it)">Kontrolliert</button>
-                                    <button v-else type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
+                                    <button v-else-if="canGoto(it)" type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="$emit('goto', it)">Zur Prüfung</button>
                                 </div>
                             </div>
                             <button v-if="canBulk" type="button" class="btn btn-sm btn-outline-success rounded-pill mt-2" @click="$emit('done-bulk', firstRows)">Alle {{ firstRows.filter(i => i.type === 'license').length }} als heute kontrolliert eintragen</button>

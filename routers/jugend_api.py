@@ -10,7 +10,10 @@ router = APIRouter()
 # --- JUGENDFEUERWEHR & MITGLIEDER ---
 @router.get("/api/jugend/members")
 def get_youth_members(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Daten Minderjähriger (Anschrift, Eltern, Notizen): nur Wehrführung und Jugendwarte
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if user["role"] not in ("admin", "leitung", "jugendwarte"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE membership_status = 'Jugend' ORDER BY name ASC")
     res = cur.fetchall(); cur.close(); conn.close()
@@ -164,7 +167,9 @@ def delete_youth_member(m_id: int, request: Request):
 # --- JUGEND-DIENSTBERICHTE ---
 @router.get("/api/jugend/sessions")
 def get_youth_sessions(request: Request):
-    if not get_current_user(request): raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if user["role"] not in ("admin", "leitung", "jugendwarte"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM youth_sessions ORDER BY date DESC, id DESC")
     sessions = cur.fetchall()

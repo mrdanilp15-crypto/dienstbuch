@@ -85,6 +85,9 @@ _ONE_HIDDEN = _LIST_HIDDEN + ("notes", "skills", "parent_contact", "emergency_co
                               "dsgvo_ack_date", "dienstordnung_ack_date", "badge_number")
 
 
+_YOUTH_ROLES = ("admin", "leitung", "jugendwarte")
+
+
 def _hidden_fields(role: str, many: bool):
     if role in ("admin", "leitung"):
         return ()
@@ -135,6 +138,8 @@ def get_all_personnel(request: Request, background_tasks: BackgroundTasks):
             if key.startswith("is_") or key.startswith("lic_"):
                 row[key] = bool(value)
         row["has_picture"] = bool(row["has_picture"])
+        if row.get("membership_status") == "Jugend" and viewer["role"] not in _YOUTH_ROLES:
+            row.pop("phone", None); row.pop("email", None)  # Kontaktdaten Minderjähriger nur für Wehrführung und Jugendwarte
         for h in _hidden_fields(viewer["role"], True):
             row.pop(h, None)
     return res
@@ -158,6 +163,8 @@ def get_single_member(member_id: int, request: Request):
     if not (me and me["personnel_id"] == member_id):
         for h in _hidden_fields(viewer["role"], False):
             row.pop(h, None)
+        if row.get("membership_status") == "Jugend" and viewer["role"] not in _YOUTH_ROLES:
+            row.pop("phone", None); row.pop("email", None)
 
     for key, value in row.items():
         if isinstance(value, date):

@@ -262,8 +262,8 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span></button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
+                    <button class="sidebar-btn" v-if="canSeePersonnel" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung</button>
+                    <button class="sidebar-btn" v-if="canSeeYouth" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
                     <button class="sidebar-btn" v-if="canSeeStats" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
 
@@ -2570,6 +2570,7 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr</h2>
                             <small class="text-muted">Mitgliederverwaltung und Dienstberichte der Jugendgruppe</small>
                         </div>
+                        <button class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
                     </div>
 
                     <ul class="nav nav-pills mb-4 flex-wrap gap-2 pill-nav">

@@ -14,6 +14,8 @@ CHANGELOG = [
              "text": "Unter Alarmierung legst du fest, welche Fahrzeuge bei welchem Stichwort in welcher Reihenfolge ausrücken und mit welcher Aufgabe. Das Hallen-Display zeigt genau diese Vorgaben. Die bisher fest eingebauten Fahrzeuge „HLF 20“ und „MZF“ entfallen; ohne passende Regel erscheint kein Vorschlag mehr."},
             {"type": "new", "tag": "Fristen", "title": "Eigene Fristarten (z. B. Drohnenpilot)",
              "text": "Unter Einstellungen → Wache & Fristen legst du eigene Fristarten an – mit Bezug (Person, Fahrzeug, Gerät oder allgemein), Wiederholungsintervall, Vorlauf und Zuständigkeit (Rolle und/oder Person). Die Fristen erscheinen in der Fristen-Seite, in der Glocke („Fristen: Eigene“) und in den Erinnerungs-Mails – nur bei den Zuständigen und bei der betroffenen Person. Zuständige tragen sie auf der Fristen-Seite ein und haken sie dort ab; das nächste Datum folgt automatisch."},
+            {"type": "fix", "tag": "Rechte", "title": "Menü und Jugenddaten nach Rolle",
+             "text": "Die Jugendfeuerwehr (Daten Minderjähriger: Anschrift, Eltern, Notizen) sehen jetzt nur noch Wehrführung und Jugendwarte – bisher konnte jede angemeldete Person die Liste abrufen. Telefon und E-Mail von Jugendlichen sind in der Kameradenliste für alle anderen verborgen. Die Personalverwaltung sehen Mannschaft und Jugendwarte nicht mehr (der Nachwuchs steht jetzt bei den Jugendwarten in der Jugendfeuerwehr). Eigene Fristen ohne Zugang zur Personalverwaltung zeigen keinen leeren „Zur Prüfung“-Knopf mehr."},
         ],
     },
     {

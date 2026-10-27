@@ -19,16 +19,23 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
-BASE_ITEMS = ["Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch",
-              "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
-              "Fahrzeugpool", "Geräte & Material", "Dokumente & Archiv"]
+def items_for(*, personal, youth):
+    """Basis für alle; Personalverwaltung nur für Rollen mit Aufgabe dort, Jugendfeuerwehr (Daten Minderjähriger) nur für Jugendwarte."""
+    return ["Dienstbetrieb", "Kalender", "Fristen"] + (["Personalverwaltung"] if personal else []) + (["Jugendfeuerwehr"] if youth else []) + [
+        "Digitales Notizbuch", "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
+        "Fahrzeugpool", "Geräte & Material", "Dokumente & Archiv"]
+
+
 MANAGER_ITEMS = ["Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch", "Statistiken",
                  "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
                  "Fahrzeugpool", "Geräte & Material", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
                  "Einstellungen"]
-EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS}
-for r in ROLES:
-    EXPECT.setdefault(r, BASE_ITEMS)
+EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS,
+          "mannschaft": items_for(personal=False, youth=False),
+          "jugendwarte": items_for(personal=False, youth=True),
+          "gruppenfuehrer": items_for(personal=True, youth=False),
+          "geratewart": items_for(personal=True, youth=False),     # Kleiderkammer
+          "atemschutzwart": items_for(personal=True, youth=False)}  # G26.3-Überwachung
 # Reiter innerhalb von Einstellungen / Geräte & Material je Rolle
 SETTINGS_TABS = {"admin": ["System-Logins", "Aktivitäts-Log", "Sicherheit & Datenschutz", "Systemzustand & Sicherung", "Wache & Fristen", "E-Mail-Versand"],
                  "leitung": ["Wache & Fristen"]}
