@@ -43,7 +43,7 @@
                 if (!el) return;
                 var msgEl = document.getElementById('bootFallbackMsg');
                 if (msgEl && reason) {
-                    msgEl.textContent = 'Der Start ist fehlgeschlagen oder dauert ungewöhnlich lange. Das kann an einer instabilen Internetverbindung liegen. Technische Meldung: ' + reason;
+                    msgEl.textContent = 'Der Start ist fehlgeschlagen oder dauert ungewöhnlich lange. Das kann an einer instabilen Internetverbindung liegen. Technische Meldung: ' + reason + (/Unexpected token '<'/.test(reason) ? ' - Der Server hat statt der Seite eine Fehlerseite geliefert, meist weil er gerade neu startet. Bitte in ein bis zwei Minuten neu laden.' : '');
                 }
                 el.style.display = 'flex';
             }

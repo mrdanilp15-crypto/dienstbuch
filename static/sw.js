@@ -73,11 +73,15 @@ self.addEventListener('fetch', event => {
         // Ohne das bediente der HTTP-Cache des Browsers (Cache-Control: max-age=1 Tag) auch diesen netzwerk-zuerst-
         // Abruf mit der alten Datei - ausgerollte Korrekturen kamen dann erst am nächsten Tag an.
         fetch(event.request, { cache: 'no-cache' }).then(response => {
-          if (response && response.status === 200 && response.type === 'basic') {
+          // Nur eine echte Antwort ist Anwendungscode. Eine HTML-Fehlerseite (z.B. vom vorgeschalteten Proxy, während der
+          // Container neu startet) würde sonst als JavaScript geparst: "SyntaxError: Unexpected token '<'", Startfehler.
+          const isHtml = ((response && response.headers.get('content-type')) || '').includes('text/html');
+          if (response && response.status === 200 && response.type === 'basic' && !isHtml) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+            return response;
           }
-          return response;
+          return caches.match(event.request).then(cached => cached || response);
         }).catch(err => {
           // Offline/Netzwerkfehler: dann ist die zuletzt zwischengespeicherte Fassung immer
           // noch besser als eine gar nicht ladende Seite.
