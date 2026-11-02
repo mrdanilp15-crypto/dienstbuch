@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v70';
+const CACHE_NAME = 'fw-app-cache-v71';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -22,6 +22,12 @@ const urlsToCache = [
   '/static/css/dashboard.css'
 ];
 
+// Eine HTML-Seite (Fehlerseite von Proxy/VPN/Captive-Portal) ist nie ein gültiges Script, Stylesheet oder eine Schrift.
+// Sie darf weder zwischengespeichert noch aus dem Zwischenspeicher ausgeliefert werden - sonst bleibt ein einmal
+// vergifteter Eintrag auf diesem Gerät für immer ("Unexpected token '<'"), während andere Geräte normal laufen.
+const isHtml = r => !!r && ((r.headers && r.headers.get('content-type')) || '').includes('text/html');
+const isGood = r => !!r && r.status === 200 && r.type === 'basic' && !isHtml(r);
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -31,7 +37,7 @@ self.addEventListener('install', event => {
         // eines Deploys kurzzeitig nicht erreichbar) - dann bliebe die App für immer auf der
         // alten Service-Worker-Version hängen. Mit allSettled() schlägt höchstens die einzelne
         // Datei fehl, der Rest wird trotzdem zwischengespeichert und der neue Worker aktiviert.
-        return Promise.allSettled(urlsToCache.map(url => cache.add(url).catch(err => {
+        return Promise.allSettled(urlsToCache.map(url => fetch(url, { cache: 'reload' }).then(r => { if (!isGood(r)) throw new Error('keine gültige Datei: ' + r.status); return cache.put(url, r); }).catch(err => {
           console.error('SW precache fehlgeschlagen für', url, err);
         })));
       })
@@ -95,10 +101,10 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) return response;
+        if (response && !isHtml(response)) return response;
         return fetch(event.request).then(
           function(response) {
-            if(!response || response.status !== 200 || response.type !== 'basic' || !event.request.url.startsWith('http')) return response;
+            if(!isGood(response) || !event.request.url.startsWith('http')) return response;
             var responseToCache = response.clone();
             caches.open(CACHE_NAME).then(function(cache) {
                 cache.put(event.request, responseToCache);
