@@ -58,9 +58,10 @@ with sync_playwright() as pw:
     check("Auswertung zeigt Summe, Personen und Gruppierung nach Art", "Gesamt" in txt and "Je Person" in txt and "Nach „Art“" in txt and "Flugdauer" in txt and "2:40" in txt, txt[:300].replace("\n", " "))
 
     # Logbuch im Editor aus der Vorlage anlegen
-    page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.activeTab = 'verwaltung'; vm.openSettingsTab('wache'); }")
-    page.wait_for_timeout(900)
-    page.get_by_role("button", name="Flugbuch aus Vorlage").click()
+    page.locator(".main-content button", has_text="Neues Logbuch").first.click()
+    page.wait_for_timeout(400)
+    check("Auswahl bietet Vorlage und leeres Logbuch", "Flugbuch (Vorlage)" in page.inner_text(".main-content") and "Leeres Logbuch" in page.inner_text(".main-content"))
+    page.get_by_role("button", name="Flugbuch (Vorlage)").click()
     page.wait_for_timeout(500)
     check("Vorlage bringt die Flugbuch-Felder mit", vm_eval(page, "vm.lbForm.fields.map(f => f.label).join(',')") == "Start,Landung,Flugdauer,Art,Ort,Akku,Vorfall / Störung,Bemerkung")
     page.locator("input[placeholder='z. B. Flugbuch']").fill("Drohnen-Flugbuch")
@@ -68,6 +69,7 @@ with sync_playwright() as pw:
     page.wait_for_timeout(1200)
     check("Neues Logbuch ist gespeichert und in der Liste", vm_eval(page, "vm.logbooks.some(b => b.name === 'Drohnen-Flugbuch')") and vm_eval(page, "vm.lbForm === null"))
     check("Beide Logbücher auswählbar", vm_eval(page, "vm.logbooks.length") == 2)
+    check("Neues Logbuch ist gleich ausgewählt", vm_eval(page, "vm.activeLogbook.name") == "Drohnen-Flugbuch")
     # Feld mit fehlender Dauer-Zuordnung wird abgelehnt (Meldung statt Absturz)
     page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.newLogbookForm(false); vm.lbForm.name = 'X'; vm.lbForm.fields[0].label = 'D'; vm.lbForm.fields[0].ftype = 'duration'; vm.saveLogbook(); }")
     page.wait_for_timeout(800)

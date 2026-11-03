@@ -48,6 +48,9 @@ class GlobalSettings(BaseModel):
     int_unterweisung: int
     reminder_window_days: Optional[int] = 14
     session_max_days: Optional[int] = 30
+    int_fahrzeugkontrolle: Optional[int] = 7
+    int_fuehrerschein: Optional[int] = 12
+    int_interessent: Optional[int] = 21
 
 class AvailabilityCreate(BaseModel):
     start_date: str
@@ -487,7 +490,11 @@ def get_settings(request: Request):
     conn.close()
     res = {row['setting_key']: row['setting_value'] for row in rows}
     if not res:
-        return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12, "reminder_window_days": 14, "session_max_days": 30}
+        return {"int_g26": 36, "int_belastung": 12, "int_unterweisung": 12, "reminder_window_days": 14, "session_max_days": 30,
+                "int_fahrzeugkontrolle": 7, "int_fuehrerschein": 12, "int_interessent": 21}
+    res.setdefault("int_fahrzeugkontrolle", 7)
+    res.setdefault("int_fuehrerschein", 12)
+    res.setdefault("int_interessent", 21)
     res.setdefault("reminder_window_days", 14)
     res.setdefault("session_max_days", 30)
     return res
@@ -502,7 +509,10 @@ def save_settings(s: GlobalSettings, request: Request):
         ('int_belastung', s.int_belastung),
         ('int_unterweisung', s.int_unterweisung),
         ('reminder_window_days', s.reminder_window_days or 14),
-        ('session_max_days', s.session_max_days or 30)
+        ('session_max_days', s.session_max_days or 30),
+        ('int_fahrzeugkontrolle', max(0, min(s.int_fahrzeugkontrolle if s.int_fahrzeugkontrolle is not None else 7, 365))),
+        ('int_fuehrerschein', max(0, min(s.int_fuehrerschein if s.int_fuehrerschein is not None else 12, 120))),
+        ('int_interessent', max(0, min(s.int_interessent if s.int_interessent is not None else 21, 365)))
     ]
     for key, val in settings:
         cur.execute("INSERT INTO settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value=%s", (key, val, val))

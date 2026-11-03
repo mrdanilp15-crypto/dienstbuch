@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
@@ -70,6 +71,25 @@ def update_vehicle(id: int, v: VehicleData, request: Request):
     """, (v.name, v.radio_name, v.status or 2, v.tuv_date or None, v.sp_date or None, v.milage or 0, v.next_service or None, v.required_license or None, v.purchase_value, v.insurance_policy or "", id))
     c.commit(); c.close()
     log_audit_action(user["username"], "FAHRZEUG_BEARBEITEN", f"Fahrzeug ID {id} ('{v.name}') aktualisiert.")
+    return {"status": "updated"}
+
+@router.put("/api/vehicles/{id}/inspection")
+def update_vehicle_inspection(id: int, data: dict, request: Request):
+    """Nach bestandener Pruefung nur das neue Faelligkeitsdatum von TUEV oder Sicherheitspruefung setzen (aus der Fristen-Liste)."""
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    field = data.get("field")
+    if field not in ("tuv_date", "sp_date"): raise HTTPException(status_code=400, detail="Unbekanntes Feld")
+    try:
+        new_date = datetime.date.fromisoformat(str(data.get("date") or ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Bitte ein gültiges Datum angeben.")
+    c = get_db_connection(); cur = c.cursor()
+    cur.execute(f"UPDATE vehicles SET {field}=%s WHERE id=%s", (new_date, id))
+    if cur.rowcount == 0:
+        c.close(); raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    c.commit(); c.close()
+    log_audit_action(user["username"], "FAHRZEUG_PRUEFUNG", f"Fahrzeug ID {id}: {'TÜV' if field == 'tuv_date' else 'Sicherheitsprüfung'} neu auf {new_date.isoformat()} gesetzt.")
     return {"status": "updated"}
 
 @router.put("/api/vehicles/{id}/status")

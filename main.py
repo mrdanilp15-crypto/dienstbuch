@@ -38,7 +38,7 @@ from routers import aao_api
 from routers import logbook_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.69"
+CURRENT_VERSION = "2.70"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")

@@ -59,8 +59,11 @@ with sync_playwright() as pw:
                     continue
                 audit(page, f"{mode}: {name} > {sub_name}")
         # Editoren, die nur nach einem Klick erscheinen: Logbuch-Editor, Eintrag bearbeiten, Fristart-Formular
-        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.activeTab = 'verwaltung'; vm.openSettingsTab('wache'); vm.newLogbookForm(true); }")
-        audit(page, f"{mode}: Einstellungen > Logbuch-Editor")
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.activeTab = 'logbuch'; vm.newLogbookForm(true); }")
+        audit(page, f"{mode}: Logbuch-Editor")
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.lbForm = null; vm.lbChooser = true; }")
+        audit(page, f"{mode}: Logbuch > Neues Logbuch (Auswahl)")
+        page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.lbChooser = false; }")
         page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.lbForm = null; vm.activeTab = 'logbuch'; vm.logbookView = 'entries'; }")
         page.evaluate("() => { const vm = document.querySelector('#app').__vue_app__._container._vnode.component.proxy; vm.editLbEntry(vm.lbEntries[0]); }")
         audit(page, f"{mode}: Logbuch > Eintrag bearbeiten")

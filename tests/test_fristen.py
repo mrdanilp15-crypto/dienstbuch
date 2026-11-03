@@ -78,6 +78,20 @@ def keys(items):
 
 
 a = due(admin)
+veh = [i for i in a if i["type"] == "vehicle" and i["ref_id"] == vid]
+check("TÜV-Frist nennt das Datenfeld", veh and veh[0].get("field") == "tuv_date", str(veh))
+check("Mannschaft darf Prüfdatum nicht setzen", cl["mannschaft"].put(f"/api/vehicles/{vid}/inspection", json={"field": "tuv_date", "date": "2030-01-01"}).status_code == 403)
+check("Ungültiges Datum wird abgelehnt", cl["geratewart"].put(f"/api/vehicles/{vid}/inspection", json={"field": "tuv_date", "date": "morgen"}).status_code == 400)
+check("Unbekanntes Feld wird abgelehnt", cl["geratewart"].put(f"/api/vehicles/{vid}/inspection", json={"field": "name", "date": "2030-01-01"}).status_code == 400)
+_r = cl["geratewart"].put(f"/api/vehicles/{vid}/inspection", json={"field": "tuv_date", "date": (datetime.date.today() + datetime.timedelta(days=700)).isoformat()})
+check("Gerätewart setzt neues TÜV-Datum, Frist verschwindet", _r.status_code == 200 and not [i for i in due(admin) if i["type"] == "vehicle" and i["ref_id"] == vid], str(_r.status_code))
+sql(f"update vehicles set tuv_date = CURDATE() - INTERVAL 5 DAY where id={vid}")
+check("Fahrzeugkontrolle standardmäßig dabei", any(i["type"] == "vehicle_check" for i in a))
+sql("insert into settings (setting_key, setting_value) values ('int_fahrzeugkontrolle', 0) on duplicate key update setting_value=0")
+sql("insert into settings (setting_key, setting_value) values ('int_fuehrerschein', 0) on duplicate key update setting_value=0")
+_off = due(admin)
+check("Intervall 0 schaltet Fahrzeug- und Führerscheinkontrolle ab", not any(i["type"] in ("vehicle_check", "license") for i in _off) and any(i["type"] == "vehicle" for i in _off))
+sql("delete from settings where setting_key in ('int_fahrzeugkontrolle', 'int_fuehrerschein')")
 check("Admin sieht alle Bereiche", {i["area"] for i in a} >= {"fahrzeuge", "gebaeude", "hvo", "personal"}, str(sorted({i["area"] for i in a})))
 check("Jede Frist trägt Bereich, Tage und Verweise", all({"area", "days", "first_check", "ref_id", "personnel_id"} <= set(i) for i in a))
 lic = [i for i in a if i["type"] == "license" and i["name"] == "Laura Schmitt"]

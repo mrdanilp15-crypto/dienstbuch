@@ -273,7 +273,7 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'bma'}" @click="activeTab = 'bma'; showMobileSidebar = false"><i class="fa fa-building-shield"></i> Objekte & BMA</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
-                    <button class="sidebar-btn" v-if="logbooks.length" :class="{active: activeTab === 'logbuch'}" @click="activeTab = 'logbuch'; showMobileSidebar = false"><i class="fa fa-book-open"></i> Logbücher</button>
+                    <button class="sidebar-btn" v-if="logbooks.length || canSeeSettings" :class="{active: activeTab === 'logbuch'}" @click="activeTab = 'logbuch'; showMobileSidebar = false"><i class="fa fa-book-open"></i> Logbücher</button>
 
                     <div class="sidebar-section-header">Material & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
@@ -2139,6 +2139,9 @@
                                     <div class="col-12 col-md-6"><label class="form-label">G26.3 Atemschutzuntersuchung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_g26"></div>
                                     <div class="col-12 col-md-6"><label class="form-label">Jährlicher Belastungslauf (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_belastung"></div>
                                     <div class="col-12 col-md-6"><label class="form-label">UVV-Sicherheitsunterweisung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_unterweisung"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Fahrzeugkontrolle alle … Tage</label><input type="number" min="0" max="365" class="form-control" v-model.number="intervals.int_fahrzeugkontrolle"><div class="form-text">Standard 7 (wöchentlich). 0 = keine Erinnerung.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Führerscheinkontrolle alle … Monate</label><input type="number" min="0" max="120" class="form-control" v-model.number="intervals.int_fuehrerschein"><div class="form-text">Standard 12. 0 = keine Erinnerung.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Interessenten nachfassen nach … Tagen</label><input type="number" min="0" max="365" class="form-control" v-model.number="intervals.int_interessent"><div class="form-text">Standard 21. 0 = keine Erinnerung.</div></div>
                                     <div class="col-12 col-md-6"><label class="form-label">Erinnerungs-Vorlauf (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.reminder_window_days"><div class="form-text">So viele Tage vor einer Frist erscheint sie als „bald fällig“.</div></div>
                                     <div class="col-12 col-md-6"><label class="form-label">Anmeldung bleibt gültig (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.session_max_days"><div class="form-text">Danach muss sich jeder neu anmelden.</div></div>
                                 </div>
@@ -2200,88 +2203,9 @@
                             </div>
                             <div class="col-12" v-if="canSeeSettings">
                                 <div class="card premium-card p-4">
-                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-book-open text-danger me-2"></i>Eigene Logbücher</h5>
-                                    <p class="text-muted small">Logbücher mit selbst festgelegten Feldern, zum Beispiel ein Flugbuch für die Drohnen. Du bestimmst, welche Felder es gibt, wer eintragen darf und wer die Auswertung sieht. Die Einträge stehen im Menü unter <strong>Logbücher</strong>; Zuständige und Leitung sehen alle Einträge, die Mitglieder ihre eigenen. Eine Fristart kann sich auf ein Logbuch stützen (z. B. Pflicht-Übungsflug).</p>
-                                    <div v-if="!logbooks.length" class="text-muted small mb-3">Noch kein Logbuch angelegt.</div>
-                                    <div v-for="b in logbooks" :key="b.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
-                                        <div style="min-width:0">
-                                            <div class="fw-bold text-white">{{ b.name }}</div>
-                                            <div class="small">{{ b.fields.length }} Felder · Bezug: {{ b.subject_label || 'keiner' }} · Eintragen: {{ b.open_to_all ? 'alle' : b.member_ids.length + ' Person(en)' }}<span v-if="b.responsible_role"> · Zuständig: {{ dueRoleLabel(b.responsible_role) }}</span></div>
-                                        </div>
-                                        <div class="d-flex gap-1 flex-shrink-0">
-                                            <button class="btn btn-sm btn-outline-light rounded-pill" @click="editLogbook(b)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteLogbook(b)" title="Löschen"><i class="fa fa-trash"></i></button>
-                                        </div>
-                                    </div>
-                                    <div v-if="!lbForm" class="d-flex gap-2 flex-wrap mt-3">
-                                        <button class="btn btn-outline-warning rounded-pill fw-bold" @click="newLogbookForm(true)"><i class="fa fa-drone me-1"></i>Flugbuch aus Vorlage</button>
-                                        <button class="btn btn-outline-light rounded-pill" @click="newLogbookForm(false)"><i class="fa fa-plus me-1"></i>Leeres Logbuch</button>
-                                    </div>
-                                    <div v-else class="mt-3">
-                                        <h6 class="fw-bold text-white">{{ lbForm.id ? 'Logbuch bearbeiten' : 'Neues Logbuch' }}</h6>
-                                        <div class="row g-3">
-                                            <div class="col-12 col-md-6"><label class="form-label">Name</label><input type="text" class="form-control" v-model="lbForm.name" maxlength="120" placeholder="z. B. Flugbuch"></div>
-                                            <div class="col-12 col-md-6"><label class="form-label">Bezug jedes Eintrags</label>
-                                                <select class="form-select" v-model="lbForm.subject">
-                                                    <option value="none">keiner</option>
-                                                    <option value="equipment">Gerät (z. B. die Drohne)</option>
-                                                    <option value="vehicle">Fahrzeug</option>
-                                                </select></div>
-                                            <div class="col-12 col-md-6"><label class="form-label">Zuständige Rolle <span class="text-muted">(sieht alles)</span></label>
-                                                <select class="form-select" v-model="lbForm.responsible_role">
-                                                    <option value="">keine (nur Admin/Leitung)</option>
-                                                    <option value="geratewart">Gerätewart</option>
-                                                    <option value="atemschutzwart">Atemschutzwart</option>
-                                                    <option value="gruppenfuehrer">Gruppenführer</option>
-                                                    <option value="jugendwarte">Jugendwart</option>
-                                                </select></div>
-                                            <div class="col-12 col-md-6"><label class="form-label">Zuständige Person <span class="text-muted">(zusätzlich)</span></label>
-                                                <select class="form-select" v-model="lbForm.responsible_pid">
-                                                    <option :value="null">keine</option>
-                                                    <option v-for="p in (dueSubjects.person || [])" :key="p.id" :value="p.id">{{ p.name }}</option>
-                                                </select></div>
-                                            <div class="col-12">
-                                                <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="lbOpen" v-model="lbForm.open_to_all"><label class="form-check-label" for="lbOpen">Alle Angemeldeten dürfen eigene Einträge machen</label></div>
-                                                <label class="form-label">Mitglieder <span class="text-muted">(dürfen eigene Einträge machen; ihre Fristen aus dem Logbuch werden geprüft) - {{ lbForm.member_ids.length }} gewählt</span></label>
-                                                <div class="border border-secondary border-opacity-25 rounded-3 p-2" style="max-height:200px; overflow:auto">
-                                                    <div v-for="p in (dueSubjects.person || [])" :key="p.id" class="form-check"><input class="form-check-input" type="checkbox" :id="'lbm' + p.id" :checked="lbForm.member_ids.includes(p.id)" @change="lbToggleMember(p.id)"><label class="form-check-label" :for="'lbm' + p.id">{{ p.name }}</label></div>
-                                                </div>
-                                                <div class="form-text">Die Person braucht ein Benutzerkonto, das mit ihr verknüpft ist.</div>
-                                            </div>
-                                        </div>
-                                        <h6 class="fw-bold text-white mt-4">Felder</h6>
-                                        <div v-for="(f, i) in lbForm.fields" :key="f.uid" class="border border-secondary border-opacity-25 rounded-3 p-2 mb-2">
-                                            <div class="row g-2 align-items-end">
-                                                <div class="col-12 col-md-4"><label class="form-label small mb-0">Bezeichnung</label><input type="text" class="form-control form-control-sm" v-model="f.label" maxlength="80"></div>
-                                                <div class="col-6 col-md-3"><label class="form-label small mb-0">Typ</label>
-                                                    <select class="form-select form-select-sm" v-model="f.ftype">
-                                                        <option value="text">Text</option><option value="number">Zahl</option><option value="date">Datum</option><option value="time">Uhrzeit</option>
-                                                        <option value="bool">Ja/Nein</option><option value="select">Auswahl</option><option value="duration">Dauer (aus Start und Ende)</option>
-                                                    </select></div>
-                                                <div class="col-6 col-md-2" v-if="f.ftype === 'number'"><label class="form-label small mb-0">Einheit</label><input type="text" class="form-control form-control-sm" v-model="f.unit" maxlength="20" placeholder="z. B. m"></div>
-                                                <div class="col-12 col-md-5" v-if="f.ftype === 'select'"><label class="form-label small mb-0">Auswahlwerte (mit Komma trennen)</label><input type="text" class="form-control form-control-sm" v-model="f.optionsText" placeholder="Einsatz, Übung, Training"></div>
-                                                <template v-if="f.ftype === 'duration'">
-                                                    <div class="col-6 col-md-2"><label class="form-label small mb-0">Start</label><select class="form-select form-select-sm" v-model="f.config.start"><option :value="undefined">wählen</option><option v-for="t in lbTimeFields()" :key="t.uid" :value="t.uid">{{ t.label || '(ohne Name)' }}</option></select></div>
-                                                    <div class="col-6 col-md-2"><label class="form-label small mb-0">Ende</label><select class="form-select form-select-sm" v-model="f.config.end"><option :value="undefined">wählen</option><option v-for="t in lbTimeFields()" :key="t.uid" :value="t.uid">{{ t.label || '(ohne Name)' }}</option></select></div>
-                                                </template>
-                                                <div class="col-6 col-md-3" v-if="f.ftype === 'number' || f.ftype === 'duration'"><label class="form-label small mb-0">Auswertung</label>
-                                                    <select class="form-select form-select-sm" v-model="f.evaluate"><option value="none">nicht auswerten</option><option value="sum">Summe bilden</option></select></div>
-                                                <div class="col-6 col-md-3" v-if="f.ftype === 'select' || f.ftype === 'bool' || f.ftype === 'text'"><label class="form-label small mb-0">Auswertung</label>
-                                                    <select class="form-select form-select-sm" v-model="f.evaluate"><option value="none">nicht auswerten</option><option value="group">nach Wert gruppieren</option></select></div>
-                                                <div class="col-6 col-md-2" v-if="f.ftype !== 'duration' && f.ftype !== 'bool'"><div class="form-check"><input class="form-check-input" type="checkbox" :id="'lbreq' + f.uid" v-model="f.required"><label class="form-check-label small" :for="'lbreq' + f.uid">Pflicht</label></div></div>
-                                                <div class="col-12 col-md-auto ms-auto d-flex gap-1">
-                                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="lbMoveField(i, -1)" :disabled="i === 0" title="Nach oben"><i class="fa fa-arrow-up"></i></button>
-                                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="lbMoveField(i, 1)" :disabled="i === lbForm.fields.length - 1" title="Nach unten"><i class="fa fa-arrow-down"></i></button>
-                                                    <button class="btn btn-sm btn-outline-danger rounded-pill" @click="lbForm.fields.splice(i, 1)" :disabled="lbForm.fields.length === 1" title="Feld entfernen"><i class="fa fa-xmark"></i></button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex gap-2 flex-wrap mt-3">
-                                            <button class="btn btn-outline-light rounded-pill" @click="lbAddField" :disabled="lbForm.fields.length >= 40"><i class="fa fa-plus me-1"></i>Feld hinzufügen</button>
-                                            <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveLogbook"><i class="fa fa-floppy-disk me-1"></i>{{ lbForm.id ? 'Änderung speichern' : 'Logbuch speichern' }}</button>
-                                            <button class="btn btn-outline-light rounded-pill" @click="lbForm = null">Abbrechen</button>
-                                        </div>
-                                    </div>
+                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-book-open text-danger me-2"></i>Logbücher</h5>
+                                    <p class="text-muted small">Logbücher (zum Beispiel das Flugbuch der Drohnen) legst du direkt im Menü <strong>Logbücher</strong> an und richtest sie dort ein. Eine Frist, die sich auf ein Logbuch stützt, legst du oben bei „Eigene Fristarten“ an.</p>
+                                    <button class="btn btn-outline-warning rounded-pill" @click="openLogbooks"><i class="fa fa-book-open me-1"></i>Zu den Logbüchern</button>
                                 </div>
                             </div>
                         </div>
@@ -2351,17 +2275,109 @@
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-book-open text-danger me-2"></i>Logbücher</h2>
-                            <small class="text-muted">Einträge und Auswertung - zum Beispiel das Flugbuch der Drohnen.</small>
+                            <small class="text-muted">Einträge machen und auswerten - zum Beispiel das Flugbuch der Drohnen.</small>
                         </div>
-                        <select class="form-select w-auto" v-model.number="logbookYear" @change="loadLogbookData" aria-label="Jahr">
+                        <select v-if="activeLogbook && !lbForm && !lbChooser" class="form-select w-auto" v-model.number="logbookYear" @change="loadLogbookData" aria-label="Jahr">
                             <option :value="0">Alle Jahre</option>
                             <option v-for="y in logbookYears" :key="y" :value="y">{{ y }}</option>
                         </select>
+                        <button v-if="canSeeSettings && logbooks.length && !lbForm && !lbChooser" class="btn btn-outline-warning rounded-pill fw-bold" @click="lbChooser = true"><i class="fa fa-plus me-1"></i>Neues Logbuch</button>
                     </div>
-                    <ul v-if="logbooks.length > 1" class="nav nav-pills mb-3 flex-wrap gap-2 pill-nav">
+                    <div v-if="canSeeSettings && !lbForm && (lbChooser || !logbooks.length)" class="card premium-card p-4 mb-4">
+                        <h5 class="fw-bold text-white mb-1">Neues Logbuch anlegen</h5>
+                        <p class="text-muted small">Ein Logbuch ist eine Liste, in die Mitglieder Einträge machen, zum Beispiel jeden Drohnenflug. Womit möchtest du anfangen?</p>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><button class="btn btn-outline-warning w-100 text-start p-3 rounded-4" @click="newLogbookForm(true)"><div class="fw-bold"><i class="fa fa-plane me-2"></i>Flugbuch (Vorlage)</div><div class="small" style="color:inherit">Start, Landung, Flugdauer (wird berechnet), Art, Ort, Akku, Vorfall. Du kannst alles ändern.</div></button></div>
+                            <div class="col-12 col-md-6"><button class="btn btn-outline-light w-100 text-start p-3 rounded-4" @click="newLogbookForm(false)"><div class="fw-bold"><i class="fa fa-plus me-2"></i>Leeres Logbuch</div><div class="small" style="color:inherit">Du legst die Angaben selbst fest, zum Beispiel für ein Schlüsselbuch oder einen Tätigkeitsnachweis.</div></button></div>
+                        </div>
+                        <div v-if="logbooks.length" class="mt-3"><button class="btn btn-outline-light rounded-pill" @click="lbChooser = false">Abbrechen</button></div>
+                    </div>
+                    <div v-if="lbForm" class="card premium-card p-4 mb-4">
+                        <h5 class="fw-bold text-white mb-3">{{ lbForm.id ? 'Logbuch einrichten' : 'Neues Logbuch' }}</h5>
+                        <h6 class="fw-bold text-white"><span class="badge bg-danger me-2">1</span>Name und Bezug</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-6"><label class="form-label">Name des Logbuchs</label><input type="text" class="form-control" v-model="lbForm.name" maxlength="120" placeholder="z. B. Flugbuch"></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Worauf beziehen sich die Einträge?</label>
+                                <select class="form-select" v-model="lbForm.subject">
+                                    <option value="none">auf nichts Bestimmtes</option>
+                                    <option value="equipment">auf ein Gerät (z. B. die Drohne)</option>
+                                    <option value="vehicle">auf ein Fahrzeug</option>
+                                </select></div>
+                        </div>
+                        <h6 class="fw-bold text-white"><span class="badge bg-danger me-2">2</span>Was wird bei jedem Eintrag erfasst?</h6>
+                        <p class="text-muted small">Datum und Person sind immer dabei. Hier legst du die weiteren Angaben fest, zum Beispiel Start, Landung oder Ort.</p>
+                                        <div v-for="(f, i) in lbForm.fields" :key="f.uid" class="border border-secondary border-opacity-25 rounded-3 p-2 mb-2">
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-12 col-md-4"><label class="form-label small mb-0">Bezeichnung</label><input type="text" class="form-control form-control-sm" v-model="f.label" maxlength="80"></div>
+                                                <div class="col-6 col-md-3"><label class="form-label small mb-0">Art der Angabe</label>
+                                                    <select class="form-select form-select-sm" v-model="f.ftype">
+                                                        <option value="text">Text (frei)</option><option value="number">Zahl</option><option value="date">Datum</option><option value="time">Uhrzeit</option>
+                                                        <option value="bool">Ja/Nein</option><option value="select">Auswahl (Liste)</option><option value="duration">Dauer (aus zwei Uhrzeiten)</option>
+                                                    </select></div>
+                                                <div class="col-6 col-md-2" v-if="f.ftype === 'number'"><label class="form-label small mb-0">Einheit</label><input type="text" class="form-control form-control-sm" v-model="f.unit" maxlength="20" placeholder="z. B. m"></div>
+                                                <div class="col-12 col-md-5" v-if="f.ftype === 'select'"><label class="form-label small mb-0">Auswahlmöglichkeiten (mit Komma trennen)</label><input type="text" class="form-control form-control-sm" v-model="f.optionsText" placeholder="Einsatz, Übung, Training"></div>
+                                                <template v-if="f.ftype === 'duration'">
+                                                    <div class="col-6 col-md-2"><label class="form-label small mb-0">Start</label><select class="form-select form-select-sm" v-model="f.config.start"><option :value="undefined">wählen</option><option v-for="t in lbTimeFields()" :key="t.uid" :value="t.uid">{{ t.label || '(ohne Name)' }}</option></select></div>
+                                                    <div class="col-6 col-md-2"><label class="form-label small mb-0">Ende</label><select class="form-select form-select-sm" v-model="f.config.end"><option :value="undefined">wählen</option><option v-for="t in lbTimeFields()" :key="t.uid" :value="t.uid">{{ t.label || '(ohne Name)' }}</option></select></div>
+                                                </template>
+                                                <div class="col-6 col-md-3" v-if="f.ftype === 'number' || f.ftype === 'duration'"><label class="form-label small mb-0">In der Auswertung</label>
+                                                    <select class="form-select form-select-sm" v-model="f.evaluate"><option value="none">nicht auswerten</option><option value="sum">Summe bilden</option></select></div>
+                                                <div class="col-6 col-md-3" v-if="f.ftype === 'select' || f.ftype === 'bool' || f.ftype === 'text'"><label class="form-label small mb-0">In der Auswertung</label>
+                                                    <select class="form-select form-select-sm" v-model="f.evaluate"><option value="none">nicht auswerten</option><option value="group">nach Wert zählen</option></select></div>
+                                                <div class="col-6 col-md-2" v-if="f.ftype !== 'duration' && f.ftype !== 'bool'"><div class="form-check"><input class="form-check-input" type="checkbox" :id="'lbreq' + f.uid" v-model="f.required"><label class="form-check-label small" :for="'lbreq' + f.uid">Muss ausgefüllt werden</label></div></div>
+                                                <div class="col-12 col-md-auto ms-auto d-flex gap-1">
+                                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="lbMoveField(i, -1)" :disabled="i === 0" title="Nach oben"><i class="fa fa-arrow-up"></i></button>
+                                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="lbMoveField(i, 1)" :disabled="i === lbForm.fields.length - 1" title="Nach unten"><i class="fa fa-arrow-down"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger rounded-pill" @click="lbForm.fields.splice(i, 1)" :disabled="lbForm.fields.length === 1" title="Feld entfernen"><i class="fa fa-xmark"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                        <div class="mb-4"><button class="btn btn-outline-light rounded-pill" @click="lbAddField" :disabled="lbForm.fields.length >= 40"><i class="fa fa-plus me-1"></i>Weitere Angabe hinzufügen</button></div>
+                        <h6 class="fw-bold text-white"><span class="badge bg-danger me-2">3</span>Wer darf eintragen?</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-6"><label class="form-label">Eintragen dürfen</label>
+                                <select class="form-select" v-model="lbForm.open_to_all">
+                                    <option :value="false">nur ausgewählte Mitglieder</option>
+                                    <option :value="true">alle Angemeldeten</option>
+                                </select></div>
+                            <div class="col-12" v-if="!lbForm.open_to_all">
+                                <label class="form-label">Mitglieder auswählen <span class="text-muted">({{ lbForm.member_ids.length }} gewählt)</span></label>
+                                                <div class="border border-secondary border-opacity-25 rounded-3 p-2" style="max-height:200px; overflow:auto">
+                                                    <div v-for="p in (dueSubjects.person || [])" :key="p.id" class="form-check"><input class="form-check-input" type="checkbox" :id="'lbm' + p.id" :checked="lbForm.member_ids.includes(p.id)" @change="lbToggleMember(p.id)"><label class="form-check-label" :for="'lbm' + p.id">{{ p.name }}</label></div>
+                                                </div>
+                                <div class="form-text">Die Person braucht ein mit ihr verknüpftes Benutzerkonto. Eine Frist aus dem Logbuch (z. B. Pflicht-Übungsflug) prüft genau diese Mitglieder.</div>
+                            </div>
+                        </div>
+                        <h6 class="fw-bold text-white"><span class="badge bg-danger me-2">4</span>Wer sieht alle Einträge und die Auswertung?</h6>
+                        <p class="text-muted small">Admin und Leitung immer. Alle anderen sehen nur ihre eigenen Einträge. Zusätzlich kannst du festlegen:</p>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><label class="form-label">Rolle</label>
+                                <select class="form-select" v-model="lbForm.responsible_role">
+                                    <option value="">keine zusätzliche Rolle</option>
+                                    <option value="geratewart">Gerätewart</option>
+                                    <option value="atemschutzwart">Atemschutzwart</option>
+                                    <option value="gruppenfuehrer">Gruppenführer</option>
+                                    <option value="jugendwarte">Jugendwart</option>
+                                </select></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Einzelne Person</label>
+                                <select class="form-select" v-model="lbForm.responsible_pid">
+                                    <option :value="null">keine</option>
+                                    <option v-for="p in (dueSubjects.person || [])" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                </select></div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mt-4">
+                            <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveLogbook"><i class="fa fa-floppy-disk me-1"></i>{{ lbForm.id ? 'Änderung speichern' : 'Logbuch speichern' }}</button>
+                            <button class="btn btn-outline-light rounded-pill" @click="lbForm = null">Abbrechen</button>
+                        </div>
+                    </div>
+                    <ul v-if="logbooks.length > 1 && !lbForm && !lbChooser" class="nav nav-pills mb-3 flex-wrap gap-2 pill-nav">
                         <li v-for="b in logbooks" :key="b.id" class="nav-item"><button class="nav-link" :class="activeLogbookId === b.id ? 'active bg-danger' : 'text-white'" @click="selectLogbook(b.id)">{{ b.name }}</button></li>
                     </ul>
-                    <template v-if="activeLogbook">
+                    <template v-if="activeLogbook && !lbForm && !lbChooser">
+                        <div v-if="canSeeSettings" class="d-flex gap-2 flex-wrap align-items-center mb-3">
+                            <button class="btn btn-sm btn-outline-light rounded-pill" @click="editLogbook(activeLogbook)"><i class="fa fa-gear me-1"></i>Logbuch einrichten</button>
+                            <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteLogbook(activeLogbook)"><i class="fa fa-trash me-1"></i>Logbuch löschen</button>
+                        </div>
                         <ul class="nav nav-pills mb-3 flex-wrap gap-2 pill-nav">
                             <li class="nav-item"><button class="nav-link" :class="logbookView === 'entries' ? 'active bg-danger' : 'text-white'" @click="logbookView = 'entries'"><i class="fa fa-list me-1"></i>Einträge</button></li>
                             <li class="nav-item"><button class="nav-link" :class="logbookView === 'eval' ? 'active bg-danger' : 'text-white'" @click="logbookView = 'eval'"><i class="fa fa-chart-simple me-1"></i>Auswertung</button></li>

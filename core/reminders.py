@@ -45,6 +45,12 @@ def get_due_items(window_days: int = None):
     window_end = today + datetime.timedelta(days=window_days)
     items = []
 
+    def setting(key, default):
+        # 0 ist hier ein gültiger Wert ("aus"), deshalb nicht mit "or" auf den Standard zurückfallen
+        cur.execute("SELECT setting_value FROM settings WHERE setting_key = %s", (key,))
+        r = cur.fetchone()
+        return default if r is None or r["setting_value"] is None else int(r["setting_value"])
+
     def add_item(item_type, name, detail, due_date, ref_id=None, personnel_id=None, first_check=False, atemschutz=False, area=None, **extra):
         items.append({
             **extra,
@@ -78,9 +84,9 @@ def get_due_items(window_days: int = None):
     )
     for v in cur.fetchall():
         if v.get("tuv_date") and v["tuv_date"] <= window_end:
-            add_item("vehicle", v["name"], "TÜV", v["tuv_date"], ref_id=v["id"])
+            add_item("vehicle", v["name"], "TÜV", v["tuv_date"], ref_id=v["id"], field="tuv_date")
         if v.get("sp_date") and v["sp_date"] <= window_end:
-            add_item("vehicle", v["name"], "Sicherheitsprüfung", v["sp_date"], ref_id=v["id"])
+            add_item("vehicle", v["name"], "Sicherheitsprüfung", v["sp_date"], ref_id=v["id"], field="sp_date")
 
     # G26.3-Atemschutzuntersuchung (gleiche Berechnung wie in personnel_mgr.py get_all_personnel)
     cur.execute("SELECT setting_value FROM settings WHERE setting_key = 'int_g26'")
@@ -99,9 +105,11 @@ def get_due_items(window_days: int = None):
         "WHERE (membership_status IS NULL OR membership_status = 'Aktiv') "
         "AND (is_maschinist = 1 OR lic_be = 1 OR lic_c = 1 OR lic_ce = 1)"
     )
-    for p in cur.fetchall():
+    license_rows = cur.fetchall()
+    license_months = setting("int_fuehrerschein", 12)
+    for p in (license_rows if license_months > 0 else []):
         checked = p["license_checked_date"]
-        due_date = (checked + datetime.timedelta(days=365)) if checked else today
+        due_date = (checked + datetime.timedelta(days=round(license_months * 30.44))) if checked else today
         if due_date <= window_end:
             add_item("license", p["name"], "Führerscheinkontrolle" + ("" if checked else " (noch nie erfasst)"), due_date,
                      personnel_id=p["id"], first_check=not checked)
@@ -113,10 +121,12 @@ def get_due_items(window_days: int = None):
 
     # Nachwuchs: Interessenten/Probemitglieder nachfassen bzw. Probezeit-Ende
     cur.execute("SELECT id, name, status, first_contact, last_contact, trial_end FROM prospects WHERE status IN ('Interessent', 'Probe')")
-    for pr in cur.fetchall():
+    prospect_rows = cur.fetchall()
+    follow_days = setting("int_interessent", 21)
+    for pr in prospect_rows:
         last = pr["last_contact"] or pr["first_contact"]
-        if last and last + datetime.timedelta(days=21) <= window_end:
-            add_item("prospect", pr["name"], "Interessent: seit 3 Wochen kein Kontakt - nachfassen", last + datetime.timedelta(days=21), ref_id=pr["id"])
+        if follow_days > 0 and last and last + datetime.timedelta(days=follow_days) <= window_end:
+            add_item("prospect", pr["name"], f"Interessent: seit {follow_days} Tagen kein Kontakt - nachfassen", last + datetime.timedelta(days=follow_days), ref_id=pr["id"])
         if pr["trial_end"] and pr["trial_end"] <= window_end:
             add_item("prospect", pr["name"], "Probezeit endet - Entscheidung treffen", pr["trial_end"], ref_id=pr["id"])
 
@@ -135,17 +145,19 @@ def get_due_items(window_days: int = None):
     for h in cur.fetchall():
         add_item("hvo_material", h["name"], f"{h['quantity']}x - Verfallsdatum Sanitätsmaterial", h["expiry_date"], ref_id=h["id"])
 
-    # Fahrzeug-Wochenkontrolle: ältere als 7 Tage melden; die erste Kontrolle je Fahrzeug hat noch kein Datum
+    # Fahrzeugkontrolle (Standard wöchentlich, einstellbar; 0 = aus): ältere als der Abstand melden; die erste Kontrolle je Fahrzeug hat noch kein Datum
     # und gilt deshalb als Erstkontrolle ab heute.
     cur.execute("""
         SELECT v.id, v.name, MAX(c.date) as last_check FROM vehicles v
         LEFT JOIN vehicle_checks c ON c.vehicle_id = v.id
         GROUP BY v.id, v.name
     """)
-    for v in cur.fetchall():
-        due_date = (v["last_check"] + datetime.timedelta(days=7)) if v["last_check"] else today
+    check_rows = cur.fetchall()
+    check_days = setting("int_fahrzeugkontrolle", 7)
+    for v in (check_rows if check_days > 0 else []):
+        due_date = (v["last_check"] + datetime.timedelta(days=check_days)) if v["last_check"] else today
         if due_date <= window_end:
-            add_item("vehicle_check", v["name"], "Wöchentliche Fahrzeugkontrolle", due_date, ref_id=v["id"], first_check=not v["last_check"])
+            add_item("vehicle_check", v["name"], "Fahrzeugkontrolle" if check_days != 7 else "Wöchentliche Fahrzeugkontrolle", due_date, ref_id=v["id"], first_check=not v["last_check"])
 
     # Verbrauchsmaterial unter Mindestbestand - kein Datum im eigentlichen Sinn, wird deshalb als "ab heute fällig" gemeldet.
     cur.execute("SELECT id, name, unit, current_stock, min_stock FROM consumables WHERE min_stock > 0 AND current_stock <= min_stock")

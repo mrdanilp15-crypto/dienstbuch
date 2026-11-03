@@ -267,7 +267,7 @@ applyChartTheme();
                     dueEntryForm: { id: null, type_id: null, subject_id: null, due_date: '', note: '' },
                     logbooks: [], logbooksLoaded: false, activeLogbookId: null, logbookView: 'entries', logbookYear: new Date().getFullYear(),
                     lbEntries: [], lbEval: null, lbChoices: { people: [], subjects: [] }, lbEntryForm: { id: null, entry_date: '', personnel_id: null, subject_id: null, values: {} },
-                    lbForm: null, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
+                    lbForm: null, lbChooser: false, pwPolicyTick: 0, pwHint: PasswordPolicy.hint, adminPw: { id: null, username: '', password: '', show: false, busy: false },
                     audienceInfo: null, detailPending: [],
                     backupInfo: null, backupBusy: false, offsiteForm: { enabled: false, url: '', username: '', password: '' }, privacy: null,
                     security: null, securitySaving: false, myDevices: [], must2fa: false, mailInviteOk: false,
@@ -337,7 +337,7 @@ applyChartTheme();
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
                     verwaltungTab: '',
-                    intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30 },
+                    intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30, int_fahrzeugkontrolle: 7, int_fuehrerschein: 12, int_interessent: 21 },
                     
                     // Mängelmelder
                     defectReports: [],
@@ -1611,6 +1611,14 @@ applyChartTheme();
                     if (it.type === 'custom' && it.ref_id) {
                         const res = await fetch(`/api/due/entries/${it.ref_id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
                         if (res.ok) { await this.loadDueItems(); if (this.dueTypes.length) await this.loadDueManager(); }
+                    } else if (it.type === 'vehicle' && it.ref_id && it.field) {
+                        const isTuv = it.field === 'tuv_date', d = new Date();
+                        d.setMonth(d.getMonth() + (isTuv ? 24 : 12));
+                        const val = await appPrompt(`${it.detail} von „${it.name}“ bestanden. Wann ist die nächste fällig?`, localISODate(d), 'Neues Fälligkeitsdatum', 'date');
+                        if (!val) return;
+                        const res = await fetch(`/api/vehicles/${it.ref_id}/inspection`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field: it.field, date: val }) });
+                        if (res.ok) { await this.loadDueItems(); this.loadVehicles && this.loadVehicles(); }
+                        else { const e = await res.json().catch(() => ({})); await appAlert(typeof e.detail === 'string' ? e.detail : 'Konnte nicht gespeichert werden.'); }
                     } else if (it.type === 'building' && it.ref_id) {
                         const res = await fetch(`/api/building/checks/${it.ref_id}/done`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
                         if (res.ok) await this.loadDueItems();
@@ -1691,7 +1699,7 @@ applyChartTheme();
                     const res = await fetch(`/api/due/entries/${e.id}`, { method: 'DELETE', credentials: 'include' });
                     if (res.ok) { await this.loadDueManager(); await this.loadDueItems(); }
                 },
-                // ---- Logbücher (z.B. Flugbuch): Tab "Logbücher" und Editor unter Einstellungen → Wache & Fristen
+                // ---- Logbücher (z.B. Flugbuch): Tab "Logbücher" mit Einträgen, Auswertung und (für Admin/Leitung) dem Einrichten
                 async loadLogbooks() {
                     try {
                         const res = await fetch('/api/logbooks', { credentials: 'include' });
@@ -1701,8 +1709,9 @@ applyChartTheme();
                         }
                     } catch (err) {}
                     this.logbooksLoaded = true;
-                    if (this.activeTab === 'logbuch') { if (!this.logbooks.length) this.activeTab = 'dienste'; else this.loadLogbookData(); }
+                    if (this.activeTab === 'logbuch') { if (!this.logbooks.length && !this.canSeeSettings) this.activeTab = 'dienste'; else this.loadLogbookData(); }
                 },
+                openLogbooks() { this.activeTab = 'logbuch'; this.lbChooser = !this.logbooks.length; window.scrollTo({ top: 0 }); },
                 selectLogbook(id) { this.activeLogbookId = id; this.logbookView = 'entries'; this.resetLbEntryForm(); this.loadLogbookData(); },
                 async loadLogbookData() {
                     const b = this.activeLogbook;
@@ -1765,10 +1774,12 @@ applyChartTheme();
                         f('Ort', 'text', {}), f('Akku', 'text', {}), f('Vorfall / Störung', 'bool', { evaluate: 'group' }), f('Bemerkung', 'text', {})] };
                 },
                 newLogbookForm(preset) {
+                    this.lbChooser = false;
                     this.lbForm = preset ? this.lbPreset() : { id: null, name: '', subject: 'none', responsible_role: '', responsible_pid: null, open_to_all: false, member_ids: [], fields: [this.lbBlankField()] };
                     this.loadDueSubjects('person');
                 },
                 editLogbook(b) {
+                    this.lbChooser = false;
                     this.lbForm = { id: b.id, name: b.name, subject: b.subject, responsible_role: b.responsible_role || '', responsible_pid: b.responsible_pid, open_to_all: b.open_to_all, member_ids: [...b.member_ids],
                         fields: b.fields.map(f => ({ uid: String(f.id), id: f.id, label: f.label, ftype: f.ftype, unit: f.unit || '', optionsText: (f.options || []).join(', '), required: f.required, evaluate: f.evaluate,
                             config: f.ftype === 'duration' ? { start: String(f.config.start), end: String(f.config.end) } : {} })) };
@@ -1786,7 +1797,11 @@ applyChartTheme();
                     const body = { name: f.name, subject: f.subject, responsible_role: f.responsible_role || '', responsible_pid: f.responsible_pid || null, open_to_all: !!f.open_to_all, member_ids: f.member_ids, fields };
                     const res = await fetch(f.id ? `/api/logbooks/${f.id}` : '/api/logbooks', { method: f.id ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(typeof d.detail === 'string' ? d.detail : 'Bitte die Angaben prüfen.'); return; }
+                    const known = this.logbooks.map(x => x.id);
                     this.lbForm = null; await this.loadLogbooks();
+                    const fresh = this.logbooks.find(x => !known.includes(x.id));
+                    if (fresh) this.activeLogbookId = fresh.id;
+                    this.logbookView = 'entries'; this.resetLbEntryForm(); this.loadLogbookData();
                 },
                 async deleteLogbook(b) {
                     if (!await appConfirm(`Logbuch „${b.name}“ samt allen Einträgen löschen?`)) return;
@@ -3167,7 +3182,7 @@ applyChartTheme();
                     if (tab === 'stats') return this.canSeeStats;
                     if (tab === 'personal') return this.canSeePersonnel;
                     if (tab === 'jugend') return this.canSeeYouth;
-                    if (tab === 'logbuch') return !this.logbooksLoaded || this.logbooks.length > 0;
+                    if (tab === 'logbuch') return !this.logbooksLoaded || this.logbooks.length > 0 || this.canSeeSettings;
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
                 },
@@ -4447,7 +4462,7 @@ applyChartTheme();
                     if (it.days === 0) return 'heute fällig';
                     return 'in ' + it.days + (it.days === 1 ? ' Tag' : ' Tagen') + ' (' + new Date(it.due_date).toLocaleDateString('de-DE') + ')';
                 },
-                canDone(it) { return it.type === 'building' || it.type === 'license' || (it.type === 'custom' && it.can_done); },
+                canDone(it) { return it.type === 'building' || (it.type === 'vehicle' && !!it.field && ['admin', 'leitung', 'geratewart'].includes(this.$root.role)) || it.type === 'license' || (it.type === 'custom' && it.can_done); },
                 // "Zur Prüfung" nur, wenn die Rolle den Reiter dahinter überhaupt sieht (eigene G26/Lehrgänge führen sonst ins Leere)
                 canGoto(it) { return !['g26', 'lehrgang', 'license', 'prospect'].includes(it.type) || this.$root.tabAllowed('personal'); }
             },
