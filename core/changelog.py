@@ -10,7 +10,7 @@ CHANGELOG = [
         "version": "2.70",
         "date": "2026-11-03",
         "items": [
-            {"type": "improved", "tag": "Logbücher", "title": "Logbücher übersichtlicher anlegen",
+            {"type": "new", "tag": "Logbücher", "title": "Logbücher übersichtlicher anlegen",
              "text": "Das Menü „Logbücher“ ist für Admin und Leitung immer da. Dort legst du ein Logbuch direkt an: erst Flugbuch-Vorlage oder leer wählen, dann vier klare Schritte (Name und Bezug, Angaben pro Eintrag, wer darf eintragen, wer sieht alles). Einrichten und Löschen stehen direkt am Logbuch."},
             {"type": "new", "tag": "Fristen", "title": "TÜV und Sicherheitsprüfung direkt erledigen",
              "text": "In der Fristen-Liste gibt es bei TÜV und Sicherheitsprüfung den Knopf „Erledigt“: neues Fälligkeitsdatum eintragen, die Meldung verschwindet. Das Datum muss nicht mehr im Fahrzeug selbst geändert werden."},
