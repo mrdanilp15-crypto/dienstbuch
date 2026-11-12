@@ -9,7 +9,7 @@ import uuid
 
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
-from core.utils import check_auth, get_current_user
+from core.utils import check_auth, check_display_access, get_current_user
 from core.schedule_access import visibility_sql, can_view_schedule, EDITOR_ROLES
 
 def safe_decode(val):
@@ -357,10 +357,19 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
         raise HTTPException(status_code=400, detail="Keine erfasste Anwesenheit dieser Person bei diesem Einsatz - Bescheinigung kann nicht erstellt werden.")
 
     from core.utils import get_station_name
-    station_name = get_station_name()
+    # Freitext maskieren (siehe material_mgr): kein HTML aus Namen, Stichwort oder Adresse im PDF.
+    esc = lambda v: _html.escape(str(v)) if v is not None else ""
+    station_name = esc(get_station_name())
+    p = {**p, "name": esc(p.get("name")), "address": esc(p.get("address")) if p.get("address") else p.get("address")}
+    m = {**m, "stichwort": esc(m.get("stichwort")) if m.get("stichwort") else None, "adresse": esc(m.get("adresse")) if m.get("adresse") else None}
+    # Stempel und Unterschrift sind eingebettete Bilder - nichts anderes als Bildquelle zulassen
+    if not str(stamp_image or "").startswith("data:image/"):
+        stamp_image = None
+    if not str(signature_data_url or "").startswith("data:image/"):
+        signature_data_url = None
 
     if stamp_image:
-        stamp_html = f'<img src="{stamp_image}" style="height:60px; margin-top:5px;">'
+        stamp_html = f'<img src="{_html.escape(stamp_image, quote=True)}" style="height:60px; margin-top:5px;">'
     else:
         stamp_html = '<div style="height: 60px; border: 1px dashed #d1d5db; border-radius: 4px; margin-top: 5px;"></div>'
     if signature_data_url:
@@ -369,7 +378,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
         # statt der kompletten, größtenteils leeren Zeichenfläche - dadurch reicht hier eine feste,
         # moderate Höhe ohne negativen Rand, die Unterschrift sitzt direkt über der Linie.
         signature_html = (
-            f'<img src="{signature_data_url}" style="height:40px; max-width:180px;">'
+            f'<img src="{_html.escape(signature_data_url, quote=True)}" style="height:40px; max-width:180px;">'
             '<div class="sig-line">(Unterschrift Feuerwehrkommandant / Einsatzleiter)</div>'
         )
     else:
@@ -960,8 +969,9 @@ def _assert_can_view(cur, user, sch_id: int):
 
 @router.get("/schedules/list")
 def list_schedules(request: Request):
-    # Kein check_auth: wird auch vom nicht eingeloggten Hallenmonitor (alarmdisplay.html) gelesen -
-    # dann aber nur Termine, die fuer alle gelten.
+    # Wird auch vom nicht eingeloggten Hallenmonitor (alarmdisplay.html) gelesen - mit Display-Token und
+    # dann nur Termine, die fuer alle gelten. Ohne Anmeldung UND ohne Token gibt es nichts.
+    check_display_access(request)
     user = get_current_user(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)

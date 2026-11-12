@@ -6,6 +6,21 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 21,
+        "version": "2.71",
+        "date": "2026-11-12",
+        "items": [
+            {"type": "fix", "tag": "Sicherheit", "title": "Daten nur noch mit Anmeldung",
+             "text": "Objekte mit Brandmeldeanlage, Hydranten, Termine und hochgeladene Dateien (Dokumente, Fahrzeugpapiere, Profilbilder) sind nur noch mit Anmeldung abrufbar. Das Hallen-Display nutzt dafür weiter seinen eigenen Zugangs-Link. Berichte und PDFs geben Freitext jetzt immer als reinen Text aus."},
+            {"type": "new", "tag": "Fahrzeuge", "title": "TÜV und Sicherheitsprüfung auf einen Blick",
+             "text": "Im Fahrzeugpool steht bei jedem Fahrzeug, bis wann TÜV und Sicherheitsprüfung gelten – abgelaufene Termine sind rot."},
+            {"type": "fix", "tag": "Anzeige", "title": "Datum überall deutsch",
+             "text": "Datumsangaben stehen jetzt einheitlich als 07.11.2026 statt 2026-11-07. Eine Frist gilt erst nach ihrem Fälligkeitstag als überfällig. Die Abrechnung hat eine Überschrift bekommen, die Gerätekarten sind aufgeräumt."},
+            {"type": "fix", "tag": "Anzeige", "title": "Richtiger Tag kurz nach Mitternacht",
+             "text": "Neue Logbuch-Einträge und die Terminliste im Hallen-Display nehmen jetzt das hiesige Datum – bisher konnte zwischen 0 und 2 Uhr noch der Vortag erscheinen."},
+        ],
+    },
+    {
         "id": 20,
         "version": "2.70",
         "date": "2026-11-03",

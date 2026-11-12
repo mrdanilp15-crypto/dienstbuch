@@ -115,6 +115,9 @@ applyChartTheme();
         }
 
         // new Date().toISOString() liefert das UTC-Datum - zwischen Mitternacht und 1/2 Uhr morgens also "gestern".
+        // Texte aus der Datenbank (Objektnamen, Adressen aus der Alarmierung) landen in Karten-Popups als HTML -
+        // ohne Maskierung könnte ein Name mit <script>/<img onerror> dort Code ausführen.
+        function escHtml(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
         function localISODate(d) {
             d = d || new Date();
             return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
@@ -1727,7 +1730,7 @@ applyChartTheme();
                 },
                 resetLbEntryForm() {
                     const people = this.lbChoices.people || [];
-                    this.lbEntryForm = { id: null, entry_date: new Date().toISOString().slice(0, 10), personnel_id: people.length === 1 ? people[0].id : null, subject_id: null, values: {} };
+                    this.lbEntryForm = { id: null, entry_date: localISODate(), personnel_id: people.length === 1 ? people[0].id : null, subject_id: null, values: {} };
                 },
                 printPage() { window.print(); },
                 fmtMinutes(m) { return m === null || m === undefined ? '' : Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ' h'; },
@@ -2565,7 +2568,7 @@ applyChartTheme();
                         });
                         
                         const marker = L.marker([h.lat, h.lng], { icon: divIcon })
-                            .bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteHydrant(${h.id})">Löschen</button>`)
+                            .bindPopup(`<b>${escHtml(h.label)}</b><br>Typ: ${escHtml(h.type)}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteHydrant(${h.id})">Löschen</button>`)
                             .addTo(map);
                         hydrantMarkers.push(marker);
                     });
@@ -2580,7 +2583,7 @@ applyChartTheme();
                             });
                             
                             const marker = L.marker([b.lat, b.lng], { icon: divIcon })
-                                .bindPopup(`<b>BMA: ${b.object_name}</b><br>BMA-Nr: ${b.bma_number}<br>Schlüssel-Depot: ${b.key_depot ? 'JA' : 'NEIN'}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteBmaOnMap(${b.id})">Entfernen</button>`)
+                                .bindPopup(`<b>BMA: ${escHtml(b.object_name)}</b><br>BMA-Nr: ${escHtml(b.bma_number)}<br>Schlüssel-Depot: ${b.key_depot ? 'JA' : 'NEIN'}<br><button class="btn btn-xs btn-danger mt-1 text-white border-0" onclick="window.deleteBmaOnMap(${b.id})">Entfernen</button>`)
                                 .addTo(map);
                             hydrantMarkers.push(marker);
                         }
@@ -3836,6 +3839,12 @@ applyChartTheme();
                     }
                 },
                 
+                // Datum aus der Datenbank (2026-11-07 oder 2026-11-07 14:30:00) deutsch anzeigen: 07.11.2026 bzw. 07.11.2026 14:30
+                dt(v) {
+                    if (!v) return '';
+                    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(v));
+                    return m ? m[3] + '.' + m[2] + '.' + m[1] + (m[4] ? ' ' + m[4] + ':' + m[5] : '') : v;
+                },
                 formatDateDay(d) {
                     if (!d || typeof d !== 'string' || !d.includes('-')) return '';
                     return d.split('-')[2];
@@ -3849,7 +3858,8 @@ applyChartTheme();
                     const parts = d.split('-');
                     return `${parts[1]}.${parts[0].substring(2)}`;
                 },
-                isOverdue(d) { if(!d) return false; return new Date(d) < new Date(); },
+                // Überfällig erst NACH dem Fälligkeitstag - am Tag selbst ist die Frist noch nicht verstrichen
+                isOverdue(d) { if(!d) return false; return String(d).slice(0, 10) < localISODate(); },
                 getStatusClass(status) { if(status === 'Aktiv') return 'aktiv'; if(status === 'Passiv') return 'passiv'; if(status === 'Jugend') return 'jugend'; if(status === 'Ausgeschieden') return 'ausgeschieden'; return 'ehren'; },
                 
                 // Group methods
@@ -4500,7 +4510,33 @@ applyChartTheme();
                     </div>
                 </div>`
         });
-        window.vueApp = app.mount('#app');
+        // Die Seite selbst ist die Vorlage: der Browser liest sie ein, Vue übersetzt sie beim Start in Code.
+        // Liest ein Browser (z.B. ein älteres iPhone) eine Stelle anders ein, scheitert der ganze Start mit einem
+        // nichtssagenden "Unexpected token". Dann hier die betroffenen Ausdrücke heraussuchen und mit ausgeben.
+        const _appSource = document.getElementById('app').innerHTML;
+        function _findBrokenExpressions(html) {
+            const bad = [], seen = new Set();
+            const test = (exp, where) => {
+                exp = exp.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+                if (!exp || seen.has(exp)) return;
+                seen.add(exp);
+                try { new Function('return (' + exp + '\n)'); return; } catch (e1) {}
+                try { new Function(exp); } catch (e2) { bad.push(where + ' → ' + exp.slice(0, 140) + ' (' + e2.message + ')'); }
+            };
+            let m;
+            const text = /\{\{([\s\S]*?)\}\}/g;
+            while ((m = text.exec(html)) && bad.length < 3) test(m[1], 'Text');
+            const attr = /\s((?:v-(?:if|else-if|show|model(?:\.[a-z]+)*|bind|html|text)|[:@][\w.\-:\[\]]+))="([^"]*)"/g;
+            while ((m = attr.exec(html)) && bad.length < 3) test(m[2], m[1]);
+            return bad;
+        }
+        try {
+            window.vueApp = app.mount('#app');
+        } catch (err) {
+            let extra = '';
+            try { const bad = _findBrokenExpressions(_appSource); extra = bad.length ? ' | Stelle: ' + bad.join(' || ') : ' | keine einzelne Stelle gefunden, Seite: ' + _appSource.length + ' Zeichen'; } catch (e) {}
+            throw new Error((err && err.message || String(err)) + extra);
+        }
 
         // Global function for map popup delete button
         window.deleteHydrant = async (id) => {

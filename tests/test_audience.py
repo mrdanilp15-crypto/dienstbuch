@@ -70,7 +70,9 @@ seen = {"admin": titles(admin)[0], **{u: titles(c)[0] for u, c in clients.items(
 for u, ok in expected.items():
     check(f"Liste: {u} {'sieht' if ok else 'sieht NICHT'} den geheimen Termin", ("GEHEIM Atemschutz" in seen[u]) == ok)
     check(f"Liste: {u} sieht den öffentlichen Termin", "OEFFENTLICH Übung" in seen[u])
-check("Liste: nicht angemeldet (Hallenmonitor) sieht nur öffentliche", titles(anon)[0] == {"OEFFENTLICH Übung"})
+check("Liste: ganz ohne Anmeldung und ohne Display-Token gesperrt", anon.get("/api/missions/schedules/list").status_code == 401)
+_dtok = admin.get("/api/settings/access-tokens").json()["display_token"]
+check("Liste: Hallenmonitor (Display-Token) sieht nur öffentliche", {x["title"] for x in anon.get(f"/api/missions/schedules/list?token={_dtok}").json()} == {"OEFFENTLICH Übung"})
 rows = {x["title"]: x for x in clients["gf"].get("/api/missions/schedules/list").json()}
 check("Liste: GF bekommt audience_ids", sorted(rows["GEHEIM Atemschutz"]["audience_ids"]) == sorted(aud))
 rows_in = {x["title"]: x for x in clients["m_in"].get("/api/missions/schedules/list").json()}
@@ -153,7 +155,7 @@ check("Serie löschen räumt Teilnehmerkreise auf", clients["gf"].delete(f"/api/
 
 # --- Altbestand (vor dem Update angelegt) bleibt für alle sichtbar
 sql(f"insert into schedules (title,date,time,type) values ('ALT','{tomorrow}','10:00','Übung')")
-check("Altbestand ist öffentlich (Standard 'all')", sql("select audience from schedules where title='ALT'") == "all" and "ALT" in titles(clients["m_out"])[0] and "ALT" in titles(anon)[0])
+check("Altbestand ist öffentlich (Standard 'all')", sql("select audience from schedules where title='ALT'") == "all" and "ALT" in titles(clients["m_out"])[0] and "ALT" in {x["title"] for x in anon.get(f"/api/missions/schedules/list?token={_dtok}").json()})
 
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)

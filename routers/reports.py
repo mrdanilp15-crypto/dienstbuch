@@ -1,4 +1,17 @@
 from datetime import datetime
+from html import escape
+
+
+def _e(v):
+    """Freitext aus der Datenbank (Thema, Namen, Notizen) fuer die HTML-Ausgabe maskieren - sonst fuehrt ein
+    Eintrag wie <script>... beim Oeffnen des Berichts Code im Browser der Leitung aus."""
+    return escape(str(v)) if v is not None else ""
+
+
+def _sig_src(v):
+    """Unterschriften sind eingebettete Bilder (data:image/...). Alles andere wird nicht als Bildquelle ausgegeben."""
+    v = str(v or "")
+    return escape(v, quote=True) if v.startswith("data:image/") and len(v) > 100 else ""
 
 def get_report_styles():
     # WICHTIG: xhtml2pdf (erzeugt die PDFs) unterstützt kein CSS-Flexbox/Grid - display:flex
@@ -36,9 +49,10 @@ def get_report_styles():
 def generate_single_report(s, persons, town_name):
     # WICHTIG: town_name muss hier als 3. Argument stehen!
     sign_date = s['date'].strftime('%d.%m.%Y') if hasattr(s['date'], 'strftime') else str(s['date'])
-    l_sig_data = s.get('leader_signature')
-    l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data and len(str(l_sig_data)) > 100 else "<div style='height:75px;'></div>"
-    cat = s.get('category', 'Übung'); cat_class = f"bg-{cat.lower()}"
+    l_sig_data = _sig_src(s.get('leader_signature'))
+    l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data else "<div style='height:75px;'></div>"
+    cat = s.get('category') or 'Übung'
+    cat_class = f"bg-{cat.lower()}" if cat in ('Übung', 'Einsatz', 'Sonstiges') else "bg-sonstiges"
     # Ausrück-/Eintreffzeit gibt es nur bei Einsätzen (FwDV 100) und nur, wenn tatsächlich
     # erfasst - ein leeres "Ausgerückt: Uhr" bei Dienstberichten oder alten Einsätzen ohne
     # diese Angabe wäre nur verwirrend.
@@ -46,31 +60,32 @@ def generate_single_report(s, persons, town_name):
     if cat == 'Einsatz' and (s.get('ausrueck_zeit') or s.get('eintreff_zeit')):
         teile = []
         if s.get('ausrueck_zeit'):
-            teile.append(f"Ausgerückt: {s['ausrueck_zeit']} Uhr")
+            teile.append(f"Ausgerückt: {_e(s['ausrueck_zeit'])} Uhr")
         if s.get('eintreff_zeit'):
-            teile.append(f"Eingetroffen: {s['eintreff_zeit']} Uhr")
+            teile.append(f"Eingetroffen: {_e(s['eintreff_zeit'])} Uhr")
         zeiten_zeile = f"<br>{' &bull; '.join(teile)}"
     html = f"""
     <div class="session-page">
         <div class="main-title">Dienstbericht</div>
         <div class="info-box clearfix">
-            <div class="info-left"><strong>Einheit:</strong> {s.get('gname', '---')}<br><strong>Leitung:</strong> {s.get('instructors') or '---'}</div>
+            <div class="info-left"><strong>Einheit:</strong> {_e(s.get('gname', '---'))}<br><strong>Leitung:</strong> {_e(s.get('instructors') or '---')}</div>
             <div class="info-right"><strong>Datum:</strong> {sign_date}<br><strong>Dauer:</strong> {float(s['duration']):g} h{zeiten_zeile}</div>
         </div>
-        <div class="topic-box {cat_class}"><span style="font-size:10px; font-weight:bold; text-transform:uppercase; opacity:0.8;">{cat}</span><div style="font-size:16px; font-weight:bold;">{s['description']}</div></div>
+        <div class="topic-box {cat_class}"><span style="font-size:10px; font-weight:bold; text-transform:uppercase; opacity:0.8;">{_e(cat)}</span><div style="font-size:16px; font-weight:bold;">{_e(s['description'])}</div></div>
         <table>
             <thead><tr><th>Name</th><th style="width:100px;">Status</th><th>Notiz</th><th style="width:150px; text-align:center;">Unterschrift</th></tr></thead>
             <tbody>"""
     for p in persons:
-        sig = f"<img src='{p['signature']}' class='sig-img'>" if p.get('signature') and len(str(p['signature'])) > 100 else ""
+        sig_src = _sig_src(p.get('signature'))
+        sig = f"<img src='{sig_src}' class='sig-img'>" if sig_src else ""
         status, color = ("Anwesend", "#198754") if p.get('is_present') == 1 else ("Abwesend", "#dc3545")
-        html += f"<tr><td style='font-weight:bold;'>{p['name']}</td><td style='color:{color}; font-weight:bold;'>{status}</td><td><small>{p.get('vehicle') or ''} {p.get('note') or ''}</small></td><td style='text-align:center;'>{sig}</td></tr>"
+        html += f"<tr><td style='font-weight:bold;'>{_e(p['name'])}</td><td style='color:{color}; font-weight:bold;'>{status}</td><td><small>{_e(p.get('vehicle') or '')} {_e(p.get('note') or '')}</small></td><td style='text-align:center;'>{sig}</td></tr>"
     html += f"""
             </tbody>
         </table>
         <table class="sig-table">
             <tr>
-                <td>{town_name}, den {sign_date}<div class="sig-line-text">Ort / Datum</div></td>
+                <td>{_e(town_name)}, den {sign_date}<div class="sig-line-text">Ort / Datum</div></td>
                 <td>{l_sig_html}<div class="sig-line-text">Unterschrift Leitung</div></td>
             </tr>
         </table>
@@ -82,7 +97,7 @@ def generate_year_report(gname, year, p_stats, cat_sums, town_name):
     html = f"""
     <div class="session-page">
         <div class="main-title">Jahresstatistik {year}</div>
-        <div style="font-size:14px; margin-bottom:20px;"><strong>Einheit:</strong> {gname}</div>
+        <div style="font-size:14px; margin-bottom:20px;"><strong>Einheit:</strong> {_e(gname)}</div>
         <table class="stat-table">
             <tr>
                 <td class="stat-box">GESAMT<span class="total-val">{sum(cat_sums.values()):g} h</span></td>
@@ -95,13 +110,13 @@ def generate_year_report(gname, year, p_stats, cat_sums, town_name):
             <thead><tr style="background:#f4f4f4;"><th>Name</th><th>Übung</th><th>Einsatz</th><th>Sonst.</th><th>Gesamt</th><th style="text-align:center;">Dienste</th><th style="text-align:center;">Quote</th></tr></thead>
             <tbody>"""
     for n, d in sorted(p_stats.items(), key=lambda x: x[1]['total_h'], reverse=True):
-        html += f"<tr><td style='font-weight:bold;'>{n}</td><td style='color:#0d6efd;'>{d['Übung']:g}h</td><td style='color:#dc3545;'>{d['Einsatz']:g}h</td><td style='color:#827717;'>{d['Sonstiges']:g}h</td><td style='background:#f9f9f9; font-weight:bold;'>{d['total_h']:g}h</td><td style='text-align:center;'>{d['p']}</td><td style='text-align:center; font-weight:bold;'>{d['q']}%</td></tr>"
+        html += f"<tr><td style='font-weight:bold;'>{_e(n)}</td><td style='color:#0d6efd;'>{d['Übung']:g}h</td><td style='color:#dc3545;'>{d['Einsatz']:g}h</td><td style='color:#827717;'>{d['Sonstiges']:g}h</td><td style='background:#f9f9f9; font-weight:bold;'>{d['total_h']:g}h</td><td style='text-align:center;'>{d['p']}</td><td style='text-align:center; font-weight:bold;'>{d['q']}%</td></tr>"
     html += f"""
             </tbody>
         </table>
         <table class="sig-table">
             <tr>
-                <td>{town_name}, den {today}<div class="sig-line-text">Ort / Datum</div></td>
+                <td>{_e(town_name)}, den {today}<div class="sig-line-text">Ort / Datum</div></td>
                 <td><div style="height:75px;"></div><div class="sig-line-text">Unterschrift Wehrführung</div></td>
             </tr>
         </table>

@@ -38,7 +38,7 @@ from routers import aao_api
 from routers import logbook_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.70"
+CURRENT_VERSION = "2.71"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -55,6 +55,16 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 @app.middleware("http")
 async def add_cache_control_headers(request: Request, call_next):
+    # Hochgeladene Dateien (Dokumente, Fahrzeugpapiere, Profilbilder) lagen bisher offen unter /static/uploads/ -
+    # wer den Link kannte, kam ohne Anmeldung heran. Jetzt nur noch mit Anmeldung oder Display-Token.
+    if request.url.path.startswith("/static/uploads/"):
+        try:
+            check_display_access(request)
+        except HTTPException:
+            return JSONResponse(status_code=401, content={"detail": "Bitte anmelden."})
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "private, max-age=86400"
+        return response
     response = await call_next(request)
     if request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
@@ -217,7 +227,7 @@ app.include_router(legal_api.router)
 from database import get_db_connection
 
 # --- REVISIONS-LOGBUCH HELFER ---
-from core.utils import log_audit_action, hash_password, get_current_user
+from core.utils import log_audit_action, hash_password, get_current_user, check_display_access
 from core.security import two_fa_required
 
 

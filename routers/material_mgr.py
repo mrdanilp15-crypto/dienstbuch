@@ -6,7 +6,7 @@ import mysql.connector
 
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
-from core.utils import check_auth, log_audit_action
+from core.utils import check_auth, check_display_access, log_audit_action
 
 class EquipmentCreate(BaseModel):
     name: str
@@ -252,13 +252,18 @@ def get_equipment_report_pdf(eq_id: int, request: Request):
     cur.close(); conn.close()
 
     from core.utils import get_station_name
-    station_name = get_station_name()
+    from html import escape
+    # Freitext (Mängelbeschreibung, Namen, Notizen) maskieren: unmaskiert könnte ein Eintrag mit HTML das PDF
+    # zerschießen oder über <img src=...> sogar Dateien vom Server ins PDF ziehen.
+    esc = lambda v: escape(str(v)) if v is not None else ""
+    station_name = esc(get_station_name())
     today_fmt = date.today().strftime("%d.%m.%Y")
+    eq = {**eq, "name": esc(eq.get("name")), "barcode": esc(eq.get("barcode")), "category": esc(eq.get("category"))}
 
     insp_rows = ""
     for i in inspections:
         d = i["date"].strftime("%d.%m.%Y") if isinstance(i["date"], date) else str(i["date"])
-        insp_rows += f"<tr><td>{d}</td><td>{i['inspector']}</td><td>{i['status']}</td><td>{i.get('note') or ''}</td></tr>"
+        insp_rows += f"<tr><td>{d}</td><td>{esc(i['inspector'])}</td><td>{esc(i['status'])}</td><td>{esc(i.get('note') or '')}</td></tr>"
     if not insp_rows:
         insp_rows = "<tr><td colspan='4' style='text-align:center; color:#6b7280;'>Keine Prüfungen erfasst.</td></tr>"
 
@@ -266,7 +271,7 @@ def get_equipment_report_pdf(eq_id: int, request: Request):
     for d in defects:
         created = d["created_at"].strftime("%d.%m.%Y") if hasattr(d["created_at"], "strftime") else str(d["created_at"])
         resolved = d["resolved_at"].strftime("%d.%m.%Y") if d.get("resolved_at") and hasattr(d["resolved_at"], "strftime") else "-"
-        defect_rows += f"<tr><td>{created}</td><td>{d['reporter_name']}</td><td>{d['severity']}</td><td>{d['description']}</td><td>{d['status']}</td><td>{resolved}</td></tr>"
+        defect_rows += f"<tr><td>{created}</td><td>{esc(d['reporter_name'])}</td><td>{esc(d['severity'])}</td><td>{esc(d['description'])}</td><td>{esc(d['status'])}</td><td>{resolved}</td></tr>"
     if not defect_rows:
         defect_rows = "<tr><td colspan='6' style='text-align:center; color:#6b7280;'>Keine Mängel gemeldet.</td></tr>"
 
@@ -567,7 +572,9 @@ def delete_lehrgang(course_id: int, request: Request):
 # --- 🏢 OBJEKTE & BRANDMELDEANLAGEN (BMA) ---
 @router.get("/bma")
 def list_bmas(request: Request):
-    # Kein check_auth: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
+    # Wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen - der braucht dafür seinen Display-Token.
+    # Ganz ohne Schutz stand hier jedem im Internet offen, welche Objekte eine BMA und ein Schlüsseldepot haben.
+    check_display_access(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM bma ORDER BY object_name ASC")
@@ -608,7 +615,8 @@ def delete_bma(b_id: int, request: Request):
 # --- 🗺️ HYDRANTEN & WATER POINTS ---
 @router.get("/hydrants")
 def list_hydrants(request: Request):
-    # Kein check_auth: wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen.
+    # Wird auch vom Hallenmonitor (alarmdisplay.html) ohne Session gelesen - der braucht dafür seinen Display-Token.
+    check_display_access(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM hydrants")

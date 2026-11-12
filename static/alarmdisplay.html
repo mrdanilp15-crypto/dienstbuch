@@ -717,6 +717,9 @@
         function getDisplayToken() {
             try { return urlToken || localStorage.getItem('display_token') || ''; } catch(e) { return urlToken || ''; }
         }
+        // Texte aus der Datenbank (Objektnamen, Adressen aus der Alarmierung) landen in Karten-Popups als HTML -
+        // ohne Maskierung könnte ein Name mit <script>/<img onerror> dort Code ausführen.
+        function escHtml(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
         function withToken(url) {
             const sep = url.includes('?') ? '&' : '?';
             const t = getDisplayToken();
@@ -857,10 +860,11 @@
                 },
                 async fetchSchedules() {
                     try {
-                        const res = await fetch('/api/missions/schedules/list');
+                        const res = await fetch(withToken('/api/missions/schedules/list'));
                         if (res.ok) {
                             const list = await res.json();
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const now = new Date(); // lokales Datum, nicht UTC - sonst fehlt kurz nach Mitternacht der heutige Termin
+                            const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
                             this.upcomingSchedules = list.filter(s => s.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date));
                         }
                     } catch(e) {}
@@ -934,7 +938,7 @@
                             iconSize: [30, 30],
                             iconAnchor: [15, 15]
                         });
-                        L.marker([this.stationLat, this.stationLng], { icon: stationIcon }).bindPopup(`<b>${this.stationName}</b>`).addTo(map);
+                        L.marker([this.stationLat, this.stationLng], { icon: stationIcon }).bindPopup(`<b>${escHtml(this.stationName)}</b>`).addTo(map);
                         
                         this.loadHydrants();
                     }, 500);
@@ -942,8 +946,8 @@
                 async loadHydrants() {
                     try {
                         const [hRes, bRes] = await Promise.all([
-                            fetch('/api/material/hydrants'),
-                            fetch('/api/material/bma')
+                            fetch(withToken('/api/material/hydrants')),
+                            fetch(withToken('/api/material/bma'))
                         ]);
                         
                         const getIconHtml = (bgColor, iconClass, color = 'white') => {
@@ -973,7 +977,7 @@
                                     iconSize: [22, 22],
                                     iconAnchor: [11, 11]
                                 });
-                                L.marker([h.lat, h.lng], { icon: divIcon }).bindPopup(`<b>${h.label}</b><br>Typ: ${h.type}`).addTo(map);
+                                L.marker([h.lat, h.lng], { icon: divIcon }).bindPopup(`<b>${escHtml(h.label)}</b><br>Typ: ${escHtml(h.type)}`).addTo(map);
                             });
                         }
 
@@ -987,7 +991,7 @@
                                         iconSize: [22, 22],
                                         iconAnchor: [11, 11]
                                     });
-                                    L.marker([b.lat, b.lng], { icon: divIcon }).bindPopup(`<b>BMA: ${b.object_name}</b><br>BMA-Nr: ${b.bma_number}`).addTo(map);
+                                    L.marker([b.lat, b.lng], { icon: divIcon }).bindPopup(`<b>BMA: ${escHtml(b.object_name)}</b><br>BMA-Nr: ${escHtml(b.bma_number)}`).addTo(map);
                                 }
                             });
                         }
@@ -1104,7 +1108,7 @@
                                         iconSize: [40, 40],
                                         iconAnchor: [20, 40]
                                     })
-                                }).bindPopup(`<b>Einsatzort:</b><br>${addr}`).addTo(map);
+                                }).bindPopup(`<b>Einsatzort:</b><br>${escHtml(addr)}`).addTo(map);
                                 
                                 this.routeLine = L.polyline([[this.stationLat, this.stationLng], [lat, lon]], {
                                     color: 'red',

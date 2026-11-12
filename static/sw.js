@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v71';
+const CACHE_NAME = 'fw-app-cache-v72';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -54,7 +54,8 @@ self.addEventListener('fetch', event => {
                     event.request.url.includes('/sessions/') || 
                     event.request.url.includes('/users/');
                     
-  if (isDynamic || event.request.mode === 'navigate') {
+  // Hochgeladene Dateien brauchen eine Anmeldung und gehören nicht in den Zwischenspeicher des Geräts.
+  if (isDynamic || event.request.mode === 'navigate' || event.request.url.includes('/static/uploads/')) {
       event.respondWith(fetch(event.request));
       return;
   }

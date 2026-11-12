@@ -710,6 +710,7 @@
                                         <div>
                                             <h6 class="fw-bold text-white mb-0">{{v.name}} <span v-if="v.required_license" class="badge bg-secondary rounded-pill ms-1" style="font-size:0.6rem;" title="Erforderliche Führerscheinklasse">FS {{v.required_license}}</span></h6>
                                             <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}} &bull; {{v.milage}} km</small>
+                                            <div v-if="v.tuv_date || v.sp_date" class="small text-muted"><span v-if="v.tuv_date" :class="{'text-danger fw-bold': isOverdue(v.tuv_date)}">TÜV bis {{ dt(v.tuv_date) }}</span><span v-if="v.tuv_date && v.sp_date"> &bull; </span><span v-if="v.sp_date" :class="{'text-danger fw-bold': isOverdue(v.sp_date)}">SP bis {{ dt(v.sp_date) }}</span></div>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <span class="status-dot" :class="'status-' + v.status"></span>
@@ -754,7 +755,7 @@
                                         <thead><tr class="text-muted small"><th>DATUM</th><th>FAHRER</th><th>ZWECK</th><th>KM START</th><th>KM ENDE</th></tr></thead>
                                         <tbody>
                                             <tr v-for="log in vehicleLogs" :key="log.id">
-                                                <td>{{log.date}}</td>
+                                                <td>{{dt(log.date)}}</td>
                                                 <td class="fw-bold text-white">{{log.driver_name}}</td>
                                                 <td>{{log.purpose}}</td>
                                                 <td>{{log.mileage_start}} KM</td>
@@ -858,7 +859,7 @@
                         <div class="row g-3">
                             <div v-for="eq in filteredEquipment" :key="eq.id" class="col-12 col-md-6 col-lg-4">
                                 <div class="equipment-item" @click="editEquipment(eq)">
-                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div class="mb-3">
                                         <div>
                                             <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
                                             <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
@@ -868,12 +869,12 @@
                                                 </span>
                                             </div>
                                         </div>
-                                        <span class="badge" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
-                                            Nächste Prf: {{eq.next_inspection || 'Keine'}}
+                                        <span class="badge mt-2" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
+                                            Nächste Prüfung: {{dt(eq.next_inspection) || 'keine'}}
                                         </span>
                                     </div>
                                     <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
-                                        <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{eq.last_inspection || 'Nie'}}</span></div>
+                                        <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{dt(eq.last_inspection) || 'Nie'}}</span></div>
                                         <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
                                     </div>
                                     <div v-if="eq.loaned_to" class="p-2 rounded-3 mb-3 small" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.3);">
@@ -920,7 +921,7 @@
                                                 <span class="badge me-2" :class="dr.severity === 'Kritisch' ? 'bg-danger' : dr.severity === 'Mittel' ? 'bg-warning text-dark' : 'bg-secondary'">{{dr.severity}}</span>
                                                 <span class="badge" :class="dr.status === 'Erledigt' ? 'bg-success' : dr.status === 'In Bearbeitung' ? 'bg-warning text-dark' : 'bg-danger'">{{dr.status}}</span>
                                             </div>
-                                            <small class="text-muted">{{dr.created_at ? dr.created_at.substring(0,10) : ''}}</small>
+                                            <small class="text-muted">{{dr.created_at ? dt(dr.created_at.substring(0,10)) : ''}}</small>
                                         </div>
                                         <h6 class="fw-bold text-white mb-1"><i class="fa fa-screwdriver-wrench me-1 text-muted"></i>{{dr.equipment_name}} <small class="text-muted fw-normal">(ID: {{dr.barcode}})</small></h6>
                                         <p class="text-white mb-2 small">{{dr.description}}</p>
@@ -1165,7 +1166,7 @@
                 <div v-show="activeTab === 'personal'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung Pro</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung</h2>
                             <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
                         </div>
                         <div class="d-flex gap-2">
@@ -1228,7 +1229,7 @@
                         <div class="alarm-hero-content">
                             <div class="alarm-hero-label">{{ latestAlarmLog ? (isTestAlarmLog(latestAlarmLog) ? 'Letzter Test-Alarm' : 'Letzte Alarmierung') : 'Bereitschaft' }}</div>
                             <div class="alarm-hero-title">{{ latestAlarmLog ? latestAlarmLog.stichwort : 'Keine aktuelle Alarmierung' }}</div>
-                            <div class="alarm-hero-meta" v-if="latestAlarmLog"><i class="fa fa-location-dot me-1"></i>{{latestAlarmLog.adresse}} &bull; <i class="fa fa-clock me-1"></i>{{latestAlarmLog.created_at}}</div>
+                            <div class="alarm-hero-meta" v-if="latestAlarmLog"><i class="fa fa-location-dot me-1"></i>{{latestAlarmLog.adresse}} &bull; <i class="fa fa-clock me-1"></i>{{dt(latestAlarmLog.created_at)}}</div>
                         </div>
                         <div class="alarm-hero-count" v-if="latestAlarmLog && !isTestAlarmLog(latestAlarmLog)">
                             <div class="alarm-hero-count-num">{{activeFeedbacksCount}}</div>
@@ -1278,7 +1279,7 @@
                                             <div class="d-flex justify-content-between align-items-start mb-1">
                                                 <div class="d-flex align-items-center gap-2">
                                                     <span class="badge" :class="isTestAlarmLog(log) ? 'bg-warning text-dark' : 'bg-danger'">{{isTestAlarmLog(log) ? 'TEST' : 'ALARM'}}</span>
-                                                    <small class="text-muted">{{log.created_at}}</small>
+                                                    <small class="text-muted">{{dt(log.created_at)}}</small>
                                                 </div>
                                                 <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
                                                     <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
@@ -1412,6 +1413,12 @@
                 </div>
 
                 <div v-show="activeTab === 'abrechnung'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-euro-sign text-danger me-2"></i>Abrechnung</h2>
+                            <small class="text-muted">Kostenbescheide an Verursacher und Aufwandsentschädigungen der Kameraden</small>
+                        </div>
+                    </div>
                     <div class="row g-4">
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4 mb-4">
@@ -1421,7 +1428,7 @@
                                         <div class="d-flex justify-content-between align-items-start mb-1">
                                             <div>
                                                 <h6 class="fw-bold text-white mb-0">{{b.recipient_name}}</h6>
-                                                <small class="text-danger fw-semibold"><i class="fa fa-fire-extinguisher me-1"></i>{{b.stichwort}} ({{b.date}})</small>
+                                                <small class="text-danger fw-semibold"><i class="fa fa-fire-extinguisher me-1"></i>{{b.stichwort}} ({{dt(b.date)}})</small>
                                             </div>
                                             <span class="badge" :class="b.paid_at?'bg-success':'bg-warning text-dark'">{{b.paid_at?'Bezahlt':'Ausstehend'}}</span>
                                         </div>
@@ -1441,7 +1448,7 @@
                                         <label class="form-label">Einsatz wählen</label>
                                         <select v-model="newBill.mission_id" class="form-select">
                                             <option :value="null" disabled>-- Bitte Einsatz auswählen --</option>
-                                            <option v-for="m in availableMissionsForBilling" :key="m.id" :value="m.id">{{m.stichwort}} ({{m.date}} - {{m.adresse}}) [{{m.status}}]</option>
+                                            <option v-for="m in availableMissionsForBilling" :key="m.id" :value="m.id">{{m.stichwort}} ({{dt(m.date)}} - {{m.adresse}}) [{{m.status}}]</option>
                                         </select>
                                         <div v-if="availableMissionsForBilling.length === 0" class="text-muted small mt-1"><i class="fa fa-info-circle me-1"></i>Keine Einsätze zum Abrechnen vorhanden. Erfasse zuerst einen Einsatzbericht im Menü "Einsatzberichte".</div>
                                     </div>
@@ -1715,7 +1722,7 @@
                                                                             <input type="number" step="0.01" v-model.number="f.amount" style="width: 90px;" class="form-control form-control-sm bg-dark border-secondary text-white">
                                                                         </td>
                                                                         <td>
-                                                                            <span class="badge" :class="f.paid_at ? 'bg-success' : 'bg-secondary'">{{ f.paid_at ? ('Bezahlt am ' + f.paid_at) : 'Offen' }}</span>
+                                                                            <span class="badge" :class="f.paid_at ? 'bg-success' : 'bg-secondary'">{{ f.paid_at ? ('Bezahlt am ' + dt(f.paid_at)) : 'Offen' }}</span>
                                                                         </td>
                                                                         <td class="text-end">
                                                                             <button v-if="!f.paid_at" class="btn btn-xs btn-premium rounded-pill px-2" @click="toggleMembershipFee(f, true)">Als bezahlt markieren</button>
@@ -1772,7 +1779,7 @@
                                                                             <td>
                                                                                 <span v-if="usr.is_locked" class="badge bg-danger" title="Nach 5 Fehlversuchen automatisch für 15 Min. gesperrt."><i class="fa fa-lock me-1"></i>Gesperrt</span>
                                                                                 <span v-else-if="isDormantAccount(usr)" class="badge bg-warning text-dark" :title="usr.last_login ? ('Letzter Login: ' + usr.last_login) : 'Noch nie eingeloggt'"><i class="fa fa-moon me-1"></i>Ruhend</span>
-                                                                                <small v-else class="text-muted">{{ usr.last_login ? usr.last_login.split(' ')[0] : '—' }}</small>
+                                                                                <small v-else class="text-muted">{{ usr.last_login ? dt(usr.last_login.split(' ')[0]) : '—' }}</small>
                                                                             </td>
                                                                             <td>
                                                                                 <div class="d-flex gap-1 flex-wrap">
@@ -1911,7 +1918,7 @@
                                                             <thead><tr class="text-muted"><th>ZEITPUNKT</th><th>BENUTZER</th><th>AKTION</th><th>DETAILS</th></tr></thead>
                                                             <tbody>
                                                                 <tr v-for="a in auditLog" :key="a.id">
-                                                                    <td class="text-muted" style="white-space:nowrap;">{{a.created_at}}</td>
+                                                                    <td class="text-muted" style="white-space:nowrap;">{{dt(a.created_at)}}</td>
                                                                     <td class="fw-bold text-white">{{a.username}}</td>
                                                                     <td><span class="badge bg-secondary">{{a.action}}</span></td>
                                                                     <td class="text-muted">{{a.details}}</td>
@@ -1934,7 +1941,7 @@
                                         <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.ip_blocked_7d ? 'text-warning' : 'text-success'">{{ security.ip_blocked_7d }}</div><div class="small text-muted">Adress-Sperren (7 Tage)</div></div></div>
                                         <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.locked.length ? 'text-danger' : 'text-success'">{{ security.locked.length }}</div><div class="small text-muted">Gesperrte Konten</div></div></div>
                                     </div>
-                                    <div v-if="security.locked.length" class="small mb-2"><i class="fa fa-lock text-danger me-1"></i>Gesperrt: <span v-for="l in security.locked" :key="l.username" class="badge bg-danger me-1">{{ l.username }} bis {{ l.until }}</span></div>
+                                    <div v-if="security.locked.length" class="small mb-2"><i class="fa fa-lock text-danger me-1"></i>Gesperrt: <span v-for="l in security.locked" :key="l.username" class="badge bg-danger me-1">{{ l.username }} bis {{ dt(l.until) }}</span></div>
                                     <div v-if="security.no_2fa.length" class="small mb-2"><i class="fa fa-triangle-exclamation text-warning me-1"></i>Ohne Zwei-Faktor (Admin/Leitung): <span v-for="u in security.no_2fa" :key="u.username" class="badge bg-warning text-dark me-1">{{ u.username }}</span></div>
                                     <div v-if="security.pending_invites.length" class="small mb-2"><i class="fa fa-envelope text-info me-1"></i>Noch nicht eingerichtet (Erstanmeldung offen): <span v-for="u in security.pending_invites" :key="u" class="badge bg-secondary me-1">{{ u }}</span></div>
                                     <hr class="border-secondary border-opacity-25">
@@ -1994,7 +2001,7 @@
                                     <div class="fw-bold text-white small mb-1">Ausgeschiedene Mitglieder über der Frist ({{ privacy.candidates.length }})</div>
                                     <div v-if="!privacy.candidates.length" class="small text-muted">Keine.</div>
                                     <div v-for="c in privacy.candidates" :key="c.id" class="d-flex justify-content-between align-items-center small py-1 border-top border-secondary border-opacity-10">
-                                        <span>{{ c.name }} <span class="text-muted">· {{ c.exit_date ? 'ausgeschieden ' + c.exit_date : 'Austrittsdatum unbekannt' }}</span></span>
+                                        <span>{{ c.name }} <span class="text-muted">· {{ c.exit_date ? 'ausgeschieden ' + dt(c.exit_date) : 'Austrittsdatum unbekannt' }}</span></span>
                                         <button class="btn btn-outline-danger btn-sm rounded-pill py-0" @click="anonymizePerson(c)">Personenbezug entfernen</button>
                                     </div>
                                 </div>
@@ -2436,7 +2443,7 @@
                                 <div v-if="!lbEntries.length" class="text-muted small py-3">Keine Einträge in diesem Zeitraum.</div>
                                 <div v-for="e in lbEntries" :key="e.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
                                     <div style="min-width:0">
-                                        <div class="fw-bold text-white text-break">{{ new Date(e.entry_date).toLocaleDateString('de-DE') }} · {{ e.person }}<span v-if="e.subject"> · {{ e.subject }}</span></div>
+                                        <div class="fw-bold text-white text-break">{{ new Date(e.entry_date).toLocaleDateString('de-DE') }}<span v-if="e.person"> · {{ e.person }}</span><span v-if="e.subject"> · {{ e.subject }}</span></div>
                                         <div class="small text-break"><template v-for="f in activeLogbook.fields" :key="f.id"><span v-if="lbShow(e, f) !== ''" class="me-3 d-inline-block">{{ f.label }}: <strong>{{ lbShow(e, f) }}</strong></span></template></div>
                                     </div>
                                     <div v-if="e.can_edit" class="d-flex gap-1 flex-shrink-0">
@@ -2635,8 +2642,8 @@
                                         <tbody>
                                             <tr v-for="c in employerCertificates" :key="c.id">
                                                 <td class="fw-bold text-white">{{c.personnel_name}}</td>
-                                                <td>{{c.mission_stichwort}} <small class="text-muted d-block">{{c.mission_date}}</small></td>
-                                                <td class="text-muted small">{{c.created_at}}<span v-if="c.has_signature" class="badge bg-success ms-1" title="Mit Unterschrift"><i class="fa fa-signature"></i></span></td>
+                                                <td>{{c.mission_stichwort}} <small class="text-muted d-block">{{dt(c.mission_date)}}</small></td>
+                                                <td class="text-muted small">{{dt(c.created_at)}}<span v-if="c.has_signature" class="badge bg-success ms-1" title="Mit Unterschrift"><i class="fa fa-signature"></i></span></td>
                                                 <td class="text-end">
                                                     <button class="btn btn-sm btn-outline-light rounded-pill me-1" @click="viewEmployerCertificate(c)" title="PDF öffnen"><i class="fa fa-file-pdf"></i></button>
                                                     <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteEmployerCertificate(c.id)"><i class="fa fa-trash"></i></button>
@@ -2702,7 +2709,7 @@
                                             <small class="text-muted">
                                                 Gemeldet von: <strong class="text-white">{{ f.uploaded_by }}</strong> &bull; 
                                                 <span>{{ f.is_public ? '🔓 Öffentlich' : '🔒 Privat' }}</span> &bull; 
-                                                <span>{{ f.created_at }}</span>
+                                                <span>{{ dt(f.created_at) }}</span>
                                             </small>
                                         </div>
                                         <div class="d-flex gap-2">
@@ -2870,7 +2877,7 @@
                                         <div v-for="s in youthSessions" :key="s.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
                                             <div class="d-flex justify-content-between align-items-center mb-2">
                                                 <h6 class="fw-bold text-white m-0">{{ s.topic }}</h6>
-                                                <small class="text-muted">{{ s.date }} &bull; {{ s.duration }}h</small>
+                                                <small class="text-muted">{{ dt(s.date) }} &bull; {{ s.duration }}h</small>
                                             </div>
                                             <div class="small mb-2 text-white">Ausbilder: <span class="text-muted">{{ s.instructors || 'Keine Angabe' }}</span></div>
                                             <p class="small text-muted mb-2">{{ s.description || 'Keine Beschreibung vorhanden' }}</p>
@@ -3071,7 +3078,7 @@
                                                     <td class="fw-bold text-white">{{m.name}}</td>
                                                     <td>{{m.quantity}}</td>
                                                     <td>
-                                                        <span v-if="m.expiry_date" class="badge rounded-pill" :class="new Date(m.expiry_date) < new Date() ? 'bg-danger' : 'bg-secondary'">{{m.expiry_date}}</span>
+                                                        <span v-if="m.expiry_date" class="badge rounded-pill" :class="new Date(m.expiry_date) < new Date() ? 'bg-danger' : 'bg-secondary'">{{dt(m.expiry_date)}}</span>
                                                     </td>
                                                     <td class="text-muted">{{m.note}}</td>
                                                     <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteHvoMaterial(m.id)"><i class="fa fa-trash"></i></button></td>
@@ -3615,7 +3622,7 @@
                                 <div v-for="m in vehicleMaintenance" :key="m.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
                                     <div>
                                         <div class="fw-bold small">{{m.description}}</div>
-                                        <small class="text-muted">{{m.date}} &bull; {{m.workshop || '—'}} &bull; {{m.cost.toFixed(2)}} €</small>
+                                        <small class="text-muted">{{dt(m.date)}} &bull; {{m.workshop || '—'}} &bull; {{m.cost.toFixed(2)}} €</small>
                                     </div>
                                     <button class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteVehicleMaintenance(m.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
                                 </div>
@@ -3672,7 +3679,7 @@
                         <div class="list-group list-group-flush">
                             <div v-for="chk in vehicleCheckHistory" :key="chk.id" class="list-group-item bg-transparent text-white border-secondary">
                                 <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <strong>{{chk.date}} - {{chk.checker_name}}</strong>
+                                    <strong>{{dt(chk.date)}} - {{chk.checker_name}}</strong>
                                     <div class="d-flex align-items-center gap-2 flex-shrink-0">
                                         <span :class="chk.status === 'Mängel' ? 'text-danger fw-bold' : 'text-success'">{{chk.status}}</span>
                                         <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicleCheck(chk.id)" title="Check löschen"><i class="fa fa-trash"></i></button>
@@ -3959,7 +3966,7 @@
                             <div v-for="h in inspectionsHistory" :key="h.id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-3">
                                 <div class="d-flex justify-content-between align-items-start mb-1">
                                     <span class="badge" :class="h.status==='Bestanden'?'bg-success':'bg-danger'">{{h.status}}</span>
-                                    <small class="text-muted">{{h.date}}</small>
+                                    <small class="text-muted">{{dt(h.date)}}</small>
                                 </div>
                                 <div class="fw-bold text-white small">Prüfer: {{h.inspector}}</div>
                                 <p class="text-muted mb-0 small" v-if="h.note">{{h.note}}</p>
@@ -4110,9 +4117,9 @@
                                     <tbody>
                                         <tr v-for="c in activePersonnel.courses" :key="c.id">
                                             <td class="fw-bold text-white">{{c.course_name}}</td>
-                                            <td>{{c.date}}</td>
+                                            <td>{{dt(c.date)}}</td>
                                             <td>
-                                                <span v-if="c.valid_until" class="badge rounded-pill" :class="new Date(c.valid_until) < new Date() ? 'bg-danger' : 'bg-secondary'">{{c.valid_until}}</span>
+                                                <span v-if="c.valid_until" class="badge rounded-pill" :class="new Date(c.valid_until) < new Date() ? 'bg-danger' : 'bg-secondary'">{{dt(c.valid_until)}}</span>
                                             </td>
                                             <td>
                                                 <button v-if="canManagePersonnel" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteCourse(c.id)"><i class="fa fa-trash"></i></button>
@@ -4148,9 +4155,9 @@
                                     <thead><tr class="text-muted"><th>AUSRÜSTUNG</th><th>GRÖSSE</th><th>AUSGABE-DATUM</th><th>Aktion</th></tr></thead>
                                     <tbody>
                                         <tr v-for="g in activePersonnel.gearList" :key="g.id" :class="{'opacity-50': g.return_date}">
-                                            <td class="fw-bold text-white">{{g.item_name}} <small v-if="g.return_date" class="text-muted fw-normal">(zurück am {{g.return_date}})</small></td>
+                                            <td class="fw-bold text-white">{{g.item_name}} <small v-if="g.return_date" class="text-muted fw-normal">(zurück am {{dt(g.return_date)}})</small></td>
                                             <td>{{g.size}}</td>
-                                            <td>{{g.issue_date}}</td>
+                                            <td>{{dt(g.issue_date)}}</td>
                                             <td class="text-nowrap">
                                                 <button v-if="canManageMaterial && !g.return_date" class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="returnGear(g)" title="Rückgabe vermerken"><i class="fa fa-rotate-left me-1"></i>Zurück</button>
                                                 <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteGear(g.id)" title="Eintrag löschen (z. B. Fehleingabe)"><i class="fa fa-trash"></i></button>
@@ -4186,8 +4193,8 @@
                                     <thead><tr class="text-muted"><th>VON</th><th>BIS</th><th>GRUND</th><th>Aktion</th></tr></thead>
                                     <tbody>
                                         <tr v-for="av in availabilityList" :key="av.id">
-                                            <td class="fw-bold text-white">{{av.start_date}}</td>
-                                            <td class="fw-bold text-white">{{av.end_date}}</td>
+                                            <td class="fw-bold text-white">{{dt(av.start_date)}}</td>
+                                            <td class="fw-bold text-white">{{dt(av.end_date)}}</td>
                                             <td>{{av.reason || '-'}}</td>
                                             <td><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteAvailability(av.id, activePersonnel.id)"><i class="fa fa-trash"></i></button></td>
                                         </tr>
@@ -4230,7 +4237,7 @@
                         <div v-for="entry in changelogEntries" :key="entry.id" class="mb-4">
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <span class="fw-bold text-white">Version {{entry.version}}</span>
-                                <span class="text-muted small">{{entry.date}}</span>
+                                <span class="text-muted small">{{dt(entry.date)}}</span>
                             </div>
 
                             <div v-if="entry.items.some(i => i.type === 'new')" class="mb-3">
@@ -4293,7 +4300,7 @@
                                             <td>{{ a.rank }}</td>
                                             <td><span class="badge bg-danger">{{ a.years }} Jahre</span></td>
                                             <td class="small text-muted">{{ a.badge }}</td>
-                                            <td>{{ a.anniversary_date }}</td>
+                                            <td>{{ dt(a.anniversary_date) }}</td>
                                         </tr>
                                         <tr v-if="anniversariesData.service_anniversaries.length === 0"><td colspan="5" class="text-center text-muted py-3">Keine Dienstjubiläen in diesem Jahr.</td></tr>
                                     </tbody>
@@ -4309,7 +4316,7 @@
                                             <td class="fw-bold text-white">{{ a.name }}</td>
                                             <td>{{ a.rank }}</td>
                                             <td><span class="badge bg-warning text-dark">{{ a.age }} Jahre</span></td>
-                                            <td>{{ a.birthday_date }}</td>
+                                            <td>{{ dt(a.birthday_date) }}</td>
                                         </tr>
                                         <tr v-if="anniversariesData.birthday_anniversaries.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine runden Geburtstage in diesem Jahr.</td></tr>
                                     </tbody>
@@ -4429,7 +4436,7 @@
                                             <td class="fw-bold text-white">{{ g.name }} <span v-if="g.membership_status === 'Ausgeschieden'" class="badge bg-warning text-dark ms-1">Rückgabe offen</span></td>
                                             <td>{{ g.item_name }}</td>
                                             <td>{{ g.size }}</td>
-                                            <td>{{ g.issue_date }}</td>
+                                            <td>{{ dt(g.issue_date) }}</td>
                                             <td class="text-end"><button class="btn btn-sm btn-outline-light rounded-pill py-0" @click="returnGear(g)"><i class="fa fa-rotate-left me-1"></i>Zurück</button></td>
                                         </tr>
                                         <tr v-if="clothingIssued.length === 0"><td colspan="5" class="text-center py-4 text-muted">Aktuell ist nichts ausgegeben.</td></tr>

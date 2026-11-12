@@ -82,5 +82,32 @@ check("admin: Jugend-Mitglieder erlaubt", admin.get("/api/jugend/members").statu
 check("Jugend: Anlegen/Löschen weiter nur Wehrführung und Jugendwarte", cl["mannschaft"].post("/api/jugend/members", json={"name": "X Y"}).status_code == 403)
 sql("delete from personnel where name = 'Testjugend Kind'")
 
+# --- Ohne Anmeldung: nichts aus der Wehr (Objekte mit Schlüsseldepot, Hydranten, Termine, hochgeladene Dateien)
+anon = httpx.Client(base_url=B, timeout=30)
+for path in ("/api/material/bma", "/api/material/hydrants", "/api/missions/schedules/list"):
+    check(f"Ohne Anmeldung gesperrt: {path}", anon.get(path).status_code == 401)
+tok = admin.get("/api/settings/access-tokens").json()["display_token"]
+for path in ("/api/material/bma", "/api/material/hydrants", "/api/missions/schedules/list"):
+    check(f"Hallen-Display mit Token erlaubt: {path}", anon.get(f"{path}?token={tok}").status_code == 200)
+    check(f"Falscher Token gesperrt: {path}", anon.get(f"{path}?token=falsch").status_code == 401)
+import os
+# gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
+_up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")
+with open(_up, "w") as fh:
+    fh.write("geheim")
+check("Hochgeladene Datei ohne Anmeldung gesperrt", anon.get("/static/uploads/zz_test_upload.txt").status_code == 401)
+_r = cl["mannschaft"].get("/static/uploads/zz_test_upload.txt")
+check("Hochgeladene Datei mit Anmeldung lesbar, nicht öffentlich zwischenspeicherbar", _r.status_code == 200 and _r.text == "geheim" and _r.headers.get("cache-control", "").startswith("private"), f"{_r.status_code} {_r.text[:40]!r} {_r.headers.get('cache-control', '')}")
+check("Programmdateien bleiben ohne Anmeldung ladbar", anon.get("/static/js/dashboard.js").status_code == 200)
+os.remove(_up)
+
+# --- Berichte maskieren Freitext (kein eingeschleuster Code im Dienstbericht)
+from routers import reports
+_h = reports.generate_single_report({"date": "2026-01-01", "duration": 2, "category": "Übung", "description": "<script>alert(1)</script>", "gname": "A&B", "instructors": "<b>x</b>", "leader_signature": "javascript:alert(1)" + "x" * 200},
+                                    [{"name": "<img src=x onerror=alert(1)>", "is_present": 1, "note": "<i>n</i>", "vehicle": "", "signature": "x' onerror='alert(1)" + "y" * 200}], "Ort<br>")
+check("Dienstbericht: kein Roh-HTML aus Freitext", "<script>" not in _h and "<img src=x" not in _h and "onerror='alert" not in _h and "javascript:" not in _h and "&lt;script&gt;" in _h and "A&amp;B" in _h, _h[:200])
+_ok = reports.generate_single_report({"date": "2026-01-01", "duration": 2, "category": "Einsatz", "description": "Brand", "leader_signature": "data:image/png;base64," + "A" * 200}, [], "Ort")
+check("Dienstbericht: echte Unterschrift bleibt erhalten", "<img src='data:image/png;base64," in _ok and "bg-einsatz" in _ok)
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)
