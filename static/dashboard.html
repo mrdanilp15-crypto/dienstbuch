@@ -47,12 +47,23 @@
                 }
                 el.style.display = 'flex';
             }
+            // Fundstelle (Datei:Zeile:Spalte) und Gerät mit ausgeben: "Unexpected token '<'" allein sagt nicht,
+            // WELCHE Datei statt Code eine Fehlerseite geliefert hat - genau das ist auf dem Handy sonst nicht herauszufinden.
+            function where(e) {
+                var f = (e && e.filename) ? String(e.filename).replace(location.origin, '') + ':' + e.lineno + ':' + e.colno : '';
+                var m = /(iPhone OS|CPU OS|Android) ([\d_.]+)/.exec(navigator.userAgent || '');
+                return ' [' + (f ? f + ' · ' : '') + (m ? m[1] + ' ' + m[2] : 'Gerät unbekannt') + ']';
+            }
             window.addEventListener('error', function(e) {
-                showBootFallback(e.message || 'Unbekannter Fehler');
-            });
+                var t = e.target;
+                if (t && t !== window && t.tagName === 'SCRIPT') { showBootFallback('Skript nicht ladbar: ' + String(t.src).replace(location.origin, '')); return; }
+                if (t && t !== window) return; // Bild/Schrift/Stylesheet: kein Startfehler
+                showBootFallback((e.message || 'Unbekannter Fehler') + where(e));
+            }, true);
             window.addEventListener('unhandledrejection', function(e) {
                 var reason = e.reason && (e.reason.message || String(e.reason));
-                showBootFallback(reason || 'Unbekannter Fehler (Promise)');
+                var st = e.reason && e.reason.stack ? ' {' + String(e.reason.stack).split(String.fromCharCode(10)).slice(0, 2).join(' | ').replace(location.origin, '') + '}' : '';
+                showBootFallback((reason || 'Unbekannter Fehler (Promise)') + st + where());
             });
             window.addEventListener('load', function() {
                 setTimeout(function() {
