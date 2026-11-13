@@ -604,7 +604,7 @@
                         <div v-for="s in upcomingSchedules.slice(0, 3)" :key="s.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="text-white fw-bold small">{{ s.title }}</div>
-                                <div class="text-light" style="color: #e4e4e7; font-size:0.75rem;"><i class="fa-regular fa-clock me-1 text-danger"></i>{{ s.date }} &bull; {{ s.time }} Uhr</div>
+                                <div class="text-light" style="color: #e4e4e7; font-size:0.75rem;"><i class="fa-regular fa-clock me-1 text-danger"></i>{{ String(s.date).slice(0,10).split('-').reverse().join('.') }} &bull; {{ s.time }} Uhr</div>
                             </div>
                             <span class="badge bg-danger rounded-pill px-2 py-1 small">{{ s.type }}</span>
                         </div>
