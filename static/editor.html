@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- iPhone: Safari macht sonst aus langen Zahlen im Seitentext Telefon-Links und zerstört damit die Vue-Vorlage (Startfehler "Unexpected token '<'") -->
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
     <meta name="color-scheme" content="dark">
     <title>Dienstbuch - Editor</title>
 
@@ -930,6 +932,8 @@
         });
     }
 
+    // iPhone-Safari macht aus langen Zahlen Telefon-Links und zerstört damit die Vorlage - vor dem Start rückgängig machen
+    document.querySelectorAll('#app a[x-apple-data-detectors], #app a[href^="tel:"]').forEach(function (a) { a.parentNode.replaceChild(document.createTextNode(a.textContent), a); }); document.getElementById('app').normalize();
     createApp({
         data() {
             return {

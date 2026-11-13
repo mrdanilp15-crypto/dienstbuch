@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 22,
+        "version": "2.72",
+        "date": "2026-11-13",
+        "items": [
+            {"type": "fix", "tag": "iPhone", "title": "App startet wieder auf dem iPhone",
+             "text": "Auf manchen iPhones blieb die App beim Start mit der Meldung „Unexpected token“ hängen. Ursache: Safari hat eine Zahl im Seitentext für eine Telefonnummer gehalten und in einen Anruf-Link verwandelt. Das ist abgestellt."},
+        ],
+    },
+    {
         "id": 21,
         "version": "2.71",
         "date": "2026-11-12",

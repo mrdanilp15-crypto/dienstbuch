@@ -4513,6 +4513,16 @@ applyChartTheme();
         // Die Seite selbst ist die Vorlage: der Browser liest sie ein, Vue übersetzt sie beim Start in Code.
         // Liest ein Browser (z.B. ein älteres iPhone) eine Stelle anders ein, scheitert der ganze Start mit einem
         // nichtssagenden "Unexpected token". Dann hier die betroffenen Ausdrücke heraussuchen und mit ausgeben.
+        // iPhone-Safari verwandelt lange Zahlen im Seitentext in Telefon-Links (<a href="tel:...">) - noch bevor Vue die
+        // Vorlage liest. Steht so eine Zahl in einem {{ Ausdruck }}, ist die Vorlage kaputt. Die Links wieder zu Text machen.
+        function _undoDataDetectors(root) {
+            if (!root) return;
+            root.querySelectorAll('a[x-apple-data-detectors], a[href^="tel:"]').forEach(function (a) {
+                a.parentNode.replaceChild(document.createTextNode(a.textContent), a);
+            });
+            root.normalize();
+        }
+        _undoDataDetectors(document.getElementById('app'));
         const _appSource = document.getElementById('app').innerHTML;
         function _findBrokenExpressions(html) {
             const bad = [], seen = new Set();

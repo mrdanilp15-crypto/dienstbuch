@@ -211,6 +211,18 @@ def check_templates():
         except OSError:
             continue
 
+        # iPhone-Safari macht aus langen Zahlen im Seitentext Telefon-Links (<a href="tel:...">), noch
+        # bevor Vue die Vorlage liest. In {{ }} zerstoert das die Vorlage -> die App startet nicht.
+        if 'name="format-detection"' not in html:
+            report("Vorlagen-Zahl", "format-detection fehlt - iPhone verwandelt Zahlen in Telefon-Links",
+                   rel(html_file))
+        for m in MUSTACHE_RE.finditer(html):
+            if re.search(r"\d{5,}", m.group(1)):
+                report("Vorlagen-Zahl",
+                       "Lange Zahl in {{ }} - iPhone macht daraus einen Telefon-Link, die App startet nicht. "
+                       f"Zahl zerlegen oder in eine Methode verschieben: {' '.join(m.group(1).split())[:70]}",
+                       f"{rel(html_file)}:{html[: m.start()].count(chr(10)) + 1}")
+
         v_for_locals = set()
         for m in re.finditer(r'v-for\s*=\s*"\s*\(?([^)"]*?)\)?\s+(?:in|of)\s', html):
             for part in m.group(1).split(","):
