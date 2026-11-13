@@ -1189,7 +1189,7 @@
                     <div class="person-grid">
                         <div v-for="p in filteredPersonnel" :key="p.id" class="member-card d-flex align-items-center gap-3" @click="editPersonnel(p)">
                             <div class="avatar-container">
-                                <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Profilbild">
+                                <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Profilbild">
                             </div>
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between align-items-start">
@@ -3989,7 +3989,7 @@
                     <div class="modal-body p-4" v-if="activePersonnel" style="max-height: 70vh; overflow-y: auto;">
                         <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
                             <div class="modal-avatar-upload" @click="$refs.fileInput.click()">
-                                <img :src="activePersonnel.profile_picture || (activePersonnel.has_picture ? '/api/personnel/avatar/' + activePersonnel.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Avatar">
+                                <img :src="activePersonnel.profile_picture || (activePersonnel.has_picture ? '/api/personnel/avatar/' + activePersonnel.id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Avatar">
                                 <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
                             </div>
                             <div class="flex-grow-1">
@@ -4530,7 +4530,7 @@
                         <div v-show="youthModalTab === 'stamm'">
                             <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
                                 <div class="modal-avatar-upload" @click="$refs.youthFileInput.click()">
-                                    <img :src="newYouth.profile_picture || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" alt="Avatar">
+                                    <img :src="newYouth.profile_picture || '/static/img/avatar.svg'" alt="Avatar">
                                     <input type="file" ref="youthFileInput" class="d-none" accept="image/*" @change="onYouthAvatarChange">
                                 </div>
                                 <div class="flex-grow-1">

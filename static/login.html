@@ -32,19 +32,20 @@
         
         body { 
             background: var(--bg-gradient); 
-            height: 100vh; 
+            min-height: 100vh;
+            min-height: 100dvh; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
             font-family: 'Outfit', sans-serif;
             margin: 0;
-            overflow: hidden;
+            overflow-x: hidden;
             position: relative;
         }
 
         /* Decorative glowing circles */
         .glow-circle {
-            position: absolute;
+            position: fixed;
             border-radius: 50%;
             filter: blur(80px);
             z-index: 1;
@@ -200,6 +201,11 @@
             text-decoration: none;
             cursor: pointer;
         }
+        #forgotLinkWrap a {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
+        }
+        #forgotLinkWrap a:hover { color: #ff6b6b; }
         .footer-links a i {
             color: var(--primary-color);
         }
@@ -364,7 +370,21 @@
         }
     </script>
     <script>
-        localStorage.clear();
+        // Alte Anmeldedaten verwerfen, Geräte-Einstellungen (Design, Display-Zugang) aber behalten.
+        // try/catch: ist der Speicher gesperrt (privater Modus), darf die Anmeldung trotzdem funktionieren.
+        try {
+            const keep = {};
+            ['theme', 'display_token', 'last_vapid_key'].forEach(k => { const v = localStorage.getItem(k); if (v !== null) keep[k] = v; });
+            localStorage.clear();
+            Object.keys(keep).forEach(k => localStorage.setItem(k, keep[k]));
+        } catch (e) {}
+        function rememberLogin(data) {
+            try {
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userRole', data.role);
+                localStorage.setItem('userName', data.username);
+            } catch (e) {}
+        }
 
         // Preserve QR code redirect across login
         const params = new URLSearchParams(window.location.search);
@@ -471,6 +491,7 @@
                     pendingTwoFaToken = data.temp_token;
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('twoFaForm').style.display = 'block';
+                    document.getElementById('forgotLinkWrap').style.display = 'none';
                     document.getElementById('twoFaCodeInput').focus();
                     btn.disabled = false;
                     btnText.style.display = 'inline-block';
@@ -478,9 +499,7 @@
                     return;
                 }
 
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('userRole', data.role);
-                localStorage.setItem('userName', data.username);
+                rememberLogin(data);
 
                 goAfterLogin(data.redirect);
 
@@ -540,6 +559,7 @@
             document.getElementById('twoFaCodeInput').value = '';
             document.getElementById('twoFaForm').style.display = 'none';
             document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('forgotLinkWrap').style.display = 'block';
             document.getElementById('passwordInput').value = '';
             document.getElementById('passwordInput').focus();
         }
@@ -578,9 +598,7 @@
                     return;
                 }
 
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('userRole', data.role);
-                localStorage.setItem('userName', data.username);
+                rememberLogin(data);
                 goAfterLogin(data.redirect);
             } catch (error) {
                 showError('Verbindung zum Server fehlgeschlagen!');

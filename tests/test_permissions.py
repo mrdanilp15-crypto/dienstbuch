@@ -90,6 +90,19 @@ tok = admin.get("/api/settings/access-tokens").json()["display_token"]
 for path in ("/api/material/bma", "/api/material/hydrants", "/api/missions/schedules/list"):
     check(f"Hallen-Display mit Token erlaubt: {path}", anon.get(f"{path}?token={tok}").status_code == 200)
     check(f"Falscher Token gesperrt: {path}", anon.get(f"{path}?token=falsch").status_code == 401)
+# Einsatz-Freigabe: nur gültige Unterschrift, freigegebene Berichte sind für Nicht-Admins gesperrt, Entfernen nimmt die Freigabe zurück
+_m = admin.post("/api/missions", json={"date": "2026-02-02", "time": "10:00", "stichwort": "Sig-Test", "adresse": "Teststr. 1", "meldung": ""}).json()["id"]
+_sig = "data:image/png;base64," + "A" * 200
+gf = cl["gruppenfuehrer"]
+check("Freigabe: ungültige Unterschrift abgelehnt", gf.post(f"/api/missions/{_m}/signature", json={"signature": "javascript:alert(1)"}).status_code == 400)
+check("Freigabe: unbekannter Einsatz 404", gf.post("/api/missions/99999999/signature", json={"signature": _sig}).status_code == 404)
+check("Freigabe: Gruppenführer darf unterschreiben", gf.post(f"/api/missions/{_m}/signature", json={"signature": _sig}).status_code == 200)
+check("Freigabe: danach für Gruppenführer gesperrt", gf.post(f"/api/missions/{_m}/signature", json={"signature": None}).status_code == 403)
+check("Freigabe: Admin kann Unterschrift entfernen", admin.post(f"/api/missions/{_m}/signature", json={"signature": None}).status_code == 200)
+_d = admin.get(f"/api/missions/{_m}").json()
+check("Freigabe: Entfernen nimmt Freigabe zurück", _d.get("status") == "In Prüfung" and not _d.get("leader_signature"), str(_d.get("status")))
+admin.delete(f"/api/missions/{_m}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

@@ -690,9 +690,27 @@ def save_mission_signature(mission_id: int, data: dict, request: Request):
     user = check_auth(request)
     if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (data.get("signature"), mission_id))
+    sig = data.get("signature") or None
+    if sig is not None and (not isinstance(sig, str) or not sig.startswith("data:image/") or len(sig) > 2_000_000):
+        raise HTTPException(status_code=400, detail="Ungültige Unterschrift")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT status FROM missions WHERE id = %s", (mission_id,))
+    existing = cur.fetchone()
+    if not existing:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+    # Wie beim Speichern: ein freigegebener Bericht ist für alle außer Admins gesperrt
+    if existing["status"] == "Freigegeben" and user["role"] != "admin":
+        cur.close(); conn.close()
+        raise HTTPException(status_code=403, detail="Freigegebene Einsätze können nur von Admins editiert werden!")
+    if sig:
+        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (sig, mission_id))
+    else:
+        # Unterschrift entfernt: Freigabe zurücknehmen
+        cur.execute("UPDATE missions SET leader_signature = NULL, status = 'In Prüfung' WHERE id = %s", (mission_id,))
     conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "EINSATZ_FREIGABE" if sig else "EINSATZ_FREIGABE_ENTFERNT", f"Einsatz ID {mission_id}")
     return {"status": "success"}
 
 # --- 💨 ATEMSCHUTZ OVERVIEW & LOGGER ---

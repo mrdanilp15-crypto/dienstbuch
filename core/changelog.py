@@ -18,6 +18,8 @@ CHANGELOG = [
              "text": "Datumsangaben stehen jetzt einheitlich als 07.11.2026 statt 2026-11-07. Eine Frist gilt erst nach ihrem Fälligkeitstag als überfällig. Die Abrechnung hat eine Überschrift bekommen, die Gerätekarten sind aufgeräumt."},
             {"type": "fix", "tag": "Anzeige", "title": "Richtiger Tag kurz nach Mitternacht",
              "text": "Neue Logbuch-Einträge und die Terminliste im Hallen-Display nehmen jetzt das hiesige Datum – bisher konnte zwischen 0 und 2 Uhr noch der Vortag erscheinen."},
+            {"type": "fix", "tag": "Editor & Anmeldung", "title": "Dienst- und Einsatz-Editor zuverlässiger",
+             "text": "Im Einsatz-Editor werden Stichwort, Adresse, Datum und Dauer jetzt sofort mitgespeichert, auch beim Verlassen über „Portal“. Eine Freigabe-Unterschrift lässt sich wieder entfernen; freigegebene Berichte kann nur noch ein Admin neu unterschreiben. Das gewählte Design (hell/dunkel) bleibt nach dem Abmelden erhalten, die Anmeldeseite lässt sich auf kleinen Handys scrollen. Platzhalter-Profilbilder kommen nicht mehr von einem fremden Server."},
         ],
     },
     {

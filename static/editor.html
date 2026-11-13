@@ -312,6 +312,18 @@
             background: #1e1e1e !important;
             color: #ffffff !important;
         }
+        .admin-badge, .user-badge-role {
+            padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; white-space: nowrap;
+        }
+        .admin-badge { background: rgba(220, 53, 69, 0.2); color: #ff5252; border: 1px solid rgba(220, 53, 69, 0.5); }
+        .user-badge-role { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.15); }
+        .header-bar { gap: 10px; }
+        .header-bar h5 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @media (max-width: 575px) {
+            .header-bar { padding: 10px 12px; }
+            .header-bar h5 { font-size: 1rem; }
+            .header-legal { display: none; }
+        }
         .editor-loading {
             position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
             background: rgba(30, 24, 24, 0.95); border: 1px solid rgba(255,255,255,0.12);
@@ -323,7 +335,7 @@
 
 <div id="app" v-cloak>
     <div class="header-bar shadow-sm">
-        <button class="btn btn-outline-danger rounded-pill px-3 btn-sm" @click="goBack">
+        <button class="btn btn-outline-danger rounded-pill px-3 btn-sm text-nowrap" @click="leave">
             <i class="fas fa-chevron-left"></i> Portal
         </button>
         <h5 class="m-0 fw-bold text-white">{{ mode === 'mission' ? 'Einsatzbericht Editor' : 'Dienstbericht Editor' }}</h5>
@@ -331,8 +343,8 @@
             <span v-if="isReadOnly" class="badge bg-secondary"><i class="fa fa-eye me-1"></i> Schreibgeschützt</span>
             <span v-else-if="isAdmin" class="admin-badge">Admin</span>
             <span v-else class="user-badge-role">Schreiber</span>
-            <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
-            <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
+            <a class="text-muted text-decoration-none header-legal" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
+            <a class="text-muted text-decoration-none header-legal" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
         </div>
     </div>
 
@@ -356,11 +368,11 @@
             <div class="row g-3" v-if="mode === 'mission'">
                 <div class="col-12 col-md-6">
                     <label class="small text-white fw-bold mb-1"><i class="fa fa-fire me-1 text-danger"></i>EINSATZSTICHWORT</label>
-                    <input type="text" class="form-control" v-model="stichwort" :disabled="isReadOnly" required>
+                    <input type="text" class="form-control" v-model="stichwort" @input="autoSaveMission" :disabled="isReadOnly" required>
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="small text-white fw-bold mb-1"><i class="fa fa-location-dot me-1 text-danger"></i>EINSATZORT / ADRESSE</label>
-                    <input type="text" class="form-control" v-model="adresse" :disabled="isReadOnly" required>
+                    <input type="text" class="form-control" v-model="adresse" @input="autoSaveMission" :disabled="isReadOnly" required>
                 </div>
             </div>
 
@@ -510,7 +522,7 @@
 
                     <div @click="togglePresence(p)" style="cursor: pointer;">
                         <div class="editor-avatar">
-                            <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Profilbild">
+                            <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Profilbild">
                         </div>
                     </div>
 
@@ -559,7 +571,7 @@
                 </div>
                 <div v-for="p in filteredMissionAtt" :key="p.personnel_id" class="person-row" :class="{absent: p.is_present === 'Nein', 'g26-expired-alert': p.g26_expired}">
                     <div class="editor-avatar">
-                        <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Profilbild">
+                        <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Profilbild">
                     </div>
                     <div class="name-area">
                         <span class="name-text">{{p.name}}</span>
@@ -716,7 +728,7 @@
                             <div class="d-flex align-items-center">
                                 <input type="checkbox" class="form-check-input me-3" style="transform: scale(1.3); cursor: pointer;" v-model="p.selected" @click.stop>
                                 <div class="me-3 editor-avatar">
-                                    <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')" alt="Avatar">
+                                    <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Avatar">
                                 </div>
                                 <span class="fw-bold text-white fs-5">{{p.name}}</span>
                             </div>
@@ -1211,6 +1223,8 @@
                 if (this.mode === 'mission') { this.autoSaveMission(); } else { this.autoSave(); }
             },
             autoSave() {
+                // Datum und Dauer rufen autoSave auch im Einsatz-Modus auf - dort an das Einsatz-Speichern weiterreichen
+                if (this.mode === 'mission') return this.autoSaveMission();
                 if(this.isReadOnly || this.isLoading || this.mode !== 'session') return;
                 this.saveState = 'saving';
                 clearTimeout(saveTimer);
@@ -1242,7 +1256,7 @@
                     time: this.time || "",
                     end_time: this.endTime || "",
                     group_id: parseInt(this.groupId),
-                    category: this.category, duration: parseFloat(this.duration),
+                    category: this.category, duration: parseFloat(this.duration) || 0,
                     description: this.description, instructors: this.instructors,
                     leader_signature: this.leaderSignature,
                     entries: this.persons.map(p => ({
@@ -1254,7 +1268,10 @@
                     const res = await fetch('/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body:JSON.stringify(data) });
                     if (!res.ok) {
                         this.saveState = 'idle';
-                        await appAlert("Speichern fehlgeschlagen: Du hast keine Berechtigung, diesen Dienst zu bearbeiten.");
+                        const err = await res.json().catch(() => ({}));
+                        const why = res.status === 403 ? "Du hast keine Berechtigung, diesen Dienst zu bearbeiten."
+                            : (typeof err.detail === 'string' ? err.detail : "Der Server hat die Eingaben nicht angenommen (Fehler " + res.status + ").");
+                        await appAlert("Speichern fehlgeschlagen: " + why);
                         return;
                     }
                     const rd = await res.json();
@@ -1321,7 +1338,7 @@
                 try {
                     const pre = _pre.mission; _pre.mission = null;
                     const res = (pre && await pre) || await fetch(`/api/missions/${this.missionId}`, { credentials: 'include' });
-                    if (!res.ok) { await appAlert("Einsatz nicht gefunden."); return; }
+                    if (!res.ok) { await appAlert("Einsatz nicht gefunden."); this.goBack(); return; }
                     const detail = await res.json();
                     this.stichwort = detail.stichwort || '';
                     this.adresse = detail.adresse || '';
@@ -1434,6 +1451,7 @@
                 }
             },
             async deleteRespi(id) {
+                if (!await appConfirm("Atemschutz-Eintrag löschen?")) return;
                 const res = await fetch(`/api/missions/respiration/${id}`, { method: 'DELETE', credentials: 'include' });
                 if (res.ok) {
                     const rRes = await fetch(`/api/missions/${this.missionId}/respiration`, { credentials: 'include' });
@@ -1484,7 +1502,18 @@
                 sigModal.hide();
             },
             clearModal() { sigPad.clear(); },
-            clearLeaderSig() { if(this.isReadOnly) return; this.leaderSignature = null; if (this.mode === 'mission') { this.autoSaveMission(); } else { this.autoSave(); } },
+            async clearLeaderSig() {
+                if(this.isReadOnly) return;
+                if (this.mode !== 'mission') { this.leaderSignature = null; this.autoSave(); return; }
+                // Einsatz: die Unterschrift liegt hinter einem eigenen Endpunkt - das normale Speichern würde sie nicht entfernen
+                if (!await appConfirm("Unterschrift entfernen? Der Bericht ist dann nicht mehr freigegeben.")) return;
+                try {
+                    const res = await fetch(`/api/missions/${this.missionId}/signature`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ signature: null }) });
+                    if (!res.ok) { const err = await res.json().catch(() => ({})); await appAlert("Entfernen fehlgeschlagen: " + (err.detail || "Unbekannter Fehler.")); return; }
+                    this.leaderSignature = null;
+                    this.missionStatus = 'In Prüfung';
+                } catch(e) { await appAlert("Entfernen fehlgeschlagen: Verbindung zum Server unterbrochen."); }
+            },
             clearP(p) { if(this.isReadOnly) return; p.signature = null; this.autoSave(); },
 
             // --- VORLAGEN (nur Dienst-Modus) ---
@@ -1529,6 +1558,8 @@
                 await this.loadTemplates();
             },
             goBack() { window.location.href = '/dashboard'; },
+            // "Portal" oben: noch nicht gespeicherte Eingaben erst sichern, sonst gingen die letzten Tastendrücke verloren
+            leave() { if (!this.isReadOnly && this.saveState === 'saving') this.saveAndExit(); else this.goBack(); },
             saveAndExit() {
                 if(this.isReadOnly) { this.goBack(); return; }
                 if (this.mode === 'mission') { this.saveMission().then(() => this.goBack()); }
@@ -1542,7 +1573,7 @@
                         if (res.ok) this.legalTexts = await res.json();
                     } catch(e) {}
                 }
-                new bootstrap.Modal(document.getElementById('legalModal')).show();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('legalModal')).show();
             }
         }
     }).mount('#app');
