@@ -1252,6 +1252,15 @@ def init_db_extensions():
         except Exception as m_err:
             print("Fehler bei missions group_id Migration:", m_err)
 
+        # Einsaetze ohne Gruppe (frueher per Alarm angelegt) bekommen die Alarm-Gruppe - sonst standen sie in jeder Dienstliste
+        try:
+            from core.utils import alarm_group_id
+            _ag = alarm_group_id(cur)
+            if _ag:
+                cur.execute("UPDATE missions SET group_id = %s WHERE group_id IS NULL", (_ag,))
+        except Exception as m_err:
+            print("Fehler bei Einsatz-Gruppen-Migration:", m_err)
+
         for tbl, col_name, col_def in [
             ("missions", "end_time", "VARCHAR(50) DEFAULT ''"),
             ("sessions", "time", "VARCHAR(50) DEFAULT ''"),

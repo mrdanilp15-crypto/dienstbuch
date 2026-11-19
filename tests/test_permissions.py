@@ -115,6 +115,12 @@ if len(_gs) >= 2:
     check("Dienstliste: Einsatz einer anderen Gruppe fehlt, ohne Gruppe steht überall", _ma not in _l2 and _mn in _l2, str(_l2))
     admin.delete(f"/api/missions/{_ma}"); admin.delete(f"/api/missions/{_mn}")
 
+# --- Alarm-Einsaetze bekommen eine feste Gruppe (stehen nicht mehr in jeder Dienstliste)
+admin.post("/api/apager/test-alarm", json={"stichwort": "GrpFix", "prefix_test": False})
+_mg = sql("select group_id from missions where stichwort='GrpFix' order by id desc limit 1")
+check("Alarm-Einsatz hat eine Gruppe", str(_mg).strip() not in ("", "None", "NULL"), str(_mg))
+sql("delete from missions where stichwort='GrpFix'")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

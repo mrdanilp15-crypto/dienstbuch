@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from database import get_db_connection
-from core.utils import get_current_user, log_audit_action, check_display_access
+from core.utils import get_current_user, log_audit_action, check_display_access, alarm_group_id
 from routers import ws_mgr
 
 router = APIRouter()
@@ -208,9 +208,9 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     else:
         # Insert new
         cur.execute("""
-            INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
-            VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf')
-        """, (today, now_time, stichwort, adresse, meldung))
+            INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status, group_id)
+            VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf', %s)
+        """, (today, now_time, stichwort, adresse, meldung, alarm_group_id(cur)))
     
     conn.commit(); cur.close(); conn.close()
     
@@ -309,9 +309,9 @@ async def send_test_alarm(data: dict, request: Request):
     today = now_dt.date().isoformat()
     now_time = now_dt.strftime("%H:%M")
     cur.execute("""
-        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status)
-        VALUES (%s, %s, '', %s, %s, %s, 'Probealarm / Test-Alarmierung', 1.0, 'Entwurf')
-    """, (today, now_time, stichwort, adresse, meldung))
+        INSERT INTO missions (date, time, end_time, stichwort, adresse, meldung, description, duration, status, group_id)
+        VALUES (%s, %s, '', %s, %s, %s, 'Probealarm / Test-Alarmierung', 1.0, 'Entwurf', %s)
+    """, (today, now_time, stichwort, adresse, meldung, alarm_group_id(cur)))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "TEST_ALARM", f"Test-Alarm '{stichwort}' bei {adresse} ausgelöst.")
     await ws_mgr.manager.broadcast_json({

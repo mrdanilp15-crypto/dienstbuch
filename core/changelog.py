@@ -11,7 +11,7 @@ CHANGELOG = [
         "date": "2026-11-19",
         "items": [
             {"type": "fix", "tag": "Dienste", "title": "Einsätze nur in der richtigen Dienstliste",
-             "text": "Einsätze standen in der Dienstliste jeder Gruppe. Jetzt erscheint ein Einsatz nur noch in der Liste seiner Gruppe. Einsätze ohne Gruppe (z. B. per Alarm angelegt) bleiben für alle sichtbar."},
+             "text": "Einsätze standen in der Dienstliste jeder Gruppe. Jetzt erscheint ein Einsatz nur noch in der Liste seiner Gruppe. Per Alarm angelegte Einsätze bekommen automatisch eine feste Gruppe (bevorzugt eine mit „Einsatz“, „Aktiv“ oder „Wehr“ im Namen, sonst die älteste). Ältere Einsätze ohne Gruppe wurden ihr zugeordnet. Falsche Zuordnung: im Einsatz die Gruppe ändern."},
         ],
     },
     {

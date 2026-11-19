@@ -43,6 +43,22 @@ def _get_or_create_secret_key() -> str:
 
 SECRET_KEY = _get_or_create_secret_key()
 
+def alarm_group_id(cur):
+    """Gruppe, der per Alarm angelegte Einsaetze gehoeren: bevorzugt eine Gruppe mit "Einsatz", "Aktiv" oder
+    "Wehr" im Namen, sonst die aelteste. Ohne Gruppen: None."""
+    cur.execute("SELECT id, name FROM groups_table ORDER BY id ASC")
+    rows = cur.fetchall()
+    if not rows:
+        return None
+    def _get(r, k, i):
+        return r[k] if isinstance(r, dict) else r[i]
+    for r in rows:
+        n = str(_get(r, "name", 1) or "").lower()
+        if any(w in n for w in ("einsatz", "aktiv", "wehr")):
+            return _get(r, "id", 0)
+    return _get(rows[0], "id", 0)
+
+
 def get_station_name() -> str:
     """
     Liefert den Wehr-/Ortsnamen aus der in der Software gepflegten
