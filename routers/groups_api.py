@@ -80,7 +80,8 @@ def get_sessions(id: int, request: Request):
         
     # 2. Einsatzberichte mit einbinden
     try:
-        cur.execute("SELECT id, date, time, end_time, stichwort, meldung, adresse, description, duration, leader_signature, status FROM missions ORDER BY date DESC, id DESC")
+        # Nur Einsaetze dieser Gruppe - und solche ohne Gruppe (z.B. per Alarm angelegt), die gelten fuer alle.
+        cur.execute("SELECT id, date, time, end_time, stichwort, meldung, adresse, description, duration, leader_signature, status FROM missions WHERE group_id = %s OR group_id IS NULL ORDER BY date DESC, id DESC", (id,))
         missions = cur.fetchall()
         for m in missions:
             desc = f"{m['stichwort']}: {m['meldung']} ({m['adresse']})"

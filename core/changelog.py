@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 23,
+        "version": "2.73",
+        "date": "2026-11-19",
+        "items": [
+            {"type": "fix", "tag": "Dienste", "title": "Einsätze nur in der richtigen Dienstliste",
+             "text": "Einsätze standen in der Dienstliste jeder Gruppe. Jetzt erscheint ein Einsatz nur noch in der Liste seiner Gruppe. Einsätze ohne Gruppe (z. B. per Alarm angelegt) bleiben für alle sichtbar."},
+        ],
+    },
+    {
         "id": 22,
         "version": "2.72",
         "date": "2026-11-13",

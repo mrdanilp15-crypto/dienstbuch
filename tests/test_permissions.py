@@ -103,6 +103,18 @@ _d = admin.get(f"/api/missions/{_m}").json()
 check("Freigabe: Entfernen nimmt Freigabe zurück", _d.get("status") == "In Prüfung" and not _d.get("leader_signature"), str(_d.get("status")))
 admin.delete(f"/api/missions/{_m}")
 
+# --- Einsaetze erscheinen nur in der Dienstliste ihrer Gruppe (und ohne Gruppe in allen)
+_gs = admin.get("/api/groups").json()
+if len(_gs) >= 2:
+    _g1, _g2 = _gs[0]["id"], _gs[1]["id"]
+    _ma = admin.post("/api/missions", json={"date": "2026-03-03", "time": "10:00", "stichwort": "GrpA-Test", "adresse": "A", "meldung": "", "group_id": _g1}).json()["id"]
+    _mn = admin.post("/api/missions", json={"date": "2026-03-04", "time": "10:00", "stichwort": "OhneGrp-Test", "adresse": "B", "meldung": ""}).json()["id"]
+    _l1 = [x.get("real_mission_id") for x in admin.get(f"/api/groups/{_g1}/sessions").json() if x.get("is_mission")]
+    _l2 = [x.get("real_mission_id") for x in admin.get(f"/api/groups/{_g2}/sessions").json() if x.get("is_mission")]
+    check("Dienstliste: Einsatz steht in seiner Gruppe", _ma in _l1 and _mn in _l1)
+    check("Dienstliste: Einsatz einer anderen Gruppe fehlt, ohne Gruppe steht überall", _ma not in _l2 and _mn in _l2, str(_l2))
+    admin.delete(f"/api/missions/{_ma}"); admin.delete(f"/api/missions/{_mn}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")
