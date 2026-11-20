@@ -184,7 +184,7 @@ applyChartTheme();
                 return {
                     isOnline: navigator.onLine,
                     html5Qrcode: null,
-                    isDarkMode: true,
+                    isDarkMode: (() => { try { return localStorage.getItem('theme') === 'dark'; } catch (e) { return false; } })(),
                     ready: false, isAdmin: false, username: '', role: '',
                     groups: [], selectedGroup: null, mobileSelectedId: null,
                     sessionsList: [], selectedYear: new Date().getFullYear(),
@@ -266,7 +266,7 @@ applyChartTheme();
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
-                    menuFavorites: [],
+                    menuFavorites: [], selfTab: 'stat',
                     menuCollapsed: (() => { try { return JSON.parse(localStorage.getItem('menuCollapsed') || '{}') || {}; } catch (e) { return {}; } })(),
                     savedFilters: { einsaetze: [], material: [] },
                     availabilityList: [],
@@ -1979,8 +1979,10 @@ applyChartTheme();
                         this.changelogEntries = data.entries || [];
                         this.changelogUnseen = !!data.unseen;
                         if (autoShowIfUnseen && this.changelogUnseen) {
+                            // Nach einem Update übernimmt der neue Service Worker kurz nach dem Start und lädt die Seite
+                            // einmal neu. Das Fenster erst danach zeigen - sonst blitzt es auf und ist sofort wieder weg.
                             this.$nextTick(() => {
-                                setTimeout(() => this.openChangelogModal(), 600);
+                                setTimeout(() => { if (!window.__swReloading) this.openChangelogModal(); }, 2200);
                             });
                         }
                     } catch (e) { /* offline o.ä. - kein Grund, den Nutzer zu stören */ }
@@ -1991,12 +1993,17 @@ applyChartTheme();
                     let m = bootstrap.Modal.getInstance(el);
                     if (!m) m = new bootstrap.Modal(el);
                     m.show();
-                    // Erst beim tatsächlichen Anzeigen als gesehen markieren, nicht schon beim
-                    // Laden - sonst hätte ein Admin, der offline war, den Hinweis verpasst, ohne
-                    // ihn je gesehen zu haben.
-                    if (this.changelogUnseen) {
-                        this.changelogUnseen = false;
-                        fetch('/api/users/me/changelog/seen', { method: 'POST', credentials: 'include' }).catch(() => {});
+                    // Als gesehen gilt es erst, wenn das Fenster geschlossen wird - nicht schon beim Anzeigen.
+                    // Sonst ging der Hinweis verloren, wenn die Seite gleich danach neu lud (Update) oder
+                    // ein Admin offline war, ohne ihn je gelesen zu haben.
+                    if (this.changelogUnseen && !this._changelogSeenHook) {
+                        this._changelogSeenHook = true;
+                        el.addEventListener('hidden.bs.modal', () => {
+                            this._changelogSeenHook = false;
+                            if (!this.changelogUnseen) return;
+                            this.changelogUnseen = false;
+                            fetch('/api/users/me/changelog/seen', { method: 'POST', credentials: 'include' }).catch(() => {});
+                        }, { once: true });
                     }
                 },
                 openPersonnelCertificate(kind) {
@@ -3786,6 +3793,7 @@ applyChartTheme();
                     } catch (e) { this.idCardError = 'Keine Verbindung zum Server.'; }
                 },
                 openSelfPasswordModal() {
+                    this.selfTab = 'stat';
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };
                     this.twoFaSetup = null; this.twoFaConfirmCode = ''; this.twoFaRecoveryCodes = null;
                     this.fetchPersonalStats();

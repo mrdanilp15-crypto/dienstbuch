@@ -1505,3 +1505,7 @@ body { color: var(--text-color); }
 .sidebar-btn .sidebar-pin.pinned { opacity: 1; color: #ffc107; }
 .sidebar-btn .badge.ms-auto + .sidebar-pin { margin-left: 4px; }
 @media (hover: none) { .sidebar-btn .sidebar-pin { opacity: 0.4; } }
+
+/* Schließen-Kreuz: im hellen Modus dunkel (Bootstrap malt "btn-close-white" weiß - auf hellem Kopf unsichtbar) */
+[data-theme="light"] .btn-close-white { filter: none; opacity: 0.65; }
+[data-theme="light"] .btn-close-white:hover { opacity: 1; }

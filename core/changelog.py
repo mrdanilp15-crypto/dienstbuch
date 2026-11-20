@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 24,
+        "version": "2.74",
+        "date": "2026-11-20",
+        "items": [
+            {"type": "fix", "tag": "Was ist neu", "title": "Hinweis nach dem Update bleibt stehen",
+             "text": "Nach einem Update lud die Seite sich kurz nach dem Start noch einmal neu, und das „Was ist neu“-Fenster war sofort weg und galt trotzdem als gelesen. Jetzt erscheint es erst nach dem Neuladen und gilt erst als gelesen, wenn du es schließt."},
+            {"type": "fix", "tag": "Profil", "title": "Profil-Fenster übersichtlich, Kreuz sichtbar",
+             "text": "Im hellen Modus war das Schließen-Kreuz weiß auf weiß und damit unsichtbar. Jetzt ist es überall sichtbar. Das Profil-Fenster ist in die Reiter Statistik, Kontakt und Sicherheit aufgeteilt, hat einen festen Kopf und scrollt nur im Inhalt. Beim Pflicht-Passwortwechsel zeigt es nur noch das Passwortformular, mit „Abmelden“ oben."},
+            {"type": "new", "tag": "Design", "title": "Hell ist jetzt der Standard",
+             "text": "Die App startet im hellen Modus. Wer selbst auf Dunkel umgestellt hat (Mond-Symbol oben), behält Dunkel. Login-Seite und Einsatz-Editor bleiben dunkel."},
+        ],
+    },
+    {
         "id": 23,
         "version": "2.73",
         "date": "2026-11-19",
