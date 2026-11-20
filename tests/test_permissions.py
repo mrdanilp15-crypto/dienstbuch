@@ -212,6 +212,13 @@ for _b in ("ZZ-PERM-1", "ZZ-PERM-3"):
     if _i:
         admin.delete(f"/api/material/equipment/{_i}")
 
+# --- Verein-Recht einstellbar
+check("Verein: Mannschaft gesperrt (Standard)", cl["mannschaft"].get("/api/verein/donations").status_code == 403)
+check("Verein: Recht vergeben", admin.put("/api/admin/permissions", json={"role": "mannschaft", "permission": "verein.manage", "allowed": True}).status_code == 200)
+check("Verein: Mannschaft darf jetzt lesen", cl["mannschaft"].get("/api/verein/donations").status_code == 200)
+admin.post("/api/admin/permissions/reset")
+check("Verein: nach Reset wieder gesperrt", cl["mannschaft"].get("/api/verein/donations").status_code == 403)
+
 # --- Eigene Rollen
 check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)
 check("Eigene Rolle: Basis Admin abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "admin"}).status_code == 400)

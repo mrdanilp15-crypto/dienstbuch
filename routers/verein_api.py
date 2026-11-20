@@ -3,6 +3,7 @@ from datetime import date
 
 from database import get_db_connection
 from core.utils import get_current_user
+from core.permissions import has_permission
 
 router = APIRouter()
 
@@ -18,7 +19,7 @@ def get_club_inventory(request: Request):
 @router.post("/api/verein/inventory")
 def add_club_inventory(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or not has_permission(user, "verein.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     item = data.get("item_name")
     qty = int(data.get("quantity", 1))
@@ -32,7 +33,7 @@ def add_club_inventory(data: dict, request: Request):
 @router.delete("/api/verein/inventory/{i_id}")
 def delete_club_inventory(i_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or not has_permission(user, "verein.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM club_inventory WHERE id = %s", (i_id,))
@@ -43,7 +44,7 @@ def delete_club_inventory(i_id: int, request: Request):
 def get_donations(request: Request):
     u = get_current_user(request)
     if not u: raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if u["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if not has_permission(u, "verein.manage"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT *, DATE_FORMAT(date, '%d.%m.%Y') as formatted_date FROM club_donations ORDER BY date DESC")
     res = cur.fetchall(); cur.close(); conn.close()
@@ -52,7 +53,7 @@ def get_donations(request: Request):
 @router.post("/api/verein/donations")
 def add_donation(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or not has_permission(user, "verein.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     donor = data.get("donor")
     amount = float(data.get("amount", 0))
@@ -68,7 +69,7 @@ def add_donation(data: dict, request: Request):
 def get_membership_fees(year: int, request: Request):
     u = get_current_user(request)
     if not u: raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if u["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if not has_permission(u, "verein.manage"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     # LEFT JOIN, damit auch Mitglieder ohne Eintrag für dieses Jahr (= noch nicht bezahlt)
     # mit auftauchen, statt einfach zu fehlen.
@@ -91,7 +92,7 @@ def get_membership_fees(year: int, request: Request):
 @router.post("/api/verein/membership-fees")
 def set_membership_fee(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"):
+    if not user or not has_permission(user, "verein.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     personnel_id = data.get("personnel_id")
     year = data.get("year")

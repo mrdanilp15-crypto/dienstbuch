@@ -291,7 +291,7 @@
                     <div class="sidebar-section-header">Material & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" v-if="canSeeFinance || canManageBilling" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Inventar</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>

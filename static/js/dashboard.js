@@ -483,7 +483,7 @@ applyChartTheme();
                 // Jugendfeuerwehr (Daten Minderjähriger): nur Wehrführung und Jugendwarte - die ordnen auch den Nachwuchs von dort aus.
                 canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role); },
                 canSeeYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
-                canSeeFinance() { return ['admin', 'leitung'].includes(this.role); },
+                canSeeFinance() { return this.hasPerm('verein.manage'); },
                 canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
                 settingsGroups() {
                     const admin = this.role === 'admin';
