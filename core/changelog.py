@@ -10,6 +10,8 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Mängel", "title": "Status, Zuständigkeit und Rückfragen",
+             "text": "Mängel haben die Stufen Offen, In Bearbeitung und Erledigt und lassen sich wieder öffnen. Wer einen Mangel in Bearbeitung nimmt, wird als zuständig eingetragen, die Zuständigkeit ist änderbar. Am Mangel gibt es einen Verlauf mit Rückfragen und Antworten zwischen Gerätewart und meldender Person. Statuswechsel werden dort automatisch vermerkt."},
             {"type": "new", "tag": "Material", "title": "Geräte archivieren statt löschen",
              "text": "Ausgemusterte Geräte lassen sich archivieren. Sie verschwinden aus der Liste und lösen keine Prüf-Erinnerungen mehr aus, der Verlauf bleibt erhalten. Mit „Archiv anzeigen“ sind sie wieder auffindbar und können wiederhergestellt werden."},
             {"type": "new", "tag": "Personal", "title": "Beförderungen und Ehrungen",

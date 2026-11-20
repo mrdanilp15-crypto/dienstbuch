@@ -347,6 +347,7 @@ applyChartTheme();
                     // Mängelmelder
                     defectReports: [],
                     defectFilter: 'Offen',
+                    openDefectId: null, defectComments: [], newDefectComment: '',
                     newDefect: { equipment_id: null, description: '', severity: 'Mittel', assigned_to: '', priority: 'Mittel', image_url: '' },
                     
                     // Test Alarm
@@ -4089,7 +4090,34 @@ applyChartTheme();
                         method: 'PUT', headers: {'Content-Type': 'application/json'},
                         credentials: 'include', body: JSON.stringify({ status: status })
                     });
-                    if (res.ok) await this.loadDefectReports();
+                    if (res.ok) { await this.loadDefectReports(); if (this.openDefectId === id) await this.loadDefectComments(id); }
+                    else await appAlert((await res.json().catch(() => ({}))).detail || 'Status konnte nicht geändert werden.');
+                },
+                async saveDefectAssignee(dr) {
+                    const res = await fetch(`/api/material/defect-reports/${dr.id}`, {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'},
+                        credentials: 'include', body: JSON.stringify({ status: dr.status, assigned_to: dr.assigned_to || '' })
+                    });
+                    if (!res.ok) await appAlert((await res.json().catch(() => ({}))).detail || 'Zuweisung konnte nicht gespeichert werden.');
+                },
+                async toggleDefectComments(dr) {
+                    if (this.openDefectId === dr.id) { this.openDefectId = null; return; }
+                    this.openDefectId = dr.id; this.defectComments = []; this.newDefectComment = '';
+                    await this.loadDefectComments(dr.id);
+                },
+                async loadDefectComments(id) {
+                    const res = await fetch(`/api/material/defect-reports/${id}/comments`, { credentials: 'include' });
+                    if (res.ok && this.openDefectId === id) this.defectComments = await res.json();
+                },
+                async sendDefectComment(dr) {
+                    const text = (this.newDefectComment || '').trim();
+                    if (!text) return;
+                    const res = await fetch(`/api/material/defect-reports/${dr.id}/comments`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        credentials: 'include', body: JSON.stringify({ text })
+                    });
+                    if (res.ok) { this.newDefectComment = ''; await this.loadDefectComments(dr.id); await this.loadDefectReports(); }
+                    else await appAlert((await res.json().catch(() => ({}))).detail || 'Nachricht konnte nicht gesendet werden.');
                 },
                 async deleteDefectReport(id) {
                     if (!await appConfirm("Mangelmeldung unwiderruflich löschen?")) return;

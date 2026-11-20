@@ -155,6 +155,37 @@ if _eq:
     check("Archiv: Wiederherstellen bringt es zurück", any(x["id"] == _eq for x in admin.get("/api/material/equipment").json()))
     admin.delete(f"/api/material/equipment/{_eq}")
 
+# --- Mängel: Status, Zuweisung, Rückfragen
+admin.post("/api/material/equipment", json={"name": "MangelTest", "barcode": "ZZ-DEF-1", "category": "Werkzeug", "interval_months": 12})
+_eq2 = next((x["id"] for x in admin.get("/api/material/equipment").json() if x["barcode"] == "ZZ-DEF-1"), None)
+cl["mannschaft"].post("/api/material/defect-reports", json={"equipment_id": _eq2, "description": "Griff locker", "severity": "Mittel"})
+_dr = next((x for x in admin.get("/api/material/defect-reports?status=alle").json() if x["equipment_id"] == _eq2), None)
+check("Mangel: gemeldet", _dr is not None and _dr["status"] == "Offen")
+if _dr:
+    _id = _dr["id"]
+    check("Mangel: Mannschaft darf Status nicht ändern", cl["mannschaft"].put(f"/api/material/defect-reports/{_id}", json={"status": "Erledigt"}).status_code == 403)
+    check("Mangel: ungültiger Status abgelehnt", admin.put(f"/api/material/defect-reports/{_id}", json={"status": "Quatsch"}).status_code == 400)
+    check("Mangel: unbekannte Meldung 404", admin.put("/api/material/defect-reports/99999999", json={"status": "Offen"}).status_code == 404)
+    check("Mangel: In Bearbeitung", admin.put(f"/api/material/defect-reports/{_id}", json={"status": "In Bearbeitung"}).status_code == 200)
+    _x = next(y for y in admin.get("/api/material/defect-reports?status=In%20Bearbeitung").json() if y["id"] == _id)
+    check("Mangel: wer übernimmt, wird zuständig", _x["assigned_to"] == "demo" and not _x.get("resolved_at"), str(_x.get("assigned_to")))
+    check("Mangel: Zuweisung änderbar", admin.put(f"/api/material/defect-reports/{_id}", json={"status": "In Bearbeitung", "assigned_to": "Max Gerätewart"}).status_code == 200)
+    check("Mangel: Fremde dürfen nicht kommentieren", cl["jugendwarte"].post(f"/api/material/defect-reports/{_id}/comments", json={"text": "hallo"}).status_code == 403)
+    check("Mangel: Gerätewart fragt nach", admin.post(f"/api/material/defect-reports/{_id}/comments", json={"text": "Welcher Griff?"}).status_code == 200)
+    check("Mangel: leerer Text abgelehnt", admin.post(f"/api/material/defect-reports/{_id}/comments", json={"text": "  "}).status_code == 400)
+    _cm = admin.get(f"/api/material/defect-reports/{_id}/comments").json()
+    check("Mangel: Verlauf enthält Statuswechsel und Rückfrage", any("→" in c["text"] for c in _cm) and any(c["text"] == "Welcher Griff?" for c in _cm), str(_cm))
+    admin.put(f"/api/material/defect-reports/{_id}", json={"status": "Erledigt"})
+    _e = next(y for y in admin.get("/api/material/defect-reports?status=Erledigt").json() if y["id"] == _id)
+    check("Mangel: Erledigt setzt Bearbeiter und Zeit", _e["resolved_by"] == "demo" and _e["resolved_at"])
+    admin.put(f"/api/material/defect-reports/{_id}", json={"status": "Offen"})
+    _o = next(y for y in admin.get("/api/material/defect-reports?status=alle").json() if y["id"] == _id)
+    check("Mangel: Wieder öffnen löscht Erledigt-Vermerk", _o["status"] == "Offen" and not _o["resolved_at"] and not _o["resolved_by"])
+    admin.delete(f"/api/material/defect-reports/{_id}")
+    check("Mangel: Löschen entfernt auch den Verlauf", sql(f"select count(*) from defect_comments where report_id={_id}") in ("0", 0))
+if _eq2:
+    admin.delete(f"/api/material/equipment/{_eq2}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

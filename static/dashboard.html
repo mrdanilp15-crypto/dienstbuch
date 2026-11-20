@@ -916,6 +916,7 @@
                                         <h5 class="fw-bold text-white mb-0"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Gemeldete Mängel</h5>
                                         <div class="d-flex gap-2">
                                             <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Offen' ? 'btn-warning text-dark' : 'btn-outline-secondary text-white'" @click="defectFilter='Offen'; loadDefectReports()">Offen</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'In Bearbeitung' ? 'btn-info text-dark' : 'btn-outline-secondary text-white'" @click="defectFilter='In Bearbeitung'; loadDefectReports()">In Bearbeitung</button>
                                             <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Erledigt' ? 'btn-success' : 'btn-outline-secondary text-white'" @click="defectFilter='Erledigt'; loadDefectReports()">Erledigt</button>
                                             <button class="btn btn-sm rounded-pill" :class="defectFilter === 'alle' ? 'btn-secondary' : 'btn-outline-secondary text-white'" @click="defectFilter='alle'; loadDefectReports()">Alle</button>
                                         </div>
@@ -942,7 +943,25 @@
                                                     <button v-if="dr.status !== 'In Bearbeitung'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
                                                 </div>
                                                 <small v-else-if="dr.status === 'Erledigt'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
+                                                <button v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Erledigt'" class="btn btn-xs btn-outline-light rounded-pill px-2" @click="resolveDefect(dr.id, 'Offen')" style="font-size:0.7rem;"><i class="fa fa-rotate-left me-1"></i>Wieder öffnen</button>
+                                                <button class="btn btn-xs btn-outline-light rounded-pill px-2" @click="toggleDefectComments(dr)" style="font-size:0.7rem;"><i class="fa fa-comments me-1"></i>Rückfragen<span v-if="dr.comment_count"> ({{dr.comment_count}})</span></button>
                                                 <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2 mt-2 small">
+                                            <span class="text-muted"><i class="fa fa-user-check me-1"></i>Zuständig:</span>
+                                            <input v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" type="text" v-model="dr.assigned_to" class="form-control form-control-sm w-auto" style="min-width:160px;" placeholder="Name eintragen" @change="saveDefectAssignee(dr)">
+                                            <strong v-else class="text-white">{{ dr.assigned_to || '—' }}</strong>
+                                        </div>
+                                        <div v-if="openDefectId === dr.id" class="mt-3 pt-3 border-top border-secondary border-opacity-25">
+                                            <div v-if="defectComments.length === 0" class="text-muted small mb-2">Noch keine Rückfragen oder Verlaufseinträge.</div>
+                                            <div v-for="c in defectComments" :key="c.id" class="small mb-2">
+                                                <strong class="text-white">{{c.author}}</strong> <span class="text-muted">{{ dt(c.created_at) }}</span>
+                                                <div class="text-white-50" style="white-space: pre-wrap;">{{c.text}}</div>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <input type="text" v-model="newDefectComment" class="form-control form-control-sm" placeholder="Rückfrage oder Antwort schreiben …" maxlength="2000" @keyup.enter="sendDefectComment(dr)">
+                                                <button class="btn btn-sm btn-premium rounded-pill px-3" @click="sendDefectComment(dr)"><i class="fa fa-paper-plane"></i></button>
                                             </div>
                                         </div>
                                     </div>

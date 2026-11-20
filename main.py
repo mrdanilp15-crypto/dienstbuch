@@ -1246,6 +1246,17 @@ def init_db_extensions():
             except Exception as e:
                 print(f"Migration youth_members col {col_name}: {e}")
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS defect_comments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id INT NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_defect_comments_report (report_id)
+            ) ENGINE=InnoDB;
+        """)
+
         # Migration für Mängelberichte (Foto, Zuweisung, Priorität)
         try:
             cur.execute("SHOW COLUMNS FROM equipment_defect_reports LIKE 'image_url'")

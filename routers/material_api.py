@@ -5,6 +5,8 @@ from core.utils import get_current_user, log_audit_action
 
 router = APIRouter()
 
+DEFECT_STATES = ("Offen", "In Bearbeitung", "Erledigt")
+
 
 # --- MÄNGELMELDER (GERÄTEWART - ERWEITERT) ---
 @router.post("/api/material/defect-reports")
@@ -36,7 +38,8 @@ def get_defect_reports(request: Request, status: str = "Offen"):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     if status == "alle":
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode
+            SELECT dr.*, e.name as equipment_name, e.barcode,
+                   (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
             ORDER BY dr.created_at DESC LIMIT 100
@@ -46,7 +49,8 @@ def get_defect_reports(request: Request, status: str = "Offen"):
         # sonst verschwand ein Mangel beim Setzen auf "In Bearbeitung" sofort aus der
         # Offen-Ansicht und war dort nicht mehr auffindbar, um ihn später als erledigt zu markieren.
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode
+            SELECT dr.*, e.name as equipment_name, e.barcode,
+                   (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
             WHERE dr.status != 'Erledigt'
@@ -54,7 +58,8 @@ def get_defect_reports(request: Request, status: str = "Offen"):
         """)
     else:
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode
+            SELECT dr.*, e.name as equipment_name, e.barcode,
+                   (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
             WHERE dr.status = %s
@@ -72,13 +77,68 @@ def resolve_defect_report(report_id: int, data: dict, request: Request):
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_status = data.get("status", "Erledigt")
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute(
-        "UPDATE equipment_defect_reports SET status = %s, resolved_by = %s, resolved_at = NOW() WHERE id = %s",
-        (new_status, user["username"], report_id)
-    )
+    if new_status not in DEFECT_STATES:
+        raise HTTPException(status_code=400, detail="Ungültiger Status.")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT status, assigned_to FROM equipment_defect_reports WHERE id = %s", (report_id,))
+    old = cur.fetchone()
+    if not old:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Mangel-Meldung nicht gefunden")
+    # Wer den Status aendert und noch niemand zugewiesen ist, uebernimmt den Mangel
+    assigned = data.get("assigned_to") if "assigned_to" in data else old.get("assigned_to")
+    if "assigned_to" not in data and new_status == "In Bearbeitung" and not assigned:
+        assigned = user["username"]
+    assigned = (assigned or "").strip()[:255] or None
+    if new_status == "Erledigt":
+        cur.execute(
+            "UPDATE equipment_defect_reports SET status = %s, assigned_to = %s, resolved_by = %s, resolved_at = NOW() WHERE id = %s",
+            (new_status, assigned, user["username"], report_id)
+        )
+    else:
+        # Wieder geöffnet oder in Bearbeitung: Erledigt-Vermerk entfernen
+        cur.execute(
+            "UPDATE equipment_defect_reports SET status = %s, assigned_to = %s, resolved_by = NULL, resolved_at = NULL WHERE id = %s",
+            (new_status, assigned, report_id)
+        )
+    if old["status"] != new_status:
+        cur.execute("INSERT INTO defect_comments (report_id, author, text) VALUES (%s, %s, %s)",
+                    (report_id, user["username"], f"Status: {old['status']} → {new_status}"))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_ERLEDIGT", f"Mangel-Meldung ID {report_id} als '{new_status}' markiert.")
+    return {"status": "success"}
+
+@router.get("/api/material/defect-reports/{report_id}/comments")
+def list_defect_comments(report_id: int, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, author, text, created_at FROM defect_comments WHERE report_id = %s ORDER BY id ASC", (report_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    for r in rows:
+        r["created_at"] = str(r["created_at"])
+    return rows
+
+@router.post("/api/material/defect-reports/{report_id}/comments")
+def add_defect_comment(report_id: int, data: dict, request: Request):
+    """Rückfrage oder Antwort zu einem Mangel: Gerätewart/Leitung/Admin und wer den Mangel gemeldet hat."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    text = (data.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Bitte einen Text eingeben.")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT reporter_name FROM equipment_defect_reports WHERE id = %s", (report_id,))
+    rep = cur.fetchone()
+    if not rep:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Mangel-Meldung nicht gefunden")
+    is_staff = user["role"] in ("admin", "leitung", "geratewart")
+    if not is_staff and (rep["reporter_name"] or "").strip().lower() != user["username"].strip().lower():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=403, detail="Nur Gerätewart, Leitung und die meldende Person dürfen hier schreiben.")
+    cur.execute("INSERT INTO defect_comments (report_id, author, text) VALUES (%s, %s, %s)", (report_id, user["username"], text[:2000]))
+    conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 
 @router.delete("/api/material/defect-reports/{report_id}")
@@ -87,6 +147,7 @@ def delete_defect_report(report_id: int, request: Request):
     if not user or user["role"] not in ("admin", "leitung", "geratewart"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM defect_comments WHERE report_id = %s", (report_id,))
     cur.execute("DELETE FROM equipment_defect_reports WHERE id = %s", (report_id,))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_GELOESCHT", f"Mangel-Meldung ID {report_id} gelöscht.")
