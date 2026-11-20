@@ -265,6 +265,8 @@ applyChartTheme();
                     idCard: null, idCardError: '', showArchivedEquipment: false,
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
+                    missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
+                    savedFilters: { einsaetze: [], material: [] },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueItems: [], dueOnlyOverdue: false,
@@ -468,6 +470,16 @@ applyChartTheme();
                 },
                 calendarFeedUrl() { return `${window.location.protocol}//${this.serverHost}/api/calendar/feed.ics?token=${this.accessTokens.calendar_token}`; },
                 displayUrl() { return `${window.location.protocol}//${this.serverHost}/static/alarmdisplay.html?token=${this.accessTokens.display_token}`; },
+                billsFiltered() {
+                    const f = this.billFilter;
+                    return (this.bills || []).filter(b => f === 'alle' ? true : f === 'bezahlt' ? !!b.paid_at : f === 'ueberfaellig' ? this.billOverdue(b) : !b.paid_at);
+                },
+                billStats() {
+                    const list = this.bills || [];
+                    const open = list.filter(b => !b.paid_at);
+                    const sum = a => a.reduce((t, b) => t + (parseFloat(b.amount) || 0), 0);
+                    return { open: open.length, openSum: sum(open), overdue: list.filter(b => this.billOverdue(b)).length, paid: list.length - open.length };
+                },
                 overviewWidgetDefs() {
                     return {
                         mitteilungen: { title: 'Neueste Mitteilungen', icon: 'fa-comment-dots' },
@@ -490,9 +502,8 @@ applyChartTheme();
                     const year = new Date().getFullYear();
                     const list = (this.missions || []).filter(m => m && m.date && String(m.date).slice(0, 4) === String(year));
                     const open = list.filter(m => !(m.leader_signature || m.status === 'Freigegeben')).length;
-                    const kind = s => { const t = String(s || '').trim(); return /^b/i.test(t) ? 'Brand' : (/^(h|th|t)/i.test(t) ? 'Hilfeleistung' : 'Sonstige'); };
                     const by = { Brand: 0, Hilfeleistung: 0, Sonstige: 0 };
-                    list.forEach(m => { by[kind(m.stichwort)]++; });
+                    list.forEach(m => { by[this.kindOfStichwort(m.stichwort)]++; });
                     const latest = [...list].sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 3);
                     return { year, total: list.length, open, by, latest };
                 },
@@ -727,6 +738,11 @@ applyChartTheme();
                     if (this.missionGroupFilter !== 'all') {
                         list = list.filter(m => m.group_id == this.missionGroupFilter || !m.group_id);
                     }
+                    const q = (this.missionSearch || '').trim().toLowerCase();
+                    if (q) list = list.filter(m => [m.stichwort, m.adresse, m.meldung].some(t => String(t || '').toLowerCase().includes(q)));
+                    if (this.missionStatus !== 'alle') list = list.filter(m => m.status === this.missionStatus);
+                    if (this.missionKind !== 'alle') list = list.filter(m => this.kindOfStichwort(m.stichwort) === this.missionKind);
+                    if (this.missionYear !== 'all') list = list.filter(m => String(m.date || '').slice(0, 4) === String(this.missionYear));
                     return list.sort((a, b) => new Date(b.date) - new Date(a.date));
                 },
                 availableMissionsForBilling() {
@@ -1898,10 +1914,10 @@ applyChartTheme();
                         jugend: () => this.loadJugendData(),
                         notizen: () => this.loadNotes(),
                         kalender: () => this.loadCalendar(),
-                        einsaetze: () => this.loadMissions(),
+                        einsaetze: () => { this.loadMissions(); this.loadSavedFilters(); },
                         lagekarte: () => this.initMap(),
                         hvo: () => this.loadHvoData(),
-                        material: () => this.loadEquipment(),
+                        material: () => { this.loadEquipment(); this.loadSavedFilters(); },
                         abrechnung: () => { this.loadBills(); this.calculateCompensations(); },
                         arbeitsbescheinigung: () => this.loadEmployerCertificates(),
                         archiv: () => this.loadArchiveFiles(),
@@ -3271,6 +3287,70 @@ applyChartTheme();
                     if (tab === 'logbuch') return !this.logbooksLoaded || this.logbooks.length > 0 || this.canSeeSettings;
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
+                },
+                // Rechnungen haben kein Fälligkeitsdatum: als überfällig gilt, was seit über 30 Tagen unbezahlt ist
+                billOverdue(b) {
+                    if (b.paid_at || !b.sent_at) return false;
+                    const t = new Date(String(b.sent_at).replace(' ', 'T'));
+                    return !isNaN(t) && (Date.now() - t.getTime()) > 30 * 86400000;
+                },
+                kindOfStichwort(s) { const t = String(s || '').trim(); return /^b/i.test(t) ? 'Brand' : (/^(h|th|t)/i.test(t) ? 'Hilfeleistung' : 'Sonstige'); },
+                missionYearOptions() {
+                    const ys = new Set((this.missions || []).map(m => String(m.date || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y)));
+                    ys.add(String(new Date().getFullYear()));
+                    return [...ys].sort().reverse();
+                },
+                // Gespeicherte Filter ("Filter speichern"): pro Konto, je Liste
+                currentFilterOf(listKey) {
+                    if (listKey === 'einsaetze') return { search: this.missionSearch, status: this.missionStatus, kind: this.missionKind, year: this.missionYear, group: this.missionGroupFilter };
+                    return { search: this.eqSearch, category: this.eqCategory, defective: this.filterDefectiveOnly, archived: this.showArchivedEquipment };
+                },
+                applySavedFilter(listKey, f) {
+                    const v = f.filter || {};
+                    if (listKey === 'einsaetze') {
+                        this.missionSearch = v.search || ''; this.missionStatus = v.status || 'alle'; this.missionKind = v.kind || 'alle';
+                        this.missionYear = v.year || 'all'; this.missionGroupFilter = v.group || 'all';
+                    } else {
+                        this.eqSearch = v.search || ''; this.eqCategory = v.category || ''; this.filterDefectiveOnly = !!v.defective;
+                        const arch = !!v.archived;
+                        if (arch !== this.showArchivedEquipment) { this.showArchivedEquipment = arch; this.loadEquipment(); }
+                    }
+                },
+                filterIsActive(listKey) {
+                    const v = this.currentFilterOf(listKey);
+                    return listKey === 'einsaetze'
+                        ? !!(v.search || v.status !== 'alle' || v.kind !== 'alle' || v.year !== 'all' || v.group !== 'all')
+                        : !!(v.search || v.category || v.defective || v.archived);
+                },
+                resetFilter(listKey) {
+                    this.applySavedFilter(listKey, { filter: {} });
+                },
+                async loadSavedFilters() {
+                    if (this._filtersLoaded) return;
+                    this._filtersLoaded = true;
+                    try {
+                        const res = await fetch('/api/users/me/prefs/saved_filters', { credentials: 'include' });
+                        const v = res.ok ? (await res.json()).value : null;
+                        if (v && typeof v === 'object') this.savedFilters = { einsaetze: Array.isArray(v.einsaetze) ? v.einsaetze : [], material: Array.isArray(v.material) ? v.material : [] };
+                    } catch (e) { console.error(e); }
+                },
+                async persistSavedFilters() {
+                    try {
+                        await fetch('/api/users/me/prefs/saved_filters', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ value: this.savedFilters }) });
+                    } catch (e) { console.error(e); }
+                },
+                async saveCurrentFilter(listKey) {
+                    if (!this.filterIsActive(listKey)) { await appAlert('Stelle zuerst einen Filter ein (Suche, Status, Art, Jahr …), dann kannst du ihn speichern.'); return; }
+                    const name = ((await appPrompt('Name für diesen Filter:', '', 'Filter speichern')) || '').trim();
+                    if (!name) return;
+                    const list = (this.savedFilters[listKey] || []).filter(f => f.name !== name);
+                    list.push({ name: name.slice(0, 40), filter: this.currentFilterOf(listKey) });
+                    this.savedFilters = { ...this.savedFilters, [listKey]: list.slice(0, 12) };
+                    await this.persistSavedFilters();
+                },
+                async deleteSavedFilter(listKey, f) {
+                    this.savedFilters = { ...this.savedFilters, [listKey]: (this.savedFilters[listKey] || []).filter(x => x.name !== f.name) };
+                    await this.persistSavedFilters();
                 },
                 async loadOverview() {
                     this.loadOverviewLayout();

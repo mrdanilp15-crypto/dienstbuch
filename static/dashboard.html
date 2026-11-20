@@ -757,6 +757,28 @@
                         </div>
                     </div>
 
+                    <div class="mb-3 p-3 rounded-4" style="background:rgba(255,255,255,0.04);">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <input type="text" v-model="missionSearch" class="form-control form-control-sm rounded-pill" style="max-width:240px;" placeholder="Suchen: Stichwort, Adresse …">
+                            <select v-model="missionYear" class="form-select form-select-sm rounded-pill" style="width:auto;">
+                                <option value="all">Alle Jahre</option>
+                                <option v-for="y in missionYearOptions()" :key="y" :value="y">{{ y }}</option>
+                            </select>
+                            <span class="d-flex gap-1">
+                                <button v-for="s in ['alle', 'Entwurf', 'Freigegeben']" :key="s" class="btn btn-sm rounded-pill" :class="missionStatus === s ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionStatus = s">{{ s === 'alle' ? 'Alle Status' : s }}</button>
+                            </span>
+                            <span class="d-flex gap-1">
+                                <button v-for="k in ['alle', 'Brand', 'Hilfeleistung', 'Sonstige']" :key="k" class="btn btn-sm rounded-pill" :class="missionKind === k ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionKind = k">{{ k === 'alle' ? 'Alle Arten' : k }}</button>
+                            </span>
+                            <button v-if="filterIsActive('einsaetze')" class="btn btn-sm btn-link text-muted" @click="resetFilter('einsaetze')">Zurücksetzen</button>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                            <span v-for="f in savedFilters.einsaetze" :key="f.name" class="badge rounded-pill bg-secondary d-inline-flex align-items-center gap-2" style="cursor:pointer; font-size:0.78rem;" @click="applySavedFilter('einsaetze', f)"><i class="fa fa-filter"></i>{{ f.name }}<i class="fa fa-times" title="Gespeicherten Filter löschen" @click.stop="deleteSavedFilter('einsaetze', f)"></i></span>
+                            <button class="btn btn-sm btn-outline-light rounded-pill" @click="saveCurrentFilter('einsaetze')"><i class="fa fa-floppy-disk me-1"></i>Filter speichern</button>
+                            <span class="text-muted small ms-auto">{{ allIncidents.length }} Treffer</span>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div v-for="m in allIncidents" :key="m.isNewMission ? 'new_' + m.id : 'old_' + m.id" class="col-12">
                             <div class="mission-item" @click="handleIncidentClick(m)">
@@ -783,7 +805,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">Keine Einsätze erfasst.</div>
+                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">{{ filterIsActive('einsaetze') ? 'Keine Einsätze mit diesem Filter.' : 'Keine Einsätze erfasst.' }}</div>
                     </div>
                 </div>
 
@@ -953,6 +975,11 @@
                                 <div class="form-check form-switch mt-2 ms-2">
                                     <input class="form-check-input" type="checkbox" id="showArchivedEq" v-model="showArchivedEquipment" @change="loadEquipment()">
                                     <label class="form-check-label small text-muted" for="showArchivedEq">Archiv anzeigen</label>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                                    <span v-for="f in savedFilters.material" :key="f.name" class="badge rounded-pill bg-secondary d-inline-flex align-items-center gap-2" style="cursor:pointer; font-size:0.75rem;" @click="applySavedFilter('material', f)"><i class="fa fa-filter"></i>{{ f.name }}<i class="fa fa-times" title="Gespeicherten Filter löschen" @click.stop="deleteSavedFilter('material', f)"></i></span>
+                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="saveCurrentFilter('material')"><i class="fa fa-floppy-disk me-1"></i>Filter speichern</button>
+                                    <button v-if="filterIsActive('material')" class="btn btn-sm btn-link text-muted p-0" @click="resetFilter('material')">Zurücksetzen</button>
                                 </div>
                             </div>
                         </div>
@@ -1545,23 +1572,31 @@
                         <div class="col-12 col-lg-5">
                             <div class="card premium-card p-4 mb-4">
                                 <h5 class="fw-bold text-white mb-3"><i class="fa fa-file-invoice-dollar text-danger me-2"></i>Kostenbescheide (Verursacher)</h5>
+                                <div class="d-flex gap-3 flex-wrap mb-3">
+                                    <div class="p-2 px-3 rounded-3" style="background:rgba(255,255,255,0.05);"><div class="fs-4 fw-bold text-warning">{{ billStats.open }}</div><div class="text-muted small">Ausstehend ({{ billStats.openSum.toFixed(2) }} €)</div></div>
+                                    <div class="p-2 px-3 rounded-3" :style="billStats.overdue ? 'background:rgba(220,53,69,0.15);' : 'background:rgba(255,255,255,0.05);'"><div class="fs-4 fw-bold" :class="billStats.overdue ? 'text-danger' : 'text-success'">{{ billStats.overdue }}</div><div class="text-muted small">Seit über 30 Tagen offen</div></div>
+                                    <div class="p-2 px-3 rounded-3" style="background:rgba(255,255,255,0.05);"><div class="fs-4 fw-bold text-success">{{ billStats.paid }}</div><div class="text-muted small">Bezahlt</div></div>
+                                </div>
+                                <div class="d-flex gap-1 flex-wrap mb-3">
+                                    <button v-for="t in [['alle', 'Alle'], ['offen', 'Ausstehend'], ['ueberfaellig', 'Überfällig'], ['bezahlt', 'Bezahlt']]" :key="t[0]" class="btn btn-sm rounded-pill" :class="billFilter === t[0] ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="billFilter = t[0]">{{ t[1] }}</button>
+                                </div>
                                 <div class="list-group list-group-flush mb-4">
-                                    <div v-for="b in bills" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
+                                    <div v-for="b in billsFiltered" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
                                         <div class="d-flex justify-content-between align-items-start mb-1">
                                             <div>
                                                 <h6 class="fw-bold text-white mb-0">{{b.recipient_name}}</h6>
                                                 <small class="text-danger fw-semibold"><i class="fa fa-fire-extinguisher me-1"></i>{{b.stichwort}} ({{dt(b.date)}})</small>
                                             </div>
-                                            <span class="badge" :class="b.paid_at?'bg-success':'bg-warning text-dark'">{{b.paid_at?'Bezahlt':'Ausstehend'}}</span>
+                                            <span class="badge" :class="b.paid_at?'bg-success':(billOverdue(b)?'bg-danger':'bg-warning text-dark')">{{b.paid_at?'Bezahlt':(billOverdue(b)?'Überfällig':'Ausstehend')}}</span>
                                         </div>
                                         <p class="text-muted small mb-2">{{b.details || 'Aufwendungsersatz'}} &bull; <strong class="text-white">{{parseFloat(b.amount).toFixed(2)}} €</strong></p>
                                         <div class="d-flex align-items-center gap-1 flex-wrap">
                                             <button class="btn btn-xs btn-outline-info rounded-pill" @click="printBill(b)"><i class="fa fa-print me-1"></i>Bescheid / PDF</button>
-                                            <button v-if="(role === 'admin' || role === 'leitung' || role === 'geratewart') && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
-                                            <button v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
+                                            <button v-if="canManageBilling && !b.paid_at" class="btn btn-xs btn-success rounded-pill" @click="payBill(b.id)"><i class="fa fa-check me-1"></i>Zahlung erfassen</button>
+                                            <button v-if="canManageBilling" class="btn btn-xs btn-outline-danger border-0 p-1 ms-2" @click="deleteBill(b.id)"><i class="fa fa-trash"></i></button>
                                         </div>
                                     </div>
-                                    <div v-if="bills.length === 0" class="text-center py-4 text-muted">Keine Kostenbescheide erfasst.</div>
+                                    <div v-if="billsFiltered.length === 0" class="text-center py-4 text-muted">{{ bills.length ? 'Keine Kostenbescheide in dieser Ansicht.' : 'Keine Kostenbescheide erfasst.' }}</div>
                                 </div>
 
                                 <div v-if="canManageBilling">

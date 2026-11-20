@@ -228,6 +228,11 @@ check("Prefs: gelten nur für das eigene Konto", cl["mannschaft"].get("/api/user
 check("Prefs: zu große Einstellung abgelehnt", admin.put("/api/users/me/prefs/saved_filters", json={"value": "x" * 25000}).status_code == 400)
 admin.put("/api/users/me/prefs/dashboard_layout", json={"value": None})
 
+_sf = {"einsaetze": [{"name": "Offene Brände", "filter": {"search": "", "status": "Entwurf", "kind": "Brand", "year": "all", "group": "all"}}], "material": []}
+check("Filter: speichern", admin.put("/api/users/me/prefs/saved_filters", json={"value": _sf}).status_code == 200)
+check("Filter: wieder lesbar", admin.get("/api/users/me/prefs/saved_filters").json()["value"] == _sf)
+admin.put("/api/users/me/prefs/saved_filters", json={"value": None})
+
 # --- Eigene Rollen
 check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)
 check("Eigene Rolle: Basis Admin abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "admin"}).status_code == 400)

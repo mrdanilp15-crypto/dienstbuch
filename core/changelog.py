@@ -10,6 +10,8 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Listen", "title": "Filter, Status-Reiter und gespeicherte Filter",
+             "text": "Die Einsatzliste lässt sich nach Suchtext, Jahr, Status und Art (Brand, Hilfeleistung, Sonstige) filtern. Mit „Filter speichern“ legst du Filter in Einsatzliste und Geräteliste unter eigenem Namen ab, sie gelten für dein Konto auf allen Geräten. Die Abrechnung zeigt Kennzahlen (ausstehend, seit über 30 Tagen offen, bezahlt) und hat Status-Reiter."},
             {"type": "new", "tag": "Übersicht", "title": "Neue Startseite mit Karten",
              "text": "Die neue Übersicht zeigt auf einen Blick: neueste Mitteilungen, Einsatzberichte des Jahres mit Kreisdiagramm, Termine des Tages zum Blättern, Benachrichtigungen, Fristen und offene Mängel. Mit „Bearbeiten“ ordnest du die Karten um oder blendest sie aus. Die Anordnung gilt für dein Konto auf allen Geräten."},
             {"type": "new", "tag": "Rechte", "title": "Eigene Rollen anlegen",
