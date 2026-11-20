@@ -1249,6 +1249,15 @@ def init_db_extensions():
                 print(f"Migration youth_members col {col_name}: {e}")
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_prefs (
+                username VARCHAR(100) NOT NULL,
+                pref_key VARCHAR(40) NOT NULL,
+                pref_value MEDIUMTEXT NULL,
+                PRIMARY KEY (username, pref_key)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS custom_roles (
                 role_key VARCHAR(40) PRIMARY KEY,
                 label VARCHAR(80) NOT NULL,

@@ -461,6 +461,39 @@ def reset_permissions(request: Request):
     log_audit_action(user["username"], "RECHTE_ZURUECKGESETZT", "Alle Rechte auf die Standardwerte zurückgesetzt.")
     return {"status": "success"}
 
+_PREF_KEYS = ("dashboard_layout", "saved_filters")
+
+@router.get("/api/users/me/prefs/{key}")
+def get_my_pref(key: str, request: Request):
+    """Persönliche Einstellungen (Anordnung der Übersicht, gespeicherte Filter) - pro Konto, geräteübergreifend."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if key not in _PREF_KEYS: raise HTTPException(status_code=404, detail="Unbekannte Einstellung")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT pref_value FROM user_prefs WHERE username = %s AND pref_key = %s", (user["username"], key))
+    row = cur.fetchone(); cur.close(); conn.close()
+    try:
+        return {"value": json.loads(row[0]) if row and row[0] else None}
+    except Exception:
+        return {"value": None}
+
+@router.put("/api/users/me/prefs/{key}")
+def set_my_pref(key: str, data: dict, request: Request):
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if key not in _PREF_KEYS: raise HTTPException(status_code=404, detail="Unbekannte Einstellung")
+    try:
+        raw = json.dumps(data.get("value"), ensure_ascii=False)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ungültiger Wert.")
+    if len(raw) > 20000:
+        raise HTTPException(status_code=400, detail="Einstellung ist zu groß.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO user_prefs (username, pref_key, pref_value) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE pref_value = VALUES(pref_value)",
+                (user["username"], key, raw))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
 @router.get("/api/users/me/id-card")
 def my_id_card(request: Request):
     """Digitaler Dienstausweis: nur die eigenen Stammdaten, nur lesend."""

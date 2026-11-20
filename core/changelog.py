@@ -10,6 +10,8 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Übersicht", "title": "Neue Startseite mit Karten",
+             "text": "Die neue Übersicht zeigt auf einen Blick: neueste Mitteilungen, Einsatzberichte des Jahres mit Kreisdiagramm, Termine des Tages zum Blättern, Benachrichtigungen, Fristen und offene Mängel. Mit „Bearbeiten“ ordnest du die Karten um oder blendest sie aus. Die Anordnung gilt für dein Konto auf allen Geräten."},
             {"type": "new", "tag": "Rechte", "title": "Eigene Rollen anlegen",
              "text": "Unter Einstellungen → Rechte lassen sich neue Rollen anlegen (z. B. Kassenwart oder Zeugwart). Eine neue Rolle startet mit den Rechten einer Basisrolle, danach kreuzt du in der Tabelle an, was sie zusätzlich darf oder nicht darf. Zugewiesen wird sie unter System-Logins beim Anlegen oder Bearbeiten eines Kontos. Was die Rolle sehen darf, richtet sich nach der Basisrolle. Wird die Rolle gelöscht, fallen die Konten auf ihre Basisrolle zurück."},
             {"type": "new", "tag": "Rechte", "title": "Rechte pro Rolle einstellbar",

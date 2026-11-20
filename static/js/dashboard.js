@@ -222,7 +222,7 @@ applyChartTheme();
                     twoFaRecoveryCodes: null,
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
-                    activeTab: localStorage.getItem('activeDashboardTab') || 'dienste',
+                    activeTab: localStorage.getItem('activeDashboardTab') || 'uebersicht',
                     notes: [],
                     notesActiveFilter: 'all',
                     noteEditingId: null,
@@ -263,6 +263,8 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     newHonor: { kind: 'Beförderung', title: '', date: localISODate(), note: '' },
                     idCard: null, idCardError: '', showArchivedEquipment: false,
+                    overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
+                    overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueItems: [], dueOnlyOverdue: false,
@@ -466,6 +468,53 @@ applyChartTheme();
                 },
                 calendarFeedUrl() { return `${window.location.protocol}//${this.serverHost}/api/calendar/feed.ics?token=${this.accessTokens.calendar_token}`; },
                 displayUrl() { return `${window.location.protocol}//${this.serverHost}/static/alarmdisplay.html?token=${this.accessTokens.display_token}`; },
+                overviewWidgetDefs() {
+                    return {
+                        mitteilungen: { title: 'Neueste Mitteilungen', icon: 'fa-comment-dots' },
+                        berichte: { title: 'Einsatzberichte', icon: 'fa-file-lines' },
+                        termine: { title: 'Termine', icon: 'fa-calendar-days' },
+                        benachrichtigungen: { title: 'Benachrichtigungen', icon: 'fa-bell' },
+                        fristen: { title: 'Fristen', icon: 'fa-clock' },
+                        maengel: { title: 'Offene Mängel', icon: 'fa-triangle-exclamation' }
+                    };
+                },
+                overviewWidgets() {
+                    const defs = this.overviewWidgetDefs;
+                    return this.overviewLayout.order.filter(id => defs[id] && !this.overviewLayout.hidden.includes(id)).map(id => ({ id, ...defs[id] }));
+                },
+                overviewHiddenWidgets() {
+                    const defs = this.overviewWidgetDefs;
+                    return this.overviewLayout.hidden.filter(id => defs[id]).map(id => ({ id, ...defs[id] }));
+                },
+                overviewStats() {
+                    const year = new Date().getFullYear();
+                    const list = (this.missions || []).filter(m => m && m.date && String(m.date).slice(0, 4) === String(year));
+                    const open = list.filter(m => !(m.leader_signature || m.status === 'Freigegeben')).length;
+                    const kind = s => { const t = String(s || '').trim(); return /^b/i.test(t) ? 'Brand' : (/^(h|th|t)/i.test(t) ? 'Hilfeleistung' : 'Sonstige'); };
+                    const by = { Brand: 0, Hilfeleistung: 0, Sonstige: 0 };
+                    list.forEach(m => { by[kind(m.stichwort)]++; });
+                    const latest = [...list].sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 3);
+                    return { year, total: list.length, open, by, latest };
+                },
+                overviewDayItems() {
+                    return (this.schedules || []).filter(s => String(s.date).slice(0, 10) === this.overviewDay)
+                        .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+                },
+                overviewDayLabel() {
+                    const d = new Date(this.overviewDay + 'T12:00:00');
+                    const t = localISODate();
+                    const lbl = d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+                    return this.overviewDay === t ? 'Heute, ' + lbl : lbl;
+                },
+                overviewNotifItems() {
+                    const all = [];
+                    (this.notifCats || []).forEach(c => (c.items || []).forEach(n => all.push({ ...n, catLabel: c.label, catIcon: c.icon })));
+                    return all.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 5);
+                },
+                overviewDue() {
+                    const items = (this.dueItems || []).filter(i => !i.first_check).slice().sort((a, b) => (a.days || 0) - (b.days || 0));
+                    return { overdue: items.filter(i => i.overdue).length, soon: items.length, top: items.slice(0, 4) };
+                },
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
                 canManageMissions() { return this.hasPerm('missions.manage'); },
                 canManagePersonnel() { return this.hasPerm('personnel.manage'); },
@@ -1860,7 +1909,8 @@ applyChartTheme();
                         apager: () => { this.loadAao(); if (this.canSeeSettings) this.loadAccessTokens(); },
                         fristen: () => this.loadDueManager(),
                         logbuch: () => this.loadLogbookData(),
-                        verein: () => this.loadClubData()
+                        verein: () => this.loadClubData(),
+                        uebersicht: () => this.loadOverview()
                     };
                     const load = loaders[tab || this.activeTab];
                     if (!load) return;
@@ -3221,6 +3271,79 @@ applyChartTheme();
                     if (tab === 'logbuch') return !this.logbooksLoaded || this.logbooks.length > 0 || this.canSeeSettings;
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
+                },
+                async loadOverview() {
+                    this.loadOverviewLayout();
+                    try {
+                        await Promise.all([
+                            this.loadMissions(), this.loadSchedules(), this.loadNotifs(), this.loadBroadcasts(),
+                            this.loadDueItems(),
+                            fetch('/api/material/defect-reports?status=Offen', { credentials: 'include' })
+                                .then(r => r.ok ? r.json() : []).then(d => { this.overviewDefects = d; }).catch(() => {})
+                        ]);
+                    } catch (e) { console.error('Übersicht laden:', e); }
+                    this.overviewLoaded = true;
+                    this.$nextTick(() => this.renderOverviewChart());
+                },
+                async loadOverviewLayout() {
+                    if (this._layoutLoaded) return;
+                    this._layoutLoaded = true;
+                    try {
+                        const res = await fetch('/api/users/me/prefs/dashboard_layout', { credentials: 'include' });
+                        const v = res.ok ? (await res.json()).value : null;
+                        if (v && Array.isArray(v.order)) {
+                            const known = Object.keys(this.overviewWidgetDefs);
+                            const order = v.order.filter(id => known.includes(id));
+                            known.forEach(id => { if (!order.includes(id)) order.push(id); });
+                            this.overviewLayout = { order, hidden: (v.hidden || []).filter(id => known.includes(id)) };
+                            this.$nextTick(() => this.renderOverviewChart());
+                        }
+                    } catch (e) { console.error(e); }
+                },
+                async saveOverviewLayout() {
+                    try {
+                        await fetch('/api/users/me/prefs/dashboard_layout', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ value: this.overviewLayout }) });
+                    } catch (e) { console.error(e); }
+                    this.$nextTick(() => this.renderOverviewChart());
+                },
+                moveOverviewWidget(id, dir) {
+                    const vis = this.overviewWidgets.map(w => w.id);
+                    const i = vis.indexOf(id), j = i + dir;
+                    if (i < 0 || j < 0 || j >= vis.length) return;
+                    const order = this.overviewLayout.order.slice();
+                    const a = order.indexOf(vis[i]), b = order.indexOf(vis[j]);
+                    [order[a], order[b]] = [order[b], order[a]];
+                    this.overviewLayout = { ...this.overviewLayout, order };
+                    this.saveOverviewLayout();
+                },
+                hideOverviewWidget(id) {
+                    this.overviewLayout = { ...this.overviewLayout, hidden: [...this.overviewLayout.hidden, id] };
+                    this.saveOverviewLayout();
+                },
+                showOverviewWidget(id) {
+                    this.overviewLayout = { ...this.overviewLayout, hidden: this.overviewLayout.hidden.filter(x => x !== id) };
+                    this.saveOverviewLayout();
+                },
+                shiftOverviewDay(n) {
+                    if (n === 0) { this.overviewDay = localISODate(); return; }
+                    const d = new Date(this.overviewDay + 'T12:00:00'); d.setDate(d.getDate() + n);
+                    this.overviewDay = localISODate(d);
+                },
+                renderOverviewChart() {
+                    const el = document.getElementById('overviewChart');
+                    if (this._overviewChart) { this._overviewChart.destroy(); this._overviewChart = null; }
+                    if (!el || typeof Chart === 'undefined') return;
+                    const s = this.overviewStats;
+                    if (!s.total) return;
+                    this._overviewChart = new Chart(el, {
+                        type: 'doughnut',
+                        data: { labels: ['Brand', 'Hilfeleistung', 'Sonstige'], datasets: [{ data: [s.by.Brand, s.by.Hilfeleistung, s.by.Sonstige], backgroundColor: ['#dc3545', '#0d6efd', '#6c757d'], borderWidth: 0 }] },
+                        options: { cutout: '62%', plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }
+                    });
+                },
+                async openOverviewSchedule(s) {
+                    this.activeTab = 'dienste';
+                    await this.openScheduleDetail(s);
                 },
                 hasPerm(key) { return this.role === 'admin' || (this.myPerms || []).includes(key); },
                 async loadPermissionMatrix() {

@@ -272,6 +272,7 @@
                 </div>
                 <div class="sidebar-menu flex-grow-1" style="overflow-y: auto;">
                     <div class="sidebar-section-header">Organisation</div>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'uebersicht'}" @click="activeTab = 'uebersicht'; showMobileSidebar = false"><i class="fa fa-gauge-high"></i> Übersicht</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span></button>
@@ -291,7 +292,7 @@
                     <div class="sidebar-section-header">Material & Finanzen</div>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
-                    <button class="sidebar-btn" v-if="canSeeFinance || canManageBilling" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
+                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Inventar</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
@@ -354,6 +355,99 @@
                 </div>
 
                 <!-- TAB 1: DIENSTBETRIEB -->
+                <div v-show="activeTab === 'uebersicht'">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h3 class="fw-bold text-white mb-0"><i class="fa fa-gauge-high text-danger me-2"></i>Übersicht</h3>
+                            <div class="text-muted small">Hallo {{ displayName }} – das ist gerade los.</div>
+                        </div>
+                        <button class="btn btn-sm rounded-pill px-3" :class="overviewEdit ? 'btn-premium' : 'btn-outline-light'" @click="overviewEdit = !overviewEdit"><i class="fa me-1" :class="overviewEdit ? 'fa-check' : 'fa-pen'"></i>{{ overviewEdit ? 'Fertig' : 'Bearbeiten' }}</button>
+                    </div>
+                    <div v-if="overviewEdit && overviewHiddenWidgets.length" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                        <span class="text-muted small">Ausgeblendet:</span>
+                        <button v-for="w in overviewHiddenWidgets" :key="w.id" class="btn btn-sm btn-outline-secondary rounded-pill" @click="showOverviewWidget(w.id)"><i class="fa fa-plus me-1"></i>{{ w.title }}</button>
+                    </div>
+                    <div class="row g-3">
+                        <div v-for="w in overviewWidgets" :key="w.id" class="col-12 col-lg-6 col-xl-4">
+                            <div class="card premium-card p-3 h-100">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold text-white mb-0"><i class="fa me-2 text-danger" :class="w.icon"></i>{{ w.title }}</h6>
+                                    <div v-if="overviewEdit" class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-light border-0 p-1" title="Nach vorn" @click="moveOverviewWidget(w.id, -1)"><i class="fa fa-arrow-up"></i></button>
+                                        <button class="btn btn-sm btn-outline-light border-0 p-1" title="Nach hinten" @click="moveOverviewWidget(w.id, 1)"><i class="fa fa-arrow-down"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger border-0 p-1" title="Ausblenden" @click="hideOverviewWidget(w.id)"><i class="fa fa-eye-slash"></i></button>
+                                    </div>
+                                </div>
+
+                                <div v-if="w.id === 'mitteilungen'">
+                                    <div v-if="!activeBroadcasts.length" class="text-muted small py-3 text-center">Keine neuen Mitteilungen.</div>
+                                    <div v-for="b in activeBroadcasts.slice(0, 3)" :key="b.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05);">
+                                        <div class="fw-bold text-white small">{{ b.title }}</div>
+                                        <div class="text-muted small" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ b.content }}</div>
+                                        <div class="text-muted" style="font-size:0.7rem;">{{ b.datum }} · {{ b.autor }}</div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'berichte'">
+                                    <div class="d-flex gap-4 mb-2">
+                                        <div><div class="text-muted small">Berichte {{ overviewStats.year }}</div><div class="fs-2 fw-bold text-white">{{ overviewStats.total }}</div></div>
+                                        <div><div class="text-muted small">Davon offen</div><div class="fs-2 fw-bold" :class="overviewStats.open ? 'text-warning' : 'text-success'">{{ overviewStats.open }}</div></div>
+                                    </div>
+                                    <div v-if="overviewStats.total" style="height:170px;"><canvas id="overviewChart"></canvas></div>
+                                    <div v-else class="text-muted small py-3 text-center">Dieses Jahr noch keine Einsatzberichte.</div>
+                                    <a v-if="overviewStats.total" class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'einsaetze'">Alle Einsatzberichte ansehen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'termine'">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                        <span class="small text-white fw-bold">{{ overviewDayLabel }}</span>
+                                        <span class="d-flex gap-1">
+                                            <button class="btn btn-sm btn-outline-light py-0 px-2" @click="shiftOverviewDay(-1)"><i class="fa fa-chevron-left"></i></button>
+                                            <button class="btn btn-sm btn-outline-light py-0 px-2" @click="shiftOverviewDay(0)">heute</button>
+                                            <button class="btn btn-sm btn-outline-light py-0 px-2" @click="shiftOverviewDay(1)"><i class="fa fa-chevron-right"></i></button>
+                                        </span>
+                                    </div>
+                                    <div v-if="!overviewDayItems.length" class="text-muted small py-4 text-center">Keine Termine.</div>
+                                    <div v-for="s in overviewDayItems" :key="s.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05); cursor:pointer;" @click="openOverviewSchedule(s)">
+                                        <div class="fw-bold text-white small">{{ s.title }}</div>
+                                        <div class="text-muted small">{{ s.time || 'ganztägig' }}<span v-if="s.type"> · {{ s.type }}</span></div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'benachrichtigungen'">
+                                    <div v-if="!overviewNotifItems.length" class="text-muted small py-3 text-center">Keine Benachrichtigungen.</div>
+                                    <div v-for="n in overviewNotifItems" :key="n.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05); cursor:pointer;" :class="n.read ? '' : 'border-start border-3 border-danger'" @click="openNotif(n)">
+                                        <div class="d-flex justify-content-between gap-2"><span class="fw-bold text-white small">{{ n.title }}</span><span class="text-muted text-nowrap" style="font-size:0.7rem;">{{ notifAgo(n) }}</span></div>
+                                        <div v-if="n.body" class="text-muted small" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ n.body }}</div>
+                                        <div class="text-muted" style="font-size:0.68rem;"><i class="fa fa-fw" :class="n.catIcon"></i>{{ n.catLabel }}</div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'fristen'">
+                                    <div class="d-flex gap-4 mb-2">
+                                        <div><div class="text-muted small">Überfällig</div><div class="fs-2 fw-bold" :class="overviewDue.overdue ? 'text-danger' : 'text-success'">{{ overviewDue.overdue }}</div></div>
+                                        <div><div class="text-muted small">Anstehend</div><div class="fs-2 fw-bold text-white">{{ overviewDue.soon }}</div></div>
+                                    </div>
+                                    <div v-for="(i, ix) in overviewDue.top" :key="ix" class="d-flex justify-content-between gap-2 small py-1 border-top border-secondary border-opacity-10">
+                                        <span class="text-white text-truncate">{{ i.name }}</span>
+                                        <span class="text-nowrap" :class="i.overdue ? 'text-danger' : 'text-muted'">{{ dt(i.due_date) }}</span>
+                                    </div>
+                                    <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'fristen'">Alle Fristen ansehen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'maengel'">
+                                    <div v-if="!overviewDefects.length" class="text-muted small py-3 text-center"><i class="fa fa-circle-check text-success me-1"></i>Keine offenen Mängel.</div>
+                                    <div v-for="d in overviewDefects.slice(0, 4)" :key="d.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05);">
+                                        <div class="d-flex justify-content-between gap-2"><span class="fw-bold text-white small text-truncate">{{ d.equipment_name }}</span><span class="badge" :class="d.status === 'In Bearbeitung' ? 'bg-info text-dark' : 'bg-danger'">{{ d.status }}</span></div>
+                                        <div class="text-muted small text-truncate">{{ d.description }}</div>
+                                    </div>
+                                    <a v-if="overviewDefects.length" class="small text-info d-inline-block mt-1" style="cursor:pointer;" @click="activeTab = 'material'; materialSubTab = 'maengel'">Alle {{ overviewDefects.length }} offenen Mängel ansehen</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div v-show="activeTab === 'dienste'">
                     <div class="greeting mb-4">
                         <div class="greeting-title">{{ greeting }}<span v-if="displayName">, {{ displayName }}</span></div>

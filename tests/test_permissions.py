@@ -219,6 +219,15 @@ check("Verein: Mannschaft darf jetzt lesen", cl["mannschaft"].get("/api/verein/d
 admin.post("/api/admin/permissions/reset")
 check("Verein: nach Reset wieder gesperrt", cl["mannschaft"].get("/api/verein/donations").status_code == 403)
 
+# --- Persönliche Einstellungen (Übersicht, Filter)
+check("Prefs: ohne Anmeldung gesperrt", anon.get("/api/users/me/prefs/dashboard_layout").status_code == 401)
+check("Prefs: unbekannter Schlüssel 404", admin.get("/api/users/me/prefs/quatsch").status_code == 404)
+check("Prefs: speichern", admin.put("/api/users/me/prefs/dashboard_layout", json={"value": {"order": ["termine", "berichte"], "hidden": ["fristen"]}}).status_code == 200)
+check("Prefs: lesen", admin.get("/api/users/me/prefs/dashboard_layout").json()["value"] == {"order": ["termine", "berichte"], "hidden": ["fristen"]})
+check("Prefs: gelten nur für das eigene Konto", cl["mannschaft"].get("/api/users/me/prefs/dashboard_layout").json()["value"] is None)
+check("Prefs: zu große Einstellung abgelehnt", admin.put("/api/users/me/prefs/saved_filters", json={"value": "x" * 25000}).status_code == 400)
+admin.put("/api/users/me/prefs/dashboard_layout", json={"value": None})
+
 # --- Eigene Rollen
 check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)
 check("Eigene Rolle: Basis Admin abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "admin"}).status_code == 400)
