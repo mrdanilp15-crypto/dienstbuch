@@ -262,7 +262,7 @@ applyChartTheme();
                     newGear: { item_name: '', size: '', issue_date: localISODate() },
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     newHonor: { kind: 'Beförderung', title: '', date: localISODate(), note: '' },
-                    idCard: null, idCardError: '',
+                    idCard: null, idCardError: '', showArchivedEquipment: false,
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueItems: [], dueOnlyOverdue: false,
@@ -1582,7 +1582,7 @@ applyChartTheme();
                     // wirkten gerade erst gespeicherte Geräte "verschwunden", bis man neu lud.
                     // Nur die Antwort des zuletzt gestarteten Aufrufs wird übernommen.
                     const requestSeq = (this._equipmentLoadSeq = (this._equipmentLoadSeq || 0) + 1);
-                    const res = await fetch('/api/material/equipment', { credentials: 'include' });
+                    const res = await fetch('/api/material/equipment?archived=' + (this.showArchivedEquipment ? 1 : 0), { credentials: 'include' });
                     if(res.ok) {
                         const data = await res.json();
                         if (requestSeq === this._equipmentLoadSeq) {
@@ -3045,6 +3045,12 @@ applyChartTheme();
                 addFunkEquipment() {
                     this.activeEquipment = { id: null, name: '', barcode: '', category: 'Funkgerät', image_url: '', manual_url: '', interval_months: 0, last_inspection: null, next_inspection: null };
                     new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+                },
+                async archiveEquipment(eq, archived) {
+                    if (archived && !await appConfirm(`„${eq.name}“ archivieren? Das Gerät verschwindet aus der Liste und löst keine Prüf-Erinnerungen mehr aus. Der Verlauf bleibt erhalten, Wiederherstellen ist jederzeit möglich.`)) return;
+                    const res = await fetch(`/api/material/equipment/${eq.id}/archive`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({ archived }) });
+                    if (res.ok) await this.loadEquipment();
+                    else await appAlert((await res.json().catch(() => ({}))).detail || "Aktion nicht möglich.");
                 },
                 async deleteEquipmentFromSubtab(id) {
                     if (await appConfirm("Gerät permanent aus der Datenbank löschen? All seine Prüf- und Mängeldaten gehen verloren!")) {

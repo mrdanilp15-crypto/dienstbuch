@@ -544,7 +544,7 @@ def global_search(q: str, request: Request):
     cur.execute("SELECT id, name, radio_name FROM vehicles WHERE name LIKE %s OR radio_name LIKE %s ORDER BY name LIMIT 8", (like, like))
     vehicles = cur.fetchall()
 
-    cur.execute("SELECT id, name, barcode, category FROM equipment WHERE name LIKE %s OR barcode LIKE %s ORDER BY name LIMIT 8", (like, like))
+    cur.execute("SELECT id, name, barcode, category FROM equipment WHERE (name LIKE %s OR barcode LIKE %s) AND COALESCE(archived, 0) = 0 ORDER BY name LIMIT 8", (like, like))
     equipment = cur.fetchall()
 
     cur.execute("SELECT id, filename, url FROM archive_files WHERE filename LIKE %s AND is_public = 1 ORDER BY created_at DESC LIMIT 8", (like,))

@@ -102,7 +102,7 @@ class LoanCreate(BaseModel):
 
 # --- 🔧 GERÄTE & MATERIAL ENDPUNKTE ---
 @router.get("/equipment")
-def list_equipment(request: Request):
+def list_equipment(request: Request, archived: int = 0):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -112,8 +112,9 @@ def list_equipment(request: Request):
                (SELECT borrower_name FROM equipment_loans WHERE equipment_id = e.id AND returned_at IS NULL ORDER BY checked_out_at DESC LIMIT 1) as loaned_to,
                (SELECT checked_out_at FROM equipment_loans WHERE equipment_id = e.id AND returned_at IS NULL ORDER BY checked_out_at DESC LIMIT 1) as loaned_since
         FROM equipment e
+        WHERE COALESCE(e.archived, 0) = %s
         ORDER BY e.next_inspection ASC
-    """)
+    """, (1 if archived else 0,))
     res = cur.fetchall(); cur.close(); conn.close()
     for row in res:
         if isinstance(row["last_inspection"], date):
@@ -173,6 +174,24 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
     from core.utils import log_audit_action
     log_audit_action(user["username"], "GERAET_BEARBEITEN", f"Gerät ID {eq_id} ('{eq.name.strip()}') aktualisiert.")
     return {"status": "success"}
+
+@router.post("/equipment/{eq_id}/archive")
+def archive_equipment(eq_id: int, data: dict, request: Request):
+    """Gerät archivieren statt löschen (oder wiederherstellen). Archivierte Geräte lösen keine Prüf-Erinnerungen
+    mehr aus und stehen nicht mehr in der Standardliste, Prüf- und Mängelverlauf bleiben erhalten."""
+    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    flag = 1 if data.get("archived", True) else 0
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT name FROM equipment WHERE id = %s", (eq_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Gerät nicht gefunden")
+    cur.execute("UPDATE equipment SET archived = %s WHERE id = %s", (flag, eq_id))
+    conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "GERAET_ARCHIVIERT" if flag else "GERAET_WIEDERHERGESTELLT", f"Gerät ID {eq_id} ('{row['name']}').")
+    return {"status": "success", "archived": bool(flag)}
 
 @router.delete("/equipment/{eq_id}")
 def delete_equipment(eq_id: int, request: Request):

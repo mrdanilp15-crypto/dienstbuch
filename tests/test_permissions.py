@@ -141,6 +141,20 @@ _ic = cl["mannschaft"].get("/api/users/me/id-card")
 check("Dienstausweis: Mannschaft sieht nur den eigenen", _ic.status_code == 200 and _ic.json().get("personnel_id") == other, str(_ic.text[:200]))
 check("Dienstausweis: Konto ohne Person bekommt klare Meldung", admin.get("/api/users/me/id-card").status_code in (200, 404))
 
+# --- Material-Archiv
+admin.post("/api/material/equipment", json={"name": "ArchivTest", "barcode": "ZZ-ARCH-1", "category": "Werkzeug", "interval_months": 12})
+_eq = next((x["id"] for x in admin.get("/api/material/equipment").json() if x["barcode"] == "ZZ-ARCH-1"), None)
+check("Archiv: Testgerät angelegt", _eq is not None)
+if _eq:
+    check("Archiv: Mannschaft darf nicht archivieren", cl["mannschaft"].post(f"/api/material/equipment/{_eq}/archive", json={"archived": True}).status_code == 403)
+    check("Archiv: unbekanntes Gerät 404", admin.post("/api/material/equipment/99999999/archive", json={"archived": True}).status_code == 404)
+    check("Archiv: Admin archiviert", admin.post(f"/api/material/equipment/{_eq}/archive", json={"archived": True}).status_code == 200)
+    check("Archiv: fehlt in der Standardliste", all(x["id"] != _eq for x in admin.get("/api/material/equipment").json()))
+    check("Archiv: steht im Archiv", any(x["id"] == _eq for x in admin.get("/api/material/equipment?archived=1").json()))
+    admin.post(f"/api/material/equipment/{_eq}/archive", json={"archived": False})
+    check("Archiv: Wiederherstellen bringt es zurück", any(x["id"] == _eq for x in admin.get("/api/material/equipment").json()))
+    admin.delete(f"/api/material/equipment/{_eq}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

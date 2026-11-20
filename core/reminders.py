@@ -70,7 +70,7 @@ def get_due_items(window_days: int = None):
     # Geräteprüfungen
     cur.execute(
         "SELECT id, name, barcode, next_inspection FROM equipment "
-        "WHERE next_inspection IS NOT NULL AND next_inspection <= %s ORDER BY next_inspection ASC",
+        "WHERE next_inspection IS NOT NULL AND next_inspection <= %s AND COALESCE(archived, 0) = 0 ORDER BY next_inspection ASC",
         (window_end,)
     )
     for e in cur.fetchall():

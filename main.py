@@ -558,7 +558,7 @@ def init_db_extensions():
                 next_inspection DATE NULL
             ) ENGINE=InnoDB;
         """)
-        for col_name, col_type in [("purchase_value", "DECIMAL(10,2) NULL"), ("insurance_policy", "VARCHAR(100) NULL")]:
+        for col_name, col_type in [("purchase_value", "DECIMAL(10,2) NULL"), ("insurance_policy", "VARCHAR(100) NULL"), ("archived", "TINYINT(1) NOT NULL DEFAULT 0")]:
             try: cur.execute(f"ALTER TABLE equipment ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno != 1060: raise

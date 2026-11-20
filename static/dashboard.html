@@ -856,6 +856,10 @@
                                 <button class="btn w-100 rounded-pill fw-bold" :class="filterDefectiveOnly ? 'btn-warning text-dark' : 'btn-outline-warning text-white border-warning border-opacity-50'" @click="filterDefectiveOnly = !filterDefectiveOnly">
                                     <i class="fa fa-triangle-exclamation me-2"></i> <span v-if="filterDefectiveOnly">Nur Mängel/Defekte aktiv</span><span v-else>Nur Mängel anzeigen</span>
                                 </button>
+                                <div class="form-check form-switch mt-2 ms-2">
+                                    <input class="form-check-input" type="checkbox" id="showArchivedEq" v-model="showArchivedEquipment" @change="loadEquipment()">
+                                    <label class="form-check-label small text-muted" for="showArchivedEq">Archiv anzeigen</label>
+                                </div>
                             </div>
                         </div>
 
@@ -890,6 +894,8 @@
                                         <button v-else class="btn btn-sm btn-info rounded-pill text-dark" @click.stop="returnEquipmentLoan(eq)" title="Zurückgeben"><i class="fa fa-rotate-left"></i></button>
                                         <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
                                         <button class="btn btn-sm btn-outline-light rounded-pill" @click.stop="openEquipmentReportPdf(eq)" title="Prüf- und Mängelnachweis als PDF"><i class="fa fa-file-pdf"></i></button>
+                                        <button v-if="canManageMaterial && !showArchivedEquipment" class="btn btn-sm btn-outline-secondary rounded-pill" @click.stop="archiveEquipment(eq, true)" title="Archivieren (statt löschen)"><i class="fa fa-box-archive"></i></button>
+                                        <button v-if="canManageMaterial && showArchivedEquipment" class="btn btn-sm btn-outline-success rounded-pill" @click.stop="archiveEquipment(eq, false)" title="Wiederherstellen"><i class="fa fa-box-open"></i></button>
                                         <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger rounded-pill" @click.stop="deleteEquipmentFromSubtab(eq.id)" title="Gerät löschen"><i class="fa fa-trash"></i></button>
                                     </div>
                                 </div>
