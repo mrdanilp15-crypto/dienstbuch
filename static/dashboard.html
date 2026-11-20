@@ -137,9 +137,6 @@
         <nav class="top-nav shadow">
             <div class="container-fluid d-flex align-items-center justify-content-between px-4 py-2 flex-wrap gap-2">
                 <div class="fw-bold text-danger d-flex align-items-center gap-2 brand-title fs-4">
-                    <button class="btn btn-outline-danger d-lg-none me-1 px-2 py-1" @click="showMobileSidebar = !showMobileSidebar" style="border-radius: 8px;">
-                        <i class="fa fa-bars"></i>
-                    </button>
                     <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
                 </div>
                 <div class="position-relative d-none d-lg-block" style="width: 260px;" @focusout="onGlobalSearchBlur">
@@ -346,6 +343,12 @@
             <!-- Main Content Area -->
             <div class="main-content">
                 
+                <!-- Handy: feste Leiste unten mit den wichtigsten Bereichen -->
+                <nav class="mobile-bottom-nav d-lg-none" aria-label="Schnellzugriff">
+                    <button v-for="i in mobileNavItems" :key="i.id" type="button" :class="i.active ? 'active' : ''" @click="goMenu(i.id)"><i class="fa" :class="i.icon"></i><span>{{ i.label }}</span><b v-if="i.badge" class="mbn-badge">{{ i.badge }}</b></button>
+                    <button type="button" @click="showMobileSidebar = true"><i class="fa fa-bars"></i><span>Menü</span></button>
+                </nav>
+
                 <!-- System Broadcast Banners -->
                 <div v-for="b in visibleBroadcasts" :key="b.id" :class="['broadcast-card p-3 mb-3 d-flex justify-content-between align-items-center', b.is_mandatory ? 'mandatory' : '']">
                     <div class="d-flex align-items-start gap-3">
@@ -386,7 +389,7 @@
                         <span class="text-muted small">Ausgeblendet:</span>
                         <button v-for="w in overviewHiddenWidgets" :key="w.id" class="btn btn-sm btn-outline-secondary rounded-pill" @click="showOverviewWidget(w.id)"><i class="fa fa-plus me-1"></i>{{ w.title }}</button>
                     </div>
-                    <div class="row g-3">
+                    <div class="row g-3 overview-grid">
                         <div v-for="w in overviewWidgets" :key="w.id" class="col-12 col-lg-6 col-xl-4">
                             <div class="card premium-card p-3 h-100">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -412,7 +415,7 @@
                                         <div><div class="text-muted small">Berichte {{ overviewStats.year }}</div><div class="fs-2 fw-bold text-white">{{ overviewStats.total }}</div></div>
                                         <div><div class="text-muted small">Davon offen</div><div class="fs-2 fw-bold" :class="overviewStats.open ? 'text-warning' : 'text-success'">{{ overviewStats.open }}</div></div>
                                     </div>
-                                    <div v-if="overviewStats.total" style="height:170px;"><canvas id="overviewChart"></canvas></div>
+                                    <div v-if="overviewStats.total" class="ov-chart"><canvas id="overviewChart"></canvas></div>
                                     <div v-else class="text-muted small py-3 text-center">Dieses Jahr noch keine Einsatzberichte.</div>
                                     <a v-if="overviewStats.total" class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'einsaetze'">Alle Einsatzberichte ansehen</a>
                                 </div>
@@ -819,7 +822,7 @@
                                     <div class="d-flex gap-2">
                                         <button v-if="m.isNewMission" class="btn btn-sm btn-outline-light rounded-pill" @click.stop="downloadMissionPdf(m)" title="Einsatzbericht als PDF"><i class="fa fa-file-pdf me-1"></i>PDF</button>
                                         <button v-if="canManageMissions" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
-                                        <button v-if="canManagePersonnel" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
+                                        <button v-if="canDeleteMissions" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -835,7 +838,7 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
                             <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
                         </div>
-                        <button v-if="canManageMaterial" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
+                        <button v-if="canManageVehicles" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
                     </div>
                     <due-strip area="fahrzeuge" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
 
@@ -963,7 +966,7 @@
                             </button>
                         </li>
                         <li class="nav-item" v-if="canManageMaterial">
-                            <button class="nav-link" :class="materialSubTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
+                            <button v-if="canManageBuildings" class="nav-link" :class="materialSubTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
                         </li>
                         <li class="nav-item ms-auto">
                             <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
@@ -1078,19 +1081,19 @@
                                         <div class="d-flex justify-content-between align-items-center">
                                             <small class="text-muted"><i class="fa fa-user me-1"></i>Gemeldet von: <strong class="text-white">{{dr.reporter_name}}</strong></small>
                                             <div class="d-flex gap-1 align-items-center">
-                                                <div v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" class="d-flex gap-1">
+                                                <div v-if="canManageMaterial && dr.status !== 'Erledigt'" class="d-flex gap-1">
                                                     <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
                                                     <button v-if="dr.status !== 'In Bearbeitung'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
                                                 </div>
                                                 <small v-else-if="dr.status === 'Erledigt'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
-                                                <button v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status === 'Erledigt'" class="btn btn-xs btn-outline-light rounded-pill px-2" @click="resolveDefect(dr.id, 'Offen')" style="font-size:0.7rem;"><i class="fa fa-rotate-left me-1"></i>Wieder öffnen</button>
+                                                <button v-if="canManageMaterial && dr.status === 'Erledigt'" class="btn btn-xs btn-outline-light rounded-pill px-2" @click="resolveDefect(dr.id, 'Offen')" style="font-size:0.7rem;"><i class="fa fa-rotate-left me-1"></i>Wieder öffnen</button>
                                                 <button class="btn btn-xs btn-outline-light rounded-pill px-2" @click="toggleDefectComments(dr)" style="font-size:0.7rem;"><i class="fa fa-comments me-1"></i>Rückfragen<span v-if="dr.comment_count"> ({{dr.comment_count}})</span></button>
-                                                <button v-if="role === 'geratewart' || role === 'admin' || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                                <button v-if="canManageMaterial" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
                                             </div>
                                         </div>
                                         <div class="d-flex align-items-center gap-2 mt-2 small">
                                             <span class="text-muted"><i class="fa fa-user-check me-1"></i>Zuständig:</span>
-                                            <input v-if="(role === 'geratewart' || role === 'admin' || role === 'leitung') && dr.status !== 'Erledigt'" type="text" v-model="dr.assigned_to" class="form-control form-control-sm w-auto" style="min-width:160px;" placeholder="Name eintragen" @change="saveDefectAssignee(dr)">
+                                            <input v-if="canManageMaterial && dr.status !== 'Erledigt'" type="text" v-model="dr.assigned_to" class="form-control form-control-sm w-auto" style="min-width:160px;" placeholder="Name eintragen" @change="saveDefectAssignee(dr)">
                                             <strong v-else class="text-white">{{ dr.assigned_to || '—' }}</strong>
                                         </div>
                                         <div v-if="openDefectId === dr.id" class="mt-3 pt-3 border-top border-secondary border-opacity-25">
@@ -1288,7 +1291,7 @@
                         </div>
                     </div>
                 
-                <div v-show="materialSubTab === 'gebaeude'" v-if="canManageMaterial">
+                <div v-show="materialSubTab === 'gebaeude'" v-if="canManageBuildings">
                     <due-strip area="gebaeude" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
                                             <div class="card premium-card p-4">
                                                 <h5 class="fw-bold text-white mb-1"><i class="fa fa-building me-2"></i>Gerätehaus-Prüfungen</h5>
@@ -1342,7 +1345,7 @@
                             <a v-if="isAdmin || role === 'leitung'" href="/api/personnel/roster/pdf" target="_blank" class="btn btn-outline-light rounded-pill"><i class="fa fa-file-pdf me-1"></i>Mitgliederliste (PDF)</a>
                             <button v-if="isAdmin || role === 'leitung'" class="btn btn-outline-info rounded-pill" @click="openQualMatrixModal"><i class="fa fa-table-cells me-1"></i>Qualifikationsmatrix</button>
                             <button v-if="canManageMaterial" class="btn btn-outline-light rounded-pill" @click="openClothingModal"><i class="fa fa-shirt me-1"></i>Kleiderkammer</button>
-                            <button v-if="isAdmin || role === 'leitung' || role === 'jugendwarte'" class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
+                            <button v-if="canManageProspects" class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
                             <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
                         </div>
                     </div>

@@ -675,7 +675,7 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
 
 @router.delete("/{mission_id}")
 def delete_mission(mission_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="missions.delete")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
@@ -732,7 +732,7 @@ def list_respiration_log(mission_id: int, request: Request):
 @router.post("/{mission_id}/respiration")
 def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer", "atemschutzwart"):
+    if not has_permission(user, "atemschutz.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -745,7 +745,7 @@ def add_respiration_entry(mission_id: int, r: RespirationEntry, request: Request
 @router.delete("/respiration/{entry_id}")
 def delete_respiration_entry(entry_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer", "atemschutzwart"):
+    if not has_permission(user, "atemschutz.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM respiration_log WHERE id = %s", (entry_id,))
@@ -997,7 +997,7 @@ def list_schedules(request: Request):
     vis_sql, vis_params = visibility_sql(cur, user, "s")
     cur.execute(f"SELECT s.* FROM schedules s WHERE {vis_sql} ORDER BY s.date ASC, s.time ASC", vis_params)
     res = cur.fetchall()
-    can_edit = bool(user and user.get("role") in EDITOR_ROLES)
+    can_edit = bool(user and has_permission(user, "dienste.manage"))
     members = {}
     restricted = [r["id"] for r in res if r.get("audience") == "selected"]
     if can_edit and restricted:
@@ -1047,7 +1047,7 @@ def _series_dates(start: date, repeat: Optional[str], until: Optional[date]) -> 
 @router.post("/schedules")
 def create_schedule(s: ScheduleCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     try:
         start = date.fromisoformat(s.date)
@@ -1078,7 +1078,7 @@ def create_schedule(s: ScheduleCreate, request: Request, background_tasks: Backg
 @router.put("/schedules/{sch_id}")
 def update_schedule(sch_id: int, s: ScheduleCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     _assert_can_view(cur, user, sch_id)
@@ -1109,7 +1109,7 @@ def update_schedule(sch_id: int, s: ScheduleCreate, request: Request, background
 @router.delete("/schedules/{sch_id}")
 def delete_schedule(sch_id: int, request: Request, series: bool = False):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     _assert_can_view(cur, user, sch_id)
@@ -1206,7 +1206,7 @@ def get_schedule_attendance(sch_id: int, request: Request):
 @router.post("/schedules/{sch_id}/attendance")
 def save_schedule_attendance(sch_id: int, data: List[ScheduleAttendanceEntry], request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     _assert_can_view(cur, user, sch_id)
@@ -1263,7 +1263,7 @@ def get_all_schedule_rsvps(request: Request):
 def link_schedule_to_session(sch_id: int, data: dict, request: Request):
     """Merkt: aus diesem Termin wurde ein Dienst erfasst (Kalender zeigt ihn dann nicht doppelt)."""
     user = check_auth(request)
-    if user["role"] not in EDITOR_ROLES:
+    if not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     try:
         session_id = int(data.get("session_id"))
@@ -1279,7 +1279,7 @@ def link_schedule_to_session(sch_id: int, data: dict, request: Request):
 @router.get("/schedules/audience-info")
 def schedule_audience_info(request: Request):
     """Für die Personenauswahl beim Termin: wer hat einen verknüpften Login (sieht den Termin in der App), wer eine E-Mail-Adresse."""
-    check_auth(request, allowed_roles=EDITOR_ROLES)
+    check_auth(request, permission="dienste.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("SELECT DISTINCT personnel_id FROM users WHERE personnel_id IS NOT NULL")
     with_login = [r[0] for r in cur.fetchall()]
@@ -1308,7 +1308,7 @@ def get_schedule_rsvp(sch_id: int, request: Request):
         my_status = row["status"] if row else None
     # Für Wehrführung/Gruppenführer: wer hat noch gar nicht geantwortet?
     pending = []
-    if user.get("role") in EDITOR_ROLES:
+    if has_permission(user, "dienste.manage"):
         from core.schedule_notify import _recipients
         cur.execute("SELECT group_id, audience FROM schedules WHERE id = %s", (sch_id,))
         sch = cur.fetchone()

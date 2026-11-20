@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 27,
+        "version": "2.77",
+        "date": "2026-11-20",
+        "items": [
+            {"type": "new", "tag": "Rechte", "title": "Fünfzehn statt sechs einstellbare Rechte",
+             "text": "Neu in der Rechte-Tabelle: Dienste und Termine führen, Atemschutz-Einträge im Einsatz, Gruppen und Listen anlegen, Einsatzberichte löschen, Alarm- und Ausrückeordnung, Fristen und Logbücher einrichten, Nachwuchs und Interessenten, Fahrzeuge verwalten, Gerätehaus-Prüfungen. Die Standardwerte entsprechen dem bisherigen Verhalten. Die Rechte gelten im Server und blenden die passenden Knöpfe ein oder aus."},
+            {"type": "new", "tag": "Handy", "title": "Handy-Ansicht überarbeitet",
+             "text": "Unten gibt es jetzt eine feste Leiste mit Start, Dienste, Einsätze, Fristen und Menü (der Menü-Knopf oben links entfällt, es gibt nur noch den unten). Mitteilungen belegen nur noch wenig Platz, die Übersicht ist kompakter und die Diagramme kleiner."},
+            {"type": "fix", "tag": "Menü", "title": "Favoriten im Menü erscheinen",
+             "text": "Angeheftete Favoriten wurden gespeichert, aber im Menü nicht angezeigt. Das ist behoben. Ebenso ist Hell-Dunkel und Rechte-Auswahl konsistent. Die Mängel-Knöpfe richten sich nach dem Recht „Material, Fahrzeuge und Mängel verwalten“ statt nach festen Rollen."},
+        ],
+    },
+    {
         "id": 26,
         "version": "2.76",
         "date": "2026-11-20",

@@ -5,6 +5,7 @@ from datetime import datetime
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action, get_station_name
+from core.permissions import has_permission
 
 router = APIRouter()
 from core.models import safe_decode, AttendanceUpload, GroupData
@@ -22,7 +23,7 @@ def get_groups(request: Request):
 @router.put("/groups/{id}")
 def update_group(id: int, g: GroupData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "groups.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE groups_table SET name=%s WHERE id=%s", (g.name, id))
     c.commit(); cur.close(); c.close()
@@ -31,7 +32,7 @@ def update_group(id: int, g: GroupData, request: Request):
 @router.post("/groups")
 def create_group(g: GroupData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "groups.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c=get_db_connection(); cur=c.cursor()
     cur.execute("INSERT INTO groups_table (name) VALUES (%s)", (g.name,))
     c.commit(); c.close(); return {"status": "created"}
@@ -39,7 +40,7 @@ def create_group(g: GroupData, request: Request):
 @router.delete("/groups/{id}")
 def delete_group(id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "groups.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM groups_table WHERE id=%s", (id,))
     c.commit(); c.close(); return {"status": "deleted"}
@@ -252,7 +253,7 @@ def get_attendance(group_id: int, request: Request, session_id: Optional[str] = 
 @router.post("/attendance")
 def save_attendance(payload: AttendanceUpload, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "dienste.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     try:
         if payload.session_id:
@@ -298,7 +299,7 @@ def get_instructors(group_id: int, request: Request):
 @router.post("/sessions/{session_id}/leader_signature")
 def save_leader_sig(session_id: str, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "dienste.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     sid_str = str(session_id)
     sig = data.get("signature")
@@ -314,7 +315,7 @@ def save_leader_sig(session_id: str, data: dict, request: Request):
 @router.delete("/sessions/{session_id}")
 def delete_session(session_id: str, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"): 
+    if not user or not has_permission(user, "dienste.manage"): 
         raise HTTPException(status_code=403, detail="Schreibgeschützt")
     conn = get_db_connection(); cur = conn.cursor()
     sid_str = str(session_id)
@@ -472,7 +473,7 @@ def list_session_templates(group_id: int, request: Request):
 @router.post("/groups/{group_id}/templates")
 def create_session_template(group_id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not user or not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     name = (data.get("name") or "").strip()
     if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
@@ -489,7 +490,7 @@ def create_session_template(group_id: int, data: dict, request: Request):
 @router.delete("/templates/{template_id}")
 def delete_session_template(template_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not user or not has_permission(user, "dienste.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM session_templates WHERE id = %s", (template_id,))

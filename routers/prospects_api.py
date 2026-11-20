@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from core.utils import check_auth, log_audit_action
+from core.permissions import has_permission
 from database import get_db_connection
 
 router = APIRouter(prefix="/api/prospects", tags=["Nachwuchs"])
@@ -47,7 +48,7 @@ def _check(data: ProspectIn):
 
 @router.get("")
 def list_prospects(request: Request):
-    check_auth(request, allowed_roles=_ROLES)
+    check_auth(request, permission="prospects.manage")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM prospects ORDER BY FIELD(status, 'Probe', 'Interessent', 'Aufgenommen', 'Abgesagt'), first_contact DESC")
     rows = cur.fetchall(); cur.close(); conn.close()
@@ -60,7 +61,7 @@ def list_prospects(request: Request):
 
 @router.post("")
 def create_prospect(data: ProspectIn, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="prospects.manage")
     _check(data)
     first = _d(data.first_contact) or date.today()
     conn = get_db_connection(); cur = conn.cursor()
@@ -77,7 +78,7 @@ def create_prospect(data: ProspectIn, request: Request):
 
 @router.put("/{prospect_id}")
 def update_prospect(prospect_id: int, data: ProspectIn, request: Request):
-    check_auth(request, allowed_roles=_ROLES)
+    check_auth(request, permission="prospects.manage")
     _check(data)
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute(
@@ -91,7 +92,7 @@ def update_prospect(prospect_id: int, data: ProspectIn, request: Request):
 
 @router.post("/{prospect_id}/contact")
 def contacted_today(prospect_id: int, request: Request):
-    check_auth(request, allowed_roles=_ROLES)
+    check_auth(request, permission="prospects.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE prospects SET last_contact = CURDATE() WHERE id = %s", (prospect_id,))
     conn.commit(); cur.close(); conn.close()
@@ -101,7 +102,7 @@ def contacted_today(prospect_id: int, request: Request):
 @router.delete("/{prospect_id}")
 def delete_prospect(prospect_id: int, request: Request):
     # Endgültig löschen: Daten von Personen, die nicht Mitglied werden, sollen nicht auf Vorrat bleiben (DSGVO).
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="prospects.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM prospects WHERE id = %s", (prospect_id,))
     conn.commit(); cur.close(); conn.close()

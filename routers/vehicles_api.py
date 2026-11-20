@@ -5,6 +5,7 @@ from typing import Optional
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action, check_display_access
+from core.permissions import has_permission
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ def get_vehicles(request: Request):
 @router.post("/api/vehicles")
 def create_vehicle(v: VehicleData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("""
         INSERT INTO vehicles (name, radio_name, status, tuv_date, sp_date, milage, next_service, required_license, purchase_value, insurance_policy)
@@ -62,7 +63,7 @@ def create_vehicle(v: VehicleData, request: Request):
 @router.put("/api/vehicles/{id}")
 def update_vehicle(id: int, v: VehicleData, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("""
         UPDATE vehicles
@@ -77,7 +78,7 @@ def update_vehicle(id: int, v: VehicleData, request: Request):
 def update_vehicle_inspection(id: int, data: dict, request: Request):
     """Nach bestandener Pruefung nur das neue Faelligkeitsdatum von TUEV oder Sicherheitspruefung setzen (aus der Fristen-Liste)."""
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     field = data.get("field")
     if field not in ("tuv_date", "sp_date"): raise HTTPException(status_code=400, detail="Unbekanntes Feld")
     try:
@@ -95,7 +96,7 @@ def update_vehicle_inspection(id: int, data: dict, request: Request):
 @router.put("/api/vehicles/{id}/status")
 def update_vehicle_status(id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     new_status = data.get("status", 2)
     c = get_db_connection(); cur = c.cursor()
     cur.execute("UPDATE vehicles SET status=%s WHERE id=%s", (new_status, id))
@@ -106,7 +107,7 @@ def update_vehicle_status(id: int, data: dict, request: Request):
 @router.delete("/api/vehicles/{id}")
 def delete_vehicle(id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM vehicles WHERE id=%s", (id,))
     row = cur.fetchone()
@@ -167,7 +168,7 @@ def delete_vehicle_reservation(reservation_id: int, request: Request):
     if not row:
         c.close()
         raise HTTPException(status_code=404, detail="Reservierung nicht gefunden")
-    if row["reserved_by"] != user["username"] and user["role"] not in ("admin", "leitung", "geratewart"):
+    if row["reserved_by"] != user["username"] and not has_permission(user, "vehicles.manage"):
         c.close()
         raise HTTPException(status_code=403, detail="Nur die eigene Reservierung oder Admin/Leitung/Gerätewart können stornieren")
     cur.execute("DELETE FROM vehicle_reservations WHERE id = %s", (reservation_id,))
@@ -196,7 +197,7 @@ def list_vehicle_maintenance(id: int, request: Request):
 @router.post("/api/vehicles/{id}/maintenance")
 def add_vehicle_maintenance(id: int, m: MaintenanceCreate, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     if not m.description or not m.description.strip():
         raise HTTPException(status_code=400, detail="Beschreibung erforderlich")
     c = get_db_connection(); cur = c.cursor()
@@ -210,7 +211,7 @@ def add_vehicle_maintenance(id: int, m: MaintenanceCreate, request: Request):
 @router.delete("/api/vehicles/maintenance/{entry_id}")
 def delete_vehicle_maintenance(entry_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
+    if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     c = get_db_connection(); cur = c.cursor()
     cur.execute("DELETE FROM vehicle_maintenance WHERE id = %s", (entry_id,))
     c.commit(); c.close()

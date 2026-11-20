@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from core import logbook as lb
 from core.utils import check_auth, log_audit_action
+from core.permissions import has_permission
 from database import get_db_connection
 
 router = APIRouter(prefix="/api/logbooks", tags=["Logbücher"])
@@ -70,7 +71,7 @@ def _members(cur, lb_id):
 
 
 def _access(user, pid, book, members) -> dict:
-    manage = user["role"] in _MANAGERS
+    manage = has_permission(user, "fristen.manage")
     sees_all = manage or (bool(book["responsible_role"]) and book["responsible_role"] == user["role"]) \
         or (pid is not None and book["responsible_pid"] == pid)
     can_write = sees_all or bool(book["open_to_all"]) or (pid is not None and pid in members)
@@ -222,7 +223,7 @@ def list_logbooks(request: Request):
 
 @router.post("")
 def create_logbook(data: LogbookIn, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     name, defs = _validate_book(data, cur)
     cur.execute("INSERT INTO logbooks (name, subject, responsible_role, responsible_pid, open_to_all) VALUES (%s, %s, %s, %s, %s)",
@@ -237,7 +238,7 @@ def create_logbook(data: LogbookIn, request: Request):
 
 @router.put("/{lb_id}")
 def update_logbook(lb_id: int, data: LogbookIn, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     _load(cur, lb_id)
     name, defs = _validate_book(data, cur)
@@ -252,7 +253,7 @@ def update_logbook(lb_id: int, data: LogbookIn, request: Request):
 
 @router.delete("/{lb_id}")
 def delete_logbook(lb_id: int, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     book = _load(cur, lb_id)
     for t in ("logbook_entries", "logbook_fields", "logbook_members"):

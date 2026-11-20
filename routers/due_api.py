@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from core.utils import check_auth, log_audit_action
+from core.permissions import has_permission
 from database import get_db_connection
 from routers.building_api import _add_months, _parse
 
@@ -51,7 +52,7 @@ def _me(request):
 
 
 def _manages(user, pid, t) -> bool:
-    return (user["role"] in _MANAGERS or (bool(t["responsible_role"]) and t["responsible_role"] == user["role"])
+    return (has_permission(user, "fristen.manage") or (bool(t["responsible_role"]) and t["responsible_role"] == user["role"])
             or (pid is not None and t["responsible_pid"] == pid))
 
 
@@ -96,12 +97,12 @@ def list_types(request: Request):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     rows = [dict(t, can_manage=True) for t in _types(cur) if _manages(user, pid, t)]
     cur.close(); conn.close()
-    return {"types": rows, "can_create": user["role"] in _MANAGERS}
+    return {"types": rows, "can_create": has_permission(user, "fristen.manage")}
 
 
 @router.post("/types")
 def create_type(data: TypeIn, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor()
     name, role = _validate_type(data, cur)
     cur.execute(
@@ -115,7 +116,7 @@ def create_type(data: TypeIn, request: Request):
 
 @router.put("/types/{type_id}")
 def update_type(type_id: int, data: TypeIn, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor()
     name, role = _validate_type(data, cur)
     cur.execute(
@@ -129,7 +130,7 @@ def update_type(type_id: int, data: TypeIn, request: Request):
 
 @router.delete("/types/{type_id}")
 def delete_type(type_id: int, request: Request):
-    user = check_auth(request, allowed_roles=_MANAGERS)
+    user = check_auth(request, permission="fristen.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM due_entries WHERE type_id = %s", (type_id,))
     cur.execute("DELETE FROM due_types WHERE id = %s", (type_id,))
@@ -169,7 +170,7 @@ def subjects(request: Request, kind: str):
     if kind not in _SUBJECT_COLUMN:
         raise HTTPException(status_code=400, detail="Unbekannter Bezug.")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    if user["role"] not in _MANAGERS and not any(_manages(user, pid, t) and t["subject"] == kind for t in _types(cur)):
+    if not has_permission(user, "fristen.manage") and not any(_manages(user, pid, t) and t["subject"] == kind for t in _types(cur)):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     if kind == "person":

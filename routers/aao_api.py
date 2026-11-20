@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from core.aao import parse_entries, pick_rule
 from core.utils import check_auth, check_display_access, log_audit_action
+from core.permissions import has_permission
 from database import get_db_connection
 
 router = APIRouter(prefix="/api/aao", tags=["AAO"])
@@ -45,7 +46,7 @@ def list_rules(request: Request):
     user = check_auth(request)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     rules = _rules(cur); cur.close(); conn.close()
-    return {"rules": rules, "can_edit": user["role"] in _ROLES}
+    return {"rules": rules, "can_edit": has_permission(user, "aao.manage")}
 
 
 @router.get("/recommend")
@@ -59,7 +60,7 @@ def recommend(request: Request, stichwort: str = ""):
 
 @router.post("")
 def create_rule(data: AaoRuleIn, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="aao.manage")
     pattern, entries = _clean(data)
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM aao_rules")
@@ -72,7 +73,7 @@ def create_rule(data: AaoRuleIn, request: Request):
 
 @router.put("/{rule_id}")
 def update_rule(rule_id: int, data: AaoRuleIn, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="aao.manage")
     pattern, entries = _clean(data)
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE aao_rules SET pattern=%s, entries=%s WHERE id=%s", (pattern, entries, rule_id))
@@ -83,7 +84,7 @@ def update_rule(rule_id: int, data: AaoRuleIn, request: Request):
 
 @router.delete("/{rule_id}")
 def delete_rule(rule_id: int, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="aao.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM aao_rules WHERE id=%s", (rule_id,))
     conn.commit(); cur.close(); conn.close()

@@ -484,6 +484,48 @@ applyChartTheme();
                     const sum = a => a.reduce((t, b) => t + (parseFloat(b.amount) || 0), 0);
                     return { open: open.length, openSum: sum(open), overdue: list.filter(b => this.billOverdue(b)).length, paid: list.length - open.length };
                 },
+                menuCatalog() {
+                    return {
+                        dienste: { label: 'Dienstbetrieb', icon: 'fa-book', show: true },
+                        kalender: { label: 'Kalender', icon: 'fa-calendar-days', show: true },
+                        fristen: { label: 'Fristen', icon: 'fa-clock', show: true },
+                        personal: { label: 'Personalverwaltung', icon: 'fa-users', show: this.canSeePersonnel },
+                        jugend: { label: 'Jugendfeuerwehr', icon: 'fa-graduation-cap', show: this.canSeeYouth },
+                        notizen: { label: 'Digitales Notizbuch', icon: 'fa-sticky-note', show: true },
+                        stats: { label: 'Statistiken', icon: 'fa-chart-bar', show: this.canSeeStats },
+                        apager: { label: 'Alarmierung', icon: 'fa-bell', show: true },
+                        einsaetze: { label: 'Einsatzberichte', icon: 'fa-fire', show: true },
+                        lagekarte: { label: 'Lagekarte & Hydranten', icon: 'fa-map-location-dot', show: true },
+                        bma: { label: 'Objekte & BMA', icon: 'fa-building-shield', show: true },
+                        hvo: { label: 'First Responder', icon: 'fa-heart-pulse', show: true },
+                        logbuch: { label: 'Logbücher', icon: 'fa-book-open', show: this.logbooks.length > 0 || this.canSeeSettings },
+                        fahrzeuge: { label: 'Fahrzeugpool', icon: 'fa-truck', show: true },
+                        material: { label: 'Geräte & Material', icon: 'fa-screwdriver-wrench', show: true },
+                        maengel: { label: 'Mängel', icon: 'fa-triangle-exclamation', show: true },
+                        abrechnung: { label: 'Abrechnung', icon: 'fa-euro-sign', show: this.canSeeFinance },
+                        arbeitsbescheinigung: { label: 'Arbeitsbescheinigungen', icon: 'fa-file-signature', show: this.canSeeFinance },
+                        verein: { label: 'Vereinskasse & Inventar', icon: 'fa-building-columns', show: this.canSeeFinance },
+                        archiv: { label: 'Dokumente & Archiv', icon: 'fa-folder-open', show: true },
+                        verwaltung: { label: 'Einstellungen', icon: 'fa-gears', show: this.canSeeSettings }
+                    };
+                },
+                mobileNavItems() {
+                    const t = this.activeTab;
+                    return [
+                        { id: 'uebersicht', label: 'Start', icon: 'fa-gauge-high', active: t === 'uebersicht' },
+                        { id: 'dienste', label: 'Dienste', icon: 'fa-book', active: t === 'dienste' },
+                        { id: 'einsaetze', label: 'Einsätze', icon: 'fa-fire', active: t === 'einsaetze' },
+                        { id: 'fristen', label: 'Fristen', icon: 'fa-clock', active: t === 'fristen', badge: this.dueBadge || 0 }
+                    ];
+                },
+                menuFavoriteItems() {
+                    const cat = this.menuCatalog;
+                    return (this.menuFavorites || []).filter(id => cat[id] && cat[id].show).map(id => ({
+                        id, ...cat[id],
+                        active: id === 'maengel' ? (this.activeTab === 'material' && this.materialSubTab === 'maengel')
+                              : id === 'material' ? (this.activeTab === 'material' && this.materialSubTab !== 'maengel') : this.activeTab === id
+                    }));
+                },
                 overviewWidgetDefs() {
                     return {
                         mitteilungen: { title: 'Neueste Mitteilungen', icon: 'fa-comment-dots' },
@@ -530,7 +572,11 @@ applyChartTheme();
                     const items = (this.dueItems || []).filter(i => !i.first_check).slice().sort((a, b) => (a.days || 0) - (b.days || 0));
                     return { overdue: items.filter(i => i.overdue).length, soon: items.length, top: items.slice(0, 4) };
                 },
-                canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
+                canManageDienste() { return this.hasPerm('dienste.manage'); },
+                canDeleteMissions() { return this.hasPerm('missions.delete'); },
+                canManageVehicles() { return this.hasPerm('vehicles.manage'); },
+                canManageBuildings() { return this.hasPerm('buildings.manage'); },
+                canManageProspects() { return this.hasPerm('prospects.manage'); },
                 canManageMissions() { return this.hasPerm('missions.manage'); },
                 canManagePersonnel() { return this.hasPerm('personnel.manage'); },
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
@@ -3325,39 +3371,6 @@ applyChartTheme();
                         material: ['fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv']
                     };
                     return Object.keys(groups).find(k => groups[k].includes(tab)) || null;
-                },
-                menuCatalog() {
-                    return {
-                        dienste: { label: 'Dienstbetrieb', icon: 'fa-book', show: true },
-                        kalender: { label: 'Kalender', icon: 'fa-calendar-days', show: true },
-                        fristen: { label: 'Fristen', icon: 'fa-clock', show: true },
-                        personal: { label: 'Personalverwaltung', icon: 'fa-users', show: this.canSeePersonnel },
-                        jugend: { label: 'Jugendfeuerwehr', icon: 'fa-graduation-cap', show: this.canSeeYouth },
-                        notizen: { label: 'Digitales Notizbuch', icon: 'fa-sticky-note', show: true },
-                        stats: { label: 'Statistiken', icon: 'fa-chart-bar', show: this.canSeeStats },
-                        apager: { label: 'Alarmierung', icon: 'fa-bell', show: true },
-                        einsaetze: { label: 'Einsatzberichte', icon: 'fa-fire', show: true },
-                        lagekarte: { label: 'Lagekarte & Hydranten', icon: 'fa-map-location-dot', show: true },
-                        bma: { label: 'Objekte & BMA', icon: 'fa-building-shield', show: true },
-                        hvo: { label: 'First Responder', icon: 'fa-heart-pulse', show: true },
-                        logbuch: { label: 'Logbücher', icon: 'fa-book-open', show: this.logbooks.length > 0 || this.canSeeSettings },
-                        fahrzeuge: { label: 'Fahrzeugpool', icon: 'fa-truck', show: true },
-                        material: { label: 'Geräte & Material', icon: 'fa-screwdriver-wrench', show: true },
-                        maengel: { label: 'Mängel', icon: 'fa-triangle-exclamation', show: true },
-                        abrechnung: { label: 'Abrechnung', icon: 'fa-euro-sign', show: this.canSeeFinance },
-                        arbeitsbescheinigung: { label: 'Arbeitsbescheinigungen', icon: 'fa-file-signature', show: this.canSeeFinance },
-                        verein: { label: 'Vereinskasse & Inventar', icon: 'fa-building-columns', show: this.canSeeFinance },
-                        archiv: { label: 'Dokumente & Archiv', icon: 'fa-folder-open', show: true },
-                        verwaltung: { label: 'Einstellungen', icon: 'fa-gears', show: this.canSeeSettings }
-                    };
-                },
-                menuFavoriteItems() {
-                    const cat = this.menuCatalog;
-                    return (this.menuFavorites || []).filter(id => cat[id] && cat[id].show).map(id => ({
-                        id, ...cat[id],
-                        active: id === 'maengel' ? (this.activeTab === 'material' && this.materialSubTab === 'maengel')
-                              : id === 'material' ? (this.activeTab === 'material' && this.materialSubTab !== 'maengel') : this.activeTab === id
-                    }));
                 },
                 menuOpen(key) { return !this.menuCollapsed[key]; },
                 isFavorite(id) { return (this.menuFavorites || []).includes(id); },

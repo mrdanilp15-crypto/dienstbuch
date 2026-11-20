@@ -104,13 +104,14 @@ check("Freigabe: Entfernen nimmt Freigabe zurück", _d.get("status") == "In Prü
 admin.delete(f"/api/missions/{_m}")
 
 # --- Einsaetze erscheinen nur in der Dienstliste ihrer Gruppe (und ohne Gruppe in allen)
-_gs = admin.get("/api/groups").json()
-if len(_gs) >= 2:
+_gs = admin.get("/groups").json()
+check("Dienstliste-Test: mindestens zwei Gruppen vorhanden", isinstance(_gs, list) and len(_gs) >= 2, str(_gs)[:80])
+if isinstance(_gs, list) and len(_gs) >= 2:
     _g1, _g2 = _gs[0]["id"], _gs[1]["id"]
     _ma = admin.post("/api/missions", json={"date": "2026-03-03", "time": "10:00", "stichwort": "GrpA-Test", "adresse": "A", "meldung": "", "group_id": _g1}).json()["id"]
     _mn = admin.post("/api/missions", json={"date": "2026-03-04", "time": "10:00", "stichwort": "OhneGrp-Test", "adresse": "B", "meldung": ""}).json()["id"]
-    _l1 = [x.get("real_mission_id") for x in admin.get(f"/api/groups/{_g1}/sessions").json() if x.get("is_mission")]
-    _l2 = [x.get("real_mission_id") for x in admin.get(f"/api/groups/{_g2}/sessions").json() if x.get("is_mission")]
+    _l1 = [x.get("real_mission_id") for x in admin.get(f"/groups/{_g1}/sessions").json() if x.get("is_mission")]
+    _l2 = [x.get("real_mission_id") for x in admin.get(f"/groups/{_g2}/sessions").json() if x.get("is_mission")]
     check("Dienstliste: Einsatz steht in seiner Gruppe", _ma in _l1 and _mn in _l1)
     check("Dienstliste: Einsatz einer anderen Gruppe fehlt, ohne Gruppe steht überall", _ma not in _l2 and _mn in _l2, str(_l2))
     admin.delete(f"/api/missions/{_ma}"); admin.delete(f"/api/missions/{_mn}")
@@ -232,6 +233,34 @@ _sf = {"einsaetze": [{"name": "Offene Brände", "filter": {"search": "", "status
 check("Filter: speichern", admin.put("/api/users/me/prefs/saved_filters", json={"value": _sf}).status_code == 200)
 check("Filter: wieder lesbar", admin.get("/api/users/me/prefs/saved_filters").json()["value"] == _sf)
 admin.put("/api/users/me/prefs/saved_filters", json={"value": None})
+
+# --- Weitere einstellbare Rechte (Standard bleibt wie vorher, Vergabe wirkt sofort)
+_names = [p["key"] for p in admin.get("/api/admin/permissions").json()["permissions"]]
+for _k in ("dienste.manage", "atemschutz.manage", "groups.manage", "missions.delete", "aao.manage", "fristen.manage", "prospects.manage", "vehicles.manage", "buildings.manage"):
+    check(f"Recht {_k} vorhanden", _k in _names)
+check("Gruppen: Mannschaft darf nicht anlegen (Standard)", cl["mannschaft"].post("/groups", json={"name": "ZZ-Rechtetest"}).status_code == 403)
+admin.put("/api/admin/permissions", json={"role": "mannschaft", "permission": "groups.manage", "allowed": True})
+_gr = cl["mannschaft"].post("/groups", json={"name": "ZZ-Rechtetest"})
+check("Gruppen: mit Recht darf Mannschaft anlegen", _gr.status_code == 200, _gr.text[:80])
+_gid = next((g["id"] for g in admin.get("/groups").json() if g["name"] == "ZZ-Rechtetest"), None)
+if _gid:
+    admin.delete(f"/groups/{_gid}")
+check("Fahrzeuge: Mannschaft darf nicht anlegen (Standard)", cl["mannschaft"].post("/api/vehicles", json={"name": "ZZ-Test"}).status_code == 403)
+admin.put("/api/admin/permissions", json={"role": "mannschaft", "permission": "vehicles.manage", "allowed": True})
+_vr = cl["mannschaft"].post("/api/vehicles", json={"name": "ZZ-Test"})
+check("Fahrzeuge: mit Recht darf Mannschaft anlegen", _vr.status_code == 200, _vr.text[:80])
+_vid = sql("select id from vehicles where name='ZZ-Test' order by id desc limit 1")
+if str(_vid).isdigit():
+    admin.delete(f"/api/vehicles/{_vid}")
+check("Fristen: Mannschaft darf keine Fristart anlegen (Standard)", cl["mannschaft"].post("/api/due/types", json={"name": "ZZ-Frist", "subject": "person"}).status_code == 403)
+admin.put("/api/admin/permissions", json={"role": "mannschaft", "permission": "fristen.manage", "allowed": True})
+_fr = cl["mannschaft"].post("/api/due/types", json={"name": "ZZ-Frist", "subject": "person"})
+check("Fristen: mit Recht darf Mannschaft anlegen", _fr.status_code == 200, _fr.text[:80])
+sql("delete from due_types where name='ZZ-Frist'")
+check("Einsätze löschen: Gruppenführer darf nicht (Standard)", cl["gruppenfuehrer"].delete("/api/missions/99999999").status_code == 403)
+check("Einsätze löschen: Leitung darf (Standard, 404 weil unbekannt)", cl["leitung"].delete("/api/missions/99999999").status_code in (200, 404))
+admin.post("/api/admin/permissions/reset")
+check("Gruppen: nach Reset wieder gesperrt", cl["mannschaft"].post("/groups", json={"name": "ZZ-Rechtetest2"}).status_code == 403)
 
 # --- Eigene Rollen
 check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)

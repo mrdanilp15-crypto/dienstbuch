@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v77';
+const CACHE_NAME = 'fw-app-cache-v78';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,

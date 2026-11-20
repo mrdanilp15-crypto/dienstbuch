@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from core.utils import check_auth, log_audit_action
+from core.permissions import has_permission
 from database import get_db_connection
 
 router = APIRouter(prefix="/api/building", tags=["Gerätehaus"])
@@ -76,7 +77,7 @@ def list_checks(request: Request):
 
 @router.post("/checks")
 def create_check(data: CheckIn, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="buildings.manage")
     _validate(data)
     last = _parse(data.last_check)
     # Noch nie geprüft -> sofort fällig (so taucht die Prüfung in den Erinnerungen auf)
@@ -93,7 +94,7 @@ def create_check(data: CheckIn, request: Request):
 
 @router.put("/checks/{check_id}")
 def update_check(check_id: int, data: CheckIn, request: Request):
-    check_auth(request, allowed_roles=_ROLES)
+    check_auth(request, permission="buildings.manage")
     _validate(data)
     last = _parse(data.last_check)
     conn = get_db_connection(); cur = conn.cursor()
@@ -112,7 +113,7 @@ def update_check(check_id: int, data: CheckIn, request: Request):
 
 @router.post("/checks/{check_id}/done")
 def mark_done(check_id: int, data: DoneIn, request: Request):
-    user = check_auth(request, allowed_roles=_ROLES)
+    user = check_auth(request, permission="buildings.manage")
     done = _parse(data.date) or date.today()
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT name, interval_months FROM building_checks WHERE id = %s", (check_id,))
@@ -131,7 +132,7 @@ def mark_done(check_id: int, data: DoneIn, request: Request):
 
 @router.delete("/checks/{check_id}")
 def delete_check(check_id: int, request: Request):
-    check_auth(request, allowed_roles=_ROLES)
+    check_auth(request, permission="buildings.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM building_checks WHERE id = %s", (check_id,))
     conn.commit(); cur.close(); conn.close()
