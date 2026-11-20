@@ -139,7 +139,7 @@
                 <div class="fw-bold text-danger d-flex align-items-center gap-2 brand-title fs-4">
                     <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
                 </div>
-                <div class="position-relative d-none d-lg-block" style="width: 260px;" @focusout="onGlobalSearchBlur">
+                <div class="position-relative d-none d-lg-block global-search" :class="{'mobile-search-open': mobileSearchOpen}" style="width: 260px;" @focusout="onGlobalSearchBlur">
                     <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="globalSearchQuery" @input="onGlobalSearchInput" @focus="globalSearchOpen = true" placeholder="Suche: Kamerad, Fahrzeug, Gerät, Dokument..." style="padding-left: 32px !important;">
                     <i class="fa fa-search text-muted position-absolute" style="left: 13px; top: 50%; transform: translateY(-50%); font-size: 0.8rem;"></i>
                     <div v-if="globalSearchOpen && globalSearchResults" class="card premium-card p-2 position-absolute shadow" style="top: 110%; left: 0; right: 0; z-index: 2000; max-height: 60vh; overflow-y: auto;">
@@ -174,6 +174,8 @@
                         </div>
                     </div>
                 </div>
+                <!-- Handy: Such-Knopf (öffnet die Suche über die ganze Breite) -->
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-lg-none ms-auto me-2" :class="{active: mobileSearchOpen}" @click="toggleMobileSearch" title="Suchen" aria-label="Suchen"><i class="fa" :class="mobileSearchOpen ? 'fa-xmark' : 'fa-magnifying-glass'"></i></button>
                 <!-- Benachrichtigungs-Glocke -->
                 <div class="position-relative ms-auto" id="notifBell">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 position-relative" @click="toggleNotifPanel" title="Benachrichtigungen">
@@ -378,7 +380,7 @@
 
                 <!-- TAB 1: DIENSTBETRIEB -->
                 <div v-show="activeTab === 'uebersicht'">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 page-head">
                         <div>
                             <h3 class="fw-bold text-white mb-0"><i class="fa fa-gauge-high text-danger me-2"></i>Übersicht</h3>
                             <div class="text-muted small">Hallo {{ displayName }} – das ist gerade los.</div>
@@ -618,7 +620,7 @@
 
                 <!-- TAB: NOTIZEN -->
                 <div v-show="activeTab === 'notizen'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-sticky-note text-danger me-2"></i>Digitales Notizbuch</h2>
                             <small class="text-muted">Mängelmeldungen, Funkraum-Notizen und Whiteboard</small>
@@ -731,7 +733,7 @@
 
                 <!-- TAB: KALENDER -->
                 <div v-show="activeTab === 'kalender'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Gemeinsamer Kalender</h2>
                             <small class="text-muted">Dienste, Einsätze, Fahrzeug-Reservierungen & Jubiläen im Überblick</small>
@@ -765,7 +767,7 @@
 
                 <!-- TAB 2: EINSATZBERICHTE -->
                 <div v-show="activeTab === 'einsaetze'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzberichte & Einsatzverwaltung</h2>
                             <small class="text-muted">Teilautomatische Dokumentation und Atemschutz-Nachweise</small>
@@ -833,7 +835,7 @@
 
                 <!-- TAB 3: VEHICLES (FUHRPARK & FAHRTENBUCH) -->
                 <div v-show="activeTab === 'fahrzeuge'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
                             <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
@@ -931,7 +933,7 @@
                 </div>
                        <!-- TAB 4: GERÄTE & MATERIAL -->
                 <div v-show="activeTab === 'material'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräte- & Materialverwaltung</h2>
                             <small class="text-muted">Bestandsakten, Prüffristen und Sammelprüfungen</small>
@@ -1335,7 +1337,7 @@
 
                 <!-- TAB 5: PERSONALVERWALTUNG -->
                 <div v-show="activeTab === 'personal'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung</h2>
                             <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
@@ -1385,7 +1387,7 @@
 
                 <!-- TAB 6: ALARMIERUNG -->
                 <div v-show="activeTab === 'apager'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-bell text-danger me-2"></i>Alarmierung</h2>
                             <small class="text-muted">Echtzeit-Schnittstelle zur Einsatzübernahme &bull; aPagerPro / Webhook</small>
@@ -1584,7 +1586,7 @@
                 </div>
 
                 <div v-show="activeTab === 'abrechnung'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-euro-sign text-danger me-2"></i>Abrechnung</h2>
                             <small class="text-muted">Kostenbescheide an Verursacher und Aufwandsentschädigungen der Kameraden</small>
@@ -1715,7 +1717,7 @@
                 <!-- TAB 8: VERWALTUNG & VB -->
                                 <!-- TAB: OBJEKTE & BRANDMELDEANLAGEN (früher unter Verwaltung) -->
                 <div v-show="activeTab === 'bma'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-shield text-danger me-2"></i>Objekte & Brandmeldeanlagen</h2>
                             <small class="text-muted">Objekte mit Brandmeldeanlage, Schlüsseldepots und Einsatzhinweise</small>
@@ -1789,7 +1791,7 @@
 
                 <!-- TAB: VEREINSKASSE & BANK (früher unter Verwaltung) -->
                 <div v-show="activeTab === 'verein'" v-if="canSeeFinance">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-columns text-danger me-2"></i>Vereinskasse & Inventar</h2>
                             <small class="text-muted">Kasse, Spenden, Mitgliedsbeiträge und Vereinsinventar</small>
@@ -1920,7 +1922,7 @@
                 </div>
 
                 <div v-show="activeTab === 'verwaltung'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-gears text-danger me-2"></i>Einstellungen</h2>
                             <small class="text-muted">Konten, Sicherheit, Betrieb, Kommunikation und Wache</small>
@@ -2463,7 +2465,7 @@
 
                 <!-- TAB: FRISTEN (zentrale Übersicht, nach Bereich gegliedert; jede Rolle sieht nur ihre Zuständigkeit) -->
                 <div v-show="activeTab === 'fristen'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-clock text-danger me-2"></i>Fristen</h2>
                             <small class="text-muted">Alles, was bald fällig oder überfällig ist - gegliedert nach Bereich. Du siehst, wofür du zuständig bist, und deine eigenen Fristen.</small>
@@ -2520,7 +2522,7 @@
 
                 <!-- TAB: LOGBÜCHER (frei definierbar, z.B. Flugbuch) -->
                 <div v-show="activeTab === 'logbuch'">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-book-open text-danger me-2"></i>Logbücher</h2>
                             <small class="text-muted">Einträge machen und auswerten - zum Beispiel das Flugbuch der Drohnen.</small>
@@ -2726,7 +2728,7 @@
 
                 <!-- TAB: STATISTIKEN -->
                 <div v-show="activeTab === 'stats'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-chart-bar text-danger me-2"></i>Statistiken</h2>
                             <small class="text-muted">Übersicht der Einsatzstatistiken</small>
@@ -2816,7 +2818,7 @@
                 </div>
                 <!-- TAB: ARBEITSBESCHEINIGUNGEN -->
                 <div v-show="activeTab === 'arbeitsbescheinigung'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-file-signature text-danger me-2"></i>Arbeitsbescheinigungen</h2>
                             <small class="text-muted">Bescheinigung über die Einsatzteilnahme zur Vorlage beim Arbeitgeber erstellen und verwalten</small>
@@ -2890,7 +2892,7 @@
 
                 <!-- TAB 9: DOCUMENT ARCHIVE -->
                 <div v-show="activeTab === 'archiv'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-folder-open text-danger me-2"></i>Dokumente & Archiv</h2>
                             <small class="text-muted">Lade Dienstanweisungen, Pläne, private Nachweise oder Protokolle hoch.</small>
@@ -2956,7 +2958,7 @@
 
                 <!-- TAB: LAGEKARTE & HYDRANTEN -->
                 <div v-show="activeTab === 'lagekarte'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-map-location-dot text-danger me-2"></i>Lagekarte & Hydrantennetz</h2>
                             <small class="text-muted">Digitale Lagekarte mit Wasserentnahmestellen, Brandmeldeanlagen (BMA) und Rettungswegen</small>
@@ -3035,7 +3037,7 @@
             
             <!-- TAB: JUGENDFEUERWEHR -->
                 <div v-show="activeTab === 'jugend'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr</h2>
                             <small class="text-muted">Mitgliederverwaltung und Dienstberichte der Jugendgruppe</small>
@@ -3179,7 +3181,7 @@
 
                 <!-- TAB: FIRST RESPONDER / HvO -->
                 <div v-show="activeTab === 'hvo'">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-heart-pulse text-danger me-2"></i>First Responder (HvO)</h2>
                             <small class="text-muted">Dokumentation von Helfer vor Ort (HvO) Einsätzen – Patientendaten DSGVO-konform verschlüsselt</small>

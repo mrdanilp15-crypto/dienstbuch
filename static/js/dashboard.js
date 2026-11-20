@@ -268,7 +268,7 @@ applyChartTheme();
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
-                    menuFavorites: [], selfTab: 'stat',
+                    menuFavorites: [], selfTab: 'stat', mobileSearchOpen: false,
                     menuCollapsed: (() => { try { return JSON.parse(localStorage.getItem('menuCollapsed') || '{}') || {}; } catch (e) { return {}; } })(),
                     savedFilters: { einsaetze: [], material: [] },
                     availabilityList: [],
@@ -880,6 +880,7 @@ applyChartTheme();
             watch: {
                 // Gespeicherter oder per Link angesteuerter Reiter, den die Rolle nicht nutzen kann (z.B. nach Rollenwechsel): zur Startseite
                 role(r) { if (r && !this.tabAllowed(this.activeTab)) this.activeTab = 'dienste'; },
+                globalSearchOpen(v) { if (!v && this.mobileSearchOpen) this.mobileSearchOpen = false; },
                 'newSchedule.audience'(v) { if (v === 'selected') this.loadAudienceInfo(); },
                 activeTab(newTab) {
                     if (newTab && !this.tabAllowed(newTab)) { this.activeTab = 'dienste'; return; }
@@ -3528,6 +3529,11 @@ applyChartTheme();
                 async openOverviewSchedule(s) {
                     this.activeTab = 'dienste';
                     await this.openScheduleDetail(s);
+                },
+                toggleMobileSearch() {
+                    this.mobileSearchOpen = !this.mobileSearchOpen;
+                    if (this.mobileSearchOpen) { this.globalSearchOpen = true; this.$nextTick(() => { const i = document.querySelector('.global-search input'); if (i) i.focus(); }); }
+                    else { this.globalSearchQuery = ''; this.globalSearchResults = null; }
                 },
                 hasPerm(key) { return this.role === 'admin' || (this.myPerms || []).includes(key); },
                 async loadPermissionMatrix() {

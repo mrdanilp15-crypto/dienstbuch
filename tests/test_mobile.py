@@ -17,11 +17,13 @@ OVERFLOW_JS = """() => {
   document.querySelectorAll('.main-content *').forEach(el => {
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || !el.offsetParent || skip(el)) return;
-    let clip = vw;
+    let clip = vw, swipe = false;
     for (let e = el.parentElement; e && e !== document.documentElement; e = e.parentElement) {
       const cs = getComputedStyle(e);
+      if (cs.overflowX === 'auto' || cs.overflowX === 'scroll') { swipe = true; break; }  // bewusst wischbare Zeile (Reiter, Knöpfe)
       if (cs.overflowX !== 'visible') { clip = Math.min(clip, e.getBoundingClientRect().right); }
     }
+    if (swipe) return;
     if (r.right > clip + 6) bad.push(el.tagName.toLowerCase() + '.' + [...el.classList].slice(0, 3).join('.') + ' ' + Math.round(r.right) + '>' + Math.round(clip) + ' | ' + (el.innerText || '').trim().slice(0, 28));
   });
   return { page: document.documentElement.scrollWidth > vw + 1 ? document.documentElement.scrollWidth : 0, bad: [...new Set(bad)].slice(0, 6) };
