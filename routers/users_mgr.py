@@ -357,6 +357,27 @@ def get_my_sessions(year: int, request: Request):
         s['duration'] = float(s['duration'] or 2.0)
     return sessions
 
+@router.get("/api/users/me/id-card")
+def my_id_card(request: Request):
+    """Digitaler Dienstausweis: nur die eigenen Stammdaten, nur lesend."""
+    user = get_current_user(request)
+    if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("""SELECT p.id, p.name, p.rank, p.badge_number, p.entry_date, p.membership_status,
+                          (p.profile_picture IS NOT NULL AND LENGTH(p.profile_picture) > 0) AS has_picture
+                   FROM users u JOIN personnel p ON u.personnel_id = p.id WHERE u.username = %s""", (user["username"],))
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Dein Konto ist noch keiner Person zugeordnet. Bitte im Profil das Konto verknüpfen oder die Leitung fragen.")
+    from core.utils import get_station_name
+    return {
+        "personnel_id": row["id"], "name": row["name"], "rank": row["rank"] or "",
+        "badge_number": row["badge_number"] or "", "status": row["membership_status"] or "",
+        "entry_date": str(row["entry_date"]) if row["entry_date"] else "",
+        "has_picture": bool(row["has_picture"]), "station": get_station_name(),
+        "today": date.today().isoformat(),
+    }
+
 @router.put("/api/users/me/bind-personnel")
 def bind_self_personnel(data: dict, request: Request):
     user = get_current_user(request)

@@ -121,6 +121,26 @@ _mg = sql("select group_id from missions where stichwort='GrpFix' order by id de
 check("Alarm-Einsatz hat eine Gruppe", str(_mg).strip() not in ("", "None", "NULL"), str(_mg))
 sql("delete from missions where stichwort='GrpFix'")
 
+# --- Beförderungen & Ehrungen
+_h = {"kind": "Ehrung", "title": "Ehrenzeichen Test", "date": "2026-05-01", "note": ""}
+check("Ehrung: Mannschaft darf nicht eintragen", cl["mannschaft"].post(f"/api/material/personnel/{pid}/honors", json=_h).status_code == 403)
+check("Ehrung: ungültige Art abgelehnt", admin.post(f"/api/material/personnel/{pid}/honors", json={**_h, "kind": "Quatsch"}).status_code == 400)
+check("Ehrung: ungültiges Datum abgelehnt", admin.post(f"/api/material/personnel/{pid}/honors", json={**_h, "date": "morgen"}).status_code == 400)
+check("Ehrung: unbekanntes Mitglied 404", admin.post("/api/material/personnel/99999999/honors", json=_h).status_code == 404)
+check("Ehrung: Admin trägt ein", admin.post(f"/api/material/personnel/{pid}/honors", json=_h).status_code == 200)
+_hl = admin.get(f"/api/material/personnel/{pid}/honors").json()
+check("Ehrung: erscheint in der Liste", any(x["title"] == "Ehrenzeichen Test" for x in _hl), str(_hl))
+check("Ehrung: Mannschaft darf nicht löschen", cl["mannschaft"].delete(f"/api/material/personnel/honors/{_hl[0]['id']}").status_code == 403)
+for _x in _hl:
+    admin.delete(f"/api/material/personnel/honors/{_x['id']}")
+check("Ehrung: Admin löscht", admin.get(f"/api/material/personnel/{pid}/honors").json() == [])
+
+# --- Digitaler Dienstausweis
+check("Dienstausweis: ohne Anmeldung gesperrt", anon.get("/api/users/me/id-card").status_code == 401)
+_ic = cl["mannschaft"].get("/api/users/me/id-card")
+check("Dienstausweis: Mannschaft sieht nur den eigenen", _ic.status_code == 200 and _ic.json().get("personnel_id") == other, str(_ic.text[:200]))
+check("Dienstausweis: Konto ohne Person bekommt klare Meldung", admin.get("/api/users/me/id-card").status_code in (200, 404))
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

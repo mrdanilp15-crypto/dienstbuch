@@ -61,6 +61,12 @@ class CourseCreate(BaseModel):
     certificate_url: Optional[str] = ""
     valid_until: Optional[str] = None
 
+class HonorCreate(BaseModel):
+    kind: str
+    title: str
+    date: str
+    note: Optional[str] = ""
+
 class BmaCreate(BaseModel):
     object_name: str
     address: str
@@ -566,6 +572,49 @@ def delete_lehrgang(course_id: int, request: Request):
     user = check_auth(request, allowed_roles=("admin", "leitung"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM lehrgaenge WHERE id = %s", (course_id,))
+    conn.commit(); cur.close(); conn.close()
+    return {"status": "success"}
+
+# --- 🎖️ BEFÖRDERUNGEN & EHRUNGEN ---
+@router.get("/personnel/{p_id}/honors")
+def list_honors(p_id: int, request: Request):
+    check_auth(request)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, kind, title, date, note FROM personnel_honors WHERE personnel_id = %s ORDER BY date DESC, id DESC", (p_id,))
+    res = cur.fetchall(); cur.close(); conn.close()
+    for row in res:
+        row["date"] = str(row["date"])
+    return res
+
+@router.post("/personnel/{p_id}/honors")
+def add_honor(p_id: int, h: HonorCreate, request: Request):
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    kind = h.kind if h.kind in ("Beförderung", "Ehrung") else None
+    title = (h.title or "").strip()
+    if not kind or not title:
+        raise HTTPException(status_code=400, detail="Art (Beförderung/Ehrung) und Bezeichnung sind erforderlich.")
+    try:
+        date.fromisoformat(h.date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ungültiges Datum.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT 1 FROM personnel WHERE id = %s", (p_id,))
+    if not cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    cur.execute("INSERT INTO personnel_honors (personnel_id, kind, title, date, note) VALUES (%s, %s, %s, %s, %s)",
+                (p_id, kind, title[:255], h.date, (h.note or "").strip()[:255] or None))
+    conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "EHRUNG_EINTRAG", f"{kind} '{title[:80]}' für Mitglied ID {p_id} eingetragen.")
+    return {"status": "success"}
+
+@router.delete("/personnel/honors/{honor_id}")
+def delete_honor(honor_id: int, request: Request):
+    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM personnel_honors WHERE id = %s", (honor_id,))
     conn.commit(); cur.close(); conn.close()
     return {"status": "success"}
 

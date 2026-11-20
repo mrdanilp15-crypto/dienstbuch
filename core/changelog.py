@@ -10,6 +10,10 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Personal", "title": "Beförderungen und Ehrungen",
+             "text": "In der Personalakte (Reiter Lehrgänge) lassen sich Beförderungen und Ehrungen mit Datum eintragen. So ist die Laufbahn jedes Mitglieds an einer Stelle nachzulesen."},
+            {"type": "new", "tag": "Profil", "title": "Digitaler Dienstausweis",
+             "text": "Jedes Mitglied sieht seinen Dienstausweis (Foto, Name, Dienstgrad, Ausweis-Nr., Mitglied seit) unten links im Menü unter „Dienstausweis“. Voraussetzung: Das Konto ist mit der Person verknüpft."},
             {"type": "fix", "tag": "Dienste", "title": "Einsätze nur in der richtigen Dienstliste",
              "text": "Einsätze standen in der Dienstliste jeder Gruppe. Jetzt erscheint ein Einsatz nur noch in der Liste seiner Gruppe. Per Alarm angelegte Einsätze bekommen automatisch eine feste Gruppe (bevorzugt eine mit „Einsatz“, „Aktiv“ oder „Wehr“ im Namen, sonst die älteste). Ältere Einsätze ohne Gruppe wurden ihr zugeordnet. Falsche Zuordnung: im Einsatz die Gruppe ändern."},
         ],

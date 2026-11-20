@@ -261,6 +261,8 @@ applyChartTheme();
                     activePersonnel: null,
                     newGear: { item_name: '', size: '', issue_date: localISODate() },
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
+                    newHonor: { kind: 'Beförderung', title: '', date: localISODate(), note: '' },
+                    idCard: null, idCardError: '',
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
                     dueItems: [], dueOnlyOverdue: false,
@@ -2066,10 +2068,12 @@ applyChartTheme();
                     if(res.ok) {
                         const detail = await res.json();
                         // Load courses & gear
-                        const [cRes, gRes] = await Promise.all([
+                        const [cRes, gRes, hRes] = await Promise.all([
                             fetch(`/api/material/personnel/${p.id}/lehrgaenge`, { credentials: 'include' }),
-                            fetch(`/api/material/personnel/${p.id}/inventar`, { credentials: 'include' })
+                            fetch(`/api/material/personnel/${p.id}/inventar`, { credentials: 'include' }),
+                            fetch(`/api/material/personnel/${p.id}/honors`, { credentials: 'include' })
                         ]);
+                        detail.honors = hRes.ok ? await hRes.json() : [];
                         detail.courses = cRes.ok ? await cRes.json() : [];
                         detail.gearList = gRes.ok ? await gRes.json() : [];
                         this.activePersonnel = detail;
@@ -2212,6 +2216,26 @@ applyChartTheme();
                         this.newCourse = { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' };
                         const cRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/lehrgaenge`, { credentials: 'include' });
                         this.activePersonnel.courses = await cRes.json();
+                    }
+                },
+                async submitHonor() {
+                    if (!(this.newHonor.title || '').trim()) return await appAlert("Bitte eine Bezeichnung eintragen (z. B. Oberfeuerwehrmann oder Ehrenzeichen in Silber).");
+                    const res = await fetch(`/api/material/personnel/${this.activePersonnel.id}/honors`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(this.newHonor) });
+                    if (res.ok) {
+                        this.newHonor = { kind: this.newHonor.kind, title: '', date: localISODate(), note: '' };
+                        const hRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/honors`, { credentials: 'include' });
+                        this.activePersonnel.honors = hRes.ok ? await hRes.json() : [];
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert(err.detail || "Eintrag konnte nicht gespeichert werden.");
+                    }
+                },
+                async deleteHonor(id) {
+                    if (!await appConfirm("Eintrag löschen?")) return;
+                    const res = await fetch(`/api/material/personnel/honors/${id}`, { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) {
+                        const hRes = await fetch(`/api/material/personnel/${this.activePersonnel.id}/honors`, { credentials: 'include' });
+                        this.activePersonnel.honors = hRes.ok ? await hRes.json() : [];
                     }
                 },
                 async deleteCourse(id) {
@@ -3424,6 +3448,16 @@ applyChartTheme();
                         const data = await res.json().catch(() => ({}));
                         await appAlert(res.ok ? 'Kontaktdaten gespeichert.' : (typeof data.detail === 'string' ? data.detail : 'Speichern fehlgeschlagen.'));
                     } finally { this.contactSaving = false; }
+                },
+                async openIdCard() {
+                    this.idCard = null; this.idCardError = '';
+                    const el = document.getElementById('idCardModal');
+                    if (el) { let m = bootstrap.Modal.getInstance(el); if (!m) m = new bootstrap.Modal(el); m.show(); }
+                    try {
+                        const res = await fetch('/api/users/me/id-card', { credentials: 'include' });
+                        if (res.ok) this.idCard = await res.json();
+                        else this.idCardError = (await res.json().catch(() => ({}))).detail || 'Dienstausweis konnte nicht geladen werden.';
+                    } catch (e) { this.idCardError = 'Keine Verbindung zum Server.'; }
                 },
                 openSelfPasswordModal() {
                     this.selfPwData = { old_password: '', new_password: '', confirm_password: '' };

@@ -619,6 +619,18 @@ def init_db_extensions():
             if err.errno != 1060: raise
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS personnel_honors (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT NOT NULL,
+                kind VARCHAR(20) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                note VARCHAR(255) NULL,
+                INDEX idx_honors_person (personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS billing_verursacher (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 mission_id INT,

@@ -312,6 +312,7 @@
                         <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
                         <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
                     </div>
+                    <div class="mt-1"><a class="text-info text-decoration-none" style="font-size:0.7rem; cursor:pointer;" @click="openIdCard(); showMobileSidebar = false"><i class="fa fa-id-card me-1"></i>Dienstausweis</a></div>
                     <div class="d-flex gap-2 justify-content-center mt-2 pt-2 border-top border-secondary border-opacity-10">
                         <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
                         <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
@@ -4129,6 +4130,37 @@
                                         </tr>
                                     </tbody>
                                 </table>
+
+                                <h6 class="fw-bold text-white mt-4 mb-2"><i class="fa fa-award me-2 text-warning"></i>Beförderungen &amp; Ehrungen</h6>
+                                <div v-if="canManagePersonnel" class="row g-2 align-items-end mb-3">
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold mb-1">Art</label>
+                                        <select v-model="newHonor.kind" class="form-select form-select-sm"><option>Beförderung</option><option>Ehrung</option></select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="small text-muted fw-bold mb-1">Bezeichnung</label>
+                                        <input type="text" v-model="newHonor.title" class="form-control form-control-sm" placeholder="z. B. Oberfeuerwehrmann" @keyup.enter="submitHonor">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold mb-1">Datum</label>
+                                        <input type="date" v-model="newHonor.date" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-premium btn-sm w-100" @click="submitHonor"><i class="fa fa-plus"></i></button>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>ART</th><th>BEZEICHNUNG</th><th>DATUM</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="h in (activePersonnel.honors || [])" :key="h.id">
+                                            <td><span class="badge rounded-pill" :class="h.kind === 'Ehrung' ? 'bg-warning text-dark' : 'bg-primary'">{{h.kind}}</span></td>
+                                            <td class="fw-bold text-white">{{h.title}}</td>
+                                            <td>{{dt(h.date)}}</td>
+                                            <td><button v-if="canManagePersonnel" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteHonor(h.id)"><i class="fa fa-trash"></i></button></td>
+                                        </tr>
+                                        <tr v-if="!(activePersonnel.honors || []).length"><td colspan="4" class="text-center text-muted py-2">Noch keine Beförderungen oder Ehrungen eingetragen.</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
 
                             <!-- INVENTAR / GEWERBLICHE AUSRÜSTUNG -->
@@ -4750,6 +4782,33 @@
         </div>
 
         <!-- MODAL: PROFILE & PASSWORD CHANGE -->
+        <div class="modal fade" id="idCardModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-id-card text-danger me-2"></i>Dienstausweis</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="idCardError" class="alert alert-warning small mb-0">{{ idCardError }}</div>
+                        <div v-else-if="!idCard" class="text-center text-muted py-4"><i class="fa fa-spinner fa-spin"></i></div>
+                        <div v-else class="text-center">
+                            <div class="small text-muted fw-bold text-uppercase mb-2" style="letter-spacing:.08em;">{{ idCard.station }}</div>
+                            <img :src="idCard.has_picture ? '/api/personnel/avatar/' + idCard.personnel_id : '/static/img/avatar.svg'" alt="Foto" class="rounded-circle mb-3" style="width:110px; height:110px; object-fit:cover; border:3px solid var(--bs-danger);">
+                            <div class="h4 fw-bold text-white mb-1">{{ idCard.name }}</div>
+                            <div v-if="idCard.rank" class="text-muted mb-2">{{ idCard.rank }}</div>
+                            <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+                                <span v-if="idCard.status" class="badge rounded-pill bg-danger">{{ idCard.status }}</span>
+                                <span v-if="idCard.badge_number" class="badge rounded-pill bg-secondary">Ausweis-Nr. {{ idCard.badge_number }}</span>
+                            </div>
+                            <div v-if="idCard.entry_date" class="small text-muted">Mitglied seit {{ dt(idCard.entry_date) }}</div>
+                            <div class="small text-muted mt-2 pt-2 border-top border-secondary border-opacity-10">Stand: {{ dt(idCard.today) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
