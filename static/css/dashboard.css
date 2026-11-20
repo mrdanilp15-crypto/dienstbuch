@@ -1497,3 +1497,11 @@ body { color: var(--text-color); }
 .sidebar-section-toggle:hover { opacity: 0.85; }
 .sidebar-section-toggle:focus-visible { outline: 2px solid var(--bs-danger, #dc3545); outline-offset: 2px; }
 .sidebar-section-toggle .fa-chevron-down { transition: transform 0.15s ease; }
+
+/* Favoriten-Stern an den Menüpunkten */
+.sidebar-btn .sidebar-pin { margin-left: auto; padding-left: 8px; opacity: 0; font-size: 0.75rem; cursor: pointer; transition: opacity 0.12s; }
+.sidebar-btn:hover .sidebar-pin, .sidebar-btn:focus-within .sidebar-pin { opacity: 0.55; }
+.sidebar-btn .sidebar-pin:hover { opacity: 1; }
+.sidebar-btn .sidebar-pin.pinned { opacity: 1; color: #ffc107; }
+.sidebar-btn .badge.ms-auto + .sidebar-pin { margin-left: 4px; }
+@media (hover: none) { .sidebar-btn .sidebar-pin { opacity: 0.4; } }

@@ -266,6 +266,7 @@ applyChartTheme();
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
+                    menuFavorites: [],
                     menuCollapsed: (() => { try { return JSON.parse(localStorage.getItem('menuCollapsed') || '{}') || {}; } catch (e) { return {}; } })(),
                     savedFilters: { einsaetze: [], material: [] },
                     availabilityList: [],
@@ -542,8 +543,8 @@ applyChartTheme();
                 dueManualTypes() { return this.dueTypes.filter(t => !t.logbook_id); },
                 // Personalverwaltung: Wehrführung, Gruppenführer (Einsatzplanung), Gerätewart (Kleiderkammer), Atemschutzwart (G26.3).
                 // Jugendfeuerwehr (Daten Minderjähriger): nur Wehrführung und Jugendwarte - die ordnen auch den Nachwuchs von dort aus.
-                canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role); },
-                canSeeYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
+                canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role) || this.hasPerm('personnel.manage'); },
+                canSeeYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role) || this.hasPerm('youth.manage'); },
                 canSeeFinance() { return this.hasPerm('verein.manage'); },
                 canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
                 settingsGroups() {
@@ -970,6 +971,7 @@ applyChartTheme();
                 // #app per v-show noch komplett ausgeblendet, eine Karte oder ein Diagramm würde
                 // dann auf eine Fläche von 0x0 gezeichnet.
                 this.expandMenuFor(this.activeTab);
+                this.loadFavorites();
                 this.$nextTick(() => this.loadDataForActiveTab());
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
@@ -3306,7 +3308,58 @@ applyChartTheme();
                     };
                     return Object.keys(groups).find(k => groups[k].includes(tab)) || null;
                 },
+                menuCatalog() {
+                    return {
+                        dienste: { label: 'Dienstbetrieb', icon: 'fa-book', show: true },
+                        kalender: { label: 'Kalender', icon: 'fa-calendar-days', show: true },
+                        fristen: { label: 'Fristen', icon: 'fa-clock', show: true },
+                        personal: { label: 'Personalverwaltung', icon: 'fa-users', show: this.canSeePersonnel },
+                        jugend: { label: 'Jugendfeuerwehr', icon: 'fa-graduation-cap', show: this.canSeeYouth },
+                        notizen: { label: 'Digitales Notizbuch', icon: 'fa-sticky-note', show: true },
+                        stats: { label: 'Statistiken', icon: 'fa-chart-bar', show: this.canSeeStats },
+                        apager: { label: 'Alarmierung', icon: 'fa-bell', show: true },
+                        einsaetze: { label: 'Einsatzberichte', icon: 'fa-fire', show: true },
+                        lagekarte: { label: 'Lagekarte & Hydranten', icon: 'fa-map-location-dot', show: true },
+                        bma: { label: 'Objekte & BMA', icon: 'fa-building-shield', show: true },
+                        hvo: { label: 'First Responder', icon: 'fa-heart-pulse', show: true },
+                        logbuch: { label: 'Logbücher', icon: 'fa-book-open', show: this.logbooks.length > 0 || this.canSeeSettings },
+                        fahrzeuge: { label: 'Fahrzeugpool', icon: 'fa-truck', show: true },
+                        material: { label: 'Geräte & Material', icon: 'fa-screwdriver-wrench', show: true },
+                        maengel: { label: 'Mängel', icon: 'fa-triangle-exclamation', show: true },
+                        abrechnung: { label: 'Abrechnung', icon: 'fa-euro-sign', show: this.canSeeFinance },
+                        arbeitsbescheinigung: { label: 'Arbeitsbescheinigungen', icon: 'fa-file-signature', show: this.canSeeFinance },
+                        verein: { label: 'Vereinskasse & Inventar', icon: 'fa-building-columns', show: this.canSeeFinance },
+                        archiv: { label: 'Dokumente & Archiv', icon: 'fa-folder-open', show: true },
+                        verwaltung: { label: 'Einstellungen', icon: 'fa-gears', show: this.canSeeSettings }
+                    };
+                },
+                menuFavoriteItems() {
+                    const cat = this.menuCatalog;
+                    return (this.menuFavorites || []).filter(id => cat[id] && cat[id].show).map(id => ({
+                        id, ...cat[id],
+                        active: id === 'maengel' ? (this.activeTab === 'material' && this.materialSubTab === 'maengel')
+                              : id === 'material' ? (this.activeTab === 'material' && this.materialSubTab !== 'maengel') : this.activeTab === id
+                    }));
+                },
                 menuOpen(key) { return !this.menuCollapsed[key]; },
+                isFavorite(id) { return (this.menuFavorites || []).includes(id); },
+                async toggleFavorite(id) {
+                    const cur = this.menuFavorites || [];
+                    this.menuFavorites = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id].slice(0, 8);
+                    try { await fetch('/api/users/me/prefs/menu_favorites', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ value: this.menuFavorites }) }); } catch (e) { console.error(e); }
+                },
+                async loadFavorites() {
+                    try {
+                        const res = await fetch('/api/users/me/prefs/menu_favorites', { credentials: 'include' });
+                        const v = res.ok ? (await res.json()).value : null;
+                        if (Array.isArray(v)) this.menuFavorites = v.filter(x => typeof x === 'string').slice(0, 8);
+                    } catch (e) { console.error(e); }
+                },
+                goMenu(id) {
+                    if (id === 'maengel') { this.activeTab = 'material'; this.materialSubTab = 'maengel'; this.loadDefectReports(); }
+                    else { this.activeTab = id; if (id === 'material' && this.materialSubTab === 'maengel') this.materialSubTab = 'geraete'; }
+                    this.showMobileSidebar = false;
+                },
                 saveMenuState() { try { localStorage.setItem('menuCollapsed', JSON.stringify(this.menuCollapsed)); } catch (e) {} },
                 toggleMenuSection(key) { this.menuCollapsed = { ...this.menuCollapsed, [key]: !this.menuCollapsed[key] }; this.saveMenuState(); },
                 // Wer einen Reiter öffnet (Menü, Suche, Link), sieht dessen Gruppe wieder aufgeklappt

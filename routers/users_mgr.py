@@ -461,7 +461,7 @@ def reset_permissions(request: Request):
     log_audit_action(user["username"], "RECHTE_ZURUECKGESETZT", "Alle Rechte auf die Standardwerte zurückgesetzt.")
     return {"status": "success"}
 
-_PREF_KEYS = ("dashboard_layout", "saved_filters")
+_PREF_KEYS = ("dashboard_layout", "saved_filters", "menu_favorites")
 
 @router.get("/api/users/me/prefs/{key}")
 def get_my_pref(key: str, request: Request):
