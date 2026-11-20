@@ -1509,3 +1509,33 @@ body { color: var(--text-color); }
 /* Schließen-Kreuz: im hellen Modus dunkel (Bootstrap malt "btn-close-white" weiß - auf hellem Kopf unsichtbar) */
 [data-theme="light"] .btn-close-white { filter: none; opacity: 0.65; }
 [data-theme="light"] .btn-close-white:hover { opacity: 1; }
+
+/* Kästchen, Schalter und Radio-Knöpfe: angehakt immer sichtbar (die Eingabefeld-Regel des hellen Modus malte sie sonst leer) */
+.form-check-input:checked,
+[data-theme="light"] .form-check-input:checked,
+[data-theme="dark"] .form-check-input:checked {
+    background-color: #b71c1c !important;
+    border-color: #b71c1c !important;
+}
+[data-theme="light"] .form-check-input:not(:checked) { border-color: #8a8f98 !important; background-color: #ffffff !important; }
+[data-theme="light"] .form-switch .form-check-input:not(:checked) { background-color: #ffffff !important; }
+.form-check-input:focus { box-shadow: 0 0 0 0.2rem rgba(183, 28, 28, 0.25); border-color: #b71c1c; }
+
+/* ---- Einheitliche Formularfelder in beiden Modi ---- */
+/* Hell: Felder mit Altlast-Klassen (bg-dark, text-white) waren grau statt weiß - jetzt wie alle anderen */
+[data-theme="light"] input.form-control, [data-theme="light"] select.form-select, [data-theme="light"] textarea.form-control,
+[data-theme="light"] input.form-control.bg-dark, [data-theme="light"] select.form-select.bg-dark, [data-theme="light"] textarea.form-control.bg-dark {
+    background-color: var(--input-bg) !important; color: var(--input-text) !important; border-color: rgba(0,0,0,0.18) !important;
+}
+[data-theme="light"] input.form-control:disabled, [data-theme="light"] select.form-select:disabled { background-color: #eef0f3 !important; }
+/* Dunkel: leere Kästchen und Schalter waren weiß ausgefüllt - jetzt dezent transparent mit hellem Rand */
+[data-theme="dark"] .form-check-input:not(:checked) { background-color: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.4) !important; }
+[data-theme="dark"] .form-switch .form-check-input:not(:checked) {
+    --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba%28255,255,255,0.65%29'/%3e%3c/svg%3e");
+}
+/* Dunkel: Datei-Auswahl-Knopf passend zum Rest */
+[data-theme="dark"] input[type="file"]::file-selector-button { background: rgba(255,255,255,0.12); color: #fff; border: 0; border-right: 1px solid rgba(255,255,255,0.2); padding: 0.4rem 0.8rem; margin-right: 0.8rem; cursor: pointer; }
+[data-theme="dark"] input[type="file"]::file-selector-button:hover { background: rgba(255,255,255,0.2); }
+/* Status-Marke in der Personalliste bricht unter den Namen um statt ihn zu überlappen */
+.badge-status { white-space: nowrap; }
+.member-card h6 { overflow-wrap: anywhere; }

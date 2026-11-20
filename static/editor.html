@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+    <script>
+        // Hell ist der Standard, Dunkel nur nach eigener Wahl (Mond-Symbol im Dashboard) - wie im Dashboard, schon vor dem ersten Zeichnen
+        try { document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'); } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <!-- iPhone: Safari macht sonst aus langen Zahlen im Seitentext Telefon-Links und zerstört damit die Vue-Vorlage (Startfehler "Unexpected token '<'") -->
@@ -332,6 +336,7 @@
             color: #e0d8d8; padding: 8px 16px; border-radius: 999px; font-size: 0.85rem; z-index: 2000;
         }
     </style>
+    <link href="/static/css/light-pages.css" rel="stylesheet">
 </head>
 <body>
 

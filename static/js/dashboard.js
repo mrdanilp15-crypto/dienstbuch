@@ -4748,7 +4748,7 @@ applyChartTheme();
                                         datasets: [{
                                             label: 'Einsätze',
                                             data: data.missions_by_day.map(d => d.count),
-                                            backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                                            backgroundColor: 'rgba(220, 53, 69, 0.85)',
                                             borderColor: 'rgba(220, 53, 69, 1)',
                                             borderWidth: 1
                                         }]
@@ -4767,13 +4767,13 @@ applyChartTheme();
                                         datasets: [{
                                             label: String(this.statsYear),
                                             data: data.missions_by_month.map(d => d.count),
-                                            backgroundColor: 'rgba(13, 110, 253, 0.5)',
+                                            backgroundColor: 'rgba(13, 110, 253, 0.85)',
                                             borderColor: 'rgba(13, 110, 253, 1)',
                                             borderWidth: 1
                                         }, {
                                             label: String(this.statsYear - 1),
                                             data: data.missions_by_month.map(d => d.prev),
-                                            backgroundColor: 'rgba(148, 163, 184, 0.35)',
+                                            backgroundColor: 'rgba(148, 163, 184, 0.6)',
                                             borderColor: 'rgba(148, 163, 184, 0.8)',
                                             borderWidth: 1
                                         }]
@@ -4832,7 +4832,7 @@ applyChartTheme();
                                             datasets: [{
                                                 label: 'Stunden ' + this.statsYear,
                                                 data: chartTop.map(p => p.total_hours),
-                                                backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                                                backgroundColor: 'rgba(16, 185, 129, 0.85)',
                                                 borderColor: 'rgba(16, 185, 129, 1)',
                                                 borderWidth: 1
                                             }]

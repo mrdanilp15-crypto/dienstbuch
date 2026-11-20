@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 26,
+        "version": "2.76",
+        "date": "2026-11-20",
+        "items": [
+            {"type": "fix", "tag": "Rechte", "title": "Haken in der Rechte-Tabelle wieder sichtbar",
+             "text": "Im hellen Modus wurden angehakte Kästchen leer gezeichnet, obwohl der Haken gespeichert war. Angehakt ist jetzt rot gefüllt, in beiden Modi, auch bei Schaltern und Auswahlknöpfen."},
+            {"type": "fix", "tag": "Design", "title": "Hell und Dunkel überall stimmig",
+             "text": "Alle Bereiche, Fenster und Diagramme wurden in beiden Modi geprüft. Eingabefelder sind im hellen Modus durchgehend weiß (einige waren grau), leere Kästchen und Schalter im dunklen Modus nicht mehr weiß, Diagramme kräftiger, der Datei-Knopf passt zum Modus und die Status-Marke in der Personalliste überlappt keine Namen mehr."},
+            {"type": "new", "tag": "Design", "title": "Login, Passwort-Seiten und Einsatz-Editor folgen dem Modus",
+             "text": "Diese Seiten waren immer dunkel, auch wenn das Dashboard hell startet. Jetzt folgen sie derselben Wahl (Hell ist Standard, Dunkel nur nach eigener Umstellung)."},
+        ],
+    },
+    {
         "id": 25,
         "version": "2.75",
         "date": "2026-11-20",

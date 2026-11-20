@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+    <script>
+        // Hell ist der Standard, Dunkel nur nach eigener Wahl (Mond-Symbol im Dashboard) - wie im Dashboard, schon vor dem ersten Zeichnen
+        try { document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'); } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <!-- iPhone: Safari macht sonst aus langen Zahlen im Seitentext Telefon-Links und zerstört damit die Vue-Vorlage (Startfehler "Unexpected token '<'") -->
@@ -262,7 +266,9 @@
             font-size: 1.3rem;
             cursor: pointer;
         }
+        .pw-toggle { border-radius: 0 16px 16px 0 !important; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1) !important; border-left: none !important; color: rgba(255,255,255,0.55) !important; }
     </style>
+    <link href="/static/css/light-pages.css" rel="stylesheet">
 </head>
 <body>
 
@@ -295,7 +301,7 @@
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-lock"></i></span>
                     <input type="password" id="passwordInput" class="form-control pw-input" placeholder="********" required autocomplete="current-password">
-                    <button class="btn btn-outline-secondary text-white-50" type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()" style="border-radius: 0 16px 16px 0 !important; background: rgba(255,255,255,0.08); border: 1px solid rgba(255, 255, 255, 0.1) !important; border-left: none !important;">
+                    <button class="btn btn-outline-secondary pw-toggle" type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()">
                         <i class="fa fa-eye" id="togglePasswordIcon"></i>
                     </button>
                 </div>
