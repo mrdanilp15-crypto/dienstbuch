@@ -186,6 +186,30 @@ if _dr:
 if _eq2:
     admin.delete(f"/api/material/equipment/{_eq2}")
 
+# --- Einstellbare Rechte
+check("Rechte: Matrix nur für Admin", cl["leitung"].get("/api/admin/permissions").status_code == 403 and admin.get("/api/admin/permissions").status_code == 200)
+_me = cl["geratewart"].get("/api/auth/me").json()
+check("Rechte: /me nennt eigene Rechte", "material.manage" in _me.get("permissions", []) and "personnel.manage" not in _me.get("permissions", []), str(_me.get("permissions")))
+check("Rechte: Admin hat alle", set(x["key"] for x in admin.get("/api/admin/permissions").json()["permissions"]) <= set(admin.get("/api/auth/me").json()["permissions"]))
+_ga = {"name": "RechteTest", "barcode": "ZZ-PERM-1", "category": "Werkzeug", "interval_months": 12}
+check("Rechte: Gerätewart legt Gerät an (Standard)", cl["geratewart"].post("/api/material/equipment", json=_ga).status_code == 200)
+check("Rechte: Admin-Spalte nicht änderbar", admin.put("/api/admin/permissions", json={"role": "admin", "permission": "material.manage", "allowed": False}).status_code == 400)
+check("Rechte: unbekanntes Recht abgelehnt", admin.put("/api/admin/permissions", json={"role": "geratewart", "permission": "quatsch", "allowed": True}).status_code == 400)
+check("Rechte: Admin entzieht Gerätewart das Material-Recht", admin.put("/api/admin/permissions", json={"role": "geratewart", "permission": "material.manage", "allowed": False}).status_code == 200)
+check("Rechte: Entzug wirkt sofort im Backend", cl["geratewart"].post("/api/material/equipment", json={**_ga, "barcode": "ZZ-PERM-2"}).status_code == 403)
+check("Rechte: Entzug erscheint in /me", "material.manage" not in cl["geratewart"].get("/api/auth/me").json()["permissions"])
+check("Rechte: Mannschaft bekommt Personal-Recht", admin.put("/api/admin/permissions", json={"role": "mannschaft", "permission": "personnel.manage", "allowed": True}).status_code == 200)
+check("Rechte: Mannschaft darf jetzt Ehrung eintragen", cl["mannschaft"].post(f"/api/material/personnel/{pid}/honors", json={"kind": "Ehrung", "title": "RechteTest", "date": "2026-05-01"}).status_code == 200)
+for _x in admin.get(f"/api/material/personnel/{pid}/honors").json():
+    admin.delete(f"/api/material/personnel/honors/{_x['id']}")
+check("Rechte: Zurücksetzen stellt Standard her", admin.post("/api/admin/permissions/reset").status_code == 200)
+check("Rechte: nach Reset darf Gerätewart wieder", cl["geratewart"].post("/api/material/equipment", json={**_ga, "barcode": "ZZ-PERM-3"}).status_code == 200)
+check("Rechte: nach Reset darf Mannschaft wieder nicht", cl["mannschaft"].post(f"/api/material/personnel/{pid}/honors", json={"kind": "Ehrung", "title": "x", "date": "2026-05-01"}).status_code == 403)
+for _b in ("ZZ-PERM-1", "ZZ-PERM-3"):
+    _i = next((x["id"] for x in admin.get("/api/material/equipment").json() if x["barcode"] == _b), None)
+    if _i:
+        admin.delete(f"/api/material/equipment/{_i}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

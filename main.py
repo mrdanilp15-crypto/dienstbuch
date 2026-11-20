@@ -1247,6 +1247,15 @@ def init_db_extensions():
                 print(f"Migration youth_members col {col_name}: {e}")
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role VARCHAR(30) NOT NULL,
+                permission VARCHAR(60) NOT NULL,
+                allowed TINYINT(1) NOT NULL,
+                PRIMARY KEY (role, permission)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS defect_comments (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 report_id INT NOT NULL,

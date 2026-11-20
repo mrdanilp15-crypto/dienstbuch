@@ -357,6 +357,46 @@ def get_my_sessions(year: int, request: Request):
         s['duration'] = float(s['duration'] or 2.0)
     return sessions
 
+@router.get("/api/admin/permissions")
+def get_permission_matrix(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.permissions import matrix
+    return matrix()
+
+@router.put("/api/admin/permissions")
+def set_permission(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.permissions import ROLES, valid_permission, default_allowed, invalidate_permissions_cache
+    role = data.get("role"); perm = data.get("permission"); allowed = bool(data.get("allowed"))
+    if role not in ROLES or not valid_permission(perm):
+        raise HTTPException(status_code=400, detail="Unbekannte Rolle oder unbekanntes Recht.")
+    if role == "admin":
+        raise HTTPException(status_code=400, detail="Admins haben immer alle Rechte.")
+    conn = get_db_connection(); cur = conn.cursor()
+    if allowed == default_allowed(role, perm):
+        cur.execute("DELETE FROM role_permissions WHERE role = %s AND permission = %s", (role, perm))
+    else:
+        cur.execute("INSERT INTO role_permissions (role, permission, allowed) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE allowed = VALUES(allowed)",
+                    (role, perm, 1 if allowed else 0))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_permissions_cache()
+    log_audit_action(user["username"], "RECHT_GEAENDERT", f"Recht '{perm}' für Rolle '{role}': {'erlaubt' if allowed else 'entzogen'}.")
+    return {"status": "success"}
+
+@router.post("/api/admin/permissions/reset")
+def reset_permissions(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.permissions import invalidate_permissions_cache
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("DELETE FROM role_permissions")
+    conn.commit(); cur.close(); conn.close()
+    invalidate_permissions_cache()
+    log_audit_action(user["username"], "RECHTE_ZURUECKGESETZT", "Alle Rechte auf die Standardwerte zurückgesetzt.")
+    return {"status": "success"}
+
 @router.get("/api/users/me/id-card")
 def my_id_card(request: Request):
     """Digitaler Dienstausweis: nur die eigenen Stammdaten, nur lesend."""

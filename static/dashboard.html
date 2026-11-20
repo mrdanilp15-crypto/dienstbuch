@@ -923,7 +923,7 @@
                                     </div>
                                     <div v-if="defectReports.length === 0" class="text-center py-5 text-muted">
                                         <i class="fa fa-circle-check fa-3x mb-3 text-success"></i>
-                                        <p class="fw-bold">Keine offenen Mängel vorhanden!</p>
+                                        <p class="fw-bold">{{ defectFilter === 'Offen' ? 'Keine offenen Mängel vorhanden!' : 'Keine Mängel in dieser Ansicht.' }}</p>
                                     </div>
                                     <div v-for="dr in defectReports" :key="dr.id" class="p-3 mb-3 rounded-3 border" :class="dr.severity === 'Kritisch' ? 'border-danger bg-danger bg-opacity-10' : dr.severity === 'Mittel' ? 'border-warning bg-warning bg-opacity-10' : 'border-secondary bg-black bg-opacity-20'">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
@@ -1934,6 +1934,37 @@
                                                 </div>
                                             </div>
                                             </div>
+
+                    <div v-show="verwaltungTab === 'rechte'" v-if="isAdmin">
+                        <div class="card premium-card p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <h5 class="fw-bold text-white m-0"><i class="fa fa-user-lock text-danger me-2"></i>Rechte pro Rolle</h5>
+                                <button class="btn btn-outline-light btn-sm rounded-pill" @click="resetPermissions"><i class="fa fa-rotate-left me-1"></i>Auf Standard zurücksetzen</button>
+                            </div>
+                            <p class="text-muted small mb-3">Lege fest, welche Rolle was bearbeiten darf. Admins haben immer alle Rechte. Änderungen gelten sofort. Markierte Felder weichen vom Standard ab. Ansehen von Daten regeln weiterhin die Rollen selbst.</p>
+                            <div v-if="!permissionMatrix" class="text-muted small">Wird geladen …</div>
+                            <div v-else class="table-responsive">
+                                <table class="table table-dark align-middle small mb-0">
+                                    <thead><tr class="text-muted">
+                                        <th>Recht</th>
+                                        <th v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">{{ r.label }}</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        <template v-for="g in permissionGroups()" :key="g.name">
+                                            <tr><td :colspan="permissionMatrix.roles.length + 1" class="text-uppercase fw-bold text-danger pt-3" style="font-size:0.7rem; letter-spacing:.08em;">{{ g.name }}</td></tr>
+                                            <tr v-for="p in g.items" :key="p.key">
+                                                <td><div class="fw-bold text-white">{{ p.label }}</div><div class="text-muted" style="font-size:0.72rem;">{{ p.hint }}</div></td>
+                                                <td v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">
+                                                    <i v-if="r.key === 'admin'" class="fa fa-lock text-muted" title="Admins haben immer alle Rechte"></i>
+                                                    <input v-else type="checkbox" class="form-check-input" :class="p.changed[r.key] ? 'border-warning' : ''" :checked="p.roles[r.key]" @change="setPermission(p, r.key, $event.target.checked)" :title="p.changed[r.key] ? 'Weicht vom Standard ab' : 'Standard'">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
 
                     <div v-show="verwaltungTab === 'audit'" v-if="isAdmin">
                                                 <div class="card premium-card p-4">

@@ -10,6 +10,7 @@ import uuid
 router = APIRouter(prefix="/api/missions", tags=["Missions"])
 from database import get_db_connection
 from core.utils import check_auth, check_display_access, get_current_user
+from core.permissions import has_permission
 from core.schedule_access import visibility_sql, can_view_schedule, EDITOR_ROLES
 
 def safe_decode(val):
@@ -604,7 +605,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
 @router.post("")
 def create_mission(m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "missions.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -631,7 +632,7 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
 @router.put("/{mission_id}")
 def update_mission(mission_id: int, m: MissionCreate, request: Request, background_tasks: BackgroundTasks):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "missions.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT status, leader_signature FROM missions WHERE id = %s", (mission_id,))
@@ -688,7 +689,7 @@ def delete_mission(mission_id: int, request: Request):
 @router.post("/{mission_id}/signature")
 def save_mission_signature(mission_id: int, data: dict, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "gruppenfuehrer"):
+    if not has_permission(user, "missions.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     sig = data.get("signature") or None
     if sig is not None and (not isinstance(sig, str) or not sig.startswith("data:image/") or len(sig) > 2_000_000):
@@ -779,7 +780,7 @@ def list_bills(request: Request):
 @router.post("/billing/{mission_id}")
 def create_bill(mission_id: int, b: BillingCreate, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "geratewart"):
+    if not has_permission(user, "billing.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -792,7 +793,7 @@ def create_bill(mission_id: int, b: BillingCreate, request: Request):
 @router.put("/billing/{bill_id}")
 def update_bill(bill_id: int, b: BillingCreate, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "geratewart"):
+    if not has_permission(user, "billing.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
@@ -806,7 +807,7 @@ def update_bill(bill_id: int, b: BillingCreate, request: Request):
 @router.delete("/billing/{bill_id}")
 def delete_bill(bill_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "geratewart"):
+    if not has_permission(user, "billing.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM billing_verursacher WHERE id = %s", (bill_id,))
@@ -816,7 +817,7 @@ def delete_bill(bill_id: int, request: Request):
 @router.post("/billing/{bill_id}/pay")
 def mark_bill_paid(bill_id: int, request: Request):
     user = check_auth(request)
-    if user["role"] not in ("admin", "leitung", "geratewart"):
+    if not has_permission(user, "billing.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("UPDATE billing_verursacher SET paid_at = CURRENT_TIMESTAMP WHERE id = %s", (bill_id,))

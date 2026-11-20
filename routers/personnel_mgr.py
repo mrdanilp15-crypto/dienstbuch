@@ -9,6 +9,7 @@ from datetime import date
 router = APIRouter(prefix="/api/personnel", tags=["personnel"])
 from database import get_db_connection
 from core.utils import check_auth, log_audit_action
+from core.permissions import has_permission
 import re
 
 class PersonnelMember(BaseModel):
@@ -178,7 +179,7 @@ def get_single_member(member_id: int, request: Request):
 
 @router.get("/lehrgaenge-matrix")
 def get_lehrgaenge_matrix(request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
@@ -290,7 +291,7 @@ def get_avatar(member_id: int, request: Request):
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
 def add_member(m: PersonnelMember, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
         
@@ -348,7 +349,7 @@ def add_member(m: PersonnelMember, request: Request):
 @router.post("/license-checked")
 def mark_licenses_checked(data: dict, request: Request):
     """Führerscheinkontrolle für eine oder mehrere Personen als heute durchgeführt eintragen (Erstkontrolle oder Wiederholung)."""
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     ids = [int(i) for i in (data.get("ids") or []) if str(i).isdigit()]
     if not ids:
         raise HTTPException(status_code=400, detail="Keine Personen angegeben.")
@@ -362,7 +363,7 @@ def mark_licenses_checked(data: dict, request: Request):
 
 @router.post("/update/{member_id}")
 def update_member(member_id: int, m: PersonnelMember, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -425,7 +426,7 @@ def delete_member(member_id: int, request: Request):
     Nachweispflichten für Atemschutzeinsätze. Art. 17 Abs. 3 lit. b DSGVO deckt genau diesen
     Fall: kein Recht auf Löschung, soweit die Verarbeitung zur Erfüllung einer rechtlichen
     Pflicht (hier: Dokumentations-/Aufbewahrungspflicht) erforderlich ist."""
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     from core.utils import log_audit_action
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -502,7 +503,7 @@ def get_settings(request: Request):
 
 @router.post("/settings")
 def save_settings(s: GlobalSettings, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     conn = get_db_connection()
     cur = conn.cursor()
     settings = [
@@ -792,7 +793,7 @@ def _safe_filename(value: str) -> str:
 @router.get("/{member_id}/certificate/dienstzeit/pdf")
 def get_service_time_certificate(member_id: int, request: Request, year: Optional[int] = None):
     """Dienstzeit-/Taetigkeitsnachweis: alle Dienste und Einsaetze einer Person in einem Jahr."""
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     from html import escape
     target_year = year or date.today().year
 
@@ -864,7 +865,7 @@ def get_service_time_certificate(member_id: int, request: Request, year: Optiona
 @router.get("/{member_id}/certificate/lehrgaenge/pdf")
 def get_courses_certificate(member_id: int, request: Request):
     """Lehrgangs- und Qualifikationsuebersicht einer Person (vollstaendige Historie)."""
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     from html import escape
 
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
@@ -897,7 +898,7 @@ def get_courses_certificate(member_id: int, request: Request):
 @router.get("/{member_id}/certificate/atemschutz/pdf")
 def get_respiratory_certificate(member_id: int, request: Request, year: Optional[int] = None):
     """Atemschutz-Nachweis: dokumentierte Einsaetze/Uebungen unter Atemschutz je Jahr."""
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     from html import escape
     target_year = year or date.today().year
 
@@ -1029,7 +1030,7 @@ def get_my_licenses(request: Request):
 
 @router.get("/roster/pdf")
 def get_personnel_roster_pdf(request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     from core.utils import get_station_name
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT name, rank, phone, email, address FROM personnel WHERE membership_status = 'Aktiv' ORDER BY name ASC")

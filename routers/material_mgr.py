@@ -7,6 +7,7 @@ import mysql.connector
 router = APIRouter(prefix="/api/material", tags=["Material"])
 from database import get_db_connection
 from core.utils import check_auth, check_display_access, log_audit_action
+from core.permissions import has_permission
 
 class EquipmentCreate(BaseModel):
     name: str
@@ -129,7 +130,7 @@ def list_equipment(request: Request, archived: int = 0):
 
 @router.post("/equipment")
 def create_equipment(eq: EquipmentCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
@@ -154,7 +155,7 @@ def create_equipment(eq: EquipmentCreate, request: Request):
 
 @router.put("/equipment/{eq_id}")
 def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     last_i = eq.last_inspection if eq.last_inspection else None
     next_i = eq.next_inspection if eq.next_inspection else None
@@ -179,7 +180,7 @@ def update_equipment(eq_id: int, eq: EquipmentCreate, request: Request):
 def archive_equipment(eq_id: int, data: dict, request: Request):
     """Gerät archivieren statt löschen (oder wiederherstellen). Archivierte Geräte lösen keine Prüf-Erinnerungen
     mehr aus und stehen nicht mehr in der Standardliste, Prüf- und Mängelverlauf bleiben erhalten."""
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     flag = 1 if data.get("archived", True) else 0
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT name FROM equipment WHERE id = %s", (eq_id,))
@@ -195,7 +196,7 @@ def archive_equipment(eq_id: int, data: dict, request: Request):
 
 @router.delete("/equipment/{eq_id}")
 def delete_equipment(eq_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT name FROM equipment WHERE id = %s", (eq_id,))
     row = cur.fetchone()
@@ -365,7 +366,7 @@ def get_equipment_report_pdf(eq_id: int, request: Request):
 
 @router.post("/equipment/{eq_id}/inspections")
 def create_inspection(eq_id: int, insp: InspectionCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO equipment_inspections (equipment_id, date, inspector, status, note)
@@ -381,7 +382,7 @@ def create_inspection(eq_id: int, insp: InspectionCreate, request: Request):
 
 @router.post("/equipment/batch-inspect")
 def batch_inspect(b: BatchInspectRequest, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     today = date.today().isoformat()
     for bc in b.barcodes:
@@ -418,7 +419,7 @@ def list_personal_inventar(p_id: int, request: Request):
 
 @router.post("/personnel/{p_id}/inventar")
 def add_inventar_item(p_id: int, item: InventarCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO personal_inventar (personnel_id, item_name, size, issue_date)
@@ -434,7 +435,7 @@ def add_inventar_item(p_id: int, item: InventarCreate, request: Request):
 
 @router.delete("/personnel/inventar/{item_id}")
 def delete_inventar_item(item_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM personal_inventar WHERE id = %s", (item_id,))
     conn.commit(); cur.close(); conn.close()
@@ -537,7 +538,7 @@ def list_lehrgang_types(request: Request):
 
 @router.post("/lehrgang-types")
 def add_lehrgang_type(data: dict, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     name = (data.get("name") or "").strip()
     if not name: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
     conn = get_db_connection(); cur = conn.cursor()
@@ -554,7 +555,7 @@ def add_lehrgang_type(data: dict, request: Request):
 
 @router.delete("/lehrgang-types/{type_id}")
 def delete_lehrgang_type(type_id: int, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung"))
+    check_auth(request, permission="personnel.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM lehrgang_types WHERE id = %s", (type_id,))
     conn.commit(); cur.close(); conn.close()
@@ -577,7 +578,7 @@ def list_lehrgaenge(p_id: int, request: Request):
 
 @router.post("/personnel/{p_id}/lehrgaenge")
 def add_lehrgang(p_id: int, course: CourseCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO lehrgaenge (personnel_id, course_name, date, certificate_url, valid_until)
@@ -588,7 +589,7 @@ def add_lehrgang(p_id: int, course: CourseCreate, request: Request):
 
 @router.delete("/personnel/lehrgaenge/{course_id}")
 def delete_lehrgang(course_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM lehrgaenge WHERE id = %s", (course_id,))
     conn.commit(); cur.close(); conn.close()
@@ -608,7 +609,7 @@ def list_honors(p_id: int, request: Request):
 
 @router.post("/personnel/{p_id}/honors")
 def add_honor(p_id: int, h: HonorCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     kind = h.kind if h.kind in ("Beförderung", "Ehrung") else None
     title = (h.title or "").strip()
     if not kind or not title:
@@ -631,7 +632,7 @@ def add_honor(p_id: int, h: HonorCreate, request: Request):
 
 @router.delete("/personnel/honors/{honor_id}")
 def delete_honor(honor_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung"))
+    user = check_auth(request, permission="personnel.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM personnel_honors WHERE id = %s", (honor_id,))
     conn.commit(); cur.close(); conn.close()
@@ -693,7 +694,7 @@ def list_hydrants(request: Request):
 
 @router.post("/hydrants")
 def create_hydrant(h: HydrantCreate, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO hydrants (lat, lng, type, label)
@@ -704,7 +705,7 @@ def create_hydrant(h: HydrantCreate, request: Request):
 
 @router.delete("/hydrants/{h_id}")
 def delete_hydrant(h_id: int, request: Request):
-    user = check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    user = check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM hydrants WHERE id = %s", (h_id,))
     conn.commit(); cur.close(); conn.close()
@@ -794,7 +795,7 @@ def list_consumables(request: Request):
 
 @router.post("/consumables")
 def add_consumable(data: dict, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    check_auth(request, permission="material.manage")
     name = (data.get("name") or "").strip()
     if not name: raise HTTPException(status_code=400, detail="Bezeichnung erforderlich")
     conn = get_db_connection(); cur = conn.cursor()
@@ -807,7 +808,7 @@ def add_consumable(data: dict, request: Request):
 
 @router.put("/consumables/{item_id}")
 def update_consumable(item_id: int, data: dict, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute(
         "UPDATE consumables SET name=%s, unit=%s, current_stock=%s, min_stock=%s, note=%s WHERE id=%s",
@@ -818,7 +819,7 @@ def update_consumable(item_id: int, data: dict, request: Request):
 
 @router.delete("/consumables/{item_id}")
 def delete_consumable(item_id: int, request: Request):
-    check_auth(request, allowed_roles=("admin", "leitung", "geratewart"))
+    check_auth(request, permission="material.manage")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM consumables WHERE id = %s", (item_id,))
     conn.commit(); cur.close(); conn.close()

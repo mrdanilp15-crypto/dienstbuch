@@ -342,6 +342,7 @@ applyChartTheme();
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
                     verwaltungTab: '',
+                    myPerms: [], permissionMatrix: null,
                     intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30, int_fahrzeugkontrolle: 7, int_fuehrerschein: 12, int_interessent: 21 },
                     
                     // Mängelmelder
@@ -466,8 +467,8 @@ applyChartTheme();
                 calendarFeedUrl() { return `${window.location.protocol}//${this.serverHost}/api/calendar/feed.ics?token=${this.accessTokens.calendar_token}`; },
                 displayUrl() { return `${window.location.protocol}//${this.serverHost}/static/alarmdisplay.html?token=${this.accessTokens.display_token}`; },
                 canManageDienste() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
-                canManageMissions() { return ['admin', 'leitung', 'gruppenfuehrer'].includes(this.role); },
-                canManagePersonnel() { return ['admin', 'leitung'].includes(this.role); },
+                canManageMissions() { return this.hasPerm('missions.manage'); },
+                canManagePersonnel() { return this.hasPerm('personnel.manage'); },
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
                 dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
                 dueAreas() {
@@ -489,6 +490,7 @@ applyChartTheme();
                     const groups = [
                         { label: 'Konten & Sicherheit', tabs: [
                             { key: 'logins', label: 'System-Logins', icon: 'fa-key', show: admin },
+                            { key: 'rechte', label: 'Rechte', icon: 'fa-user-lock', show: admin },
                             { key: 'audit', label: 'Aktivitäts-Log', icon: 'fa-clock-rotate-left', show: admin },
                             { key: 'sicherheit', label: 'Sicherheit & Datenschutz', icon: 'fa-shield-halved', show: admin } ] },
                         { label: 'Betrieb', tabs: [
@@ -500,12 +502,12 @@ applyChartTheme();
                     ];
                     return groups.map(g => ({ label: g.label, tabs: g.tabs.filter(t => t.show) })).filter(g => g.tabs.length);
                 },
-                canManageMaterial() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
+                canManageMaterial() { return this.hasPerm('material.manage'); },
                 // Backend /billing/... (mission_mgr.py) erlaubt dieselbe Rollenmenge -
                 // eigener Name statt canManageMaterial wiederzuverwenden, damit im Abrechnungs-
                 // Bereich klar bleibt, wofür die Prüfung tatsächlich steht.
-                canManageBilling() { return ['admin', 'leitung', 'geratewart'].includes(this.role); },
-                canManageYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role); },
+                canManageBilling() { return this.hasPerm('billing.manage'); },
+                canManageYouth() { return this.hasPerm('youth.manage'); },
                 canManageSettings() { return ['admin', 'leitung'].includes(this.role); },
 
                 calendarMonthLabel() {
@@ -808,7 +810,7 @@ applyChartTheme();
                         return;
                     }
                     const authData = await authRes.json();
-                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role; this.displayName = (authData.personnel_name || authData.username || '').split(' ')[0];
+                    this.isAdmin = (authData.role === 'admin'); this.username = authData.username; this.role = authData.role; this.myPerms = authData.permissions || []; this.displayName = (authData.personnel_name || authData.username || '').split(' ')[0];
                     this.isFirstLoginBlock = !!authData.is_first_login;
                     this.must2fa = !!authData.must_setup_2fa;
                 } catch (e) {
@@ -3220,6 +3222,30 @@ applyChartTheme();
                     if (tab === 'verwaltung') return this.canSeeSettings;
                     return true;
                 },
+                hasPerm(key) { return this.role === 'admin' || (this.myPerms || []).includes(key); },
+                async loadPermissionMatrix() {
+                    try {
+                        const res = await fetch('/api/admin/permissions', { credentials: 'include' });
+                        this.permissionMatrix = res.ok ? await res.json() : null;
+                    } catch (e) { this.permissionMatrix = null; }
+                },
+                async setPermission(p, role, allowed) {
+                    const res = await fetch('/api/admin/permissions', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ role, permission: p.key, allowed }) });
+                    if (!res.ok) await appAlert((await res.json().catch(() => ({}))).detail || 'Recht konnte nicht geändert werden.');
+                    await this.loadPermissionMatrix();
+                },
+                async resetPermissions() {
+                    if (!await appConfirm('Alle Rechte auf die Standardwerte zurücksetzen?')) return;
+                    const res = await fetch('/api/admin/permissions/reset', { method: 'POST', credentials: 'include' });
+                    if (res.ok) await this.loadPermissionMatrix();
+                },
+                permissionGroups() {
+                    if (!this.permissionMatrix) return [];
+                    const g = {};
+                    this.permissionMatrix.permissions.forEach(p => { (g[p.group] = g[p.group] || []).push(p); });
+                    return Object.keys(g).map(k => ({ name: k, items: g[k] }));
+                },
                 firstSettingsTab() { const g = this.settingsGroups; return g.length ? g[0].tabs[0].key : ''; },
                 ensureSettingsTab() {
                     const keys = this.settingsGroups.flatMap(g => g.tabs.map(t => t.key));
@@ -3229,7 +3255,7 @@ applyChartTheme();
                 openSettingsTab(key) {
                     this.verwaltungTab = key;
                     const loaders = {
-                        logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(),
+                        logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(), rechte: () => this.loadPermissionMatrix(),
                         sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
                         betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
                         mail: () => this.loadMailSettings(), wache: () => { this.loadIntervals(); this.loadDueManager(); this.loadLogbooks(); }

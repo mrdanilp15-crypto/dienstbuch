@@ -10,6 +10,8 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Rechte", "title": "Rechte pro Rolle einstellbar",
+             "text": "Unter Einstellungen → Rechte legst du fest, welche Rolle Personalakten, Jugendfeuerwehr, Einsatzberichte, Abrechnung und Material/Mängel bearbeiten darf. Änderungen gelten sofort, Abweichungen vom Standard sind markiert, „Auf Standard zurücksetzen“ stellt alles wieder her. Admins behalten immer alle Rechte. Weitere Rechte lassen sich nach und nach ergänzen."},
             {"type": "new", "tag": "Mängel", "title": "Status, Zuständigkeit und Rückfragen",
              "text": "Mängel haben die Stufen Offen, In Bearbeitung und Erledigt und lassen sich wieder öffnen. Wer einen Mangel in Bearbeitung nimmt, wird als zuständig eingetragen, die Zuständigkeit ist änderbar. Am Mangel gibt es einen Verlauf mit Rückfragen und Antworten zwischen Gerätewart und meldender Person. Statuswechsel werden dort automatisch vermerkt."},
             {"type": "new", "tag": "Material", "title": "Geräte archivieren statt löschen",

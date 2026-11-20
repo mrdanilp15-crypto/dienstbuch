@@ -297,7 +297,7 @@ def get_current_user(request: Request) -> Optional[dict]:
     except Exception:
         return None
 
-def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None) -> dict:
+def check_auth(request: Request, require_admin: bool = False, allowed_roles: tuple = None, permission: str = None) -> dict:
     """Gemeinsamer Auth+Rollen-Prüfhelfer - war zuvor identisch in material_mgr.py, mission_mgr.py
     und personnel_mgr.py dupliziert (3 unabhängige Kopien, Risiko dass ein künftiger Fix nicht
     überall ankommt). Jetzt eine gemeinsame Stelle, die drei Router importieren nur noch von hier."""
@@ -308,6 +308,10 @@ def check_auth(request: Request, require_admin: bool = False, allowed_roles: tup
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
     if allowed_roles and user["role"] not in allowed_roles:
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if permission:
+        from core.permissions import has_permission
+        if not has_permission(user, permission):
+            raise HTTPException(status_code=403, detail="Keine Berechtigung")
     return user
 
 # Zwei Geräte-/Feed-Zugänge müssen OHNE Login funktionieren (Hallen-Display-Kiosk, externe

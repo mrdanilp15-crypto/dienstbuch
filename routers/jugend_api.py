@@ -4,6 +4,7 @@ import mysql.connector
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action
+from core.permissions import has_permission
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ def get_youth_members(request: Request):
     # Daten Minderjähriger (Anschrift, Eltern, Notizen): nur Wehrführung und Jugendwarte
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if user["role"] not in ("admin", "leitung", "jugendwarte"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if not has_permission(user, "youth.manage"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM personnel WHERE membership_status = 'Jugend' ORDER BY name ASC")
     res = cur.fetchall(); cur.close(); conn.close()
@@ -27,7 +28,7 @@ def get_youth_members(request: Request):
 @router.post("/api/jugend/members")
 def add_youth_member(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     name = (data.get("name") or "").strip()
     if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
@@ -79,7 +80,7 @@ def add_youth_member(data: dict, request: Request):
 @router.put("/api/jugend/members/{m_id}")
 def update_youth_member(m_id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     name = (data.get("name") or "").strip()
     if not name: raise HTTPException(status_code=400, detail="Name erforderlich")
@@ -136,7 +137,7 @@ def delete_youth_member(m_id: int, request: Request):
     ein hartes Löschen hätte per ON DELETE CASCADE die komplette Anwesenheitshistorie in
     youth_attendance mitgerissen. Bei vorhandener Historie deshalb deaktivieren statt löschen."""
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT name FROM personnel WHERE id = %s", (m_id,))
@@ -169,7 +170,7 @@ def delete_youth_member(m_id: int, request: Request):
 def get_youth_sessions(request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if user["role"] not in ("admin", "leitung", "jugendwarte"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if not has_permission(user, "youth.manage"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM youth_sessions ORDER BY date DESC, id DESC")
     sessions = cur.fetchall()
@@ -201,7 +202,7 @@ def get_youth_sessions(request: Request):
 @router.post("/api/jugend/sessions")
 def add_youth_session(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     sess_date = data.get("date")
     topic = data.get("topic")
@@ -231,7 +232,7 @@ def add_youth_session(data: dict, request: Request):
 @router.put("/api/jugend/sessions/{s_id}")
 def update_youth_session(s_id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     sess_date = data.get("date")
     topic = data.get("topic")
@@ -264,7 +265,7 @@ def update_youth_session(s_id: int, data: dict, request: Request):
 @router.delete("/api/jugend/sessions/{s_id}")
 def delete_youth_session(s_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "jugendwarte"):
+    if not user or not has_permission(user, "youth.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM youth_attendance WHERE session_id = %s", (s_id,))

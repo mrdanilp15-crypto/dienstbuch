@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action
+from core.permissions import has_permission
 
 router = APIRouter()
 
@@ -74,7 +75,7 @@ def get_defect_reports(request: Request, status: str = "Offen"):
 @router.put("/api/material/defect-reports/{report_id}")
 def resolve_defect_report(report_id: int, data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+    if not user or not has_permission(user, "material.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     new_status = data.get("status", "Erledigt")
     if new_status not in DEFECT_STATES:
@@ -133,7 +134,7 @@ def add_defect_comment(report_id: int, data: dict, request: Request):
     if not rep:
         cur.close(); conn.close()
         raise HTTPException(status_code=404, detail="Mangel-Meldung nicht gefunden")
-    is_staff = user["role"] in ("admin", "leitung", "geratewart")
+    is_staff = has_permission(user, "material.manage")
     if not is_staff and (rep["reporter_name"] or "").strip().lower() != user["username"].strip().lower():
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Nur Gerätewart, Leitung und die meldende Person dürfen hier schreiben.")
@@ -144,7 +145,7 @@ def add_defect_comment(report_id: int, data: dict, request: Request):
 @router.delete("/api/material/defect-reports/{report_id}")
 def delete_defect_report(report_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+    if not user or not has_permission(user, "material.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM defect_comments WHERE report_id = %s", (report_id,))
@@ -166,7 +167,7 @@ def get_drone_images(request: Request):
 @router.post("/api/material/drone-images")
 def add_drone_image(data: dict, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+    if not user or not has_permission(user, "material.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     url = data.get("url")
     if not url: raise HTTPException(status_code=400, detail="URL erforderlich")
@@ -178,7 +179,7 @@ def add_drone_image(data: dict, request: Request):
 @router.delete("/api/material/drone-images/{img_id}")
 def delete_drone_image(img_id: int, request: Request):
     user = get_current_user(request)
-    if not user or user["role"] not in ("admin", "leitung", "geratewart"):
+    if not user or not has_permission(user, "material.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("DELETE FROM drone_images WHERE id = %s", (img_id,))

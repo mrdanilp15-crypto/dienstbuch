@@ -37,7 +37,7 @@ EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS,
           "geratewart": items_for(personal=True, youth=False),     # Kleiderkammer
           "atemschutzwart": items_for(personal=True, youth=False)}  # G26.3-Überwachung
 # Reiter innerhalb von Einstellungen / Geräte & Material je Rolle
-SETTINGS_TABS = {"admin": ["System-Logins", "Aktivitäts-Log", "Sicherheit & Datenschutz", "Systemzustand & Sicherung", "Wache & Fristen", "E-Mail-Versand"],
+SETTINGS_TABS = {"admin": ["System-Logins", "Rechte", "Aktivitäts-Log", "Sicherheit & Datenschutz", "Systemzustand & Sicherung", "Wache & Fristen", "E-Mail-Versand"],
                  "leitung": ["Wache & Fristen"]}
 MATERIAL_HAS_GERAETEHAUS = {"admin", "leitung", "geratewart"}
 
