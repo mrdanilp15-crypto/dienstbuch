@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 25,
+        "version": "2.75",
+        "date": "2026-11-20",
+        "items": [
+            {"type": "fix", "tag": "Browser", "title": "Zurück-Knopf bleibt in der App",
+             "text": "Jeder Reiterwechsel ist jetzt ein Schritt im Browser-Verlauf. „Zurück“ geht zum vorherigen Reiter statt auf die Startseite des Browsers, „Vor“ funktioniert ebenso. Die Adresse zeigt den Reiter (z. B. /dashboard#einsaetze) und lässt sich als Lesezeichen speichern."},
+        ],
+    },
+    {
         "id": 24,
         "version": "2.74",
         "date": "2026-11-20",

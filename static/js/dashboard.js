@@ -146,6 +146,8 @@ applyChartTheme();
             });
         }
 
+        // Gültige Reiter - für den Zurück-Knopf des Browsers (Adresse /dashboard#reiter)
+        const DASHBOARD_TABS = ['uebersicht', 'dienste', 'kalender', 'fristen', 'personal', 'jugend', 'notizen', 'stats', 'apager', 'einsaetze', 'lagekarte', 'bma', 'hvo', 'logbuch', 'fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv', 'verwaltung'];
         function appPrompt(message, defaultValue = '', title = 'Eingabe', inputType = 'text') {
             return new Promise((resolve) => {
                 const { el, modal } = _appDialogShow(`
@@ -222,7 +224,7 @@ applyChartTheme();
                     twoFaRecoveryCodes: null,
                     personalStats: { hours: 0, count: 0 },
                     personalSessions: [],
-                    activeTab: localStorage.getItem('activeDashboardTab') || 'uebersicht',
+                    activeTab: (() => { const h = (window.location.hash || '').slice(1); return DASHBOARD_TABS.includes(h) ? h : (localStorage.getItem('activeDashboardTab') || 'uebersicht'); })(),
                     notes: [],
                     notesActiveFilter: 'all',
                     noteEditingId: null,
@@ -837,6 +839,10 @@ applyChartTheme();
                     if (newTab && !this.tabAllowed(newTab)) { this.activeTab = 'dienste'; return; }
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
+                        // Jeder Reiterwechsel ist ein Schritt im Browser-Verlauf: "Zurück" geht zum vorherigen Reiter
+                        // statt aus der App heraus (vorher landete man auf der Startseite des Browsers).
+                        if (this._popping) { this._popping = false; }
+                        else if ((window.history.state || {}).tab !== newTab) { try { window.history.pushState({ tab: newTab }, '', '#' + newTab); } catch (e) {} }
                     }
                     this.expandMenuFor(newTab);
                     if (newTab === 'verwaltung') this.ensureSettingsTab();
@@ -974,6 +980,11 @@ applyChartTheme();
                 this.loadFavorites();
                 this.$nextTick(() => this.loadDataForActiveTab());
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
+                this.$nextTick(() => { try { window.history.replaceState({ tab: this.activeTab }, '', '#' + this.activeTab); } catch (e) {} });
+                window.addEventListener('popstate', (e) => {
+                    const t = (e.state && e.state.tab) || (window.location.hash || '').slice(1);
+                    if (t && DASHBOARD_TABS.includes(t) && this.tabAllowed(t) && t !== this.activeTab) { this._popping = true; this.activeTab = t; }
+                });
                 this.refreshNotifCount();
                 this.loadDueItems();
                 this.loadLogbooks();
