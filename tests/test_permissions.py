@@ -181,6 +181,8 @@ if _dr:
     admin.put(f"/api/material/defect-reports/{_id}", json={"status": "Offen"})
     _o = next(y for y in admin.get("/api/material/defect-reports?status=alle").json() if y["id"] == _id)
     check("Mangel: Wieder öffnen löscht Erledigt-Vermerk", _o["status"] == "Offen" and not _o["resolved_at"] and not _o["resolved_by"])
+    _nb = sql("select count(*) from notifications where category='maengel'")
+    check("Mangel: Glocke meldet Neues, Antwort und Statuswechsel", str(_nb).isdigit() and int(_nb) >= 3, str(_nb))
     admin.delete(f"/api/material/defect-reports/{_id}")
     check("Mangel: Löschen entfernt auch den Verlauf", sql(f"select count(*) from defect_comments where report_id={_id}") in ("0", 0))
 if _eq2:

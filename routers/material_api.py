@@ -2,11 +2,20 @@ from fastapi import APIRouter, HTTPException, Request
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action
-from core.permissions import has_permission
+from core.permissions import has_permission, roles_with
 
 router = APIRouter()
 
 DEFECT_STATES = ("Offen", "In Bearbeitung", "Erledigt")
+
+
+def _notify_defect(title, body, report_id, usernames=None, roles=None):
+    """Meldung in der Glocke (Kategorie Mängel); Fehler beim Benachrichtigen dürfen die Aktion nie abbrechen."""
+    try:
+        from core.notify import notify
+        notify("maengel", title, body, f"/dashboard?open=maengel:{report_id}", usernames=usernames, roles=roles)
+    except Exception as e:
+        print(f"Mangel-Benachrichtigung fehlgeschlagen: {e}")
 
 
 # --- MÄNGELMELDER (GERÄTEWART - ERWEITERT) ---
@@ -28,8 +37,13 @@ def create_defect_report(data: dict, request: Request):
         "INSERT INTO equipment_defect_reports (equipment_id, reporter_name, description, severity, image_url, assigned_to, priority) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         (eq_id, reporter, desc, severity, image_url, assigned_to, priority)
     )
+    new_id = cur.lastrowid
+    cur.execute("SELECT name FROM equipment WHERE id = %s", (eq_id,))
+    eq_row = cur.fetchone()
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_MELDEN", f"Mangel für Gerät-ID {eq_id} gemeldet: {desc[:60]}")
+    _notify_defect("Neuer Mangel: " + (eq_row[0] if eq_row else f"Gerät {eq_id}"), desc[:200], new_id,
+                   roles=roles_with("material.manage"))
     return {"status": "success"}
 
 @router.get("/api/material/defect-reports")
@@ -81,7 +95,7 @@ def resolve_defect_report(report_id: int, data: dict, request: Request):
     if new_status not in DEFECT_STATES:
         raise HTTPException(status_code=400, detail="Ungültiger Status.")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT status, assigned_to FROM equipment_defect_reports WHERE id = %s", (report_id,))
+    cur.execute("SELECT status, assigned_to, reporter_name FROM equipment_defect_reports WHERE id = %s", (report_id,))
     old = cur.fetchone()
     if not old:
         cur.close(); conn.close()
@@ -107,6 +121,9 @@ def resolve_defect_report(report_id: int, data: dict, request: Request):
                     (report_id, user["username"], f"Status: {old['status']} → {new_status}"))
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_ERLEDIGT", f"Mangel-Meldung ID {report_id} als '{new_status}' markiert.")
+    if old["status"] != new_status and old.get("reporter_name") and old["reporter_name"] != user["username"]:
+        _notify_defect(f"Mangel ist jetzt: {new_status}", f"Deine Mangelmeldung wurde von {user['username']} auf „{new_status}“ gesetzt.",
+                       report_id, usernames=[old["reporter_name"]])
     return {"status": "success"}
 
 @router.get("/api/material/defect-reports/{report_id}/comments")
@@ -140,6 +157,10 @@ def add_defect_comment(report_id: int, data: dict, request: Request):
         raise HTTPException(status_code=403, detail="Nur Gerätewart, Leitung und die meldende Person dürfen hier schreiben.")
     cur.execute("INSERT INTO defect_comments (report_id, author, text) VALUES (%s, %s, %s)", (report_id, user["username"], text[:2000]))
     conn.commit(); cur.close(); conn.close()
+    if rep["reporter_name"] and rep["reporter_name"].strip().lower() == user["username"].strip().lower():
+        _notify_defect("Antwort zu einem Mangel", f"{user['username']}: {text[:160]}", report_id, roles=roles_with("material.manage"))
+    elif rep["reporter_name"]:
+        _notify_defect("Mangel wurde beantwortet", f"{user['username']}: {text[:160]}", report_id, usernames=[rep["reporter_name"]])
     return {"status": "success"}
 
 @router.delete("/api/material/defect-reports/{report_id}")

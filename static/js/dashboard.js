@@ -3441,7 +3441,7 @@ applyChartTheme();
                     if (!res.ok) { p.push = !on; await appAlert('Einstellung konnte nicht gespeichert werden.'); }
                 },
                 async handleOpenLink() {
-                    // Links aus Push/E-Mail: /dashboard?open=termin:123 | einsatz:45 | fristen | alarm | kalender
+                    // Links aus Push/E-Mail: /dashboard?open=termin:123 | einsatz:45 | maengel:7 | fristen | alarm | kalender
                     const raw = new URLSearchParams(window.location.search).get('open');
                     if (!raw) return;
                     window.history.replaceState(null, '', window.location.pathname);
@@ -3455,6 +3455,11 @@ applyChartTheme();
                             await this.openScheduleDetail(s);
                         } else if (type === 'einsatz' && id) {
                             window.location.href = `/editor?mission_id=${encodeURIComponent(id)}`;
+                        } else if (type === 'maengel') {
+                            this.activeTab = 'material'; this.materialSubTab = 'maengel'; this.defectFilter = 'alle';
+                            await this.loadDefectReports();
+                            const dr = (this.defectReports || []).find(x => String(x.id) === id);
+                            if (dr) await this.toggleDefectComments(dr);
                         } else if (type === 'fristen') {
                             this.activeTab = 'fristen';
                         } else if (type === 'alarm') {

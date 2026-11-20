@@ -82,6 +82,11 @@ def has_permission(user_or_role, key: str) -> bool:
     return default_allowed(role, key) if ov is None else ov
 
 
+def roles_with(key: str) -> list:
+    """Alle Rollen, die ein Recht haben (für Benachrichtigungen an die Zuständigen)."""
+    return [r for r in ROLES if has_permission(r, key)]
+
+
 def permissions_for(role: str) -> list:
     return [p["key"] for p in PERMISSIONS if has_permission(role, p["key"])]
 

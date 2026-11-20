@@ -13,6 +13,7 @@ CATEGORIES = {
     "einsatz": ("Einsatz", "fa-fire"),
     "sicherheit": ("Sicherheit", "fa-shield-halved"),
     "termine": ("Termine", "fa-calendar-days"),
+    "maengel": ("Mängel", "fa-triangle-exclamation"),
     "fristen_technik": ("Fristen: Technik", "fa-screwdriver-wrench"),
     "fristen_personen": ("Fristen: Personen", "fa-user-clock"),
     "fristen_eigene": ("Fristen: Eigene", "fa-clipboard-list"),
