@@ -266,6 +266,7 @@ applyChartTheme();
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
+                    menuCollapsed: (() => { try { return JSON.parse(localStorage.getItem('menuCollapsed') || '{}') || {}; } catch (e) { return {}; } })(),
                     savedFilters: { einsaetze: [], material: [] },
                     availabilityList: [],
                     newAvailability: { start_date: '', end_date: '', reason: '' },
@@ -836,6 +837,7 @@ applyChartTheme();
                     if (newTab) {
                         localStorage.setItem('activeDashboardTab', newTab);
                     }
+                    this.expandMenuFor(newTab);
                     if (newTab === 'verwaltung') this.ensureSettingsTab();
                     this.loadDueItems();
                     // Einziger Ort, an dem beim Reiterwechsel Daten nachgeladen werden. Vorher
@@ -967,6 +969,7 @@ applyChartTheme();
                 // Bewusst ERST hier, nach ready=true und dem nächsten Render-Durchlauf: vorher ist
                 // #app per v-show noch komplett ausgeblendet, eine Karte oder ein Diagramm würde
                 // dann auf eine Fläche von 0x0 gezeichnet.
+                this.expandMenuFor(this.activeTab);
                 this.$nextTick(() => this.loadDataForActiveTab());
                 if (!this.isFirstLoginBlock) this.$nextTick(() => this.handleOpenLink());
                 this.refreshNotifCount();
@@ -3293,6 +3296,23 @@ applyChartTheme();
                     if (b.paid_at || !b.sent_at) return false;
                     const t = new Date(String(b.sent_at).replace(' ', 'T'));
                     return !isNaN(t) && (Date.now() - t.getTime()) > 30 * 86400000;
+                },
+                // Menü-Gruppen: einklappbar, Wahl bleibt gespeichert; die Gruppe mit dem geöffneten Reiter ist immer offen
+                menuSectionOfTab(tab) {
+                    const groups = {
+                        org: ['dienste', 'kalender', 'fristen', 'personal', 'jugend', 'notizen', 'stats'],
+                        einsatz: ['apager', 'einsaetze', 'lagekarte', 'bma', 'hvo', 'logbuch'],
+                        material: ['fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv']
+                    };
+                    return Object.keys(groups).find(k => groups[k].includes(tab)) || null;
+                },
+                menuOpen(key) { return !this.menuCollapsed[key]; },
+                saveMenuState() { try { localStorage.setItem('menuCollapsed', JSON.stringify(this.menuCollapsed)); } catch (e) {} },
+                toggleMenuSection(key) { this.menuCollapsed = { ...this.menuCollapsed, [key]: !this.menuCollapsed[key] }; this.saveMenuState(); },
+                // Wer einen Reiter öffnet (Menü, Suche, Link), sieht dessen Gruppe wieder aufgeklappt
+                expandMenuFor(tab) {
+                    const k = this.menuSectionOfTab(tab);
+                    if (k && this.menuCollapsed[k]) { this.menuCollapsed = { ...this.menuCollapsed, [k]: false }; this.saveMenuState(); }
                 },
                 kindOfStichwort(s) { const t = String(s || '').trim(); return /^b/i.test(t) ? 'Brand' : (/^(h|th|t)/i.test(t) ? 'Hilfeleistung' : 'Sonstige'); },
                 missionYearOptions() {

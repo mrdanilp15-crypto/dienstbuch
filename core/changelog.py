@@ -10,6 +10,8 @@ CHANGELOG = [
         "version": "2.73",
         "date": "2026-11-19",
         "items": [
+            {"type": "new", "tag": "Menü", "title": "Übersichtlicheres Menü",
+             "text": "Die Menü-Gruppen (Organisation, Einsatz & Taktik, Material & Finanzen) lassen sich einklappen. Eingeklappt zeigt die Gruppe trotzdem die offenen Zähler (Fristen, Mängel). Wer einen Reiter öffnet, sieht seine Gruppe wieder aufgeklappt. Die Wahl wird im Browser gemerkt. Die Übersicht steht als eigener Punkt ganz oben."},
             {"type": "new", "tag": "Listen", "title": "Filter, Status-Reiter und gespeicherte Filter",
              "text": "Die Einsatzliste lässt sich nach Suchtext, Jahr, Status und Art (Brand, Hilfeleistung, Sonstige) filtern. Mit „Filter speichern“ legst du Filter in Einsatzliste und Geräteliste unter eigenem Namen ab, sie gelten für dein Konto auf allen Geräten. Die Abrechnung zeigt Kennzahlen (ausstehend, seit über 30 Tagen offen, bezahlt) und hat Status-Reiter."},
             {"type": "new", "tag": "Übersicht", "title": "Neue Startseite mit Karten",

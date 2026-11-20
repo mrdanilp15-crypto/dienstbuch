@@ -1491,3 +1491,9 @@ body { color: var(--text-color); }
     .pill-nav .nav-item.ms-auto { margin-left: 0 !important; }
     .pill-nav .btn.ms-3 { margin-left: 0 !important; }
 }
+
+/* Einklappbare Menü-Gruppen */
+.sidebar-section-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; border-radius: 8px; }
+.sidebar-section-toggle:hover { opacity: 0.85; }
+.sidebar-section-toggle:focus-visible { outline: 2px solid var(--bs-danger, #dc3545); outline-offset: 2px; }
+.sidebar-section-toggle .fa-chevron-down { transition: transform 0.15s ease; }

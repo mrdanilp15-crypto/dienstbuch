@@ -271,8 +271,9 @@
                     <button class="btn btn-sm btn-outline-danger px-2 py-1 border-0" @click="showMobileSidebar = false"><i class="fa fa-times"></i></button>
                 </div>
                 <div class="sidebar-menu flex-grow-1" style="overflow-y: auto;">
-                    <div class="sidebar-section-header">Organisation</div>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'uebersicht'}" @click="activeTab = 'uebersicht'; showMobileSidebar = false"><i class="fa fa-gauge-high"></i> Übersicht</button>
+                    <button class="sidebar-btn mb-1" :class="{active: activeTab === 'uebersicht'}" @click="activeTab = 'uebersicht'; showMobileSidebar = false"><i class="fa fa-gauge-high"></i> Übersicht</button>
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('org')" @click="toggleMenuSection('org')" @keyup.enter="toggleMenuSection('org')"><span>Organisation</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('org') && dueBadge" class="badge rounded-pill bg-danger">{{ dueBadge }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('org')}"></i></span></div>
+                    <div v-show="menuOpen('org')">
                     <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span></button>
@@ -281,7 +282,10 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch</button>
                     <button class="sidebar-btn" v-if="canSeeStats" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken</button>
 
-                    <div class="sidebar-section-header">Einsatz & Taktik</div>
+                    </div>
+
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('einsatz')" @click="toggleMenuSection('einsatz')" @keyup.enter="toggleMenuSection('einsatz')"><span>Einsatz &amp; Taktik</span><span class="d-flex align-items-center gap-2"><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('einsatz')}"></i></span></div>
+                    <div v-show="menuOpen('einsatz')">
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten</button>
@@ -289,13 +293,18 @@
                     <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder</button>
                     <button class="sidebar-btn" v-if="logbooks.length || canSeeSettings" :class="{active: activeTab === 'logbuch'}" @click="activeTab = 'logbuch'; showMobileSidebar = false"><i class="fa fa-book-open"></i> Logbücher</button>
 
-                    <div class="sidebar-section-header">Material & Finanzen</div>
+                    </div>
+
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('material')" @click="toggleMenuSection('material')" @keyup.enter="toggleMenuSection('material')"><span>Material &amp; Finanzen</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('material') && overviewDefects.length" class="badge rounded-pill bg-danger">{{ overviewDefects.length }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('material')}"></i></span></div>
+                    <div v-show="menuOpen('material')">
                     <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material'}" @click="activeTab = 'material'; showMobileSidebar = false"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen</button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Inventar</button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv</button>
+
+                    </div>
 
                     <div class="sidebar-section-header" v-if="canSeeSettings">Verwaltung</div>
                     <button class="sidebar-btn" v-if="canSeeSettings" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Einstellungen</button>
