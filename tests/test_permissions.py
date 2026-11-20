@@ -212,6 +212,36 @@ for _b in ("ZZ-PERM-1", "ZZ-PERM-3"):
     if _i:
         admin.delete(f"/api/material/equipment/{_i}")
 
+# --- Eigene Rollen
+check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)
+check("Eigene Rolle: Basis Admin abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "admin"}).status_code == 400)
+check("Eigene Rolle: leerer Name abgelehnt", admin.post("/api/admin/custom-roles", json={"label": " ", "base_role": "mannschaft"}).status_code == 400)
+check("Eigene Rolle: Name einer Systemrolle abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "leitung", "base_role": "mannschaft"}).status_code == 400)
+_cr = admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"})
+check("Eigene Rolle: Admin legt an", _cr.status_code == 200, _cr.text[:100])
+_ck = _cr.json().get("key")
+check("Eigene Rolle: doppelter Name abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "kassenwart", "base_role": "mannschaft"}).status_code == 400)
+_m = admin.get("/api/admin/permissions").json()
+check("Eigene Rolle: steht in der Matrix mit Basisrechten", any(r["key"] == _ck and r["custom"] for r in _m["roles"]) and all(p["roles"][_ck] == p["roles"]["mannschaft"] for p in _m["permissions"]))
+_uid = next(u["id"] for u in admin.get("/api/users/list").json() if u["username"] == "r_mannschaft")
+check("Eigene Rolle: unbekannte Rolle beim Zuweisen abgelehnt", admin.put(f"/api/users/{_uid}/role", json={"role": "custom:c_gibtsnicht"}).status_code == 400)
+check("Eigene Rolle: Zuweisen", admin.put(f"/api/users/{_uid}/role", json={"role": f"custom:{_ck}"}).status_code == 200)
+_ul = next(u for u in admin.get("/api/users/list").json() if u["id"] == _uid)
+check("Eigene Rolle: Liste zeigt Name und Basisrolle", _ul["custom_role_label"] == "Kassenwart" and _ul["role"] == "mannschaft", str(_ul))
+check("Eigene Rolle: ohne Abweichung keine Zusatzrechte", cl["mannschaft"].get("/api/auth/me").json()["permissions"] == [])
+check("Eigene Rolle: Material-Recht nur für die eigene Rolle", admin.put("/api/admin/permissions", json={"role": _ck, "permission": "material.manage", "allowed": True}).status_code == 200)
+check("Eigene Rolle: /me nennt das Recht", "material.manage" in cl["mannschaft"].get("/api/auth/me").json()["permissions"])
+_ce = {"name": "RollenTest", "barcode": "ZZ-ROLE-1", "category": "Werkzeug", "interval_months": 12}
+check("Eigene Rolle: Konto darf jetzt Geräte anlegen", cl["mannschaft"].post("/api/material/equipment", json=_ce).status_code == 200)
+check("Eigene Rolle: Basisrolle Mannschaft sonst weiter ohne Recht", cl["jugendwarte"].post("/api/material/equipment", json={**_ce, "barcode": "ZZ-ROLE-2"}).status_code == 403)
+check("Eigene Rolle: Löschen räumt auf", admin.delete(f"/api/admin/custom-roles/{_ck}").status_code == 200)
+check("Eigene Rolle: danach wieder Basisrechte", cl["mannschaft"].get("/api/auth/me").json()["permissions"] == [] and cl["mannschaft"].post("/api/material/equipment", json={**_ce, "barcode": "ZZ-ROLE-3"}).status_code == 403)
+check("Eigene Rolle: Konto behält Basisrolle", next(u for u in admin.get("/api/users/list").json() if u["id"] == _uid)["role"] == "mannschaft")
+check("Eigene Rolle: unbekannte Rolle beim Löschen 404", admin.delete("/api/admin/custom-roles/c_gibtsnicht").status_code == 404)
+_i = next((x["id"] for x in admin.get("/api/material/equipment").json() if x["barcode"] == "ZZ-ROLE-1"), None)
+if _i:
+    admin.delete(f"/api/material/equipment/{_i}")
+
 import os
 # gleiche Ordnerwahl wie main.py (UPLOAD_DIR)
 _up = os.path.join("/app/data/uploads" if (os.path.exists("/app/data") or os.name != "nt") else os.path.join("static", "uploads"), "zz_test_upload.txt")

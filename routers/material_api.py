@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action
-from core.permissions import has_permission, roles_with
+from core.permissions import has_permission, users_with
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ def create_defect_report(data: dict, request: Request):
     conn.commit(); cur.close(); conn.close()
     log_audit_action(user["username"], "MANGEL_MELDEN", f"Mangel für Gerät-ID {eq_id} gemeldet: {desc[:60]}")
     _notify_defect("Neuer Mangel: " + (eq_row[0] if eq_row else f"Gerät {eq_id}"), desc[:200], new_id,
-                   roles=roles_with("material.manage"))
+                   usernames=users_with("material.manage"))
     return {"status": "success"}
 
 @router.get("/api/material/defect-reports")
@@ -158,7 +158,7 @@ def add_defect_comment(report_id: int, data: dict, request: Request):
     cur.execute("INSERT INTO defect_comments (report_id, author, text) VALUES (%s, %s, %s)", (report_id, user["username"], text[:2000]))
     conn.commit(); cur.close(); conn.close()
     if rep["reporter_name"] and rep["reporter_name"].strip().lower() == user["username"].strip().lower():
-        _notify_defect("Antwort zu einem Mangel", f"{user['username']}: {text[:160]}", report_id, roles=roles_with("material.manage"))
+        _notify_defect("Antwort zu einem Mangel", f"{user['username']}: {text[:160]}", report_id, usernames=users_with("material.manage"))
     elif rep["reporter_name"]:
         _notify_defect("Mangel wurde beantwortet", f"{user['username']}: {text[:160]}", report_id, usernames=[rep["reporter_name"]])
     return {"status": "success"}

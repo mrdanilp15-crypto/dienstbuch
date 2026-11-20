@@ -1801,7 +1801,7 @@
                                                                         <tr v-for="usr in systemUsers" :key="usr.id">
                                                                             <td class="fw-bold text-white">{{ usr.username }}<i v-if="usr.totp_enabled" class="fa fa-shield-halved text-success ms-1" title="Zwei-Faktor aktiv" style="font-size:0.75rem;"></i></td>
                                                                             <td>
-                                                                                <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':usr.role==='atemschutzwart'?'bg-dark border border-info text-info':'bg-secondary'">{{ usr.role }}</span>
+                                                                                <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':usr.role==='atemschutzwart'?'bg-dark border border-info text-info':'bg-secondary'">{{ usr.custom_role_label || usr.role }}</span>
                                                                             </td>
                                                                             <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
                                                                             <td>
@@ -1870,6 +1870,7 @@
                                                                     <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
                                                                     <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
                                                                     <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
+                                                                    <option v-for="r in customRoleList()" :key="r.key" :value="'custom:' + r.key">{{ r.label }} (eigene Rolle, wie {{ r.base_label }})</option>
                                                                 </select>
                                                                 <select v-else v-model="newLogin.role" class="form-select">
                                                                     <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
@@ -1879,6 +1880,7 @@
                                                                     <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
                                                                     <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
                                                                     <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
+                                                                    <option v-for="r in customRoleList()" :key="r.key" :value="'custom:' + r.key">{{ r.label }} (eigene Rolle, wie {{ r.base_label }})</option>
                                                                 </select>
                                                             </div>
                                                             <div class="mb-3">
@@ -1942,12 +1944,30 @@
                                 <button class="btn btn-outline-light btn-sm rounded-pill" @click="resetPermissions"><i class="fa fa-rotate-left me-1"></i>Auf Standard zurücksetzen</button>
                             </div>
                             <p class="text-muted small mb-3">Lege fest, welche Rolle was bearbeiten darf. Admins haben immer alle Rechte. Änderungen gelten sofort. Markierte Felder weichen vom Standard ab. Ansehen von Daten regeln weiterhin die Rollen selbst.</p>
+                            <div class="d-flex flex-wrap gap-2 align-items-end mb-3 p-3 rounded-3" style="background:rgba(255,255,255,0.04);">
+                                <div>
+                                    <label class="small text-muted fw-bold mb-1 d-block">Neue Rolle</label>
+                                    <input type="text" v-model="newCustomRole.label" class="form-control form-control-sm" placeholder="z. B. Kassenwart" maxlength="40" style="min-width:190px;" @keyup.enter="createCustomRole">
+                                </div>
+                                <div>
+                                    <label class="small text-muted fw-bold mb-1 d-block">Startet mit den Rechten von</label>
+                                    <select v-model="newCustomRole.base_role" class="form-select form-select-sm">
+                                        <option value="mannschaft">Mannschaft</option><option value="geratewart">Gerätewart</option><option value="jugendwarte">Jugendwart</option>
+                                        <option value="atemschutzwart">Atemschutzwart</option><option value="gruppenfuehrer">Gruppenführer</option><option value="leitung">Leitung</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-premium btn-sm rounded-pill px-3" @click="createCustomRole"><i class="fa fa-plus me-1"></i>Rolle anlegen</button>
+                                <div class="text-muted small w-100">Danach in der Tabelle die Rechte ankreuzen und der Rolle unter System-Logins ein Konto zuweisen. Was die Rolle sehen darf, richtet sich nach der Basisrolle.</div>
+                            </div>
                             <div v-if="!permissionMatrix" class="text-muted small">Wird geladen …</div>
                             <div v-else class="table-responsive">
                                 <table class="table table-dark align-middle small mb-0">
                                     <thead><tr class="text-muted">
                                         <th>Recht</th>
-                                        <th v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">{{ r.label }}</th>
+                                        <th v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">
+                                            {{ r.label }}
+                                            <div v-if="r.custom" class="fw-normal" style="font-size:0.65rem;">wie {{ r.base_label }} <i class="fa fa-trash text-danger ms-1" style="cursor:pointer;" title="Rolle löschen" @click="deleteCustomRole(r)"></i></div>
+                                        </th>
                                     </tr></thead>
                                     <tbody>
                                         <template v-for="g in permissionGroups()" :key="g.name">

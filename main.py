@@ -372,7 +372,9 @@ def init_db_extensions():
                                    # gehashter Einmal-Codes für den Fall eines verlorenen Geräts.
                                    ("totp_secret", "VARCHAR(64) NULL"), ("totp_enabled", "BOOLEAN DEFAULT FALSE"), ("totp_recovery_codes", "TEXT NULL"),
                                    # Wird bei jedem Passwortwechsel/-reset erhöht: macht alle bisherigen Sitzungs-Cookies dieses Kontos ungültig
-                                   ("session_version", "INT NOT NULL DEFAULT 0")]:
+                                   ("session_version", "INT NOT NULL DEFAULT 0"),
+                                   # Eigene Rolle (siehe core/permissions.py): users.role bleibt die Basisrolle, custom_role wählt die Rechte-Matrix
+                                   ("custom_role", "VARCHAR(40) NULL")]:
             try: cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except mysql.connector.Error as err:
                 if err.errno == 1060: pass
@@ -1245,6 +1247,14 @@ def init_db_extensions():
                     cur.execute(f"ALTER TABLE youth_members ADD COLUMN {col_name} {col_def}")
             except Exception as e:
                 print(f"Migration youth_members col {col_name}: {e}")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS custom_roles (
+                role_key VARCHAR(40) PRIMARY KEY,
+                label VARCHAR(80) NOT NULL,
+                base_role VARCHAR(30) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS role_permissions (

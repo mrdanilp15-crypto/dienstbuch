@@ -339,7 +339,7 @@ def api_auth_me(request: Request):
     must_2fa = bool(two_fa_required(user["role"]) and not user.get("totp"))
     from core.permissions import permissions_for
     return {"username": user["username"], "role": user["role"], "is_first_login": is_first, "personnel_id": p_id, "personnel_name": p_name, "must_setup_2fa": must_2fa,
-            "permissions": permissions_for(user["role"])}
+            "permissions": permissions_for(user)}
 
 @router.get("/api/auth/devices")
 def my_devices(request: Request):

@@ -342,7 +342,7 @@ applyChartTheme();
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
                     verwaltungTab: '',
-                    myPerms: [], permissionMatrix: null,
+                    myPerms: [], permissionMatrix: null, newCustomRole: { label: '', base_role: 'mannschaft' },
                     intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30, int_fahrzeugkontrolle: 7, int_fuehrerschein: 12, int_interessent: 21 },
                     
                     // Mängelmelder
@@ -3240,6 +3240,18 @@ applyChartTheme();
                     const res = await fetch('/api/admin/permissions/reset', { method: 'POST', credentials: 'include' });
                     if (res.ok) await this.loadPermissionMatrix();
                 },
+                customRoleList() { return this.permissionMatrix ? this.permissionMatrix.roles.filter(r => r.custom) : []; },
+                async createCustomRole() {
+                    const res = await fetch('/api/admin/custom-roles', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(this.newCustomRole) });
+                    if (res.ok) { this.newCustomRole.label = ''; await this.loadPermissionMatrix(); }
+                    else await appAlert((await res.json().catch(() => ({}))).detail || 'Rolle konnte nicht angelegt werden.');
+                },
+                async deleteCustomRole(r) {
+                    if (!await appConfirm(`Rolle „${r.label}“ löschen? Konten mit dieser Rolle fallen auf ihre Basisrolle (${r.base_label}) zurück.`)) return;
+                    const res = await fetch('/api/admin/custom-roles/' + encodeURIComponent(r.key), { method: 'DELETE', credentials: 'include' });
+                    if (res.ok) await this.loadPermissionMatrix();
+                    else await appAlert((await res.json().catch(() => ({}))).detail || 'Rolle konnte nicht gelöscht werden.');
+                },
                 permissionGroups() {
                     if (!this.permissionMatrix) return [];
                     const g = {};
@@ -3255,7 +3267,7 @@ applyChartTheme();
                 openSettingsTab(key) {
                     this.verwaltungTab = key;
                     const loaders = {
-                        logins: () => this.loadSystemUsers(), audit: () => this.loadAuditLog(), rechte: () => this.loadPermissionMatrix(),
+                        logins: () => { this.loadSystemUsers(); this.loadPermissionMatrix(); }, audit: () => this.loadAuditLog(), rechte: () => this.loadPermissionMatrix(),
                         sicherheit: () => { this.loadSecurity(); this.loadPrivacy(); },
                         betrieb: () => { this.loadHealth(); this.loadBackupInfo(); },
                         mail: () => this.loadMailSettings(), wache: () => { this.loadIntervals(); this.loadDueManager(); this.loadLogbooks(); }
@@ -4234,7 +4246,7 @@ applyChartTheme();
                 startUserEdit(usr) {
                     this.editingUserId = usr.id;
                     this.editingUsername = usr.username;
-                    this.editUserRole = usr.role;
+                    this.editUserRole = usr.custom_role ? 'custom:' + usr.custom_role : usr.role;
                     this.editUserPersonnelId = usr.personnel_id || null;
                 },
                 cancelUserEdit() {

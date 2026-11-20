@@ -28,6 +28,20 @@ class UserCreateRequest(BaseModel):
 VALID_ROLES = ("mannschaft", "geratewart", "jugendwarte", "atemschutzwart", "gruppenfuehrer", "leitung", "admin")
 
 
+def _resolve_role(value):
+    """"leitung" -> ("leitung", None); "custom:c_ab12cd34" -> (Basisrolle, "c_ab12cd34"). Unbekanntes -> 400."""
+    from core.permissions import custom_roles
+    if isinstance(value, str) and value.startswith("custom:"):
+        key = value[7:]
+        cr = custom_roles().get(key)
+        if not cr:
+            raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
+        return cr["base"], key
+    if value not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
+    return value, None
+
+
 def _other_admins(cur, exclude_username):
     cur.execute("SELECT COUNT(*) FROM users WHERE role = 'admin' AND username <> %s", (exclude_username,))
     return cur.fetchone()[0]
@@ -38,9 +52,14 @@ def list_users(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, username, role, is_first_login, personnel_id, last_login, failed_logins, lockout_until, totp_enabled FROM users ORDER BY username ASC")
+    cur.execute("SELECT id, username, role, custom_role, is_first_login, personnel_id, last_login, failed_logins, lockout_until, totp_enabled FROM users ORDER BY username ASC")
     users = cur.fetchall(); cur.close(); conn.close()
+    from core.permissions import custom_roles
+    _cr = custom_roles()
     for u in users:
+        u["custom_role_label"] = _cr[u["custom_role"]]["label"] if u.get("custom_role") in _cr else None
+        if u.get("custom_role") not in _cr:
+            u["custom_role"] = None
         u["last_login"] = str(u["last_login"]) if u["last_login"] else None
         u["is_locked"] = bool(u["lockout_until"] and u["lockout_until"] > datetime.now())
         u["lockout_until"] = str(u["lockout_until"]) if u["lockout_until"] else None
@@ -72,8 +91,7 @@ def add_user(data: UserCreateRequest, request: Request):
     username_clean = data.username.strip()
     if not username_clean:
         raise HTTPException(status_code=400, detail="Benutzername darf nicht leer sein!")
-    if data.role not in VALID_ROLES:
-        raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
+    base_role, custom_key = _resolve_role(data.role)
     invite_email = invite_name = None
     if data.invite:
         # Einladung statt Passwort: braucht eine verknuepfte Person mit E-Mail-Adresse und eingerichteten Mailversand
@@ -104,7 +122,7 @@ def add_user(data: UserCreateRequest, request: Request):
         import secrets as _secrets
         # Bei einer Einladung bekommt das Konto ein zufaelliges, niemandem bekanntes Passwort - der Link setzt das echte
         p_hash = hash_password(_secrets.token_urlsafe(32) if data.invite else data.password)
-        cur.execute("INSERT INTO users (username, password_hash, role, is_first_login, personnel_id) VALUES (%s, %s, %s, 1, %s)", (username_clean, p_hash, data.role, data.personnel_id or None))
+        cur.execute("INSERT INTO users (username, password_hash, role, custom_role, is_first_login, personnel_id) VALUES (%s, %s, %s, %s, 1, %s)", (username_clean, p_hash, base_role, custom_key, data.personnel_id or None))
         new_id = cur.lastrowid
         conn.commit()
         log_audit_action(user["username"], "NUTZER_ANLEGEN", f"Konto für '{username_clean}' verknüpft mit Personal-ID {data.personnel_id} erstellt" + (" (Einladung per Mail)." if data.invite else "."))
@@ -166,9 +184,7 @@ def reset_user_2fa(user_id: int, request: Request):
 def update_user_role(user_id: int, data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    new_role = data.get("role")
-    if new_role not in VALID_ROLES:
-        raise HTTPException(status_code=400, detail="Unbekannte Rolle.")
+    new_role, custom_key = _resolve_role(data.get("role"))
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
     row = cur.fetchone()
@@ -179,11 +195,11 @@ def update_user_role(user_id: int, data: dict, request: Request):
     if row[1] == "admin" and new_role != "admin" and _other_admins(cur, row[0]) == 0:
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Das ist der letzte Administrator - seine Rolle kann nicht geändert werden.")
-    cur.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
+    cur.execute("UPDATE users SET role = %s, custom_role = %s WHERE id = %s", (new_role, custom_key, user_id))
     conn.commit(); cur.close(); conn.close()
     if row:
         invalidate_role_cache(row[0])
-        log_audit_action(user["username"], "ROLLE_GEÄNDERT", f"Rolle von '{row[0]}' auf '{new_role}' geändert.")
+        log_audit_action(user["username"], "ROLLE_GEÄNDERT", f"Rolle von '{row[0]}' auf '{new_role}'" + (f" (eigene Rolle '{custom_key}')" if custom_key else "") + " geändert.")
     return {"status": "success"}
 
 @router.put("/api/users/{user_id}/personnel")
@@ -368,9 +384,9 @@ def get_permission_matrix(request: Request):
 def set_permission(data: dict, request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
-    from core.permissions import ROLES, valid_permission, default_allowed, invalidate_permissions_cache
+    from core.permissions import role_key_valid, valid_permission, default_allowed, invalidate_permissions_cache
     role = data.get("role"); perm = data.get("permission"); allowed = bool(data.get("allowed"))
-    if role not in ROLES or not valid_permission(perm):
+    if not role_key_valid(role) or not valid_permission(perm):
         raise HTTPException(status_code=400, detail="Unbekannte Rolle oder unbekanntes Recht.")
     if role == "admin":
         raise HTTPException(status_code=400, detail="Admins haben immer alle Rechte.")
@@ -384,6 +400,54 @@ def set_permission(data: dict, request: Request):
     invalidate_permissions_cache()
     log_audit_action(user["username"], "RECHT_GEAENDERT", f"Recht '{perm}' für Rolle '{role}': {'erlaubt' if allowed else 'entzogen'}.")
     return {"status": "success"}
+
+@router.post("/api/admin/custom-roles")
+def create_custom_role(data: dict, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.permissions import BASE_ROLES, custom_roles, invalidate_permissions_cache
+    import uuid as _uuid
+    label = (data.get("label") or "").strip()
+    base = data.get("base_role")
+    if len(label) < 2 or len(label) > 40:
+        raise HTTPException(status_code=400, detail="Der Name der Rolle braucht 2 bis 40 Zeichen.")
+    if base not in BASE_ROLES:
+        raise HTTPException(status_code=400, detail="Bitte eine Basisrolle wählen (nicht Admin).")
+    existing = custom_roles()
+    if len(existing) >= 20:
+        raise HTTPException(status_code=400, detail="Mehr als 20 eigene Rollen sind nicht möglich.")
+    low = label.lower()
+    if any(v["label"].lower() == low for v in existing.values()) or any(low == r for r in VALID_ROLES):
+        raise HTTPException(status_code=400, detail="Diese Rolle gibt es schon.")
+    key = "c_" + _uuid.uuid4().hex[:8]
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("INSERT INTO custom_roles (role_key, label, base_role) VALUES (%s, %s, %s)", (key, label, base))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_permissions_cache()
+    log_audit_action(user["username"], "ROLLE_ANGELEGT", f"Eigene Rolle '{label}' (Basis: {base}) angelegt.")
+    return {"status": "success", "key": key}
+
+@router.delete("/api/admin/custom-roles/{role_key}")
+def delete_custom_role(role_key: str, request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "admin": raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from core.permissions import custom_roles, invalidate_permissions_cache
+    cr = custom_roles().get(role_key)
+    if not cr:
+        raise HTTPException(status_code=404, detail="Rolle nicht gefunden")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE custom_role = %s", (role_key,))
+    names = [r[0] for r in cur.fetchall()]
+    # Betroffene Konten behalten ihre Basisrolle und damit deren Standardrechte
+    cur.execute("UPDATE users SET custom_role = NULL WHERE custom_role = %s", (role_key,))
+    cur.execute("DELETE FROM role_permissions WHERE role = %s", (role_key,))
+    cur.execute("DELETE FROM custom_roles WHERE role_key = %s", (role_key,))
+    conn.commit(); cur.close(); conn.close()
+    invalidate_permissions_cache()
+    for n in names:
+        invalidate_role_cache(n)
+    log_audit_action(user["username"], "ROLLE_GELOESCHT", f"Eigene Rolle '{cr['label']}' gelöscht ({len(names)} Konten fallen auf die Basisrolle '{cr['base']}' zurück).")
+    return {"status": "success", "affected": len(names)}
 
 @router.post("/api/admin/permissions/reset")
 def reset_permissions(request: Request):
