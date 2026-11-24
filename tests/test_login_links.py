@@ -43,7 +43,7 @@ for _ in range(30):
     time.sleep(0.4)
 check("Passwort vergessen: GROSS geschriebener Benutzername findet das Konto", len(mails) == 1)
 msg = email.message_from_bytes(mails[0][1], policy=policy.default)
-body = msg.get_body().get_content()
+body = msg.get_body(("plain",)).get_content()
 check("Mail-Betreff nennt das Konto", "demo" in str(msg["Subject"]), str(msg["Subject"]))
 check("Mail-Text erklärt den Benutzernamen", "Groß-/Kleinschreibung" in body and '"demo"' in body)
 tok = re.search(r"token=([\w-]+)", body).group(1)
@@ -69,6 +69,7 @@ group = int(sql("select id from groups_table order by id limit 1"))
 aud = [pid("Jonas Weber"), pid("Tim Fischer")]
 
 # --- Termin mit 2 Eingeladenen anlegen -> Mail mit GENAUEM Link
+time.sleep(4)  # Anmelde-Hinweise der Test-Konten (Mail im Hintergrund) erst ankommen lassen
 mails.clear()
 r = admin.post("/api/missions/schedules", json={"title": "Link-Test Atemschutz", "date": (today + datetime.timedelta(days=4)).isoformat(), "time": "19:00", "type": "Übung",
         "group_id": group, "audience": "selected", "audience_ids": aud, "notify": True})
@@ -77,7 +78,7 @@ for _ in range(40):
     if mails: break
     time.sleep(0.4)
 check("Neuer Termin: Mail geht an genau die Eingeladenen", len(mails) == 1 and sorted(mails[0][0]) == ["jonas.weber@example.org", "tim.fischer@example.org"], str(mails[0][0]) if mails else "keine Mail")
-body = email.message_from_bytes(mails[0][1], policy=policy.default).get_body().get_content() if mails else ""
+body = email.message_from_bytes(mails[0][1], policy=policy.default).get_body(("plain",)).get_content() if mails else ""
 check("Mail enthält den genauen Link zum Termin", f"{B}/dashboard?open=termin:{sid}" in body, body[-120:].replace("\n", " "))
 # Serie: Link zeigt auf den ersten Termin
 mails.clear()
@@ -87,7 +88,7 @@ first = int(sql("select id from schedules where title='Link-Test Serie' order by
 for _ in range(40):
     if mails: break
     time.sleep(0.4)
-body = email.message_from_bytes(mails[0][1], policy=policy.default).get_body().get_content() if mails else ""
+body = email.message_from_bytes(mails[0][1], policy=policy.default).get_body(("plain",)).get_content() if mails else ""
 check("Serie: nur EINE Mail, Link zum ersten Termin", len(mails) == 1 and f"open=termin:{first}" in body)
 ctl.stop()
 

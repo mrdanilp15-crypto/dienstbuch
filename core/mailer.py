@@ -56,7 +56,7 @@ def _one_line(text: str) -> str:
 
 
 def send_mail(recipients, subject: str, body: str, bcc: bool = False, settings: dict = None) -> int:
-    """Verschickt eine Klartext-Mail. bcc=True versteckt die Empfänger voreinander
+    """Verschickt eine Mail (gestaltetes HTML plus Klartext als Alternative). bcc=True versteckt die Empfänger voreinander
     (Rundmails an die ganze Wehr). Wirft bei SMTP-Fehlern - Aufrufer entscheidet, ob melden oder loggen."""
     s = settings if settings is not None else get_mail_settings()
     if not is_mail_configured(s):
@@ -70,6 +70,12 @@ def send_mail(recipients, subject: str, body: str, bcc: bool = False, settings: 
     msg["From"] = formataddr((_one_line(s.get("sender_name")) or "Dienstbuch", s["sender_address"]))
     msg["To"] = s["sender_address"] if bcc else ", ".join(to)
     msg.set_content(body)
+    try:
+        from core.mail_html import render_html
+        from core.utils import get_station_name
+        msg.add_alternative(render_html(subject, body, get_station_name(), alarm=_one_line(subject).lower().startswith(("alarm", "test-alarm", "einsatz"))), subtype="html")
+    except Exception as e:  # Gestaltung darf den Versand nie verhindern - dann geht nur der Text raus
+        print(f"HTML-Mail nicht erzeugt, Klartext wird gesendet: {e}")
 
     port = int(s.get("smtp_port") or 587)
     security = s.get("smtp_security") or "starttls"
@@ -146,7 +152,7 @@ def send_alarm_mail(title: str, stichwort: str, adresse: str, meldung: str):
         s = get_mail_settings()
         if not (is_mail_configured(s) and s.get("alarm_mail")):
             return
-        body = f"{title}\n\nStichwort: {stichwort}\nOrt: {adresse}\nMeldung: {meldung}\n"
+        body = f"Stichwort: {stichwort}\nOrt: {adresse}\nMeldung: {meldung}\n"
         if s.get("app_url"):
             body += f"\nAlarm im Dienstbuch öffnen: {s['app_url']}/dashboard?open=alarm\n"
         send_mail_background(get_active_member_emails(), f"{title}: {stichwort}", body, bcc=True)

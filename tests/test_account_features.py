@@ -47,7 +47,7 @@ def wait_mail(n=1, timeout=12):
 
 
 def body_of(i=-1):
-    return email.message_from_bytes(mails[i][1], policy=policy.default).get_body().get_content()
+    return email.message_from_bytes(mails[i][1], policy=policy.default).get_body(("plain",)).get_content()
 
 
 sql("delete from users where username <> 'demo'")

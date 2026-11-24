@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 29,
+        "version": "2.79",
+        "date": "2026-11-24",
+        "items": [
+            {"type": "new", "tag": "E-Mail", "title": "Mails jetzt gestaltet statt nur Text",
+             "text": "Alle Mails des Dienstbuchs (Alarm, Fristen, Termine, Einladung, Passwort, Sicherheit, Tageszusammenfassung) kommen als übersichtliche HTML-Mail mit Kopfband in Wehr-Name, Tabelle für Stichwort/Ort/Meldung, Listen, hervorgehobenen Überfällen und großem Knopf zum Öffnen. Alarme sind rot. Der Klartext geht weiter als Alternative mit."},
+        ],
+    },
+    {
         "id": 28,
         "version": "2.78",
         "date": "2026-11-24",

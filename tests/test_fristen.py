@@ -157,7 +157,7 @@ check("Kein gelbes Banner für alle mehr", sql("select count(*) from system_broa
 def mail_to(addr):
     for rcpt, raw in mails:
         if addr in rcpt:
-            return email.message_from_bytes(raw, policy=policy.default).get_body().get_content()
+            return email.message_from_bytes(raw, policy=policy.default).get_body(("plain",)).get_content()
     return None
 
 

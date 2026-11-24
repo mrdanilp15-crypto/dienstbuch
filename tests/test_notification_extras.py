@@ -39,7 +39,7 @@ class H:
 
 def mail_text(i):
     msg = email.message_from_bytes(mails[i][1], policy=policy.default)
-    return str(msg["Subject"]), msg.get_body().get_content()
+    return str(msg["Subject"]), msg.get_body(("plain",)).get_content()
 
 
 PW = "Blauer Himmel 4711"
