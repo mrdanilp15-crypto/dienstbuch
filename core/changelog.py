@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 28,
+        "version": "2.78",
+        "date": "2026-11-24",
+        "items": [
+            {"type": "new", "tag": "Übersicht", "title": "Neun weitere Karten zur Auswahl",
+             "text": "Unter „Bearbeiten“ in der Übersicht lassen sich jetzt dazuschalten: Meine Stunden, Meine Rückmeldungen (mit Ja/Vielleicht/Nein direkt auf der Karte), Nächste Termine, Letzte Einsätze, Offene Berichte, Fahrzeugstatus, Mannschaft (Aktive, Atemschutz, abgelaufene G26), Pinnwand und Schnellzugriff mit eigenen Links (z. B. Wetter, Leitstelle, Vereinsseite). Bestehende Anordnungen bleiben unverändert, die neuen Karten warten ausgeblendet auf dich."},
+        ],
+    },
+    {
         "id": 27,
         "version": "2.77",
         "date": "2026-11-20",

@@ -388,7 +388,7 @@
                         <button class="btn btn-sm rounded-pill px-3" :class="overviewEdit ? 'btn-premium' : 'btn-outline-light'" @click="overviewEdit = !overviewEdit"><i class="fa me-1" :class="overviewEdit ? 'fa-check' : 'fa-pen'"></i>{{ overviewEdit ? 'Fertig' : 'Bearbeiten' }}</button>
                     </div>
                     <div v-if="overviewEdit && overviewHiddenWidgets.length" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
-                        <span class="text-muted small">Ausgeblendet:</span>
+                        <span class="text-muted small">Karten hinzufügen:</span>
                         <button v-for="w in overviewHiddenWidgets" :key="w.id" class="btn btn-sm btn-outline-secondary rounded-pill" @click="showOverviewWidget(w.id)"><i class="fa fa-plus me-1"></i>{{ w.title }}</button>
                     </div>
                     <div class="row g-3 overview-grid">
@@ -457,6 +457,98 @@
                                         <span class="text-nowrap" :class="i.overdue ? 'text-danger' : 'text-muted'">{{ dt(i.due_date) }}</span>
                                     </div>
                                     <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'fristen'">Alle Fristen ansehen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'stunden'">
+                                    <div v-if="personalStats.unlinked" class="text-muted small py-2">Dein Konto ist noch keiner Person zugeordnet. Das geht im Profil (unten links).</div>
+                                    <div v-else class="d-flex gap-4 mb-1">
+                                        <div><div class="text-muted small">Stunden {{ selectedYear }}</div><div class="fs-2 fw-bold text-danger">{{ personalStats.hours }}h</div></div>
+                                        <div><div class="text-muted small">Besuchte Dienste</div><div class="fs-2 fw-bold text-white">{{ personalStats.count }}</div></div>
+                                    </div>
+                                    <a class="small text-info d-inline-block mt-1" style="cursor:pointer;" @click="openSelfPasswordModal()">Liste im Profil ansehen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'rueckmeldung'">
+                                    <div v-if="!overviewRsvpItems.length" class="text-muted small py-3 text-center">Keine Termine in den nächsten drei Wochen.</div>
+                                    <div v-for="s in overviewRsvpItems" :key="s.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05);">
+                                        <div class="fw-bold text-white small" style="cursor:pointer;" @click="openOverviewSchedule(s)">{{ s.title }}</div>
+                                        <div class="text-muted small mb-1">{{ dt(s.date) }} · {{ s.time || 'ganztägig' }}</div>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Ja' ? 'btn-success' : 'btn-outline-success'" @click="submitScheduleRsvp(s.id, 'Ja')">Ja</button>
+                                            <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Vielleicht' ? 'btn-warning' : 'btn-outline-warning'" @click="submitScheduleRsvp(s.id, 'Vielleicht')">?</button>
+                                            <button class="btn" :class="scheduleRsvpMap[s.id].my_status === 'Nein' ? 'btn-danger' : 'btn-outline-danger'" @click="submitScheduleRsvp(s.id, 'Nein')">Nein</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'naechsteTermine'">
+                                    <div v-if="!overviewNextSchedules.length" class="text-muted small py-3 text-center">Keine kommenden Termine.</div>
+                                    <div v-for="s in overviewNextSchedules" :key="s.id" class="d-flex gap-3 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="openOverviewSchedule(s)">
+                                        <div class="text-center" style="min-width:46px;"><div class="fw-bold text-danger">{{ formatDateDay(String(s.date).slice(0,10)) }}</div><div class="text-muted" style="font-size:0.65rem;">{{ formatDateMonthYear(String(s.date).slice(0,10)) }}</div></div>
+                                        <div class="flex-grow-1 text-truncate"><div class="text-white small fw-bold text-truncate">{{ s.title }}</div><div class="text-muted" style="font-size:0.72rem;">{{ s.time || 'ganztägig' }}<span v-if="s.type"> · {{ s.type }}</span></div></div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'letzteEinsaetze'">
+                                    <div v-if="!overviewLatestMissions.length" class="text-muted small py-3 text-center">Noch keine Einsätze erfasst.</div>
+                                    <div v-for="m in overviewLatestMissions" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick({ ...m, isNewMission: true })">
+                                        <span class="badge bg-danger">{{ formatDateDay(String(m.date).slice(0,10)) }}.{{ String(m.date).slice(5,7) }}.</span>
+                                        <div class="flex-grow-1 text-truncate small text-white">{{ m.stichwort }} <span class="text-muted">· {{ m.adresse }}</span></div>
+                                        <i class="fa" :class="(m.leader_signature || m.status === 'Freigegeben') ? 'fa-circle-check text-success' : 'fa-pen text-warning'"></i>
+                                    </div>
+                                    <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'einsaetze'">Alle Einsatzberichte ansehen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'offeneBerichte'">
+                                    <div class="d-flex align-items-baseline gap-2 mb-1"><span class="fs-2 fw-bold" :class="overviewDrafts.count ? 'text-warning' : 'text-success'">{{ overviewDrafts.count }}</span><span class="text-muted small">Berichte noch nicht freigegeben</span></div>
+                                    <div v-for="m in overviewDrafts.top" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick({ ...m, isNewMission: true })">
+                                        <span class="text-muted small text-nowrap">{{ dt(String(m.date).slice(0,10)) }}</span>
+                                        <span class="flex-grow-1 text-truncate small text-white">{{ m.stichwort }}</span>
+                                    </div>
+                                    <div v-if="!overviewDrafts.count" class="text-muted small"><i class="fa fa-circle-check text-success me-1"></i>Alles freigegeben.</div>
+                                </div>
+
+                                <div v-else-if="w.id === 'fahrzeuge'">
+                                    <div v-if="!vehicles.length" class="text-muted small py-3 text-center">Keine Fahrzeuge angelegt.</div>
+                                    <div v-for="v in vehicles.slice(0, 6)" :key="v.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10">
+                                        <span class="status-dot" :class="'status-' + v.status"></span>
+                                        <div class="flex-grow-1 text-truncate small text-white fw-bold">{{ v.name }} <span class="text-muted fw-normal">S{{ v.status }}</span></div>
+                                        <small v-if="v.tuv_date" :class="isOverdue(v.tuv_date) ? 'text-danger fw-bold' : 'text-muted'">TÜV {{ dt(v.tuv_date) }}</small>
+                                    </div>
+                                    <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'fahrzeuge'">Fahrzeugpool öffnen</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'mannschaft'">
+                                    <div v-if="!canSeePersonnel" class="text-muted small py-3">Diese Karte ist für deine Rolle nicht freigegeben.</div>
+                                    <div v-else class="d-flex gap-4 flex-wrap">
+                                        <div><div class="text-muted small">Aktive</div><div class="fs-2 fw-bold text-white">{{ overviewCrew.active }}</div></div>
+                                        <div><div class="text-muted small">Atemschutz</div><div class="fs-2 fw-bold text-white">{{ overviewCrew.agt }}</div></div>
+                                        <div><div class="text-muted small">G26 abgelaufen</div><div class="fs-2 fw-bold" :class="overviewCrew.g26 ? 'text-danger' : 'text-success'">{{ overviewCrew.g26 }}</div></div>
+                                    </div>
+                                </div>
+
+                                <div v-else-if="w.id === 'pinnwand'">
+                                    <div v-if="!overviewPins.length" class="text-muted small py-3 text-center">Keine öffentlichen Notizen.</div>
+                                    <div v-for="n in overviewPins" :key="n.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05);">
+                                        <div class="fw-bold text-white small">{{ n.title }}</div>
+                                        <div class="text-muted small" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ n.content }}</div>
+                                    </div>
+                                    <a class="small text-info d-inline-block mt-1" style="cursor:pointer;" @click="activeTab = 'notizen'">Zum Notizbuch</a>
+                                </div>
+
+                                <div v-else-if="w.id === 'schnellzugriff'">
+                                    <div v-if="!safeQuickLinks.length && !overviewEdit" class="text-muted small py-2">Noch keine Links. Mit „Bearbeiten“ legst du eigene Verknüpfungen an (z. B. Wetter, Leitstelle, Vereinsseite).</div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span v-for="(l, i) in quickLinks" :key="i" class="d-inline-flex align-items-center gap-1">
+                                            <a v-if="safeLinkUrl(l.url)" :href="safeLinkUrl(l.url)" :target="/^https?:/i.test(l.url) ? '_blank' : '_self'" rel="noopener noreferrer" class="btn btn-sm btn-outline-light rounded-pill"><i class="fa me-1" :class="/^https?:/i.test(l.url) ? 'fa-arrow-up-right-from-square' : 'fa-arrow-right'"></i>{{ l.label }}</a>
+                                            <button v-if="overviewEdit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Link entfernen" @click="removeQuickLink(i)"><i class="fa fa-xmark"></i></button>
+                                        </span>
+                                    </div>
+                                    <div v-if="overviewEdit" class="d-flex flex-wrap gap-2 mt-3">
+                                        <input type="text" v-model="quickLinkForm.label" class="form-control form-control-sm" style="max-width:130px;" placeholder="Name" maxlength="30">
+                                        <input type="text" v-model="quickLinkForm.url" class="form-control form-control-sm" style="max-width:190px;" placeholder="https://…" @keyup.enter="addQuickLink">
+                                        <button class="btn btn-premium btn-sm rounded-pill px-3" @click="addQuickLink"><i class="fa fa-plus"></i></button>
+                                    </div>
                                 </div>
 
                                 <div v-else-if="w.id === 'maengel'">

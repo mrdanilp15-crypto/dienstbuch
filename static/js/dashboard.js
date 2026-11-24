@@ -265,7 +265,9 @@ applyChartTheme();
                     newCourse: { course_name: '', date: localISODate(), certificate_url: '', valid_until: '' },
                     newHonor: { kind: 'Beförderung', title: '', date: localISODate(), note: '' },
                     idCard: null, idCardError: '', showArchivedEquipment: false,
-                    overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: [] },
+                    overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel', 'stunden', 'rueckmeldung', 'naechsteTermine', 'letzteEinsaetze', 'offeneBerichte', 'fahrzeuge', 'mannschaft', 'pinnwand', 'schnellzugriff'],
+                                       hidden: ['stunden', 'rueckmeldung', 'naechsteTermine', 'letzteEinsaetze', 'offeneBerichte', 'fahrzeuge', 'mannschaft', 'pinnwand', 'schnellzugriff'] },
+                    quickLinks: [], quickLinkForm: { label: '', url: '' },
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
                     menuFavorites: [], selfTab: 'stat', mobileSearchOpen: false,
@@ -533,7 +535,16 @@ applyChartTheme();
                         termine: { title: 'Termine', icon: 'fa-calendar-days' },
                         benachrichtigungen: { title: 'Benachrichtigungen', icon: 'fa-bell' },
                         fristen: { title: 'Fristen', icon: 'fa-clock' },
-                        maengel: { title: 'Offene Mängel', icon: 'fa-triangle-exclamation' }
+                        maengel: { title: 'Offene Mängel', icon: 'fa-triangle-exclamation' },
+                        stunden: { title: 'Meine Stunden', icon: 'fa-stopwatch' },
+                        rueckmeldung: { title: 'Meine Rückmeldungen', icon: 'fa-hand-point-up' },
+                        naechsteTermine: { title: 'Nächste Termine', icon: 'fa-calendar-week' },
+                        letzteEinsaetze: { title: 'Letzte Einsätze', icon: 'fa-fire' },
+                        offeneBerichte: { title: 'Offene Berichte', icon: 'fa-file-circle-exclamation' },
+                        fahrzeuge: { title: 'Fahrzeugstatus', icon: 'fa-truck' },
+                        mannschaft: { title: 'Mannschaft', icon: 'fa-people-group' },
+                        pinnwand: { title: 'Pinnwand', icon: 'fa-thumbtack' },
+                        schnellzugriff: { title: 'Schnellzugriff', icon: 'fa-link' }
                     };
                 },
                 overviewWidgets() {
@@ -553,6 +564,37 @@ applyChartTheme();
                     const latest = [...list].sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 3);
                     return { year, total: list.length, open, by, latest };
                 },
+                overviewUpcoming() {
+                    const today = localISODate();
+                    return (this.schedules || []).filter(s => String(s.date).slice(0, 10) >= today)
+                        .sort((a, b) => (String(a.date).slice(0, 10) + (a.time || '')).localeCompare(String(b.date).slice(0, 10) + (b.time || '')));
+                },
+                overviewNextSchedules() { return this.overviewUpcoming.slice(0, 5); },
+                overviewRsvpItems() {
+                    const limit = localISODate(new Date(Date.now() + 21 * 86400000));
+                    const mine = s => (this.scheduleRsvpMap[s.id] || {}).my_status || null;
+                    return this.overviewUpcoming.filter(s => this.scheduleRsvpMap[s.id] && String(s.date).slice(0, 10) <= limit)
+                        .sort((a, b) => (mine(a) ? 1 : 0) - (mine(b) ? 1 : 0)).slice(0, 4);
+                },
+                overviewLatestMissions() {
+                    return [...(this.missions || [])].filter(m => m && m.date)
+                        .sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 4);
+                },
+                overviewDrafts() {
+                    const list = (this.missions || []).filter(m => m && !(m.leader_signature || m.status === 'Freigegeben'))
+                        .sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || ''))));
+                    return { count: list.length, top: list.slice(0, 4) };
+                },
+                overviewCrew() {
+                    const act = (this.personnel || []).filter(p => p.membership_status === 'Aktiv');
+                    return { active: act.length, agt: act.filter(p => p.is_agt).length, g26: act.filter(p => p.is_agt && p.g26_expired).length };
+                },
+                overviewPins() {
+                    return (this.notes || []).filter(n => n.visibility === 'public').slice(0, 3);
+                },
+                safeQuickLinks() {
+                    return (this.quickLinks || []).filter(l => l && l.label && this.safeLinkUrl(l.url));
+                },
                 overviewDayItems() {
                     return (this.schedules || []).filter(s => String(s.date).slice(0, 10) === this.overviewDay)
                         .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
@@ -566,7 +608,7 @@ applyChartTheme();
                 overviewNotifItems() {
                     const all = [];
                     (this.notifCats || []).forEach(c => (c.items || []).forEach(n => all.push({ ...n, catLabel: c.label, catIcon: c.icon })));
-                    return all.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 5);
+                    return all.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 4);
                 },
                 overviewDue() {
                     const items = (this.dueItems || []).filter(i => !i.first_check).slice().sort((a, b) => (a.days || 0) - (b.days || 0));
@@ -3457,6 +3499,44 @@ applyChartTheme();
                     this.savedFilters = { ...this.savedFilters, [listKey]: (this.savedFilters[listKey] || []).filter(x => x.name !== f.name) };
                     await this.persistSavedFilters();
                 },
+                safeLinkUrl(u) {
+                    const t = String(u || '').trim();
+                    return /^https?:\/\//i.test(t) || /^\/(?!\/)/.test(t) ? t : '';
+                },
+                async loadQuickLinks() {
+                    try {
+                        const res = await fetch('/api/users/me/prefs/quick_links', { credentials: 'include' });
+                        const v = res.ok ? (await res.json()).value : null;
+                        if (Array.isArray(v)) this.quickLinks = v.filter(l => l && typeof l.label === 'string' && typeof l.url === 'string').slice(0, 12);
+                    } catch (e) { console.error(e); }
+                },
+                async persistQuickLinks() {
+                    try { await fetch('/api/users/me/prefs/quick_links', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ value: this.quickLinks }) }); } catch (e) { console.error(e); }
+                },
+                async addQuickLink() {
+                    const label = (this.quickLinkForm.label || '').trim().slice(0, 30);
+                    let url = (this.quickLinkForm.url || '').trim();
+                    if (!label || !url) { await appAlert('Bitte Name und Adresse eintragen.'); return; }
+                    if (!/^(https?:\/\/|\/)/i.test(url)) url = 'https://' + url;
+                    if (!this.safeLinkUrl(url)) { await appAlert('Diese Adresse ist nicht erlaubt. Erlaubt sind Internetadressen (https://…) und Seiten dieser App (/dashboard …).'); return; }
+                    if (this.quickLinks.length >= 12) { await appAlert('Mehr als 12 Links sind nicht möglich.'); return; }
+                    this.quickLinks = [...this.quickLinks, { label, url }];
+                    this.quickLinkForm = { label: '', url: '' };
+                    await this.persistQuickLinks();
+                },
+                async removeQuickLink(i) {
+                    this.quickLinks = this.quickLinks.filter((_, ix) => ix !== i);
+                    await this.persistQuickLinks();
+                },
+                // Daten für sichtbare Karten laden (nur was wirklich gebraucht wird)
+                ensureOverviewData() {
+                    const vis = new Set(this.overviewWidgets.map(w => w.id));
+                    if (vis.has('stunden')) this.fetchPersonalStats();
+                    if (vis.has('fahrzeuge')) this.loadVehicles();
+                    if (vis.has('mannschaft') && this.canSeePersonnel) this.loadPersonnel();
+                    if (vis.has('pinnwand')) this.loadNotes();
+                    if (vis.has('schnellzugriff')) this.loadQuickLinks();
+                },
                 async loadOverview() {
                     this.loadOverviewLayout();
                     try {
@@ -3468,6 +3548,7 @@ applyChartTheme();
                         ]);
                     } catch (e) { console.error('Übersicht laden:', e); }
                     this.overviewLoaded = true;
+                    this.ensureOverviewData();
                     this.$nextTick(() => this.renderOverviewChart());
                 },
                 async loadOverviewLayout() {
@@ -3479,8 +3560,10 @@ applyChartTheme();
                         if (v && Array.isArray(v.order)) {
                             const known = Object.keys(this.overviewWidgetDefs);
                             const order = v.order.filter(id => known.includes(id));
-                            known.forEach(id => { if (!order.includes(id)) order.push(id); });
-                            this.overviewLayout = { order, hidden: (v.hidden || []).filter(id => known.includes(id)) };
+                            const hidden = (v.hidden || []).filter(id => known.includes(id));
+                            known.forEach(id => { if (!order.includes(id)) { order.push(id); hidden.push(id); } });
+                            this.overviewLayout = { order, hidden };
+                            this.ensureOverviewData();
                             this.$nextTick(() => this.renderOverviewChart());
                         }
                     } catch (e) { console.error(e); }
@@ -3507,6 +3590,7 @@ applyChartTheme();
                 },
                 showOverviewWidget(id) {
                     this.overviewLayout = { ...this.overviewLayout, hidden: this.overviewLayout.hidden.filter(x => x !== id) };
+                    this.ensureOverviewData();
                     this.saveOverviewLayout();
                 },
                 shiftOverviewDay(n) {

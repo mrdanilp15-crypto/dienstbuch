@@ -71,6 +71,22 @@ with sync_playwright() as pw:
     page.go_forward(); page.wait_for_timeout(500)
     check("Vor geht wieder zum nächsten", vm_eval(page, "vm.activeTab") == "fristen")
 
+    # Übersicht: neue Karten zur Auswahl
+    page.evaluate("async () => { await fetch('/api/users/me/prefs/dashboard_layout', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: {order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel'], hidden: []}}) }); }")
+    page.reload(); page.wait_for_timeout(3500); close_modals(page)
+    vm_eval(page, "(vm.activeTab = 'uebersicht', 1)"); page.wait_for_timeout(2500)
+    n_default = vm_eval(page, "vm.overviewWidgets.length")
+    check("Übersicht: bei bestehender Anordnung bleiben die neuen Karten zunächst ausgeblendet", n_default == 6, str(n_default))
+    vm_eval(page, "(vm.overviewLayout = { order: vm.overviewLayout.order, hidden: [] }, vm.ensureOverviewData(), 1)")
+    page.wait_for_timeout(2500)
+    titles = page.evaluate("() => [...document.querySelectorAll('.overview-grid .premium-card h6')].map(h => h.innerText.trim())")
+    check("Übersicht: alle fünfzehn Karten lassen sich einblenden", len(titles) == 15, str(titles))
+    for want in ("Meine Stunden", "Meine Rückmeldungen", "Nächste Termine", "Letzte Einsätze", "Offene Berichte", "Fahrzeugstatus", "Mannschaft", "Pinnwand", "Schnellzugriff"):
+        check(f"Übersicht: Karte {want}", want in titles)
+    bad = vm_eval(page, "['javascript:alert(1)', '//evil.example', 'https://ok.example', '/dashboard#kalender'].map(u => vm.safeLinkUrl(u))")
+    check("Schnellzugriff: nur https-Adressen und App-Seiten erlaubt", bad == ["", "", "https://ok.example", "/dashboard#kalender"], str(bad))
+    page.evaluate("async () => { await fetch('/api/users/me/prefs/dashboard_layout', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: null}) }); }")
+
     # Favoriten im Menü und Leiste unten (Handy)
     page.evaluate("async () => { await fetch('/api/users/me/prefs/menu_favorites', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: ['maengel', 'fristen']}) }); }")
     vm_eval(page, "(vm.menuFavorites = ['maengel', 'fristen'], 1)")

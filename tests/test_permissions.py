@@ -262,6 +262,10 @@ check("Einsätze löschen: Leitung darf (Standard, 404 weil unbekannt)", cl["lei
 admin.post("/api/admin/permissions/reset")
 check("Gruppen: nach Reset wieder gesperrt", cl["mannschaft"].post("/groups", json={"name": "ZZ-Rechtetest2"}).status_code == 403)
 
+check("Prefs: Schnellzugriff-Links speicherbar", admin.put("/api/users/me/prefs/quick_links", json={"value": [{"label": "Wetter", "url": "https://dwd.de"}]}).status_code == 200)
+check("Prefs: Schnellzugriff-Links lesbar", admin.get("/api/users/me/prefs/quick_links").json()["value"] == [{"label": "Wetter", "url": "https://dwd.de"}])
+admin.put("/api/users/me/prefs/quick_links", json={"value": None})
+
 # --- Eigene Rollen
 check("Eigene Rolle: nur Admin legt an", cl["leitung"].post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "mannschaft"}).status_code == 403)
 check("Eigene Rolle: Basis Admin abgelehnt", admin.post("/api/admin/custom-roles", json={"label": "Kassenwart", "base_role": "admin"}).status_code == 400)
