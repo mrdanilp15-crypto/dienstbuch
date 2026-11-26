@@ -1603,7 +1603,7 @@
                                     <div class="p-4 pt-0">
                                         <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10">
                                             <div class="text-muted small mb-1"><strong>Offene Webhook-URL (AlarmDispatcher, aPager, GroupAlarm, Divera, cURL):</strong></div>
-                                            <code class="text-danger d-block text-break" style="font-size: 0.8rem;">http://{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
+                                            <code class="text-danger d-block text-break" style="font-size: 0.8rem;">{{ serverProtocol }}//{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
                                             <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>URL kopieren</button>
                                         </div>
                                         <div class="small text-muted mb-3 bg-black bg-opacity-30 p-3 rounded border border-secondary border-opacity-10">

@@ -621,6 +621,7 @@ applyChartTheme();
                 canManageProspects() { return this.hasPerm('prospects.manage'); },
                 canManageMissions() { return this.hasPerm('missions.manage'); },
                 canApproveMissions() { return this.hasPerm('missions.approve'); },
+                serverProtocol() { return window.location.protocol; },
                 canManagePersonnel() { return this.hasPerm('personnel.manage'); },
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
                 dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
