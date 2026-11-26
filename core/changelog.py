@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 35,
+        "version": "2.85",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Organisation", "title": "Umfragen bearbeiten und erinnern",
+             "text": "Umfragen und Helfersuchen lassen sich nachträglich ändern, ohne dass Eintragungen verloren gehen. Wer noch nicht geantwortet hat, wird kurz vor Ablauf der Frist einmal erinnert."},
+            {"type": "new", "tag": "Kalender", "title": "Helfersuche im Kalender",
+             "text": "Eine Helfersuche kann ein Datum bekommen. Sie steht dann im Kalender (mit Haken, wenn du eingetragen bist) und im Kalender-Abo. Ändert sich der Termin, werden die Eingetragenen benachrichtigt."},
+        ],
+    },
+    {
         "id": 34,
         "version": "2.84",
         "date": "2026-11-26",

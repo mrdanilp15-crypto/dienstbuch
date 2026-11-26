@@ -19,7 +19,10 @@ def export_calendar_ical(request: Request, token: str = ""):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     # Der Abo-Link ist fuer alle gleich (kein Login) - deshalb nur Termine, die fuer alle gelten.
     cur.execute("SELECT * FROM schedules WHERE audience = 'all' OR audience IS NULL")
-    schedules = cur.fetchall(); cur.close(); conn.close()
+    schedules = cur.fetchall()
+    # Helfersuchen mit Datum (ohne Namen der Eingetragenen - der Link ist für alle gleich)
+    cur.execute("SELECT id, title, description, event_date, event_time FROM polls WHERE kind = 'helfer' AND event_date IS NOT NULL")
+    helper_events = cur.fetchall(); cur.close(); conn.close()
     
     import datetime
 
@@ -54,6 +57,23 @@ def export_calendar_ical(request: Request, token: str = ""):
         ics += f"DTEND:{dt_end_str}\r\n"
         ics += f"SUMMARY:{ics_escape(s['title'])}\r\n"
         ics += f"DESCRIPTION:{ics_escape(s['description'])} ({ics_escape(s['type'])})\r\n"
+        ics += "END:VEVENT\r\n"
+    for p in helper_events:
+        day = p["event_date"]
+        ics += "BEGIN:VEVENT\r\n"
+        ics += f"UID:POLL{p['id']}@feuerwehr-dienstbuch.de\r\n"
+        if p["event_time"]:
+            h, m = map(int, p["event_time"].split(":"))
+            dt = datetime.datetime(day.year, day.month, day.day, h, m)
+            ics += f"DTSTAMP:{dt.strftime('%Y%m%dT%H%M%S')}\r\n"
+            ics += f"DTSTART:{dt.strftime('%Y%m%dT%H%M%S')}\r\n"
+            ics += f"DTEND:{(dt + datetime.timedelta(hours=2)).strftime('%Y%m%dT%H%M%S')}\r\n"
+        else:  # ganztägig
+            ics += f"DTSTAMP:{day.strftime('%Y%m%d')}T000000\r\n"
+            ics += f"DTSTART;VALUE=DATE:{day.strftime('%Y%m%d')}\r\n"
+            ics += f"DTEND;VALUE=DATE:{(day + datetime.timedelta(days=1)).strftime('%Y%m%d')}\r\n"
+        ics += f"SUMMARY:{ics_escape('Helfersuche: ' + p['title'])}\r\n"
+        ics += f"DESCRIPTION:{ics_escape(p['description'])}\r\n"
         ics += "END:VEVENT\r\n"
     ics += "END:VCALENDAR\r\n"
     

@@ -820,7 +820,7 @@
                         </div>
                     </div>
                     <form v-if="pollForm" class="card premium-card p-3 mb-3" @submit.prevent="savePoll">
-                        <h6 class="fw-bold text-white">{{ pollForm.kind === 'helfer' ? 'Helfer suchen' : 'Neue Umfrage' }}</h6>
+                        <h6 class="fw-bold text-white">{{ pollForm.id ? 'Bearbeiten' : (pollForm.kind === 'helfer' ? 'Helfer suchen' : 'Neue Umfrage') }}</h6>
                         <label class="form-label small text-muted mb-1" for="pollTitle">{{ pollForm.kind === 'helfer' ? 'Wofür' : 'Frage' }}</label>
                         <input id="pollTitle" class="form-control mb-2" v-model="pollForm.title" maxlength="150" required :placeholder="pollForm.kind === 'helfer' ? 'z. B. Osterfeuer' : 'z. B. Wohin geht der Ausflug?'">
                         <label class="form-label small text-muted mb-1" for="pollDesc">Beschreibung (optional)</label>
@@ -829,6 +829,7 @@
                         <div v-for="(o, i) in pollForm.options" :key="i" class="d-flex gap-2 mb-2">
                             <input class="form-control" v-model="o.label" maxlength="150" :aria-label="'Eintrag ' + (i + 1)" :placeholder="pollForm.kind === 'helfer' ? 'z. B. Aufbau ab 14 Uhr' : 'Antwort'">
                             <input v-if="pollForm.kind === 'helfer'" class="form-control poll-capacity" type="number" min="1" max="999" v-model="o.capacity" :aria-label="'Plätze ' + (i + 1)" placeholder="Plätze">
+                            <button v-if="pollForm.options.length > 1" type="button" class="btn btn-sm btn-outline-danger rounded-circle flex-shrink-0 align-self-center" :aria-label="'Eintrag ' + (i + 1) + ' entfernen'" @click="removePollOption(i)"><i class="fa fa-xmark"></i></button>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-light rounded-pill align-self-start mb-3" @click="addPollOption"><i class="fa fa-plus me-1"></i>Zeile</button>
                         <div class="d-flex gap-3 flex-wrap align-items-end mb-3">
@@ -836,16 +837,23 @@
                                 <label class="form-label small text-muted mb-1" for="pollDeadline">Eintragen bis (optional)</label>
                                 <input id="pollDeadline" type="date" class="form-control" v-model="pollForm.deadline">
                             </div>
-                            <div v-if="pollForm.kind === 'umfrage'" class="form-check">
+                            <div v-if="pollForm.kind === 'helfer'">
+                                <label class="form-label small text-muted mb-1" for="pollEventDate">Wann wird geholfen? (kommt in den Kalender)</label>
+                                <div class="d-flex gap-2">
+                                    <input id="pollEventDate" type="date" class="form-control" v-model="pollForm.event_date">
+                                    <input type="time" class="form-control" v-model="pollForm.event_time" aria-label="Uhrzeit" :disabled="!pollForm.event_date">
+                                </div>
+                            </div>
+                            <div v-if="pollForm.kind === 'umfrage' && !pollForm.id" class="form-check">
                                 <input class="form-check-input" type="checkbox" id="pollMulti" v-model="pollForm.multi">
                                 <label class="form-check-label text-white" for="pollMulti">Mehrere Antworten erlaubt</label>
                             </div>
                         </div>
                         <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-premium rounded-pill px-4">Veröffentlichen</button>
+                            <button type="submit" class="btn btn-premium rounded-pill px-4">{{ pollForm.id ? 'Speichern' : 'Veröffentlichen' }}</button>
                             <button type="button" class="btn btn-outline-light rounded-pill px-4" @click="pollForm = null">Abbrechen</button>
                         </div>
-                        <div class="small text-muted mt-2">Alle Konten bekommen eine Benachrichtigung. Namen der Eingetragenen sind für alle sichtbar.</div>
+                        <div class="small text-muted mt-2">{{ pollForm.id ? 'Vorhandene Eintragungen bleiben erhalten.' : 'Alle Konten bekommen eine Benachrichtigung. Namen der Eingetragenen sind für alle sichtbar.' }}</div>
                     </form>
                     <div v-if="!polls.length && !pollForm" class="card premium-card p-4 text-muted text-center">
                         <div>Gerade läuft nichts.</div>
@@ -858,6 +866,7 @@
                                     <div>
                                         <div class="fw-bold text-white">{{ p.title }}</div>
                                         <div class="small text-muted">{{ p.kind === 'helfer' ? 'Helfersuche' : 'Umfrage' }} · {{ p.participants }} dabei<span v-if="p.deadline"> · bis {{ germanDate(p.deadline) }}</span></div>
+                                        <div v-if="p.event_date" class="small text-white"><i class="fa fa-calendar-day me-1 text-danger"></i>{{ germanDate(p.event_date) }}<span v-if="p.event_time">, {{ p.event_time }} Uhr</span></div>
                                     </div>
                                     <span class="badge" :class="p.open ? (p.answered ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'">{{ p.open ? (p.answered ? 'Dabei' : 'Offen') : 'Beendet' }}</span>
                                 </div>
@@ -878,6 +887,7 @@
                                     </div>
                                 </div>
                                 <div v-if="p.can_edit" class="d-flex gap-2 mt-auto pt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="editPoll(p)">Bearbeiten</button>
                                     <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="closePoll(p, p.open)">{{ p.open ? 'Beenden' : 'Wieder öffnen' }}</button>
                                     <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" :aria-label="p.title + ' löschen'" @click="deletePoll(p)"><i class="fa fa-trash-alt"></i></button>
                                 </div>
@@ -1021,12 +1031,13 @@
                             <span><i class="fa fa-circle" style="color:#a855f7;"></i> Geplanter Termin</span>
                             <span><i class="fa fa-circle text-warning me-1"></i>Fahrzeug-Reservierung</span>
                             <span><i class="fa fa-circle text-success me-1"></i>Jubiläum</span>
+                            <span><i class="fa fa-circle" style="color:#0f766e;"></i> Helfersuche</span>
                         </div>
                         <div class="calendar-grid">
                             <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
                             <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday, 'calendar-cell-clickable': cell.inMonth && canManageDienste}" @click="cell.inMonth && canManageDienste && openCalendarDayModal(cell.key)" :title="cell.inMonth && canManageDienste ? 'Klicken, um einen Termin an diesem Tag anzulegen' : ''">
                                 <div class="calendar-cell-num">{{ cell.day }}</div>
-                                <div v-for="ev in cell.events" :key="ev.type + '|' + (ev.schedule_id || ev.id || '') + '|' + ev.title + '|' + ev.date + '|' + (ev.time || '')" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin', 'calendar-event-done': ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).done_session_id}]" :title="(ev.type === 'termin' ? 'Klicken für Details – ' : '') + ev.title + (ev.subtitle ? ' – ' + ev.subtitle : '')" @click="ev.type === 'termin' ? openCalendarTerminDetail(ev, $event) : null">
+                                <div v-for="ev in cell.events" :key="ev.type + '|' + (ev.schedule_id || ev.id || '') + '|' + ev.title + '|' + ev.date + '|' + (ev.time || '')" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin', 'calendar-event-done': ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).done_session_id}]" :title="(ev.type === 'termin' ? 'Klicken für Details – ' : '') + ev.title + (ev.subtitle ? ' – ' + ev.subtitle : '')" @click="openCalendarEvent(ev, $event)">
                                     <i v-if="ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).audience === 'selected'" class="fa fa-lock me-1"></i>{{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
                                 </div>
                             </div>

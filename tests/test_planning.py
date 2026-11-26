@@ -4,6 +4,8 @@ import sys
 import httpx
 from playwright.sync_api import sync_playwright
 
+from core.schedule_notify import check_poll_reminders
+from core.utils import get_or_create_token
 from tests.helpers import sql
 from tests.ui_helpers import BASE, browser_page, make_role_users, vm_eval
 
@@ -23,7 +25,7 @@ def client(user):
 
 
 make_role_users()
-for t in ("course_wishes", "polls", "poll_options", "poll_votes"):
+for t in ("course_wishes", "polls", "poll_options", "poll_votes", "notifications"):
     sql(f"delete from {t}")
 sql("delete from lehrgaenge where course_name = 'Testlehrgang Planung'")
 jonas = int(sql("select id from personnel where name='Jonas Weber'"))
@@ -78,6 +80,50 @@ check("Umfrage: mindestens zwei Antworten", admin.post("/api/polls", json={"titl
 from routers.admin_api import BACKUP_TABLES  # noqa: E402
 check("Sicherung enthält die neuen Tabellen", all(t in BACKUP_TABLES for t in ("course_wishes", "polls", "poll_options", "poll_votes")))
 
+# --- Bearbeiten, Erinnerung, Kalender
+base = {"kind": "helfer", "title": "Sommerfest", "event_date": "2030-06-15", "event_time": "14:00", "options": [{"label": "Zelt", "capacity": 3}, {"label": "Kasse"}]}
+sid = admin.post("/api/polls", json=base).json()["id"]
+get = lambda c: [x for x in c.get("/api/polls").json()["polls"] if x["id"] == sid][0]
+zelt, kasse = [x["id"] for x in get(admin)["options"]]
+man.put(f"/api/polls/{sid}/vote", json={"option_ids": [zelt]})
+ger.put(f"/api/polls/{sid}/vote", json={"option_ids": [zelt, kasse]})
+edit = dict(base, title="Sommerfest 2030", options=[{"id": zelt, "label": "Zeltaufbau", "capacity": 2}, {"id": kasse, "label": "Kasse"}, {"label": "Spülen"}])
+check("Bearbeiten: ohne Recht nicht", man.put(f"/api/polls/{sid}", json=edit).status_code == 403)
+check("Bearbeiten: speichern", admin.put(f"/api/polls/{sid}", json=edit).status_code == 200)
+p = get(man)
+check("Bearbeiten: Eintragungen bleiben, neuer Eintrag dazu", p["title"] == "Sommerfest 2030" and [o["count"] for o in p["options"]] == [2, 1, 0] and p["options"][0]["mine"])
+check("Bearbeiten: nicht weniger Plätze als Eingetragene", admin.put(f"/api/polls/{sid}", json=dict(edit, options=[{"id": zelt, "label": "Zeltaufbau", "capacity": 1}])).status_code == 400)
+check("Bearbeiten: fremde Eintrags-Nummer abgelehnt", admin.put(f"/api/polls/{sid}", json=dict(edit, options=[{"id": auf, "label": "X"}])).status_code == 400)
+check("Bearbeiten: gleicher Termin meldet nichts", int(sql("select count(*) from notifications where title='Neuer Termin: Sommerfest 2030'")) == 0)
+moved = dict(edit, event_date="2030-06-22", options=[{"id": zelt, "label": "Zeltaufbau", "capacity": 2}])
+check("Bearbeiten: Eintrag entfernen und Termin verschieben", admin.put(f"/api/polls/{sid}", json=moved).status_code == 200)
+check("Bearbeiten: Eintragungen des entfernten Eintrags sind weg", int(sql(f"select count(*) from poll_votes where option_id={kasse}")) == 0)
+check("Bearbeiten: Eingetragene erfahren vom neuen Termin", int(sql("select count(*) from notifications where username='r_mannschaft' and title='Neuer Termin: Sommerfest 2030'")) == 1)
+
+ev = [e for e in man.get("/api/calendar?year=2030&month=6").json() if e["type"] == "helfer"]
+check("Kalender: Helfersuche mit Haken beim Eingetragenen", len(ev) == 1 and ev[0]["title"] == "✓ Sommerfest 2030" and ev[0]["time"] == "14:00", str(ev))
+ev = [e for e in grp.get("/api/calendar?year=2030&month=6").json() if e["type"] == "helfer"]
+check("Kalender: andere sehen sie ohne Haken", len(ev) == 1 and ev[0]["title"] == "Sommerfest 2030", str(ev))
+tok = get_or_create_token("calendar_token")
+ics = httpx.get(f"{BASE}/api/calendar/feed.ics?token={tok}", timeout=30).text
+check("Kalender-Abo: Helfersuche ohne Namen", "SUMMARY:Helfersuche: Sommerfest 2030" in ics and "DTSTART:20300622T140000" in ics and "Jonas" not in ics)
+
+import datetime  # noqa: E402
+noon = datetime.datetime.combine(datetime.date.today(), datetime.time(12, 0))
+tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+rid = admin.post("/api/polls", json={"title": "Erinnerungstest", "options": [{"label": "Ja"}, {"label": "Nein"}], "deadline": tomorrow}).json()["id"]
+first = [x for x in man.get("/api/polls").json()["polls"] if x["id"] == rid][0]["options"][0]["id"]
+man.put(f"/api/polls/{rid}/vote", json={"option_ids": [first]})
+reminded = lambda u: int(sql(f"select count(*) from notifications where username='{u}' and title='Deine Stimme fehlt: Erinnerungstest'"))
+check_poll_reminders(noon)
+check("Erinnerung: nicht direkt nach dem Anlegen", reminded("r_geratewart") == 0)
+sql(f"update polls set created_at = now() - interval 2 day where id={rid}")
+check_poll_reminders(noon.replace(hour=3))
+check("Erinnerung: nicht nachts", reminded("r_geratewart") == 0)
+check_poll_reminders(noon)
+check_poll_reminders(noon)
+check("Erinnerung: genau einmal an alle ohne Antwort", reminded("r_geratewart") == 1 and reminded("r_mannschaft") == 0, f"{reminded('r_geratewart')} {reminded('r_mannschaft')}")
+
 # --- Oberfläche
 with sync_playwright() as pw:
     browser, page = browser_page(pw, "r_mannschaft", width=390, height=844)
@@ -111,11 +157,23 @@ with sync_playwright() as pw:
     vm_eval(page, "(vm.activeTab = 'umfragen', 1)")
     page.get_by_role("button", name="Helfer suchen").click()
     page.fill("#pollTitle", "Tag der offenen Tür")
-    page.get_by_label("Eintrag 1").fill("Getränkestand")
-    page.get_by_label("Plätze 1").fill("2")
+    page.get_by_label("Eintrag 1", exact=True).fill("Getränkestand")
+    page.get_by_label("Plätze 1", exact=True).fill("2")
     page.get_by_role("button", name="Veröffentlichen").click()
     page.wait_for_selector(".poll-card:has-text('Getränkestand')", timeout=8000)
     check("PC: Helfersuche über das Formular anlegen", int(sql("select capacity from poll_options where label='Getränkestand'")) == 2)
+    card = page.locator(".poll-card", has_text="Tag der offenen Tür")
+    card.get_by_role("button", name="Bearbeiten").click()
+    page.fill("#pollTitle", "Tag der offenen Tür 2030")
+    page.fill("#pollEventDate", "2030-07-06")
+    page.get_by_role("button", name="Speichern", exact=True).click()
+    page.wait_for_selector(".poll-card:has-text('Tag der offenen Tür 2030')", timeout=8000)
+    check("PC: über das Formular bearbeiten", sql("select event_date from polls where title='Tag der offenen Tür 2030'") == "2030-07-06")
+    vm_eval(page, "(vm.calendarYear = 2030, vm.calendarMonth = 7, vm.activeTab = 'kalender', 1)")
+    page.wait_for_selector(".calendar-event-helfer", timeout=8000)
+    page.locator(".calendar-event-helfer").first.click()
+    page.wait_for_timeout(600)
+    check("PC: Klick im Kalender führt zur Helfersuche", vm_eval(page, "vm.activeTab") == "umfragen")
     browser.close()
 
 print("\n" + ("ALLE TESTS BESTANDEN" if not fails else f"{len(fails)} FEHLER: {fails}"))

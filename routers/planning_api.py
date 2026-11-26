@@ -1,4 +1,5 @@
 """Lehrgangsplanung (Wünsche der Mitglieder, Zuteilung durch die Wehrführung) sowie Umfragen und Helfersuche."""
+import re
 from datetime import date
 from typing import List, Optional
 
@@ -30,6 +31,7 @@ class WishDecision(BaseModel):
 
 
 class OptionIn(BaseModel):
+    id: Optional[int] = None  # beim Bearbeiten: vorhandener Eintrag (Eintragungen bleiben erhalten)
     label: str
     capacity: Optional[int] = None
 
@@ -40,6 +42,8 @@ class PollIn(BaseModel):
     kind: str = "umfrage"  # umfrage | helfer
     multi: bool = False
     deadline: Optional[str] = None
+    event_date: Optional[str] = None  # nur Helfersuche: erscheint im Kalender
+    event_time: Optional[str] = ""
     options: List[OptionIn]
 
 
@@ -230,44 +234,54 @@ def list_polls(request: Request):
                          "mine": o["id"] in mine, "full": bool(o["capacity"]) and len(who) >= o["capacity"]})
         out.append({"id": poll["id"], "title": poll["title"], "description": poll["description"] or "", "kind": poll["kind"],
                     "multi": bool(poll["multi"]), "deadline": poll["deadline"].isoformat() if poll["deadline"] else None,
-                    "closed": bool(poll["closed"]), "open": _is_open(poll), "answered": bool(mine), "options": opts,
+                    "closed": bool(poll["closed"]), "open": _is_open(poll),
+                    "event_date": poll["event_date"].isoformat() if poll["event_date"] else None, "event_time": poll["event_time"] or "", "answered": bool(mine), "options": opts,
                     "participants": len({v["username"] for v in votes if v["poll_id"] == poll["id"]}),
                     "can_edit": manage})
     out.sort(key=lambda x: not x["open"])  # offene zuerst, sonst neueste zuerst
     return {"polls": out, "manage": manage}
 
 
-@router.post("/polls")
-def create_poll(data: PollIn, request: Request):
-    user = check_auth(request, permission="polls.manage")
+def _check_poll(data: PollIn, kind: str):
+    """Gemeinsame Prüfung für Anlegen und Bearbeiten."""
     title = data.title.strip()
     description = (data.description or "").strip()
     if not title or len(title) > 150:
         raise HTTPException(status_code=400, detail="Bitte einen Titel angeben (höchstens 150 Zeichen).")
     if len(description) > 2000:
         raise HTTPException(status_code=400, detail="Die Beschreibung ist zu lang.")
-    if data.kind not in ("umfrage", "helfer"):
-        raise HTTPException(status_code=400, detail="Ungültige Art.")
-    options = [(o.label.strip(), o.capacity) for o in data.options if o.label.strip()]
-    minimum = 1 if data.kind == "helfer" else 2
+    options = [(o.id, o.label.strip(), o.capacity if kind == "helfer" else None) for o in data.options if o.label.strip()]
+    minimum = 1 if kind == "helfer" else 2
     if len(options) < minimum:
         raise HTTPException(status_code=400, detail="Bitte mindestens eine Aufgabe angeben." if minimum == 1 else "Bitte mindestens zwei Antworten angeben.")
-    if len(options) > MAX_OPTIONS or any(len(label) > 150 for label, _ in options):
+    if len(options) > MAX_OPTIONS or any(len(label) > 150 for _, label, _ in options):
         raise HTTPException(status_code=400, detail=f"Höchstens {MAX_OPTIONS} Einträge mit je 150 Zeichen.")
-    if len({label.lower() for label, _ in options}) != len(options):
+    if len({label.lower() for _, label, _ in options}) != len(options):
         raise HTTPException(status_code=400, detail="Jeder Eintrag darf nur einmal vorkommen.")
-    if any(cap is not None and not 1 <= cap <= 999 for _, cap in options):
+    if any(cap is not None and not 1 <= cap <= 999 for _, _, cap in options):
         raise HTTPException(status_code=400, detail="Plätze müssen zwischen 1 und 999 liegen.")
-    deadline = _d(data.deadline)
+    event_date = _d(data.event_date) if kind == "helfer" else None
+    event_time = (data.event_time or "").strip() if event_date else ""
+    if event_time and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", event_time):
+        raise HTTPException(status_code=400, detail="Ungültige Uhrzeit.")
+    return title, description, _d(data.deadline), event_date, event_time or None, options
+
+
+@router.post("/polls")
+def create_poll(data: PollIn, request: Request):
+    user = check_auth(request, permission="polls.manage")
+    if data.kind not in ("umfrage", "helfer"):
+        raise HTTPException(status_code=400, detail="Ungültige Art.")
+    title, description, deadline, event_date, event_time, options = _check_poll(data, data.kind)
     if deadline and deadline < date.today():
         raise HTTPException(status_code=400, detail="Die Frist liegt in der Vergangenheit.")
     helfer = data.kind == "helfer"
     conn = get_db_connection(); cur = conn.cursor()
-    cur.execute("INSERT INTO polls (title, description, kind, multi, deadline, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
-                (title, description, data.kind, 1 if (helfer or data.multi) else 0, deadline, user["username"]))
+    cur.execute("INSERT INTO polls (title, description, kind, multi, deadline, event_date, event_time, created_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (title, description, data.kind, 1 if (helfer or data.multi) else 0, deadline, event_date, event_time, user["username"]))
     poll_id = cur.lastrowid
     cur.executemany("INSERT INTO poll_options (poll_id, label, capacity, position) VALUES (%s, %s, %s, %s)",
-                    [(poll_id, label, cap if helfer else None, i) for i, (label, cap) in enumerate(options)])
+                    [(poll_id, label, cap, i) for i, (_, label, cap) in enumerate(options)])
     conn.commit()
     cur.execute("SELECT username FROM users WHERE username != %s", (user["username"],))
     recipients = [r[0] for r in cur.fetchall()]
@@ -277,6 +291,53 @@ def create_poll(data: PollIn, request: Request):
                description[:200] or ("Trag dich ein, wenn du helfen kannst." if helfer else "Deine Meinung ist gefragt."),
                "/dashboard?open=umfragen", usernames=recipients)
     return {"status": "success", "id": poll_id}
+
+
+@router.put("/polls/{poll_id}")
+def update_poll(poll_id: int, data: PollIn, request: Request):
+    """Ändern ohne Eintragungen zu verlieren: Einträge mit id bleiben, fehlende werden samt Eintragungen entfernt.
+    Art und "mehrere Antworten" stehen fest."""
+    user = check_auth(request, permission="polls.manage")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT * FROM polls WHERE id = %s FOR UPDATE", (poll_id,))
+        poll = cur.fetchone()
+        if not poll:
+            raise HTTPException(status_code=404, detail="Umfrage nicht gefunden.")
+        title, description, deadline, event_date, event_time, options = _check_poll(data, poll["kind"])
+        if deadline and deadline != poll["deadline"] and deadline < date.today():
+            raise HTTPException(status_code=400, detail="Die Frist liegt in der Vergangenheit.")
+        cur.execute("SELECT o.id, COUNT(u.id) AS n FROM poll_options o LEFT JOIN poll_votes v ON v.option_id = o.id "
+                    "LEFT JOIN users u ON u.username = v.username WHERE o.poll_id = %s GROUP BY o.id", (poll_id,))
+        counts = {r["id"]: r["n"] for r in cur.fetchall()}
+        kept = [i for i, _, _ in options if i is not None]
+        if len(set(kept)) != len(kept) or not set(kept) <= set(counts):
+            raise HTTPException(status_code=400, detail="Ungültige Auswahl.")
+        for option_id, label, cap in options:
+            if option_id is not None and cap and counts[option_id] > cap:
+                raise HTTPException(status_code=400, detail=f"Bei '{label}' sind schon {counts[option_id]} eingetragen - weniger Plätze gehen nicht.")
+        for option_id in set(counts) - set(kept):
+            cur.execute("DELETE FROM poll_votes WHERE option_id = %s", (option_id,))
+            cur.execute("DELETE FROM poll_options WHERE id = %s", (option_id,))
+        for position, (option_id, label, cap) in enumerate(options):
+            if option_id is None:
+                cur.execute("INSERT INTO poll_options (poll_id, label, capacity, position) VALUES (%s, %s, %s, %s)", (poll_id, label, cap, position))
+            else:
+                cur.execute("UPDATE poll_options SET label = %s, capacity = %s, position = %s WHERE id = %s", (label, cap, position, option_id))
+        reminder_sent = poll["reminder_sent"] if deadline == poll["deadline"] else 0  # neue Frist: wieder erinnern
+        cur.execute("UPDATE polls SET title = %s, description = %s, deadline = %s, event_date = %s, event_time = %s, reminder_sent = %s WHERE id = %s",
+                    (title, description, deadline, event_date, event_time, reminder_sent, poll_id))
+        conn.commit()
+        moved = (event_date, event_time) != (poll["event_date"], poll["event_time"])
+        cur.execute("SELECT DISTINCT username FROM poll_votes WHERE poll_id = %s AND username != %s", (poll_id, user["username"]))
+        signed_up = [r["username"] for r in cur.fetchall()]
+    finally:
+        cur.close(); conn.close()
+    if moved and event_date and signed_up:  # wer eingetragen ist, muss von einem neuen Termin erfahren
+        when = event_date.strftime("%d.%m.%Y") + (f", {event_time} Uhr" if event_time else "")
+        notify("termine", f"Neuer Termin: {title}", f"Die Helfersuche findet jetzt am {when} statt.", "/dashboard?open=umfragen", usernames=signed_up)
+    log_audit_action(user["username"], "UMFRAGE_GEÄNDERT", f"Umfrage {poll_id} ('{title}') bearbeitet.")
+    return {"status": "success"}
 
 
 @router.put("/polls/{poll_id}/vote")

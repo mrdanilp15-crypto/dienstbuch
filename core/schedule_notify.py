@@ -172,3 +172,35 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
     cur.close()
     conn.close()
     return sent
+
+
+def check_poll_reminders(now: datetime.datetime = None) -> int:
+    """Kurz vor Ablauf einer Umfrage oder Helfersuche: wer noch nichts eingetragen hat, wird einmal erinnert.
+    Nur tagsueber (8-21 Uhr), ab dem Tag vor der Frist, frühestens 12 Stunden nach dem Anlegen."""
+    from core.notify import notify
+    now = now or datetime.datetime.now()
+    if not (8 <= now.hour < 21):
+        return 0
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, title, kind, deadline FROM polls WHERE closed = 0 AND reminder_sent = 0 "
+                "AND deadline BETWEEN %s AND %s AND created_at < NOW() - INTERVAL 12 HOUR",
+                (now.date(), now.date() + datetime.timedelta(days=1)))
+    sent = 0
+    for poll in cur.fetchall():
+        cur.execute("SELECT o.capacity, COUNT(u.id) AS n FROM poll_options o LEFT JOIN poll_votes v ON v.option_id = o.id "
+                    "LEFT JOIN users u ON u.username = v.username WHERE o.poll_id = %s GROUP BY o.id, o.capacity", (poll["id"],))
+        free = any(not o["capacity"] or o["n"] < o["capacity"] for o in cur.fetchall())
+        cur.execute("SELECT username FROM users WHERE username NOT IN (SELECT username FROM poll_votes WHERE poll_id = %s)", (poll["id"],))
+        missing = [r["username"] for r in cur.fetchall()]
+        cur.execute("UPDATE polls SET reminder_sent = 1 WHERE id = %s", (poll["id"],))
+        conn.commit()
+        if free and missing:  # alles voll: dann gibt es nichts mehr einzutragen
+            when = "heute" if poll["deadline"] == now.date() else "morgen"
+            helfer = poll["kind"] == "helfer"
+            notify("termine", ("Noch Helfer gesucht: " if helfer else "Deine Stimme fehlt: ") + poll["title"],
+                   f"Eintragen geht nur noch bis {when}.", "/dashboard?open=umfragen", usernames=missing)
+            sent += 1
+    cur.close()
+    conn.close()
+    return sent

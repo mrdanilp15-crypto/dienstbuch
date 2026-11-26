@@ -558,6 +558,17 @@ def get_calendar_events(request: Request, year: int, month: int):
             "date": str(row["date"]), "type": "termin", "schedule_id": row["id"],
             "title": row["title"], "subtitle": row["type"], "time": str(row["time"]) if row["time"] else None
         })
+    # Helfersuchen mit Datum; wer eingetragen ist, sieht den Haken
+    cur.execute(
+        "SELECT p.id, p.title, p.event_date, p.event_time, "
+        "EXISTS(SELECT 1 FROM poll_votes v WHERE v.poll_id = p.id AND v.username = %s) AS mine "
+        "FROM polls p WHERE p.kind = 'helfer' AND YEAR(p.event_date) = %s AND MONTH(p.event_date) = %s", (user["username"], year, month))
+    for row in cur.fetchall():
+        events.append({
+            "date": str(row["event_date"]), "type": "helfer", "poll_id": row["id"],
+            "title": ("✓ " if row["mine"] else "") + row["title"],
+            "subtitle": "Helfersuche - du bist eingetragen" if row["mine"] else "Helfersuche", "time": row["event_time"]
+        })
     c.close()
 
     from routers import personnel_mgr
