@@ -87,6 +87,28 @@ with sync_playwright() as pw:
     check("Schnellzugriff: nur https-Adressen und App-Seiten erlaubt", bad == ["", "", "https://ok.example", "/dashboard#kalender"], str(bad))
     page.evaluate("async () => { await fetch('/api/users/me/prefs/dashboard_layout', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: null}) }); }")
 
+    # Uebersichtlichkeit: Mitteilungszeile, Filter eingeklappt, Aktionsmenue, "Zu erledigen"
+    bid = page.evaluate("async () => { await fetch('/api/broadcasts', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: 'ZZ-Zeile', content: 'Text', is_mandatory: false})}); return (await (await fetch('/api/broadcasts/active')).json()).find(b => b.title === 'ZZ-Zeile').id }")
+    vm_eval(page, "(vm.loadBroadcasts(), vm.activeTab = 'einsaetze', 1)"); page.wait_for_timeout(1200)
+    check("Mitteilung: auf anderen Seiten nur eine Zeile", page.locator(".broadcast-line").is_visible() and page.locator(".broadcast-card").count() == 0)
+    check("Filter: zuerst eingeklappt", not page.get_by_role("button", name="Alle Arten").is_visible())
+    page.locator("button[aria-expanded]", has_text="Filter").click(); page.wait_for_timeout(300)
+    check("Filter: lässt sich aufklappen", page.get_by_role("button", name="Alle Arten").is_visible())
+    page.locator(".incident-more:visible").first.click(); page.wait_for_timeout(300)
+    on_top = page.evaluate("""() => { const items = [...document.querySelectorAll('.incident-menu button')]; const last = items[items.length - 1]; if (!last) return false;
+        last.scrollIntoView({block: 'center'}); const r = last.getBoundingClientRect(); return last.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) }""")
+    check("Aktionsmenü: offen und nicht verdeckt", on_top)
+    check("Aktionsmenü: enthält Löschen", page.locator(".incident-menu button", has_text="Löschen").is_visible())
+    page.locator("h2:visible").first.click(); page.wait_for_timeout(300)
+    check("Aktionsmenü: Klick daneben schließt", page.locator(".incident-menu").count() == 0)
+    page.locator(".broadcast-line").click(); page.wait_for_timeout(2000)
+    check("Mitteilung: Zeile führt zur Übersicht mit voller Mitteilung", vm_eval(page, "vm.activeTab") == "uebersicht" and page.locator(".broadcast-card").count() >= 1)
+    check("Übersicht: Block Zu erledigen", page.locator(".todo-card").is_visible())
+    if page.locator(".todo-item").count():
+        page.locator(".todo-item").first.click(); page.wait_for_timeout(500)
+        check("Zu erledigen: Klick führt in den Bereich", vm_eval(page, "vm.activeTab") != "uebersicht")
+    page.evaluate("async (id) => { await fetch('/api/broadcasts/' + id, {method: 'DELETE'}) }", bid)
+
     # Favoriten im Menü und Leiste unten (Handy)
     page.evaluate("async () => { await fetch('/api/users/me/prefs/menu_favorites', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: ['maengel', 'fristen']}) }); }")
     vm_eval(page, "(vm.menuFavorites = ['maengel', 'fristen'], 1)")

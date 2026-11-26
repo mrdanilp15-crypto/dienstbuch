@@ -269,6 +269,7 @@ applyChartTheme();
                     overviewLayout: { order: ['mitteilungen', 'berichte', 'termine', 'benachrichtigungen', 'fristen', 'maengel', 'stunden', 'rueckmeldung', 'naechsteTermine', 'letzteEinsaetze', 'offeneBerichte', 'fahrzeuge', 'mannschaft', 'pinnwand', 'schnellzugriff'],
                                        hidden: ['stunden', 'rueckmeldung', 'naechsteTermine', 'letzteEinsaetze', 'offeneBerichte', 'fahrzeuge', 'mannschaft', 'pinnwand', 'schnellzugriff'] },
                     quickLinks: [], quickLinkForm: { label: '', url: '' },
+                    missionFiltersOpen: false, openIncident: null,
                     overviewEdit: false, overviewDay: localISODate(), overviewDefects: [], overviewLoaded: false,
                     missionSearch: '', missionStatus: 'alle', missionKind: 'alle', missionYear: 'all', billFilter: 'alle',
                     menuFavorites: [], selfTab: 'stat', mobileSearchOpen: false,
@@ -876,6 +877,23 @@ applyChartTheme();
                     return list;
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
+                // Groß nur auf der Übersicht oder bei Lesepflicht, auf den anderen Seiten reicht eine Zeile
+                bannerBroadcasts() { return this.visibleBroadcasts.filter(b => this.activeTab === 'uebersicht' || b.is_mandatory); },
+                compactBroadcasts() { return this.activeTab === 'uebersicht' ? [] : this.visibleBroadcasts.filter(b => !b.is_mandatory); },
+                missionFilterCount() { return [this.missionStatus !== 'alle', this.missionKind !== 'alle', this.missionYear !== 'all'].filter(Boolean).length; },
+                todoItems() {
+                    const items = [];
+                    const add = (id, count, one, many, tone) => { if (count) items.push({ id, count, text: count === 1 ? one : many, tone }); };
+                    const open = (this.missions || []).filter(m => m && !(m.leader_signature || m.status === 'Freigegeben'));
+                    if (this.canApproveMissions) add('freigabe', open.filter(m => m.status === 'In Prüfung').length, 'Einsatzbericht wartet auf deine Freigabe', 'Einsatzberichte warten auf deine Freigabe', 'red');
+                    if (this.canManageMissions) add('entwurf', open.filter(m => m.status === 'Entwurf').length, 'Einsatzbericht noch im Entwurf', 'Einsatzberichte noch im Entwurf', 'yellow');
+                    const limit = localISODate(new Date(Date.now() + 21 * 86400000));
+                    const rsvp = this.overviewUpcoming.filter(s => { const r = this.scheduleRsvpMap[s.id]; return r && !r.unlinked && !r.my_status && String(s.date).slice(0, 10) <= limit; });
+                    add('rueckmeldung', rsvp.length, 'Termin ohne deine Rückmeldung', 'Termine ohne deine Rückmeldung', 'yellow');
+                    add('fristen', this.overviewDue.overdue, 'überfällige Frist', 'überfällige Fristen', 'red');
+                    if (this.canManageMaterial) add('maengel', (this.overviewDefects || []).length, 'neuer Mangel', 'neue Mängel', 'red');
+                    return items;
+                },
                 certYears() {
                     const now = new Date().getFullYear();
                     return [0, 1, 2, 3, 4, 5].map(offset => now - offset);
@@ -1736,6 +1754,51 @@ applyChartTheme();
                     }
                     await this.loadMissions();
                     await this.loadData();
+                },
+                goTodo(id) {
+                    if (id === 'freigabe' || id === 'entwurf') {
+                        this.resetFilter('einsaetze');
+                        this.missionStatus = id === 'freigabe' ? 'In Prüfung' : 'Entwurf';
+                        this.activeTab = 'einsaetze';
+                    }
+                    else if (id === 'rueckmeldung') this.activeTab = 'kalender';
+                    else if (id === 'fristen') this.activeTab = 'fristen';
+                    else if (id === 'maengel') { this.activeTab = 'material'; this.materialSubTab = 'maengel'; }
+                },
+                incidentKey(m) { return (m.isNewMission ? 'new_' : 'old_') + m.id; },
+                // Der naechste sinnvolle Schritt steht als Knopf da, alles andere im Menue
+                incidentPrimary(m) {
+                    const done = m.status === 'Freigegeben';
+                    if (!m.isNewMission) return !done && this.canManageMissions ? 'sign' : '';
+                    if (done) return 'pdf';
+                    if (this.canApproveMissions) return 'approve';
+                    if (this.canManageMissions && m.status === 'Entwurf') return 'submit';
+                    return 'pdf';
+                },
+                incidentMenu(m) {
+                    const primary = this.incidentPrimary(m);
+                    const list = [];
+                    if (m.isNewMission && primary !== 'pdf') list.push({ id: 'pdf', label: 'Als PDF', icon: 'fa-file-pdf' });
+                    if (m.isNewMission && this.canApproveMissions && m.status !== 'Freigegeben') list.push({ id: 'sign', label: 'Mit Unterschrift freigeben', icon: 'fa-pen' });
+                    if (!m.isNewMission && this.canManageMissions && primary !== 'sign') list.push({ id: 'sign', label: 'Unterschrift', icon: 'fa-pen' });
+                    if (this.canDeleteMissions) list.push({ id: 'delete', label: 'Löschen', icon: 'fa-trash-alt' });
+                    return list;
+                },
+                toggleIncidentMenu(m) {
+                    const key = this.incidentKey(m);
+                    this.openIncident = this.openIncident === key ? null : key;
+                    if (!this._incidentCloser) {
+                        this._incidentCloser = (e) => { if (!e.target.closest || !e.target.closest('.incident-actions')) this.openIncident = null; };
+                        document.addEventListener('click', this._incidentCloser, true);
+                        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.openIncident = null; });
+                    }
+                },
+                incidentAction(m, action) {
+                    this.openIncident = null;
+                    if (action === 'pdf') this.downloadMissionPdf(m);
+                    else if (action === 'sign') { if (m.isNewMission) this.openMissionSigModal(m); else this.openSig(m.rawSession); }
+                    else if (m.isNewMission) this.deleteMission(m.id);
+                    else this.deleteSession(m.rawSession);
                 },
                 openMissionSigModal(m) {
                     this.activeS = m;

@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 32,
+        "version": "2.82",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Übersicht", "title": "„Zu erledigen“ ganz oben",
+             "text": "Offene Freigaben, Entwürfe, fehlende Rückmeldungen, überfällige Fristen und neue Mängel stehen passend zur eigenen Rolle in einer Liste. Ein Klick führt direkt hin."},
+            {"type": "new", "tag": "Übersichtlichkeit", "title": "Ruhigere Seiten",
+             "text": "Mitteilungen erscheinen groß nur noch auf der Übersicht (Lesepflicht weiterhin überall), sonst als schmale Zeile. Die Einsatzfilter sind hinter dem Knopf „Filter“. Je Einsatz steht der nächste Schritt als Knopf da, PDF, Unterschrift und Löschen liegen im Menü „⋯“."},
+        ],
+    },
+    {
         "id": 31,
         "version": "2.81",
         "date": "2026-11-26",
