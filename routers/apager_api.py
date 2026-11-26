@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
+import json
+import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import get_db_connection
 from core.utils import get_current_user, log_audit_action, check_display_access, alarm_group_id
@@ -13,6 +15,8 @@ router = APIRouter()
 def get_apager_config(request: Request):
     user = get_current_user(request)
     if not user: raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Mit diesem Schlüssel lassen sich Alarme auslösen - nur für Admin und Leitung
+    if user["role"] not in ("admin", "leitung"): raise HTTPException(status_code=403, detail="Keine Berechtigung")
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM apager_config LIMIT 1")
     row = cur.fetchone()
@@ -107,9 +111,52 @@ async def update_apager_log(log_id: int, data: dict, request: Request):
     
     return {"status": "success"}
 
+DUPLICATE_MINUTES = 3
+_KEY_NAMES = ("api_key", "apikey", "token", "key")
+
+
+def _redact(data: dict) -> dict:
+    return {k: ("***" if str(k).lower() in _KEY_NAMES else v) for k, v in data.items()}
+
+
+def _log_webhook(conn, cur, req: Request, body_dict: dict, raw: bytes, result: str):
+    """Merkt sich die letzten Aufrufe (ohne Schlüssel), damit man sieht, was ein Alarmierungssystem wirklich schickt."""
+    try:
+        if body_dict:
+            body = json.dumps(_redact(body_dict), ensure_ascii=False, default=str)
+        else:
+            body = re.sub(r"(?i)((?:api_?key|token|key)[\"']?\s*[=:]\s*[\"']?)[^&\"'\s,}]+", r"\1***", raw.decode("utf-8", "replace"))
+        cur.execute(
+            "INSERT INTO apager_webhook_log (method, content_type, query_data, body_data, result) VALUES (%s, %s, %s, %s, %s)",
+            (req.method, req.headers.get("content-type", "")[:100],
+             json.dumps(_redact(dict(req.query_params)), ensure_ascii=False)[:2000], body[:4000], result),
+        )
+        cur.execute("SELECT id FROM apager_webhook_log ORDER BY id DESC LIMIT 1 OFFSET 20")
+        old = cur.fetchone()
+        if old:
+            cur.execute("DELETE FROM apager_webhook_log WHERE id <= %s", (old["id"],))
+        conn.commit()
+    except Exception as e:
+        print(f"Webhook-Protokoll fehlgeschlagen: {e}")
+
+
+@router.get("/api/apager/webhook-log")
+def get_webhook_log(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in ("admin", "leitung"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT received_at, method, content_type, query_data, body_data, result FROM apager_webhook_log ORDER BY id DESC LIMIT 20")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    for r in rows:
+        r["received_at"] = r["received_at"].strftime("%d.%m.%Y %H:%M:%S")
+    return rows
+
+
 async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     body_dict = {}
+    raw = await req.body()
     try:
         body_dict = await req.json()
     except Exception:
@@ -119,6 +166,8 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
         except Exception:
             body_dict = {}
 
+    if not isinstance(body_dict, dict):
+        body_dict = {}
     query_params = dict(req.query_params)
     
     key = ""
@@ -180,6 +229,15 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
     now_dt = datetime.now()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
+    # Derselbe Alarm von mehreren Geräten/Systemen: nur einmal melden
+    since = (now_dt - timedelta(minutes=DUPLICATE_MINUTES)).strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("SELECT id FROM apager_logs WHERE stichwort = %s AND adresse = %s AND meldung = %s AND created_at >= %s LIMIT 1",
+                (stichwort, adresse, meldung, since))
+    if cur.fetchall():
+        _log_webhook(conn, cur, req, body_dict, raw, "doppelt - nicht erneut gemeldet")
+        cur.close(); conn.close()
+        return {"status": "success", "duplicate": True, "message": "Gleicher Alarm wurde bereits gemeldet."}
+
     cur.execute("""
         INSERT INTO apager_logs (stichwort, adresse, meldung, created_at)
         VALUES (%s, %s, %s, %s)
@@ -212,7 +270,9 @@ async def process_alarm_webhook(req: Request, api_key: Optional[str] = None):
             VALUES (%s, %s, '', %s, %s, %s, '', 2.0, 'Entwurf', %s)
         """, (today, now_time, stichwort, adresse, meldung, alarm_group_id(cur)))
     
-    conn.commit(); cur.close(); conn.close()
+    conn.commit()
+    _log_webhook(conn, cur, req, body_dict, raw, "Alarm ausgelöst")
+    cur.close(); conn.close()
     
     await ws_mgr.manager.broadcast_json({
         "type": "new_mission", 

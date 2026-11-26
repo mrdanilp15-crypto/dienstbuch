@@ -38,7 +38,7 @@ from routers import aao_api
 from routers import logbook_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.80"
+CURRENT_VERSION = "2.81"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -425,6 +425,15 @@ def init_db_extensions():
                 username VARCHAR(255) NOT NULL,
                 action VARCHAR(255) NOT NULL,
                 details TEXT
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apager_webhook_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                method VARCHAR(10), content_type VARCHAR(100),
+                query_data TEXT, body_data TEXT, result VARCHAR(100)
             ) ENGINE=InnoDB;
         """)
 

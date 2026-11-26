@@ -130,6 +130,27 @@ check("Leiter: Admin nimmt zurueck", admin.post(f"/api/missions/{_a}/approve", j
 admin.delete(f"/api/missions/{_a}")
 admin.post("/api/admin/permissions/reset")
 
+# --- Alarm-Webhook: Schluessel, Doppelte, Protokoll
+sql("delete from apager_logs"); sql("delete from apager_webhook_log")
+check("Webhook: Mannschaft sieht den Schluessel nicht", cl["mannschaft"].get("/api/apager/config").status_code == 403)
+check("Webhook: Geraetewart sieht den Schluessel nicht", cl["geratewart"].get("/api/apager/config").status_code == 403)
+_key = cl["leitung"].get("/api/apager/config").json()["api_key"]
+_hook = httpx.Client(base_url=B, timeout=30)
+_p = {"title": "ZZ-Hook F2", "message": "Rauch", "location": "Hauptstr. 1", "token": _key}
+_r1 = _hook.post("/api/alarm/webhook", json=_p)
+check("Webhook: Alarm kommt an", _r1.status_code == 200 and not _r1.json().get("duplicate"), _r1.text[:100])
+check("Webhook: gleicher Alarm wird nur einmal gemeldet", _hook.post("/api/alarm/webhook", json=_p).json().get("duplicate") is True)
+check("Webhook: nur ein Eintrag im Alarmprotokoll", int(sql("select count(*) from apager_logs where stichwort='ZZ-Hook F2'")) == 1)
+check("Webhook: anderer Alarm kommt durch", not _hook.post("/api/alarm/webhook", json={**_p, "message": "anders"}).json().get("duplicate"))
+check("Webhook: Formulardaten und Schluessel in der Adresse", _hook.post(f"/api/alarm/webhook?api_key={_key}", data={"stichwort": "ZZ-Form"}).status_code == 200)
+check("Webhook: Text ohne JSON stuerzt nicht", _hook.post(f"/api/alarm/webhook?api_key={_key}", content=b"[1,2]", headers={"content-type": "application/json"}).status_code == 200)
+check("Webhook: falscher Schluessel abgelehnt", _hook.post("/api/alarm/webhook", json={"token": "x"}).status_code == 401)
+_log = admin.get("/api/apager/webhook-log").json()
+check("Webhook: Protokoll zeigt die Aufrufe", len(_log) == 5 and any("ZZ-Hook F2" in e["body_data"] for e in _log), str(len(_log)))
+check("Webhook: Protokoll enthaelt keinen Schluessel", _key not in str(_log))
+check("Webhook: Protokoll nur Admin/Leitung", cl["gruppenfuehrer"].get("/api/apager/webhook-log").status_code == 403)
+sql("delete from missions where stichwort like 'ZZ-%' or stichwort='Alarmierung'"); sql("delete from apager_logs")
+
 # --- Einsaetze erscheinen nur in der Dienstliste ihrer Gruppe (und ohne Gruppe in allen)
 _gs = admin.get("/groups").json()
 check("Dienstliste-Test: mindestens zwei Gruppen vorhanden", isinstance(_gs, list) and len(_gs) >= 2, str(_gs)[:80])

@@ -231,6 +231,7 @@ applyChartTheme();
                     newNote: { title: '', content: '', visibility: 'private' },
 
                     apagerConfig: { api_key: '', active: true },
+                    webhookLog: [],
                     apagerLogs: [],
                     apagerFeedbacks: [],
                     serverHost: window.location.host,
@@ -622,6 +623,7 @@ applyChartTheme();
                 canManageMissions() { return this.hasPerm('missions.manage'); },
                 canApproveMissions() { return this.hasPerm('missions.approve'); },
                 serverProtocol() { return window.location.protocol; },
+                canSeeWebhook() { return ['admin', 'leitung'].includes(this.role); },
                 canManagePersonnel() { return this.hasPerm('personnel.manage'); },
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
                 dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
@@ -1523,6 +1525,13 @@ applyChartTheme();
                         if(cRes.ok) this.apagerConfig = await cRes.json();
                         if(lRes.ok) this.apagerLogs = await lRes.json();
                         if(fRes.ok) this.apagerFeedbacks = await fRes.json();
+                    } catch(e) {}
+                    if (this.canSeeWebhook) await this.loadWebhookLog();
+                },
+                async loadWebhookLog() {
+                    try {
+                        const res = await fetch('/api/apager/webhook-log?_=' + Date.now(), { credentials: 'include' });
+                        if (res.ok) this.webhookLog = await res.json();
                     } catch(e) {}
                 },
                 async generateApiKey() {

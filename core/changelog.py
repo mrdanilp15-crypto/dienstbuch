@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 31,
+        "version": "2.81",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Alarmierung", "title": "Empfangsprotokoll für Webhooks",
+             "text": "Unter Alarmierung bei den Schnittstellen steht jetzt, was bei den letzten Webhook-Aufrufen genau angekommen ist (ohne Schlüssel). Gleiche Alarme innerhalb von 3 Minuten werden nur noch einmal gemeldet."},
+            {"type": "fix", "tag": "Sicherheit", "title": "Webhook-Schlüssel nur für Admin und Leitung",
+             "text": "Bisher konnte jedes angemeldete Konto den Schlüssel abrufen, mit dem sich Alarme auslösen lassen. Wer das Gefühl hat, der Schlüssel ist bekannt geworden, sollte unter Alarmierung einen neuen erzeugen."},
+        ],
+    },
+    {
         "id": 30,
         "version": "2.80",
         "date": "2026-11-26",
