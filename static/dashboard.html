@@ -143,7 +143,11 @@
                     <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="globalSearchQuery" @input="onGlobalSearchInput" @focus="globalSearchOpen = true" placeholder="Suche: Kamerad, Fahrzeug, Gerät, Dokument..." style="padding-left: 32px !important;">
                     <i class="fa fa-search text-muted position-absolute" style="left: 13px; top: 50%; transform: translateY(-50%); font-size: 0.8rem;"></i>
                     <div v-if="globalSearchOpen && globalSearchResults" class="card premium-card p-2 position-absolute shadow" style="top: 110%; left: 0; right: 0; z-index: 2000; max-height: 60vh; overflow-y: auto;">
-                        <div v-if="globalSearchResultCount === 0" class="text-muted small text-center py-2">Keine Treffer.</div>
+                        <div v-if="globalSearchResultCount === 0 && !searchCommands.length" class="text-muted small text-center py-2">Keine Treffer.</div>
+                        <div v-if="searchCommands.length">
+                            <div class="small text-muted fw-bold px-2 pt-1">BEREICHE &amp; FUNKTIONEN</div>
+                            <div v-for="c in searchCommands" :key="c.id" class="px-2 py-1 rounded search-result-item" @click="runSearchCommand(c)"><i class="fa text-danger me-2" :class="c.icon"></i>{{ c.label }} <span class="text-muted small">{{ c.hint }}</span></div>
+                        </div>
                         <div v-if="globalSearchResults.personnel.length">
                             <div class="small text-muted fw-bold px-2 pt-1">KAMERADEN</div>
                             <div v-for="p in globalSearchResults.personnel" :key="'p'+p.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchPersonnel(p)"><i class="fa fa-user text-danger me-2"></i>{{p.name}} <span class="text-muted small">{{p.rank}}</span></div>
@@ -243,18 +247,22 @@
                         </div>
                     </div>
                 </div>
-                <!-- aPager Live-Status -->
-                <div class="d-none d-lg-flex align-items-center gap-3">
-                    <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @click="toggleTheme" title="Hell/Dunkel Modus">
-                        <i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i>
+                <!-- Menü am Namen -->
+                <div class="position-relative d-none d-lg-block action-menu">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold user-menu-btn position-relative" @click="toggleAction('user')" :aria-expanded="openIncident === 'user' ? 'true' : 'false'">
+                        <i class="fa-regular fa-circle-user me-1"></i>{{ displayName || username }}<i class="fa fa-chevron-down ms-2 small"></i>
+                        <span v-if="isAdmin && changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Neuigkeiten</span></span>
                     </button>
-                    <a href="/static/alarmdisplay.html" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill"><i class="fa fa-desktop me-1"></i>Hallen-Display</a>
-                    <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span>
-                    <button v-if="isAdmin" class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-bold position-relative" @click="openChangelogModal" title="Was ist neu"><i class="fa fa-gift me-1"></i>Was ist neu
-                        <span v-if="changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Ungelesen</span></span>
-                    </button>
-                    <button class="btn btn-outline-info btn-sm rounded-pill px-3 fw-bold me-2" @click="requestPushPermission"><i class="fa fa-bell me-1"></i>Push-Alarm</button>
-                    <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i>Logout</button>
+                    <div v-if="openIncident === 'user'" class="incident-menu" @click="openIncident = null">
+                        <div class="incident-menu-head">{{ username }} · <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span></div>
+                        <button type="button" @click="openSelfPasswordModal"><i class="fa fa-user-gear"></i>Profil &amp; Dienststunden</button>
+                        <button type="button" @click="openIdCard"><i class="fa fa-id-card"></i>Dienstausweis</button>
+                        <button type="button" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i>{{ isDarkMode ? 'Heller Modus' : 'Dunkler Modus' }}</button>
+                        <a href="/static/alarmdisplay.html" target="_blank"><i class="fa fa-desktop"></i>Hallen-Display</a>
+                        <button v-if="isAdmin" type="button" @click="openChangelogModal"><i class="fa fa-gift"></i>Was ist neu<span v-if="changelogUnseen" class="badge bg-danger ms-auto">neu</span></button>
+                        <button type="button" @click="requestPushPermission"><i class="fa fa-bell"></i>Push-Alarm einschalten</button>
+                        <button type="button" class="text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i>Logout</button>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -282,12 +290,12 @@
                     </div>
                     <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('org')" @click="toggleMenuSection('org')" @keyup.enter="toggleMenuSection('org')"><span>Organisation</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('org') && dueBadge" class="badge rounded-pill bg-danger">{{ dueBadge }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('org')}"></i></span></div>
                     <div v-show="menuOpen('org')">
-                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienstbetrieb<span class="sidebar-pin" :class="isFavorite('dienste') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('dienste')"><i class="fa-star" :class="isFavorite('dienste') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienste<span class="sidebar-pin" :class="isFavorite('dienste') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('dienste')"><i class="fa-star" :class="isFavorite('dienste') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender<span class="sidebar-pin" :class="isFavorite('kalender') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('kalender')"><i class="fa-star" :class="isFavorite('kalender') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span><span class="sidebar-pin" :class="isFavorite('fristen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('fristen')"><i class="fa-star" :class="isFavorite('fristen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
-                    <button class="sidebar-btn" v-if="canSeePersonnel" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personalverwaltung<span class="sidebar-pin" :class="isFavorite('personal') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('personal')"><i class="fa-star" :class="isFavorite('personal') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeePersonnel" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personal<span class="sidebar-pin" :class="isFavorite('personal') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('personal')"><i class="fa-star" :class="isFavorite('personal') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" v-if="canSeeYouth" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr<span class="sidebar-pin" :class="isFavorite('jugend') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('jugend')"><i class="fa-star" :class="isFavorite('jugend') ? 'fa-solid' : 'fa-regular'"></i></span></button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Digitales Notizbuch<span class="sidebar-pin" :class="isFavorite('notizen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('notizen')"><i class="fa-star" :class="isFavorite('notizen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Notizen<span class="sidebar-pin" :class="isFavorite('notizen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('notizen')"><i class="fa-star" :class="isFavorite('notizen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" v-if="canSeeStats" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken<span class="sidebar-pin" :class="isFavorite('stats') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('stats')"><i class="fa-star" :class="isFavorite('stats') ? 'fa-solid' : 'fa-regular'"></i></span></button>
 
                     </div>
@@ -295,7 +303,7 @@
                     <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('einsatz')" @click="toggleMenuSection('einsatz')" @keyup.enter="toggleMenuSection('einsatz')"><span>Einsatz &amp; Taktik</span><span class="d-flex align-items-center gap-2"><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('einsatz')}"></i></span></div>
                     <div v-show="menuOpen('einsatz')">
                     <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung<span class="sidebar-pin" :class="isFavorite('apager') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('apager')"><i class="fa-star" :class="isFavorite('apager') ? 'fa-solid' : 'fa-regular'"></i></span></button>
-                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; showMobileSidebar = false"><i class="fa fa-fire"></i> Einsatzberichte<span class="sidebar-pin" :class="isFavorite('einsaetze') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('einsaetze')"><i class="fa-star" :class="isFavorite('einsaetze') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; showMobileSidebar = false"><i class="fa fa-fire"></i> Einsätze<span class="sidebar-pin" :class="isFavorite('einsaetze') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('einsaetze')"><i class="fa-star" :class="isFavorite('einsaetze') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten<span class="sidebar-pin" :class="isFavorite('lagekarte') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('lagekarte')"><i class="fa-star" :class="isFavorite('lagekarte') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'bma'}" @click="activeTab = 'bma'; showMobileSidebar = false"><i class="fa fa-building-shield"></i> Objekte & BMA<span class="sidebar-pin" :class="isFavorite('bma') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('bma')"><i class="fa-star" :class="isFavorite('bma') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder<span class="sidebar-pin" :class="isFavorite('hvo') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('hvo')"><i class="fa-star" :class="isFavorite('hvo') ? 'fa-solid' : 'fa-regular'"></i></span></button>
@@ -305,7 +313,7 @@
 
                     <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('material')" @click="toggleMenuSection('material')" @keyup.enter="toggleMenuSection('material')"><span>Material &amp; Finanzen</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('material') && overviewDefects.length" class="badge rounded-pill bg-danger">{{ overviewDefects.length }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('material')}"></i></span></div>
                     <div v-show="menuOpen('material')">
-                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeugpool<span class="sidebar-pin" :class="isFavorite('fahrzeuge') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('fahrzeuge')"><i class="fa-star" :class="isFavorite('fahrzeuge') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeuge<span class="sidebar-pin" :class="isFavorite('fahrzeuge') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('fahrzeuge')"><i class="fa-star" :class="isFavorite('fahrzeuge') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material' && materialSubTab !== 'maengel'}" @click="goMenu('material')"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material<span class="sidebar-pin" :class="isFavorite('material') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('material')"><i class="fa-star" :class="isFavorite('material') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" :class="{active: activeTab === 'material' && materialSubTab === 'maengel'}" @click="goMenu('maengel')"><i class="fa fa-triangle-exclamation"></i> Mängel <span v-if="overviewDefects.length" class="badge rounded-pill bg-warning text-dark ms-auto">{{ overviewDefects.length }}</span><span class="sidebar-pin" :class="isFavorite('maengel') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('maengel')"><i class="fa-star" :class="isFavorite('maengel') ? 'fa-solid' : 'fa-regular'"></i></span></button>
                     <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung<span class="sidebar-pin" :class="isFavorite('abrechnung') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('abrechnung')"><i class="fa-star" :class="isFavorite('abrechnung') ? 'fa-solid' : 'fa-regular'"></i></span></button>
@@ -350,6 +358,13 @@
                     <button v-for="i in mobileNavItems" :key="i.id" type="button" :class="i.active ? 'active' : ''" @click="goMenu(i.id)"><i class="fa" :class="i.icon"></i><span>{{ i.label }}</span><b v-if="i.badge" class="mbn-badge">{{ i.badge }}</b></button>
                     <button type="button" @click="showMobileSidebar = true"><i class="fa fa-bars"></i><span>Menü</span></button>
                 </nav>
+
+                <div v-if="fabItems.length" class="fab action-menu">
+                    <div v-if="openIncident === 'fab'" class="incident-menu fab-menu" @click="openIncident = null">
+                        <button v-for="f in fabItems" :key="f.id" type="button" @click="runFab(f.id)"><i class="fa" :class="f.icon"></i>{{ f.label }}</button>
+                    </div>
+                    <button type="button" class="fab-btn" title="Neu anlegen" aria-label="Neu anlegen" @click="toggleAction('fab')"><i class="fa" :class="openIncident === 'fab' ? 'fa-xmark' : 'fa-plus'"></i></button>
+                </div>
 
                 <!-- System Broadcast Banners -->
                 <button v-if="compactBroadcasts.length" type="button" class="broadcast-line mb-3" @click="activeTab = 'uebersicht'">
@@ -408,8 +423,8 @@
                         <button v-for="w in overviewHiddenWidgets" :key="w.id" class="btn btn-sm btn-outline-secondary rounded-pill" @click="showOverviewWidget(w.id)"><i class="fa fa-plus me-1"></i>{{ w.title }}</button>
                     </div>
                     <div class="row g-3 overview-grid">
-                        <div v-for="w in overviewWidgets" :key="w.id" class="col-12 col-lg-6 col-xl-4">
-                            <div class="card premium-card p-3 h-100">
+                        <div v-for="w in overviewCards" :key="w.id" class="col-12 col-lg-6 col-xl-4" :class="w.empty ? 'align-self-start' : ''">
+                            <div class="card premium-card p-3" :class="w.empty ? 'overview-empty' : 'h-100'">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h6 class="fw-bold text-white mb-0"><i class="fa me-2 text-danger" :class="w.icon"></i>{{ w.title }}</h6>
                                     <div v-if="overviewEdit" class="d-flex gap-1">
@@ -424,7 +439,7 @@
                                     <div v-for="b in activeBroadcasts.slice(0, 3)" :key="b.id" class="p-2 mb-2 rounded-3" style="background:rgba(255,255,255,0.05);">
                                         <div class="fw-bold text-white small">{{ b.title }}</div>
                                         <div class="text-muted small" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ b.content }}</div>
-                                        <div class="text-muted" style="font-size:0.7rem;">{{ b.datum }} · {{ b.autor }}</div>
+                                        <div class="d-flex justify-content-between align-items-center gap-2"><span class="text-muted" style="font-size:0.7rem;">{{ b.datum }} · {{ b.autor }}</span><button v-if="b.gelesen == 0" type="button" class="btn btn-sm btn-outline-light rounded-pill py-0" @click="markBroadcastAsRead(b)"><i class="fa fa-check me-1"></i>Gelesen</button></div>
                                     </div>
                                 </div>
 
@@ -531,7 +546,7 @@
                                         <div class="flex-grow-1 text-truncate small text-white fw-bold">{{ v.name }} <span class="text-muted fw-normal">S{{ v.status }}</span></div>
                                         <small v-if="v.tuv_date" :class="isOverdue(v.tuv_date) ? 'text-danger fw-bold' : 'text-muted'">TÜV {{ dt(v.tuv_date) }}</small>
                                     </div>
-                                    <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'fahrzeuge'">Fahrzeugpool öffnen</a>
+                                    <a class="small text-info d-inline-block mt-2" style="cursor:pointer;" @click="activeTab = 'fahrzeuge'">Fahrzeuge öffnen</a>
                                 </div>
 
                                 <div v-else-if="w.id === 'mannschaft'">
@@ -549,7 +564,7 @@
                                         <div class="fw-bold text-white small">{{ n.title }}</div>
                                         <div class="text-muted small" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ n.content }}</div>
                                     </div>
-                                    <a class="small text-info d-inline-block mt-1" style="cursor:pointer;" @click="activeTab = 'notizen'">Zum Notizbuch</a>
+                                    <a class="small text-info d-inline-block mt-1" style="cursor:pointer;" @click="activeTab = 'notizen'">Zu den Notizen</a>
                                 </div>
 
                                 <div v-else-if="w.id === 'schnellzugriff'">
@@ -730,7 +745,7 @@
                 <div v-show="activeTab === 'notizen'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-sticky-note text-danger me-2"></i>Digitales Notizbuch</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-sticky-note text-danger me-2"></i>Notizen</h2>
                             <small class="text-muted">Mängelmeldungen, Funkraum-Notizen und Whiteboard</small>
                         </div>
                     </div>
@@ -830,7 +845,8 @@
 
                     <div v-if="filteredNotes.length === 0" class="col-12 text-center text-muted py-5 premium-card">
                         <i class="fa fa-folder-open h1 d-block mb-3 opacity-25 text-danger"></i>
-                        Keine Notizen in dieser Kategorie vorhanden.
+                        Hier steht noch keine Notiz.
+                        <div v-if="notesActiveFilter !== 'all'" class="mt-2"><button class="btn btn-sm btn-outline-light rounded-pill" @click="notesActiveFilter = 'all'">Alle Notizen zeigen</button></div>
                     </div>
                 </div>
             </div>
@@ -843,7 +859,7 @@
                 <div v-show="activeTab === 'kalender'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Gemeinsamer Kalender</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Kalender</h2>
                             <small class="text-muted">Dienste, Einsätze, Fahrzeug-Reservierungen & Jubiläen im Überblick</small>
                         </div>
                         <button v-if="canSeeSettings" class="btn btn-outline-light btn-sm rounded-pill" @click="openCalendarFeed"><i class="fa fa-rss me-1"></i>Kalender abonnieren</button>
@@ -877,7 +893,7 @@
                 <div v-show="activeTab === 'einsaetze'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsatzberichte & Einsatzverwaltung</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsätze</h2>
                             <small class="text-muted">Teilautomatische Dokumentation und Atemschutz-Nachweise</small>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -941,7 +957,7 @@
                                         <button v-else-if="incidentPrimary(m) === 'submit'" class="btn btn-sm btn-premium rounded-pill" @click="releaseMission(m, 'submit')"><i class="fa fa-paper-plane me-1"></i>Einreichen</button>
                                         <button v-else-if="incidentPrimary(m) === 'sign'" class="btn btn-sm btn-premium rounded-pill" @click="openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
                                         <button v-else-if="incidentPrimary(m) === 'pdf'" class="btn btn-sm btn-outline-light rounded-pill" @click="downloadMissionPdf(m)" title="Einsatzbericht als PDF"><i class="fa fa-file-pdf me-1"></i>PDF</button>
-                                        <div v-if="incidentMenu(m).length" class="position-relative">
+                                        <div v-if="incidentMenu(m).length" class="position-relative action-menu">
                                             <button type="button" class="btn btn-sm btn-outline-light rounded-circle incident-more" title="Weitere Aktionen" aria-label="Weitere Aktionen" @click="toggleIncidentMenu(m)"><i class="fa fa-ellipsis"></i></button>
                                             <div v-if="openIncident === incidentKey(m)" class="incident-menu">
                                                 <button v-for="a in incidentMenu(m)" :key="a.id" type="button" :class="a.id === 'delete' ? 'text-danger' : ''" @click="incidentAction(m, a.id)"><i class="fa" :class="a.icon"></i>{{ a.label }}</button>
@@ -951,7 +967,11 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">{{ filterIsActive('einsaetze') ? 'Keine Einsätze mit diesem Filter.' : 'Keine Einsätze erfasst.' }}</div>
+                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">
+                            <div class="mb-2">{{ filterIsActive('einsaetze') ? 'Keine Einsätze mit diesem Filter.' : 'Noch keine Einsätze erfasst. Der erste Bericht dauert nur wenige Minuten.' }}</div>
+                            <button v-if="filterIsActive('einsaetze')" class="btn btn-sm btn-outline-light rounded-pill" @click="resetFilter('einsaetze')">Filter zurücksetzen</button>
+                            <button v-else-if="canManageMissions" class="btn btn-sm btn-premium rounded-pill" @click="goToNewMission"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                        </div>
                     </div>
                 </div>
 
@@ -959,7 +979,7 @@
                 <div v-show="activeTab === 'fahrzeuge'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugpool & Fahrtenbücher <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeuge <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
                             <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
                         </div>
                         <button v-if="canManageVehicles" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
@@ -1057,12 +1077,12 @@
                 <div v-show="activeTab === 'material'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräte- & Materialverwaltung</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräte & Material</h2>
                             <small class="text-muted">Bestandsakten, Prüffristen und Sammelprüfungen</small>
                         </div>
                         <div class="d-flex gap-2">
-                            <button v-if="canManageMaterial" class="btn btn-outline-warning rounded-pill px-3" @click="openBatchInspectModal"><i class="fa fa-qrcode me-1"></i>Sammelprüfung (Batch)</button>
                             <button v-if="canManageMaterial" class="btn btn-premium rounded-pill px-3" @click="openEquipmentModal"><i class="fa fa-plus me-1"></i>Gerät erfassen</button>
+                            <button v-if="canManageMaterial" class="btn btn-outline-light rounded-pill px-3" @click="openBatchInspectModal"><i class="fa fa-qrcode me-1"></i>Sammelprüfung</button>
                         </div>
                     </div>
 
@@ -1073,7 +1093,7 @@
                         </li>
                         <li class="nav-item">
                             <button class="nav-link position-relative" :class="materialSubTab === 'maengel' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'maengel'; loadDefectReports()">
-                                <i class="fa fa-triangle-exclamation me-1"></i>Mängelmelder
+                                <i class="fa fa-triangle-exclamation me-1"></i>Mängel
                                 <span v-if="defectReports.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size:0.6rem;">{{defectReports.length}}</span>
                             </button>
                         </li>
@@ -1169,7 +1189,9 @@
                             </div>
                             <div v-if="filteredEquipment.length === 0" class="col-12 empty-state">
                                 <i class="fa-solid fa-toolbox"></i>
-                                <p>Keine Geräte gefunden</p>
+                                <p>{{ filterIsActive('geraete') ? 'Kein Gerät passt zur Auswahl.' : 'Noch keine Geräte erfasst.' }}</p>
+                                <button v-if="filterIsActive('geraete')" class="btn btn-sm btn-outline-light rounded-pill" @click="resetFilter('geraete')">Filter zurücksetzen</button>
+                                <button v-else-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill" @click="openEquipmentModal">Erstes Gerät erfassen</button>
                             </div>
                         </div>
                     </div>
@@ -1461,16 +1483,21 @@
                 <div v-show="activeTab === 'personal'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personalverwaltung</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-users text-danger me-2"></i>Personal</h2>
                             <small class="text-muted">Dienstgrade, Lehrgänge, Bekleidung und Atemschutzüberwachung</small>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-warning rounded-pill" @click="openAnniversariesModal"><i class="fa fa-award me-1"></i>Jubiläen</button>
-                            <a v-if="isAdmin || role === 'leitung'" href="/api/personnel/roster/pdf" target="_blank" class="btn btn-outline-light rounded-pill"><i class="fa fa-file-pdf me-1"></i>Mitgliederliste (PDF)</a>
-                            <button v-if="isAdmin || role === 'leitung'" class="btn btn-outline-info rounded-pill" @click="openQualMatrixModal"><i class="fa fa-table-cells me-1"></i>Qualifikationsmatrix</button>
-                            <button v-if="canManageMaterial" class="btn btn-outline-light rounded-pill" @click="openClothingModal"><i class="fa fa-shirt me-1"></i>Kleiderkammer</button>
-                            <button v-if="canManageProspects" class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
                             <button v-if="canManagePersonnel" class="btn btn-premium rounded-pill" @click="openPersonnelModal"><i class="fa fa-plus-circle me-1"></i>Neues Mitglied</button>
+                            <div class="position-relative action-menu">
+                                <button type="button" class="btn btn-outline-light rounded-pill" @click="toggleAction('personal')"><i class="fa fa-ellipsis me-1"></i>Mehr</button>
+                                <div v-if="openIncident === 'personal'" class="incident-menu" @click="openIncident = null">
+                                    <button type="button" @click="openAnniversariesModal"><i class="fa fa-award"></i>Jubiläen</button>
+                                    <a v-if="isAdmin || role === 'leitung'" href="/api/personnel/roster/pdf" target="_blank"><i class="fa fa-file-pdf"></i>Mitgliederliste (PDF)</a>
+                                    <button v-if="isAdmin || role === 'leitung'" type="button" @click="openQualMatrixModal"><i class="fa fa-table-cells"></i>Qualifikationsmatrix</button>
+                                    <button v-if="canManageMaterial" type="button" @click="openClothingModal"><i class="fa fa-shirt"></i>Kleiderkammer</button>
+                                    <button v-if="canManageProspects" type="button" @click="openProspectsModal"><i class="fa fa-handshake"></i>Nachwuchs</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <due-strip area="personal" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
@@ -1502,7 +1529,9 @@
                         </div>
                         <div v-if="filteredPersonnel.length === 0" class="empty-state">
                             <i class="fa-solid fa-user-slash"></i>
-                            <p>Keine Kameraden gefunden</p>
+                            <p>{{ personnelSearch ? 'Niemand passt zur Suche.' : 'Noch keine Mitglieder angelegt.' }}</p>
+                            <button v-if="personnelSearch" class="btn btn-sm btn-outline-light rounded-pill" @click="personnelSearch = ''">Suche leeren</button>
+                            <button v-else-if="canManagePersonnel" class="btn btn-sm btn-premium rounded-pill" @click="openPersonnelModal">Erstes Mitglied anlegen</button>
                         </div>
                     </div>
                 </div>
@@ -3095,7 +3124,7 @@
                 <div v-show="activeTab === 'lagekarte'">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
                         <div>
-                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-map-location-dot text-danger me-2"></i>Lagekarte & Hydrantennetz</h2>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-map-location-dot text-danger me-2"></i>Lagekarte</h2>
                             <small class="text-muted">Digitale Lagekarte mit Wasserentnahmestellen, Brandmeldeanlagen (BMA) und Rettungswegen</small>
                         </div>
                     </div>

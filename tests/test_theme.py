@@ -102,12 +102,26 @@ with sync_playwright() as pw:
     page.locator("h2:visible").first.click(); page.wait_for_timeout(300)
     check("Aktionsmenü: Klick daneben schließt", page.locator(".incident-menu").count() == 0)
     page.locator(".broadcast-line").click(); page.wait_for_timeout(2000)
-    check("Mitteilung: Zeile führt zur Übersicht mit voller Mitteilung", vm_eval(page, "vm.activeTab") == "uebersicht" and page.locator(".broadcast-card").count() >= 1)
+    check("Mitteilung: Zeile führt zur Übersicht, dort einmal in der Karte mit Gelesen", vm_eval(page, "vm.activeTab") == "uebersicht" and page.locator(".broadcast-card").count() == 0 and page.locator(".overview-grid", has_text="ZZ-Zeile").count() == 1 and page.locator(".overview-grid button", has_text="Gelesen").count() >= 1)
     check("Übersicht: Block Zu erledigen", page.locator(".todo-card").is_visible())
     if page.locator(".todo-item").count():
         page.locator(".todo-item").first.click(); page.wait_for_timeout(500)
         check("Zu erledigen: Klick führt in den Bereich", vm_eval(page, "vm.activeTab") != "uebersicht")
     page.evaluate("async (id) => { await fetch('/api/broadcasts/' + id, {method: 'DELETE'}) }", bid)
+
+    # Kopfmenue, Plus-Knopf, Suche nach Funktionen
+    vm_eval(page, "(vm.activeTab = 'uebersicht', 1)"); page.wait_for_timeout(600)
+    page.locator(".user-menu-btn").click(); page.wait_for_timeout(300)
+    check("Kopfmenü: Logout, Hallen-Display, Profil", all(page.locator(".incident-menu", has_text=t).count() for t in ("Logout", "Hallen-Display", "Profil & Dienststunden")))
+    page.locator("h3:visible").first.click(); page.wait_for_timeout(300)
+    check("Kopfmenü: Klick daneben schließt", page.locator(".incident-menu").count() == 0)
+    page.locator(".fab-btn").click(); page.wait_for_timeout(300)
+    check("Plus-Knopf: Einsatz und Mangel", page.locator(".fab-menu button", has_text="Einsatz erfassen").count() == 1 and page.locator(".fab-menu button", has_text="Mangel melden").count() == 1)
+    page.locator(".fab-menu button", has_text="Mangel melden").click(); page.wait_for_timeout(600)
+    check("Plus-Knopf: Mangel führt zu den Mängeln", vm_eval(page, "vm.activeTab + '/' + vm.materialSubTab") == "material/maengel")
+    found = vm_eval(page, "(vm.globalSearchQuery = 'webhook', vm.searchCommands.map(c => c.label))")
+    check("Suche findet Funktionen", found == ["Alarmierung"], str(found))
+    vm_eval(page, "(vm.globalSearchQuery = '', 1)")
 
     # Favoriten im Menü und Leiste unten (Handy)
     page.evaluate("async () => { await fetch('/api/users/me/prefs/menu_favorites', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value: ['maengel', 'fristen']}) }); }")
@@ -130,6 +144,16 @@ with sync_playwright() as pw:
     m.wait_for_timeout(600)
     check("Handy: Leiste wechselt den Bereich", vm_eval(m, "vm.activeTab") == "einsaetze")
     check("Handy: Leiste ist nicht auf dem Desktop sichtbar", not page.evaluate("() => [...document.querySelectorAll('.mobile-bottom-nav')].some(n => n.offsetParent)"))
+    HIT = """() => { const items = [...document.querySelectorAll('.incident-menu > button, .incident-menu > a')].filter(e => e.offsetParent);
+        return items.length > 0 && items.every(e => { const r = e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) }) }"""
+    for tab in ("personal", "einsaetze"):
+        vm_eval(m, f"(vm.openIncident = null, vm.activeTab = '{tab}', 1)"); m.wait_for_timeout(900)
+        if tab == "personal":
+            m.get_by_role("button", name="Mehr").click()
+        else:
+            m.locator(".incident-more:visible").first.click()
+        m.wait_for_timeout(400)
+        check(f"Handy: Menü bei {tab} ist nicht verdeckt", m.evaluate(HIT))
     ctx2.close()
 
     # Editor im hellen Modus

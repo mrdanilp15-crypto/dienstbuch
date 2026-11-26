@@ -21,14 +21,14 @@ def check(name, cond, extra=""):
 
 def items_for(*, personal, youth):
     """Basis für alle; Personalverwaltung nur für Rollen mit Aufgabe dort, Jugendfeuerwehr (Daten Minderjähriger) nur für Jugendwarte."""
-    return ["Übersicht", "Dienstbetrieb", "Kalender", "Fristen"] + (["Personalverwaltung"] if personal else []) + (["Jugendfeuerwehr"] if youth else []) + [
-        "Digitales Notizbuch", "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
-        "Fahrzeugpool", "Geräte & Material", "Mängel", "Dokumente & Archiv"]
+    return ["Übersicht", "Dienste", "Kalender", "Fristen"] + (["Personal"] if personal else []) + (["Jugendfeuerwehr"] if youth else []) + [
+        "Notizen", "Alarmierung", "Einsätze", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
+        "Fahrzeuge", "Geräte & Material", "Mängel", "Dokumente & Archiv"]
 
 
-MANAGER_ITEMS = ["Übersicht", "Dienstbetrieb", "Kalender", "Fristen", "Personalverwaltung", "Jugendfeuerwehr", "Digitales Notizbuch", "Statistiken",
-                 "Alarmierung", "Einsatzberichte", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder", "Logbücher",
-                 "Fahrzeugpool", "Geräte & Material", "Mängel", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
+MANAGER_ITEMS = ["Übersicht", "Dienste", "Kalender", "Fristen", "Personal", "Jugendfeuerwehr", "Notizen", "Statistiken",
+                 "Alarmierung", "Einsätze", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder", "Logbücher",
+                 "Fahrzeuge", "Geräte & Material", "Mängel", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
                  "Einstellungen"]
 EXPECT = {"admin": MANAGER_ITEMS, "leitung": MANAGER_ITEMS,
           "mannschaft": items_for(personal=False, youth=False),

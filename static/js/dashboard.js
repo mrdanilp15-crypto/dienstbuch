@@ -490,20 +490,20 @@ applyChartTheme();
                 },
                 menuCatalog() {
                     return {
-                        dienste: { label: 'Dienstbetrieb', icon: 'fa-book', show: true },
+                        dienste: { label: 'Dienste', icon: 'fa-book', show: true },
                         kalender: { label: 'Kalender', icon: 'fa-calendar-days', show: true },
                         fristen: { label: 'Fristen', icon: 'fa-clock', show: true },
-                        personal: { label: 'Personalverwaltung', icon: 'fa-users', show: this.canSeePersonnel },
+                        personal: { label: 'Personal', icon: 'fa-users', show: this.canSeePersonnel },
                         jugend: { label: 'Jugendfeuerwehr', icon: 'fa-graduation-cap', show: this.canSeeYouth },
-                        notizen: { label: 'Digitales Notizbuch', icon: 'fa-sticky-note', show: true },
+                        notizen: { label: 'Notizen', icon: 'fa-sticky-note', show: true },
                         stats: { label: 'Statistiken', icon: 'fa-chart-bar', show: this.canSeeStats },
                         apager: { label: 'Alarmierung', icon: 'fa-bell', show: true },
-                        einsaetze: { label: 'Einsatzberichte', icon: 'fa-fire', show: true },
+                        einsaetze: { label: 'Einsätze', icon: 'fa-fire', show: true },
                         lagekarte: { label: 'Lagekarte & Hydranten', icon: 'fa-map-location-dot', show: true },
                         bma: { label: 'Objekte & BMA', icon: 'fa-building-shield', show: true },
                         hvo: { label: 'First Responder', icon: 'fa-heart-pulse', show: true },
                         logbuch: { label: 'Logbücher', icon: 'fa-book-open', show: this.logbooks.length > 0 || this.canSeeSettings },
-                        fahrzeuge: { label: 'Fahrzeugpool', icon: 'fa-truck', show: true },
+                        fahrzeuge: { label: 'Fahrzeuge', icon: 'fa-truck', show: true },
                         material: { label: 'Geräte & Material', icon: 'fa-screwdriver-wrench', show: true },
                         maengel: { label: 'Mängel', icon: 'fa-triangle-exclamation', show: true },
                         abrechnung: { label: 'Abrechnung', icon: 'fa-euro-sign', show: this.canSeeFinance },
@@ -552,6 +552,40 @@ applyChartTheme();
                 overviewWidgets() {
                     const defs = this.overviewWidgetDefs;
                     return this.overviewLayout.order.filter(id => defs[id] && !this.overviewLayout.hidden.includes(id)).map(id => ({ id, ...defs[id] }));
+                },
+                // Leere Karten rutschen nach hinten und bleiben klein (beim Bearbeiten bleibt die eigene Reihenfolge)
+                overviewCards() {
+                    const empty = {
+                        mitteilungen: !this.activeBroadcasts.length, maengel: !(this.overviewDefects || []).length,
+                        benachrichtigungen: !this.overviewNotifItems.length, pinnwand: !this.overviewPins.length,
+                        termine: !this.overviewDayItems.length && !this.overviewUpcoming.length,
+                        naechsteTermine: !this.overviewNextSchedules.length, letzteEinsaetze: !this.overviewLatestMissions.length
+                    };
+                    const list = this.overviewWidgets.map(w => ({ ...w, empty: !this.overviewEdit && this.overviewLoaded && !!empty[w.id] }));
+                    return list.filter(w => !w.empty).concat(list.filter(w => w.empty));
+                },
+                fabItems() {
+                    const items = [];
+                    if (this.canManageMissions) items.push({ id: 'einsatz', label: 'Einsatz erfassen', icon: 'fa-fire' });
+                    if (this.canManageDienste) {
+                        if (this.selectedGroup) items.push({ id: 'dienst', label: 'Dienst erfassen', icon: 'fa-book' });
+                        items.push({ id: 'termin', label: 'Termin planen', icon: 'fa-calendar-plus' });
+                    }
+                    items.push({ id: 'mangel', label: 'Mangel melden', icon: 'fa-triangle-exclamation' });
+                    return items;
+                },
+                searchCommands() {
+                    const q = (this.globalSearchQuery || '').trim().toLowerCase();
+                    if (q.length < 2) return [];
+                    const list = [];
+                    const words = { dienste: 'dienstbetrieb übung anwesenheit', kalender: 'termine', apager: 'alarm webhook apager', personal: 'kameraden mitglieder lehrgänge',
+                        einsaetze: 'einsatzberichte', fahrzeuge: 'fahrtenbuch fahrzeugpool', material: 'geräte prüfung', maengel: 'defekt kaputt melden', notizen: 'notizbuch', verwaltung: 'einstellungen' };
+                    Object.entries(this.menuCatalog).forEach(([id, m]) => { if (m.show) list.push({ id: 'tab:' + id, label: m.label, hint: 'Bereich', icon: m.icon, words: words[id] || '' }); });
+                    const more = { mail: 'e-mail smtp versand', rechte: 'berechtigungen rollen freigabe', logins: 'benutzer konten passwort zurücksetzen', betrieb: 'sicherung backup', sicherheit: 'datenschutz zwei-faktor', wache: 'fristen logbücher standort' };
+                    (this.settingsGroups || []).forEach(g => g.tabs.forEach(t => list.push({ id: 'set:' + t.key, label: t.label, hint: 'Einstellungen', icon: t.icon, words: more[t.key] || '' })));
+                    list.push({ id: 'profil', label: 'Passwort & Profil', hint: 'dein Konto', icon: 'fa-user-gear', words: 'passwort ändern profil dienststunden zwei-faktor' });
+                    list.push({ id: 'ausweis', label: 'Dienstausweis', hint: 'dein Konto', icon: 'fa-id-card', words: 'ausweis' });
+                    return list.filter(c => (c.label + ' ' + c.words).toLowerCase().includes(q)).slice(0, 6);
                 },
                 overviewHiddenWidgets() {
                     const defs = this.overviewWidgetDefs;
@@ -609,7 +643,8 @@ applyChartTheme();
                 },
                 overviewNotifItems() {
                     const all = [];
-                    (this.notifCats || []).forEach(c => (c.items || []).forEach(n => all.push({ ...n, catLabel: c.label, catIcon: c.icon })));
+                    const shown = new Set((this.activeBroadcasts || []).map(b => b.title));  // steht schon bei den Mitteilungen
+                    (this.notifCats || []).forEach(c => (c.items || []).forEach(n => { if (!shown.has(n.title)) all.push({ ...n, catLabel: c.label, catIcon: c.icon }); }));
                     return all.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 4);
                 },
                 overviewDue() {
@@ -878,7 +913,10 @@ applyChartTheme();
                 },
                 visibleBroadcasts() { return this.activeBroadcasts.filter(b => b.gelesen == 0); },
                 // Groß nur auf der Übersicht oder bei Lesepflicht, auf den anderen Seiten reicht eine Zeile
-                bannerBroadcasts() { return this.visibleBroadcasts.filter(b => this.activeTab === 'uebersicht' || b.is_mandatory); },
+                bannerBroadcasts() {
+                    const inCard = this.activeTab === 'uebersicht' && this.overviewWidgets.some(w => w.id === 'mitteilungen');
+                    return this.visibleBroadcasts.filter(b => b.is_mandatory || (this.activeTab === 'uebersicht' && !inCard));
+                },
                 compactBroadcasts() { return this.activeTab === 'uebersicht' ? [] : this.visibleBroadcasts.filter(b => !b.is_mandatory); },
                 missionFilterCount() { return [this.missionStatus !== 'alle', this.missionKind !== 'alle', this.missionYear !== 'all'].filter(Boolean).length; },
                 todoItems() {
@@ -1083,6 +1121,8 @@ applyChartTheme();
                     console.error('Fehler beim Initialisieren des Dashboards:', e);
                 } finally {
                     this.ready = true;
+                    window.addEventListener('pagehide', () => this.rememberPlace());
+                    this.restorePlace();
                 }
 
                 // Bewusst ERST hier, nach ready=true und dem nächsten Render-Durchlauf: vorher ist
@@ -1784,14 +1824,55 @@ applyChartTheme();
                     if (this.canDeleteMissions) list.push({ id: 'delete', label: 'Löschen', icon: 'fa-trash-alt' });
                     return list;
                 },
-                toggleIncidentMenu(m) {
-                    const key = this.incidentKey(m);
+                toggleIncidentMenu(m) { this.toggleAction(this.incidentKey(m)); },
+                toggleAction(key) {
                     this.openIncident = this.openIncident === key ? null : key;
-                    if (!this._incidentCloser) {
-                        this._incidentCloser = (e) => { if (!e.target.closest || !e.target.closest('.incident-actions')) this.openIncident = null; };
-                        document.addEventListener('click', this._incidentCloser, true);
+                    if (!this._menuCloser) {
+                        this._menuCloser = (e) => { if (!e.target.closest || !e.target.closest('.action-menu')) this.openIncident = null; };
+                        document.addEventListener('click', this._menuCloser, true);
                         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.openIncident = null; });
                     }
+                },
+                runFab(id) {
+                    if (id === 'einsatz') this.goToNewMission();
+                    else if (id === 'dienst') this.createNew();
+                    else if (id === 'termin') this.openScheduleModal();
+                    else if (id === 'mangel') { this.goMenu('maengel'); this.loadEquipment(); this.loadDefectReports(); }
+                },
+                runSearchCommand(c) {
+                    const [kind, key] = c.id.split(':');
+                    this.globalSearchQuery = ''; this.globalSearchResults = null; this.globalSearchOpen = false; this.mobileSearchOpen = false;
+                    if (kind === 'tab') this.goMenu(key);
+                    else if (kind === 'set') { this.activeTab = 'verwaltung'; this.openSettingsTab(key); }
+                    else if (kind === 'profil') this.openSelfPasswordModal();
+                    else this.openIdCard();
+                },
+                // Nach dem Bearbeiten im Editor wieder an dieselbe Stelle: Filter, Liste und Scrollposition
+                rememberPlace() {
+                    try {
+                        sessionStorage.setItem('dashboardPlace', JSON.stringify({
+                            tab: this.activeTab, search: this.missionSearch, status: this.missionStatus, kind: this.missionKind, year: this.missionYear,
+                            group: this.missionGroupFilter, open: this.missionFiltersOpen, list: this.selectedGroup ? this.selectedGroup.id : null,
+                            y: window.scrollY, my: (document.querySelector('.main-content') || {}).scrollTop || 0
+                        }));
+                    } catch (e) { /* Speicher gesperrt: dann eben ohne */ }
+                },
+                restorePlace() {
+                    let p = null;
+                    try {
+                        const back = (document.referrer || '').includes('/editor') || (performance.getEntriesByType('navigation')[0] || {}).type === 'back_forward';
+                        p = back ? JSON.parse(sessionStorage.getItem('dashboardPlace') || 'null') : null;
+                    } catch (e) { p = null; }
+                    if (!p || p.tab !== this.activeTab) return;
+                    this.missionSearch = p.search || ''; this.missionStatus = p.status || 'alle'; this.missionKind = p.kind || 'alle';
+                    this.missionYear = p.year || 'all'; this.missionGroupFilter = p.group || 'all'; this.missionFiltersOpen = !!p.open;
+                    const g = (this.groups || []).find(x => x.id === p.list);
+                    if (g && (!this.selectedGroup || this.selectedGroup.id !== g.id)) this.selectGroup(g);
+                    setTimeout(() => {
+                        window.scrollTo(0, p.y || 0);
+                        const el = document.querySelector('.main-content');
+                        if (el) el.scrollTop = p.my || 0;
+                    }, 700);
                 },
                 incidentAction(m, action) {
                     this.openIncident = null;

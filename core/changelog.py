@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 33,
+        "version": "2.83",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Übersichtlichkeit", "title": "Aufgeräumte Kopfleiste und Plus-Knopf",
+             "text": "Profil, Dienstausweis, Hell/Dunkel, Hallen-Display, Was ist neu, Push und Logout liegen im Menü am eigenen Namen. Unten rechts legt ein Plus-Knopf Einsatz, Dienst, Termin oder Mangel an."},
+            {"type": "new", "tag": "Suche", "title": "Die Suche findet auch Bereiche und Funktionen",
+             "text": "Zum Beispiel „Passwort“, „Rechte“ oder „Webhook“ eintippen und direkt dort landen."},
+            {"type": "new", "tag": "Bedienung", "title": "Kürzere Namen, ruhigere Übersicht",
+             "text": "Menü und Titel heißen jetzt Dienste, Personal, Notizen, Einsätze und Fahrzeuge. Leere Karten sind klein und stehen hinten, Mitteilungen erscheinen nicht mehr doppelt, leere Seiten zeigen den nächsten Schritt, und nach dem Editor geht es an derselben Stelle weiter."},
+        ],
+    },
+    {
         "id": 32,
         "version": "2.82",
         "date": "2026-11-26",

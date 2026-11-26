@@ -1644,3 +1644,29 @@ body { color: var(--text-color); }
 [data-theme="light"] .incident-menu button { color:#212529; }
 [data-theme="light"] .incident-menu button:hover { background:#f1f3f5; }
 [data-theme="light"] .incident-menu button.text-danger { color:#b02a37 !important; }
+
+/* Menues: Links wie Knoepfe, Kopfzeile */
+.incident-menu a { display:flex; align-items:center; gap:.6rem; width:100%; color:#e9ecef; text-decoration:none; padding:.55rem .7rem; border-radius:8px; font-size:.9rem; }
+.incident-menu a:hover { background:rgba(255,255,255,.08); }
+.incident-menu a i { width:1.1rem; text-align:center; }
+.incident-menu-head { padding:.4rem .7rem; font-size:.8rem; opacity:.8; border-bottom:1px solid rgba(128,128,128,.25); margin-bottom:.25rem; color:#e9ecef; }
+[data-theme="light"] .incident-menu a { color:#212529; }
+[data-theme="light"] .incident-menu a:hover { background:#f1f3f5; }
+[data-theme="light"] .incident-menu-head { color:#212529; }
+.overview-empty { opacity:.85; }
+.overview-empty .py-3 { padding-top:.25rem !important; padding-bottom:.25rem !important; }
+/* Plus-Knopf */
+.fab { position:fixed; right:22px; bottom:22px; z-index:1035; }
+.fab-btn { width:56px; height:56px; border-radius:50%; border:0; background:#b71c1c; color:#fff; font-size:1.35rem; box-shadow:0 8px 22px rgba(0,0,0,.3); }
+.fab-menu { top:auto; bottom:calc(100% + 10px); }
+@media (max-width: 991.98px) { .fab { right:14px; bottom:calc(76px + env(safe-area-inset-bottom, 0px)); } .fab-btn { width:50px; height:50px; } }
+.main-content { padding-bottom:96px; }
+@media (max-width: 767.98px) { .page-head select.form-select { max-width:100%; } }
+@media print { .fab { display:none; } }
+
+/* Handy: Menues als Blatt ueber der unteren Leiste, damit nichts abgeschnitten wird */
+@media (max-width: 991.98px) {
+    .incident-menu:not(.fab-menu) { position:fixed; left:10px; right:10px; top:auto; bottom:calc(76px + env(safe-area-inset-bottom, 0px)); min-width:0; z-index:1060; max-height:60vh; overflow-y:auto; }
+    .page-head:has(.incident-menu), .page-head :has(> .action-menu > .incident-menu) { overflow:visible !important; -webkit-mask-image:none !important; mask-image:none !important; }
+    .mission-item:has(.incident-menu), .mission-item:has(.incident-menu):hover { transform:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+}
