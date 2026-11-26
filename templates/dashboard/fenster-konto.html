@@ -1,0 +1,271 @@
+        <!-- MODAL: KALENDER ABONNIEREN -->
+        <div class="modal fade" id="calendarFeedModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-rss text-danger me-2"></i>Kalender abonnieren</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-6"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-calendar-check text-danger me-2"></i>Kalender-Synchronisation</h5>
+                                                            <p class="text-muted small">Du kannst den Dienstplan direkt in Outlook, Apple Calendar oder Google Calendar abonnieren. Nutze dazu folgende iCal-URL. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
+                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ calendarFeedUrl }}</code>
+                                                            </div>
+                                                            <div class="d-flex gap-2 flex-wrap">
+                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(calendarFeedUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                                                <a :href="'webcal://'+serverHost+'/api/calendar/feed.ics?token='+accessTokens.calendar_token" class="btn btn-premium rounded-pill"><i class="fa fa-calendar-plus me-1"></i>Abonnieren</a>
+                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('calendar')" title="Alte Links werden damit ungültig"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
+                                                            </div>
+                                                        </div></div>
+                            <div class="col-12 col-lg-6"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Kompatibilität</h5>
+                                                            <ul class="list-unstyled text-muted small">
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Microsoft Outlook</strong> – Datei → Kontoeinstellungen → Internetkalender hinzufügen</li>
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Apple Kalender</strong> – Datei → Neues Kalenderabonnement</li>
+                                                                <li class="mb-2"><i class="fa fa-check text-success me-2"></i><strong class="text-white">Google Kalender</strong> – Andere Kalender → Per URL hinzufügen</li>
+                                                                <li><i class="fa fa-mobile text-success me-2"></i><strong class="text-white">iOS / Android</strong> – Link direkt öffnen → Kalender-App öffnet automatisch</li>
+                                                            </ul>
+                                                        </div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: PASSWORT FÜR ANDERES KONTO SETZEN (Admin) -->
+        <div class="modal fade" id="adminPwModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-key text-warning me-2"></i>Passwort zurücksetzen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form @submit.prevent="submitAdminPw">
+                        <div class="modal-body">
+                            <p class="small text-muted mb-3">Neues Passwort für <strong class="text-white">{{ adminPw.username }}</strong>. Beim nächsten Login muss die Person ein eigenes Passwort festlegen, bestehende Anmeldungen dieses Kontos werden beendet.</p>
+                            <label class="form-label">Neues Passwort</label>
+                            <div class="input-group">
+                                <input :type="adminPw.show ? 'text' : 'password'" v-model="adminPw.password" id="adminPwInput" class="form-control" autocomplete="new-password" required>
+                                <button type="button" class="btn btn-outline-secondary" @click="adminPw.show = !adminPw.show" title="Anzeigen/Verbergen"><i class="fa" :class="adminPw.show ? 'fa-eye-slash' : 'fa-eye'"></i></button>
+                            </div>
+                            <div class="pw-rules small mt-2">
+                                <div v-for="i in pwRules(adminPw.password, adminPw.username)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                <div class="text-muted mt-1">{{ pwHint }}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-secondary border-opacity-10">
+                            <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="submit" class="btn btn-warning rounded-pill fw-bold px-4" :disabled="!pwOk(adminPw.password, adminPw.username) || adminPw.busy">Passwort setzen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: PROFILE & PASSWORD CHANGE -->
+        <div class="modal fade" id="idCardModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-id-card text-danger me-2"></i>Dienstausweis</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="idCardError" class="alert alert-warning small mb-0">{{ idCardError }}</div>
+                        <div v-else-if="!idCard" class="text-center text-muted py-4"><i class="fa fa-spinner fa-spin"></i></div>
+                        <div v-else class="text-center">
+                            <div class="small text-muted fw-bold text-uppercase mb-2" style="letter-spacing:.08em;">{{ idCard.station }}</div>
+                            <img :src="idCard.has_picture ? '/api/personnel/avatar/' + idCard.personnel_id : '/static/img/avatar.svg'" alt="Foto" class="rounded-circle mb-3" style="width:110px; height:110px; object-fit:cover; border:3px solid var(--bs-danger);">
+                            <div class="h4 fw-bold text-white mb-1">{{ idCard.name }}</div>
+                            <div v-if="idCard.rank" class="text-muted mb-2">{{ idCard.rank }}</div>
+                            <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+                                <span v-if="idCard.status" class="badge rounded-pill bg-danger">{{ idCard.status }}</span>
+                                <span v-if="idCard.badge_number" class="badge rounded-pill bg-secondary">Ausweis-Nr. {{ idCard.badge_number }}</span>
+                            </div>
+                            <div v-if="idCard.entry_date" class="small text-muted">Mitglied seit {{ dt(idCard.entry_date) }}</div>
+                            <div class="small text-muted mt-2 pt-2 border-top border-secondary border-opacity-10">Stand: {{ dt(idCard.today) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="selfPasswordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa-regular fa-circle-user text-danger me-2"></i>{{ isFirstLoginBlock ? 'Eigenes Passwort festlegen' : 'Mein Profil' }}</h5>
+                        <button v-if="!isFirstLoginBlock" type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                        <button v-else type="button" class="btn btn-sm btn-outline-secondary rounded-pill" @click="fullLogout"><i class="fa fa-sign-out-alt me-1"></i>Abmelden</button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div v-if="isFirstLoginBlock" class="p-3 mb-3 rounded-4" style="background: rgba(220, 53, 69, 0.15); border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; font-weight: bold;">
+                            <i class="fa fa-exclamation-triangle me-2"></i> Du bist als „{{ username }}“ angemeldet und nutzt noch das Start-Passwort. Bitte lege jetzt ein eigenes Passwort fest – danach ist die App freigeschaltet.
+                                <div class="mt-2 fw-normal small" style="color: inherit;">Bei „Aktuelles Passwort“ das Passwort eintragen, das du bekommen hast. Nicht dein Konto? <a href="#" class="fw-bold" style="color: inherit; text-decoration: underline;" @click.prevent="fullLogout">Abmelden</a></div>
+                        </div>
+                        
+                        <ul v-if="!isFirstLoginBlock" class="nav nav-pills nav-fill gap-1 mb-3">
+                            <li class="nav-item" v-for="t in [['stat', 'fa-chart-simple', 'Statistik'], ['kontakt', 'fa-address-card', 'Kontakt'], ['sicher', 'fa-shield-halved', 'Sicherheit']]" :key="t[0]">
+                                <button type="button" class="nav-link w-100 py-1" :class="selfTab === t[0] ? 'active bg-danger' : 'text-white'" @click="selfTab = t[0]"><i class="fa me-1" :class="t[1]"></i>{{ t[2] }}</button>
+                            </li>
+                        </ul>
+
+                        <div v-show="isFirstLoginBlock || selfTab === 'stat'">
+                        <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10 text-center shadow-sm">
+                            <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Eigene Jahresstatistik {{ selectedYear }}</label>
+                            <div class="row mt-2">
+                                <div class="col-6 border-end border-secondary border-opacity-20">
+                                    <span class="h3 fw-black text-danger d-block m-0">{{ personalStats.hours }}h</span>
+                                    <small class="text-muted small fw-semibold">Stunden gesamt</small>
+                                </div>
+                                <div class="col-6">
+                                    <span class="h3 fw-black text-primary d-block m-0">{{ personalStats.count }}</span>
+                                    <small class="text-muted small fw-semibold">Besuchte Dienste</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="!isFirstLoginBlock" class="text-center mb-4">
+                            <a href="/api/users/me/data-export" class="btn btn-outline-light btn-sm rounded-pill" title="Alle zu deinem Konto gespeicherten Daten als Datei herunterladen (Art. 15/20 DSGVO)"><i class="fa fa-download me-1"></i>Meine Daten exportieren</a>
+                        </div>
+
+                        <!-- Table of attended services -->
+                        <div v-if="!isFirstLoginBlock && !personalStats.unlinked" class="mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-calendar-check text-danger me-2"></i>Besuchte Dienste (Jahresliste)</h6>
+                            <div class="table-responsive" style="max-height: 180px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+                                <table class="table table-dark table-striped align-middle small mb-0 text-white">
+                                    <thead>
+                                        <tr class="text-muted" style="font-size:0.75rem;">
+                                            <th>Datum</th>
+                                            <th>Typ</th>
+                                            <th>Beschreibung</th>
+                                            <th class="text-end">Dauer</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="s in personalSessions" :key="s.date + s.description">
+                                            <td>{{ s.date.substring(8,10) }}.{{ s.date.substring(5,7) }}</td>
+                                            <td><span class="badge bg-secondary" style="font-size:0.6rem;">{{ s.category }}</span></td>
+                                            <td>{{ s.description }}</td>
+                                            <td class="text-end fw-bold">{{ s.duration }}h</td>
+                                        </tr>
+                                        <tr v-if="personalSessions.length === 0">
+                                            <td colspan="4" class="text-center text-muted py-3">Keine Dienste in diesem Jahr besucht.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div v-if="!isFirstLoginBlock && personalStats.unlinked" class="p-3 mb-4 rounded-4 text-start shadow-sm" style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); color: #fef08a;">
+                            <h6 class="fw-bold mb-1 text-warning"><i class="fa fa-circle-info me-2"></i>Konto nicht verknüpft</h6>
+                            <p class="mb-2 small text-light opacity-90">Dein System-Login ist derzeit noch mit keinem Kameraden aus der Personalakte verknüpft. Bitte wähle dich selbst aus, um deine Statistiken zu laden:</p>
+                            <div class="d-flex gap-2">
+                                <select v-model="selfBindPersonnelId" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                </select>
+                                <button type="button" class="btn btn-warning text-dark btn-sm rounded-pill fw-bold text-nowrap" @click="bindSelfAccount"><i class="fa fa-link me-1"></i> Verknüpfen</button>
+                            </div>
+                        </div>
+                        
+                        </div>
+
+                        <div v-show="selfTab === 'kontakt'">
+                        <div v-if="!isFirstLoginBlock && !myContact" class="text-muted small text-center py-4">Zu deinem Konto sind noch keine Kontaktdaten hinterlegt. Verknüpfe zuerst dein Konto (Reiter Statistik).</div>
+                        <!-- MEINE KONTAKTDATEN -->
+                        <div v-if="!isFirstLoginBlock && myContact" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-address-card me-2"></i>Meine Kontaktdaten</h6>
+                            <small class="text-muted d-block mb-3">Bitte aktuell halten – so erreicht dich die Wehr im Einsatz- und Notfall.</small>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Telefon</label><input type="tel" class="form-control form-control-sm" v-model="myContact.phone" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">E-Mail</label><input type="email" class="form-control form-control-sm" v-model="myContact.email" maxlength="255"></div>
+                                <div class="col-12"><label class="small text-muted fw-bold mb-1">Adresse</label><input type="text" class="form-control form-control-sm" v-model="myContact.address" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Notfallkontakt (Name)</label><input type="text" class="form-control form-control-sm" v-model="myContact.emergency_contact_name" maxlength="255"></div>
+                                <div class="col-12 col-md-6"><label class="small text-muted fw-bold mb-1">Notfallkontakt (Telefon)</label><input type="tel" class="form-control form-control-sm" v-model="myContact.emergency_contact_phone" maxlength="255"></div>
+                            </div>
+                            <button type="button" class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="saveMyContact" :disabled="contactSaving"><i class="fa fa-save me-1"></i>Kontaktdaten speichern</button>
+                        </div>
+
+                        </div>
+
+                        <div v-show="isFirstLoginBlock || selfTab === 'sicher'">
+                        <!-- MEINE GERÄTE -->
+                        <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-laptop-mobile text-danger me-2"></i>Meine Geräte</h6>
+                            <small class="text-muted d-block mb-2">Geräte, mit denen du dich angemeldet hast. Erkennst du eines nicht, melde alle anderen ab und ändere dein Passwort.</small>
+                            <div v-for="(d, i) in myDevices" :key="i" class="d-flex justify-content-between small py-1 border-top border-secondary border-opacity-10">
+                                <span><i class="fa fa-fw" :class="d.icon"></i> {{ d.label }} <span v-if="d.current" class="badge bg-success ms-1">dieses Gerät</span></span>
+                                <span class="text-muted text-end">zuletzt {{ d.last_seen }}<span v-if="d.ip"> · {{ d.ip }}</span></span>
+                            </div>
+                            <div v-if="!myDevices.length" class="small text-muted">Noch keine Geräte erfasst.</div>
+                            <button v-if="myDevices.length > 1" type="button" class="btn btn-outline-danger btn-sm rounded-pill mt-2" @click="logoutAllDevices"><i class="fa fa-right-from-bracket me-1"></i>Auf allen anderen Geräten abmelden</button>
+                        </div>
+
+                        <!-- ZWEI-FAKTOR-AUTHENTIFIZIERUNG -->
+                        <div v-if="!isFirstLoginBlock" class="bg-black bg-opacity-25 p-3 rounded-4 mb-4 border border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-2"><i class="fa fa-shield-halved text-danger me-2"></i>Zwei-Faktor-Authentifizierung</h6>
+
+                            <div v-if="twoFaEnabled === null" class="text-muted small"><i class="fa fa-spinner fa-spin me-1"></i>Lädt...</div>
+
+                            <div v-else-if="twoFaEnabled === true && !twoFaSetup">
+                                <p class="small text-success mb-2"><i class="fa fa-check-circle me-1"></i>Aktiv - beim Login wird zusätzlich ein Code verlangt.</p>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" @click="startDisable2fa"><i class="fa fa-power-off me-1"></i>Deaktivieren</button>
+                            </div>
+
+                            <div v-else-if="twoFaEnabled === false && !twoFaSetup">
+                                <p class="small text-muted mb-2">Nicht aktiv. Empfohlen für Admin- und Leitungskonten.</p>
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-pill" @click="startSetup2fa"><i class="fa fa-plus me-1"></i>Einrichten</button>
+                            </div>
+
+                            <!-- Einrichtungsschritt: QR-Code scannen, dann Code bestätigen -->
+                            <div v-if="twoFaSetup && !twoFaRecoveryCodes">
+                                <p class="small text-muted mb-2">Mit einer Authenticator-App (z.B. Google Authenticator, Aegis, FreeOTP) scannen, dann den 6-stelligen Code eingeben:</p>
+                                <div class="d-flex justify-content-center mb-2">
+                                    <canvas id="twoFaQrCanvas" width="180" height="180" style="border-radius:8px;"></canvas>
+                                </div>
+                                <p class="small text-center text-muted mb-3" style="word-break:break-all;">Manuell: <code>{{twoFaSetup.secret}}</code></p>
+                                <div class="d-flex gap-2">
+                                    <input type="text" v-model="twoFaConfirmCode" class="form-control text-center" placeholder="123456" inputmode="numeric" maxlength="6" style="letter-spacing:0.2em;">
+                                    <button type="button" class="btn btn-premium rounded-pill px-3" @click="confirmSetup2fa"><i class="fa fa-check"></i></button>
+                                    <button type="button" class="btn btn-outline-light rounded-pill px-3" @click="twoFaSetup = null"><i class="fa fa-times"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Wiederherstellungscodes: werden nur DIESES eine Mal angezeigt -->
+                            <div v-if="twoFaRecoveryCodes">
+                                <p class="small text-warning fw-bold mb-2"><i class="fa fa-triangle-exclamation me-1"></i>Wiederherstellungscodes - jetzt sicher aufschreiben, werden nicht erneut angezeigt:</p>
+                                <div class="bg-black bg-opacity-50 rounded-3 p-2 mb-2 font-monospace small text-center">
+                                    <div v-for="c in twoFaRecoveryCodes" :key="c">{{c}}</div>
+                                </div>
+                                <button type="button" class="btn btn-premium btn-sm rounded-pill w-100" @click="twoFaRecoveryCodes = null; twoFaSetup = null">Verstanden, gespeichert</button>
+                            </div>
+                        </div>
+
+                        <h6 v-if="!isFirstLoginBlock" class="fw-bold text-white mb-2"><i class="fa fa-key text-danger me-2"></i>Passwort ändern</h6>
+                        <form @submit.prevent="submitSelfPassword">
+                            <div class="mb-3">
+                                <label class="form-label">Aktuelles Passwort</label>
+                                <input type="password" v-model="selfPwData.old_password" class="form-control" required autocomplete="current-password">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Neues Passwort</label>
+                                <input type="password" v-model="selfPwData.new_password" class="form-control" placeholder="Mindestens 8 Zeichen" required minlength="8" autocomplete="new-password">
+                                <div class="pw-rules small mt-2">
+                                    <div v-for="i in pwRules(selfPwData.new_password, username, selfPwData.old_password)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                    <div class="text-muted mt-1">{{ pwHint }}</div>
+                                </div>                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Neues Passwort bestätigen</label>
+                                <input type="password" v-model="selfPwData.confirm_password" class="form-control" required autocomplete="new-password">
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-2" :disabled="!pwOk(selfPwData.new_password, username, selfPwData.old_password)">Speichern</button>
+                        </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+

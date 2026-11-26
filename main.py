@@ -3,7 +3,7 @@ import mysql.connector
 import time
 import asyncio
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uuid
@@ -37,9 +37,10 @@ from routers import due_api
 from routers import aao_api
 from routers import logbook_api
 from routers import planning_api
+from core.pages import dashboard_html
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.85"
+CURRENT_VERSION = "2.86"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -1627,16 +1628,21 @@ def health():
     return {"status": "ok", "version": CURRENT_VERSION}
 
 
+def _dashboard_page():
+    """Die Seite wird aus templates/dashboard/ zusammengesetzt (siehe core/pages.py)."""
+    return HTMLResponse(dashboard_html(), headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/", response_class=FileResponse)
 def get_login(request: Request):
     user = get_current_user(request)
-    if user: return FileResponse("static/dashboard.html")
+    if user: return _dashboard_page()
     return FileResponse("static/login.html")
 
 @app.get("/login", response_class=FileResponse)
 def get_login_explicit(request: Request):
     user = get_current_user(request)
-    if user: return FileResponse("static/dashboard.html")
+    if user: return _dashboard_page()
     return FileResponse("static/login.html")
 
 @app.get("/dashboard", response_class=FileResponse)
@@ -1646,7 +1652,7 @@ def get_dash(request: Request):
         if eq_barcode:
             return RedirectResponse(url=f"/login?eq_barcode={eq_barcode}", status_code=302)
         return FileResponse("static/login.html")
-    return FileResponse("static/dashboard.html")
+    return _dashboard_page()
 
 @app.get("/reset-password", response_class=FileResponse)
 def get_reset_password():

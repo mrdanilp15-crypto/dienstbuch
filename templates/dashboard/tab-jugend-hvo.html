@@ -1,0 +1,315 @@
+            <!-- TAB: JUGENDFEUERWEHR -->
+                <div v-show="activeTab === 'jugend'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr</h2>
+                            <small class="text-muted">Mitgliederverwaltung und Dienstberichte der Jugendgruppe</small>
+                        </div>
+                        <button class="btn btn-outline-light rounded-pill" @click="openProspectsModal"><i class="fa fa-handshake me-1"></i>Nachwuchs</button>
+                    </div>
+
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2 pill-nav">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="jugendTab === 'members' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'members'"><i class="fa fa-users-gear me-1"></i>Jugendfeuerwehr-Mitglieder</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="jugendTab === 'sessions' ? 'active bg-danger' : 'text-white'" @click="jugendTab = 'sessions'"><i class="fa fa-book me-1"></i>Dienstberichte & Berichte</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUBTAB: JUGEND MITGLIEDER (Optik wie Personalverwaltung) -->
+                    <div v-show="jugendTab === 'members'">
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <div>
+                                <h5 class="fw-bold text-white mb-0"><i class="fa fa-graduation-cap text-danger me-2"></i>Jugendfeuerwehr-Mitglieder</h5>
+                                <small class="text-muted">Übersicht der Jugendgruppe & Akten</small>
+                            </div>
+                            <button v-if="canManageYouth" class="btn btn-premium rounded-pill" @click="openNewYouthModal"><i class="fa fa-plus-circle me-1"></i>Neues Jugendmitglied</button>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-6">
+                                <input type="text" v-model="youthSearch" class="form-control" placeholder="Jugendlichen suchen...">
+                            </div>
+                        </div>
+
+                        <div class="person-grid">
+                            <div v-for="ym in filteredYouthMembers" :key="ym.id" class="member-card d-flex align-items-center gap-3" @click="editYouthMember(ym)" style="cursor: pointer;">
+                                <div class="avatar-container">
+                                    <img v-if="ym.profile_picture" :src="ym.profile_picture" alt="Avatar" class="w-100 h-100 object-fit-cover" style="border-radius: 50%;">
+                                    <div v-else class="w-100 h-100 d-flex align-items-center justify-content-center bg-black bg-opacity-40 text-danger fs-3" style="border-radius: 50%;">
+                                        <i class="fa fa-child-reaching"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="fw-bold m-0 text-white">{{ ym.name }}</h6>
+                                        <span v-if="calculateAge(ym.birth_date)" class="badge bg-info text-dark fw-bold">{{ calculateAge(ym.birth_date) }} J.</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size:0.75rem;">
+                                        <i class="fa fa-user-shield text-warning me-1"></i>{{ ym.parent_contact || 'Kein Elternkontakt' }}
+                                    </small>
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        <span v-if="ym.has_mta_basis" class="badge bg-danger text-white font-monospace" style="font-size:0.6rem; padding: 3px 6px;">MTA</span>
+                                        <span v-if="ym.has_jf1 || ym.has_jf2 || ym.has_jf3" class="badge bg-success font-monospace" style="font-size:0.6rem; padding: 3px 6px;">JF</span>
+                                        <span v-if="ym.has_wissentest" class="badge bg-primary font-monospace" style="font-size:0.6rem; padding: 3px 6px;">Wissentest</span>
+                                        <span v-if="ym.lic_b" class="badge bg-warning text-dark font-monospace" style="font-size:0.6rem; padding: 3px 6px;">BF17</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="filteredYouthMembers.length === 0" class="text-center py-5 text-muted">Keine Jugendmitglieder gefunden.</div>
+                    </div>
+
+                    <!-- SUBTAB: DIENSTBERICHTE (JUGEND) -->
+                    <div v-show="jugendTab === 'sessions'">
+                        <div class="row g-4">
+                            <!-- Sessions list -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-book text-danger me-2"></i>Jugend-Dienstberichte</h5>
+                                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                                        <div v-for="s in youthSessions" :key="s.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="fw-bold text-white m-0">{{ s.topic }}</h6>
+                                                <small class="text-muted">{{ dt(s.date) }} &bull; {{ s.duration }}h</small>
+                                            </div>
+                                            <div class="small mb-2 text-white">Ausbilder: <span class="text-muted">{{ s.instructors || 'Keine Angabe' }}</span></div>
+                                            <p class="small text-muted mb-2">{{ s.description || 'Keine Beschreibung vorhanden' }}</p>
+                                            <div class="mb-2">
+                                                <small class="fw-bold text-white d-block mb-1">Anwesende Jugendliche:</small>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    <span v-for="att in s.attendance" :key="att.member_id" class="badge" :class="att.is_present ? 'bg-success' : 'bg-outline-secondary text-muted'" style="font-size:0.65rem;">
+                                                        {{ att.name }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button v-if="canManageYouth" class="btn btn-xs btn-outline-warning rounded-pill px-2 border-0" @click="editYouthSession(s)"><i class="fa fa-edit me-1"></i>Dienst bearbeiten</button>
+                                                <button v-if="canManageYouth" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteYouthSession(s.id)"><i class="fa fa-trash me-1"></i>Dienstbericht löschen</button>
+                                            </div>
+                                        </div>
+                                        <div v-if="youthSessions.length === 0" class="text-center py-4 text-muted">Keine Dienstberichte erfasst.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add session form -->
+                            <div class="col-12 col-lg-5" v-if="canManageYouth">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Dienstbericht erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Datum des Dienstes</label>
+                                        <input type="date" v-model="newYouthSession.date" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Thema / Inhalt</label>
+                                        <input type="text" v-model="newYouthSession.topic" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Fahrzeugkunde HLF 20" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Dauer (Std)</label>
+                                        <input type="number" step="0.5" v-model="newYouthSession.duration" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Ausbilder / Jugendwarte</label>
+                                        <input type="text" v-model="newYouthSession.instructors" class="form-control bg-dark border-secondary text-white" placeholder="z. B. J. Schmidt" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Dienstbericht / Ablauf</label>
+                                        <textarea v-model="newYouthSession.description" class="form-control bg-dark border-secondary text-white" rows="3" placeholder="Ablauf und Ausbildungsinhalte beschreiben..."></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white fw-bold d-block mb-2">Anwesenheit der Jugendlichen</label>
+                                        <div class="bg-black bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10" style="max-height: 300px; overflow-y: auto;">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <div v-for="ym in youthMembers" :key="ym.id" class="form-check m-0 p-2 border border-secondary border-opacity-25 rounded" style="background: rgba(255,255,255,0.02); min-width: 140px; flex: 1 1 auto; cursor: pointer;" @click="newYouthSession.attendance[ym.id] = !newYouthSession.attendance[ym.id]">
+                                                    <input class="form-check-input ms-0 me-2 mt-1" type="checkbox" :id="'ym-att-' + ym.id" v-model="newYouthSession.attendance[ym.id]" @click.stop>
+                                                    <label class="form-check-label text-white small" style="cursor:pointer;" :for="'ym-att-' + ym.id" @click.stop>
+                                                        {{ ym.name }}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div v-if="youthMembers.length === 0" class="text-muted small text-center">Keine Jugendmitglieder vorhanden.</div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button v-if="editingYouthSessionId" class="btn btn-outline-secondary w-50 rounded-pill py-2" @click="cancelYouthSessionEdit">Abbrechen</button>
+                                        <button class="btn btn-premium rounded-pill py-2" :class="editingYouthSessionId ? 'w-50' : 'w-100'" @click="submitYouthSession"><i class="fa fa-save me-2"></i>Dienstbericht speichern</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: FIRST RESPONDER / HvO -->
+                <div v-show="activeTab === 'hvo'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-heart-pulse text-danger me-2"></i>First Responder (HvO)</h2>
+                            <small class="text-muted">Dokumentation von Helfer vor Ort (HvO) Einsätzen – Patientendaten DSGVO-konform verschlüsselt</small>
+                        </div>
+                    </div>
+                    <due-strip area="hvo" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+
+                    <ul class="nav nav-pills mb-4 flex-wrap gap-2 pill-nav">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'protocols' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'protocols'"><i class="fa fa-notes-medical me-1"></i>Einsatzprotokolle</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'checks' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'checks'"><i class="fa fa-suitcase-medical me-1"></i>AED & Ausrüstungs-Check</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="hvoTab === 'material' ? 'active bg-danger' : 'text-white'" @click="hvoTab = 'material'; loadHvoMaterial()"><i class="fa fa-kit-medical me-1"></i>Sanitätsmaterial</button>
+                        </li>
+                    </ul>
+
+                    <!-- SUBTAB: PROTOCOLS -->
+                    <div v-show="hvoTab === 'protocols'">
+                        <div class="row g-4">
+                            <!-- Protocols list -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-history text-danger me-2"></i>Letzte HvO Einsätze</h5>
+                                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                                        <div v-for="p in hvoProtocols" :key="p.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <h6 class="fw-bold text-white m-0">Einsatz {{ p.id }}</h6>
+                                                <small class="text-muted">{{ p.formatted_date }}</small>
+                                            </div>
+                                            <div class="small mb-1 text-white">Symptome: <span class="text-muted">{{ p.symptoms }}</span></div>
+                                            <div class="small mb-1 text-white">Maßnahmen: <span class="text-muted">{{ p.therapy }}</span></div>
+                                            <div class="small text-white">Handgabe an: <span class="text-muted">{{ p.handover }}</span></div>
+                                        </div>
+                                        <div v-if="hvoProtocols.length === 0" class="text-center py-4 text-muted">Keine HvO Einsätze erfasst.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add protocol form -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Einsatz erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Einsatzdatum</label>
+                                        <input type="date" v-model="newHvoProtocol.date" class="form-control bg-dark border-secondary text-white" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Symptome / Diagnose</label>
+                                        <input type="text" v-model="newHvoProtocol.symptoms" class="form-control bg-dark border-secondary text-white" placeholder="z. B. V.a. Apoplex oder Akutes Koronarsyndrom" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Maßnahmen (AED, Sauerstoff, Reanimation)</label>
+                                        <input type="text" v-model="newHvoProtocol.therapy" class="form-control bg-dark border-secondary text-white" placeholder="z. B. AED Analyse, 4l Sauerstoff, Betreuung">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Übergabe an (z. B. Rettungsdienst)</label>
+                                        <input type="text" v-model="newHvoProtocol.handover" class="form-control bg-dark border-secondary text-white" placeholder="z. B. RTW Neustadt 71/1 + Notarzt">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoProtocol">Einsatz speichern</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: CHECKS -->
+                    <div v-show="hvoTab === 'checks'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-clipboard-check text-danger me-2"></i>Ausrüstungsprüfungen (AED & Rucksack)</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Gerät / Fach</th>
+                                                    <th>Prüfdatum</th>
+                                                    <th>Status</th>
+                                                    <th>Prüfer</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="c in hvoChecks" :key="c.id">
+                                                    <td><strong>{{ c.device_name }}</strong></td>
+                                                    <td>{{ c.formatted_date }}</td>
+                                                    <td><span class="badge bg-success">{{ c.status }}</span></td>
+                                                    <td><small class="text-muted">{{ c.checked_by }}</small></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-check text-danger me-2"></i>Ausrüstung freigeben</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Prüfobjekt</label>
+                                        <select v-model="newHvoCheck.device_name" class="form-select bg-dark border-secondary text-white">
+                                            <option value="">-- Bitte wählen --</option>
+                                            <option value="AED (Defibrillator) Akku & Pads">AED (Defibrillator) Akku & Pads</option>
+                                            <option value="Sauerstoffflasche (Druckprüfung)">Sauerstoffflasche (Druckprüfung)</option>
+                                            <option value="Erste-Hilfe Rucksack (Mindesthaltbarkeit)">Erste-Hilfe Rucksack (Mindesthaltbarkeit)</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoCheck">Erfolgreich prüfen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: SANITÄTSMATERIAL -->
+                    <div v-show="hvoTab === 'material'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-kit-medical text-danger me-2"></i>Verbandsmaterial & Medikamente</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-hover align-middle small">
+                                            <thead><tr class="text-muted"><th>Bezeichnung</th><th>Menge</th><th>Verfallsdatum</th><th>Notiz</th><th></th></tr></thead>
+                                            <tbody>
+                                                <tr v-for="m in hvoMaterial" :key="m.id">
+                                                    <td class="fw-bold text-white">{{m.name}}</td>
+                                                    <td>{{m.quantity}}</td>
+                                                    <td>
+                                                        <span v-if="m.expiry_date" class="badge rounded-pill" :class="new Date(m.expiry_date) < new Date() ? 'bg-danger' : 'bg-secondary'">{{dt(m.expiry_date)}}</span>
+                                                    </td>
+                                                    <td class="text-muted">{{m.note}}</td>
+                                                    <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteHvoMaterial(m.id)"><i class="fa fa-trash"></i></button></td>
+                                                </tr>
+                                                <tr v-if="hvoMaterial.length === 0"><td colspan="5" class="text-center py-3 text-muted">Kein Sanitätsmaterial erfasst.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Material erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Bezeichnung</label>
+                                        <input type="text" v-model="newHvoMaterial.name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Sterile Kompressen">
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Menge</label>
+                                            <input type="number" v-model.number="newHvoMaterial.quantity" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Verfallsdatum</label>
+                                            <input type="date" v-model="newHvoMaterial.expiry_date" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Notiz</label>
+                                        <input type="text" v-model="newHvoMaterial.note" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitHvoMaterial">Hinzufügen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>

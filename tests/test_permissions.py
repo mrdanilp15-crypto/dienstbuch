@@ -352,7 +352,7 @@ with open(_up, "w") as fh:
 check("Hochgeladene Datei ohne Anmeldung gesperrt", anon.get("/static/uploads/zz_test_upload.txt").status_code == 401)
 _r = cl["mannschaft"].get("/static/uploads/zz_test_upload.txt")
 check("Hochgeladene Datei mit Anmeldung lesbar, nicht öffentlich zwischenspeicherbar", _r.status_code == 200 and _r.text == "geheim" and _r.headers.get("cache-control", "").startswith("private"), f"{_r.status_code} {_r.text[:40]!r} {_r.headers.get('cache-control', '')}")
-check("Programmdateien bleiben ohne Anmeldung ladbar", anon.get("/static/js/dashboard.js").status_code == 200)
+check("Programmdateien bleiben ohne Anmeldung ladbar", anon.get("/static/js/dashboard.js").status_code == 200 and anon.get("/static/js/dashboard/planung.js").status_code == 200)
 os.remove(_up)
 
 # --- Berichte maskieren Freitext (kein eingeschleuster Code im Dienstbericht)

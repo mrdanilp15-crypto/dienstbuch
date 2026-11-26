@@ -1,0 +1,213 @@
+                <!-- TAB 6: ALARMIERUNG -->
+                <div v-show="activeTab === 'apager'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-bell text-danger me-2"></i>Alarmierung</h2>
+                            <small class="text-muted">Echtzeit-Schnittstelle zur Einsatzübernahme &bull; aPagerPro / Webhook</small>
+                        </div>
+                    </div>
+
+                    <!-- Status-Hero: zeigt die letzte (echte oder Test-)Alarmierung groß an -->
+                    <div class="alarm-hero-banner mb-4" :class="{'alarm-hero-active': latestAlarmLog && !isTestAlarmLog(latestAlarmLog), 'alarm-hero-test': latestAlarmLog && isTestAlarmLog(latestAlarmLog)}">
+                        <div class="alarm-hero-icon">
+                            <i class="fa" :class="latestAlarmLog && !isTestAlarmLog(latestAlarmLog) ? 'fa-triangle-exclamation fa-beat' : (latestAlarmLog ? 'fa-flask' : 'fa-shield-halved')"></i>
+                        </div>
+                        <div class="alarm-hero-content">
+                            <div class="alarm-hero-label">{{ latestAlarmLog ? (isTestAlarmLog(latestAlarmLog) ? 'Letzter Test-Alarm' : 'Letzte Alarmierung') : 'Bereitschaft' }}</div>
+                            <div class="alarm-hero-title">{{ latestAlarmLog ? latestAlarmLog.stichwort : 'Keine aktuelle Alarmierung' }}</div>
+                            <div class="alarm-hero-meta" v-if="latestAlarmLog"><i class="fa fa-location-dot me-1"></i>{{latestAlarmLog.adresse}} &bull; <i class="fa fa-clock me-1"></i>{{dt(latestAlarmLog.created_at)}}</div>
+                        </div>
+                        <div class="alarm-hero-count" v-if="latestAlarmLog && !isTestAlarmLog(latestAlarmLog)">
+                            <div class="alarm-hero-count-num">{{activeFeedbacksCount}}</div>
+                            <div class="alarm-hero-count-label">Zusage(n)</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Protokoll & Rückmeldungen -->
+                        <div class="col-12 col-lg-7 order-lg-1">
+                            <!-- Rückmeldungen zum letzten Alarm -->
+                            <div class="card premium-card p-4 mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-users text-danger me-2"></i>Rückmeldungen (Letzter Alarm)</h5>
+                                    <span class="badge bg-success rounded-pill px-3">{{ activeFeedbacksCount }} Zusage(n)</span>
+                                </div>
+                                <div class="d-flex gap-2 mb-3" v-if="apagerLogs.length > 0">
+                                    <button class="btn btn-success flex-fill rounded-pill fw-bold" @click="submitFeedback('Komme')"><i class="fa fa-check me-1"></i>Ich komme</button>
+                                    <button class="btn btn-outline-danger flex-fill rounded-pill fw-bold" @click="submitFeedback('Nein')"><i class="fa fa-xmark me-1"></i>Ich komme nicht</button>
+                                </div>
+                                <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 small" v-if="apagerFeedbacks.length > 0">
+                                    <div class="row g-2">
+                                        <div class="col-6" v-for="f in apagerFeedbacks" :key="f.id">
+                                            <div class="p-2 rounded bg-black bg-opacity-40 d-flex justify-content-between align-items-center border border-secondary border-opacity-10">
+                                                <span class="fw-bold text-white text-truncate" style="max-width: 70%;" :title="f.name">{{ f.name }}</span>
+                                                <span class="badge" :class="f.status === 'Komme' ? 'bg-success' : 'bg-danger'">{{ f.status === 'Komme' ? 'Kommt' : 'Nein' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="text-center py-4 text-muted small">Bislang keine Rückmeldungen eingegangen.</div>
+                            </div>
+
+                            <!-- Protokoll -->
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-list-check text-danger me-2"></i>Alarmierungsprotokoll</h5>
+                                    <div class="d-flex gap-2">
+                                        <button v-if="isAdmin || role === 'leitung'" class="btn btn-xs btn-outline-danger rounded-pill" @click="clearApagerLogs"><i class="fa fa-trash me-1"></i>Protokoll leeren</button>
+                                        <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadApagerConfig"><i class="fa fa-refresh me-1"></i>Aktualisieren</button>
+                                    </div>
+                                </div>
+                                <div class="alarm-timeline">
+                                    <div v-for="log in apagerLogs" :key="log.id" class="alarm-timeline-item" :class="isTestAlarmLog(log) ? 'alarm-timeline-test' : 'alarm-timeline-real'">
+                                        <div class="alarm-timeline-dot"><i class="fa" :class="isTestAlarmLog(log) ? 'fa-flask' : 'fa-triangle-exclamation'"></i></div>
+                                        <div class="alarm-timeline-content">
+                                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge" :class="isTestAlarmLog(log) ? 'bg-warning text-dark' : 'bg-danger'">{{isTestAlarmLog(log) ? 'TEST' : 'ALARM'}}</span>
+                                                    <small class="text-muted">{{dt(log.created_at)}}</small>
+                                                </div>
+                                                <div class="d-flex gap-1" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                                    <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="editApagerLog(log)" title="Eintrag bearbeiten" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                        <i class="fa fa-edit text-primary"></i>
+                                                    </button>
+                                                    <button class="btn btn-xs btn-outline-light border-0 rounded-circle" @click="deleteApagerLog(log.id)" title="Eintrag löschen" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                                                        <i class="fa fa-trash-alt text-danger"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <h6 class="fw-bold text-white mb-1">{{log.stichwort}} <span class="text-muted fw-normal">&bull; {{log.adresse}}</span></h6>
+                                            <p class="text-muted mb-0 small">{{log.meldung}}</p>
+                                        </div>
+                                    </div>
+                                    <div v-if="apagerLogs.length === 0" class="text-center py-4 text-muted">Keine Alarmierungen im Protokoll.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Test-Alarm & technische Einstellungen -->
+                        <div class="col-12 col-lg-5 order-lg-2">
+                            <!-- Test-Alarm -->
+                            <div class="card premium-card p-4 mb-4 alarm-test-card" v-if="role === 'admin' || role === 'leitung' || role === 'geratewart'">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-flask text-warning me-2"></i>Test-Alarmierung</h5>
+                                <p class="text-muted small mb-3">Erzeugt einen Testeintrag im Protokoll. <strong class="text-warning">Kein echter Alarm!</strong></p>
+                                <div class="mb-3">
+                                    <label class="form-label">Stichwort</label>
+                                    <input type="text" v-model="testAlarm.stichwort" class="form-control" placeholder="z. B. TH – Probealarm">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Einsatzort</label>
+                                    <input type="text" v-model="testAlarm.adresse" class="form-control" placeholder="z. B. Feuerwehrhaus">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Meldung</label>
+                                    <textarea v-model="testAlarm.meldung" class="form-control" rows="2" placeholder="Freitext..."></textarea>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" class="form-check-input" id="testAlarmPrefixCheck" v-model="testAlarm.prefix_test">
+                                    <label class="form-check-label small" for="testAlarmPrefixCheck">"[TEST]" automatisch vor das Stichwort setzen</label>
+                                </div>
+                                <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="sendTestAlarm">
+                                    <i class="fa fa-bolt me-2"></i>Test-Alarm auslösen
+                                </button>
+                            </div>
+
+                            <!-- Schnittstellen-Daten: technisch, seltener gebraucht -> eingeklappt -->
+                            <div v-if="canSeeWebhook" class="card premium-card p-0 overflow-hidden">
+                                <button class="btn w-100 text-start p-4 d-flex justify-content-between align-items-center text-white" type="button" data-bs-toggle="collapse" data-bs-target="#apagerWebhookCollapse">
+                                    <span class="fw-bold"><i class="fa fa-plug text-danger me-2"></i>Alarmierungs-Schnittstellen (Webhooks)</span>
+                                    <i class="fa fa-chevron-down text-muted"></i>
+                                </button>
+                                <div class="collapse" id="apagerWebhookCollapse">
+                                    <div class="p-4 pt-0">
+                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10">
+                                            <div class="text-muted small mb-1"><strong>Offene Webhook-URL (AlarmDispatcher, aPager, GroupAlarm, Divera, cURL):</strong></div>
+                                            <code class="text-danger d-block text-break" style="font-size: 0.8rem;">{{ serverProtocol }}//{{serverHost}}/api/alarm/webhook?api_key={{apagerConfig.api_key || 'GENERIEREN'}}</code>
+                                            <button class="btn btn-xs btn-outline-light rounded-pill mt-2" @click="copyWebhookUrl"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                        </div>
+                                        <div class="small text-muted mb-3 bg-black bg-opacity-30 p-3 rounded border border-secondary border-opacity-10">
+                                            <strong class="text-white d-block mb-1"><i class="fa fa-code me-1 text-warning"></i>Unterstützte Datenfelder (JSON/Form/GET):</strong>
+                                            <code>stichwort</code> / <code>title</code> / <code>keyword</code><br>
+                                            <code>adresse</code> / <code>address</code> / <code>location</code><br>
+                                            <code>meldung</code> / <code>description</code> / <code>text</code>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong class="small text-white"><i class="fa fa-inbox me-1 text-warning"></i>Empfangsprotokoll</strong>
+                                                <button class="btn btn-xs btn-outline-light rounded-pill" @click="loadWebhookLog"><i class="fa fa-refresh me-1"></i>Neu laden</button>
+                                            </div>
+                                            <div v-if="!webhookLog.length" class="small text-muted">Noch kein Aufruf mit gültigem Schlüssel empfangen.</div>
+                                            <div v-for="(e, i) in webhookLog" :key="i" class="small border-top border-secondary border-opacity-25 py-2">
+                                                <div class="text-muted">{{ e.received_at }} · {{ e.method }} · {{ e.result }}</div>
+                                                <code v-if="e.query_data && e.query_data !== '{}'" class="d-block text-break">Adresse: {{ e.query_data }}</code>
+                                                <code v-if="e.body_data" class="d-block text-break">Inhalt: {{ e.body_data }}</code>
+                                            </div>
+                                            <div class="small text-muted mt-1">Die letzten 20 Aufrufe, Schlüssel ausgeblendet. Gleiche Alarme innerhalb von 3 Minuten werden nur einmal gemeldet.</div>
+                                        </div>
+                                        <button v-if="isAdmin" class="btn btn-premium w-100 rounded-pill" @click="generateApiKey"><i class="fa fa-key me-2"></i>Neuen API-Key generieren</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                
+                    <div v-if="canSeeSettings" class="mt-4"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-desktop text-danger me-2"></i>Hallen-Display & Wetterwarnung</h5>
+                                                            <p class="text-muted small">Auf einem Bildschirm im Gerätehaus, der dauerhaft ohne Anmeldung laufen soll, diesen Link EINMAL öffnen - der Browser merkt sich den Zugang danach von selbst. <i class="fa fa-lock me-1"></i>Enthält einen geheimen Zugangs-Token - nicht öffentlich teilen.</p>
+                                                            <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 mb-3">
+                                                                <code class="text-danger d-block text-break" style="font-size:0.85rem;">{{ displayUrl }}</code>
+                                                            </div>
+                                                            <div class="d-flex gap-2 flex-wrap">
+                                                                <button class="btn btn-outline-light rounded-pill" @click="copyToClipboard(displayUrl)"><i class="fa fa-copy me-1"></i>URL kopieren</button>
+                                                                <a :href="displayUrl" target="_blank" class="btn btn-premium rounded-pill"><i class="fa fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
+                                                                <button v-if="isAdmin" class="btn btn-outline-danger rounded-pill" @click="regenerateAccessToken('display')" title="Bisherige Kiosk-Bildschirme müssen den Link dann neu öffnen"><i class="fa fa-rotate me-1"></i>Token erneuern</button>
+                                                            </div>
+                                                        
+                            <hr class="border-secondary border-opacity-25">
+                            <div class="mb-3">
+                                                                <label class="form-label text-white"><i class="fa fa-bullhorn text-warning me-2"></i>Hallendisplay Lauftext / Wach-Ticker</label>
+                                                                <textarea v-model="stationConfig.ticker_text" class="form-control bg-dark border-secondary text-white" rows="2" placeholder="Willkommen im Gerätehaus • Bitte Ausbildungszeiten beachten..."></textarea>
+                                                            </div>
+                            <div class="mb-3">
+                                                                <label class="form-label text-white"><i class="fa fa-cloud-bolt text-warning me-2"></i>Gemeindeschlüssel (für Unwetterwarnungen) <i class="fa fa-question-circle text-muted" title="Amtlicher Gemeindeschlüssel (AGS) deiner Gemeinde/deines Landkreises, mit Nullen auf 12 Stellen aufgefüllt. Zu finden z.B. im Wikipedia-Artikel deiner Gemeinde unter 'Gemeindeschlüssel' (8-stellig - dann mit 0000 auf 12 Stellen auffüllen). Falls für die einzelne Gemeinde keine Warnung angezeigt wird, den Schlüssel des Landkreises probieren (5-stellig + 0000000)."></i></label>
+                                                                <input type="text" v-model="stationConfig.dwd_warncell_id" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 066310050000">
+                                                            </div>
+                            <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-floppy-disk me-1"></i>Lauftext und Warnregion speichern</button>
+                        </div></div>
+
+                    <!-- AAO: welche Fahrzeuge bei welchem Stichwort ausrücken (das Hallen-Display zeigt die passendste Regel) -->
+                    <div v-if="aaoRules.length || aaoCanEdit" class="mt-4"><div class="card premium-card p-4">
+                        <h5 class="fw-bold text-white mb-1"><i class="fa fa-route text-danger me-2"></i>AAO fürs Hallen-Display</h5>
+                        <p class="text-muted small">Welche Fahrzeuge bei welchem Stichwort in welcher Reihenfolge ausrücken. Das Hallen-Display zeigt die passendste Regel an; passt keine, zeigt es nichts an.
+                            Ein Muster passt, wenn es im Stichwort vorkommt („B2“ passt auch auf „B2 - Wohnungsbrand“). Mehrere Muster mit Komma trennen, „*“ gilt für alle übrigen. Bei mehreren Treffern gewinnt das spezifischste (längste) Muster.</p>
+                        <div v-if="!aaoRules.length" class="text-muted small mb-3">Noch keine Regel angelegt.</div>
+                        <div v-for="r in aaoRules" :key="r.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
+                            <div style="min-width:0">
+                                <div class="fw-bold text-white">Stichwort: <code>{{ r.pattern }}</code></div>
+                                <div class="small text-muted"><span v-for="(e, i) in r.entries" :key="i">{{ i + 1 }}. {{ e.vehicle }}<span v-if="e.role"> ({{ e.role }})</span><span v-if="i < r.entries.length - 1"> &rarr; </span></span></div>
+                            </div>
+                            <div v-if="aaoCanEdit" class="d-flex gap-1 flex-shrink-0">
+                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="editAaoRule(r)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteAaoRule(r)" title="Löschen"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div v-if="aaoCanEdit" class="mt-3">
+                            <h6 class="fw-bold text-white">{{ aaoForm.id ? 'Regel bearbeiten' : 'Neue Regel' }}</h6>
+                            <label class="form-label">Stichwort-Muster</label>
+                            <input type="text" class="form-control mb-3" v-model="aaoForm.pattern" maxlength="120" placeholder="z. B. B2, Wohnungsbrand   oder   THL   oder   *">
+                            <label class="form-label">Fahrzeuge in Ausrückreihenfolge</label>
+                            <datalist id="aaoVehicleList"><option v-for="v in vehicles" :key="v.id" :value="v.name"></option></datalist>
+                            <div v-for="(e, i) in aaoForm.entries" :key="i" class="row g-2 mb-2 align-items-center">
+                                <div class="col-12 col-md-5"><input type="text" class="form-control" list="aaoVehicleList" v-model="e.vehicle" maxlength="60" :placeholder="(i + 1) + '. Fahrzeug'"></div>
+                                <div class="col-9 col-md-5"><input type="text" class="form-control" v-model="e.role" maxlength="100" placeholder="Aufgabe (z. B. Angriffstrupp)"></div>
+                                <div class="col-3 col-md-2"><button class="btn btn-outline-danger rounded-pill" @click="aaoForm.entries.splice(i, 1)" :disabled="aaoForm.entries.length === 1" title="Fahrzeug entfernen"><i class="fa fa-xmark"></i></button></div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap mt-2">
+                                <button class="btn btn-outline-light rounded-pill" @click="aaoForm.entries.push({ vehicle: '', role: '' })" :disabled="aaoForm.entries.length >= 12"><i class="fa fa-plus me-1"></i>Fahrzeug</button>
+                                <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveAaoRule"><i class="fa fa-floppy-disk me-1"></i>{{ aaoForm.id ? 'Änderung speichern' : 'Regel speichern' }}</button>
+                                <button v-if="aaoForm.id" class="btn btn-outline-light rounded-pill" @click="resetAaoForm">Abbrechen</button>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+

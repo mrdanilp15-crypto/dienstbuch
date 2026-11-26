@@ -1,0 +1,542 @@
+                <div v-show="activeTab === 'verwaltung'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-gears text-danger me-2"></i>Einstellungen</h2>
+                            <small class="text-muted">Konten, Sicherheit, Betrieb, Kommunikation und Wache</small>
+                        </div>
+                    </div>
+
+                    <!-- Reiter nach Themen gruppiert; welche es gibt, hängt von der Rolle ab (settingsGroups) -->
+                    <div class="settings-nav mb-4">
+                        <div v-for="g in settingsGroups" :key="g.label" class="settings-group">
+                            <div class="settings-group-label">{{ g.label }}</div>
+                            <div class="nav nav-pills flex-wrap gap-2 pill-nav">
+                                <button v-for="t in g.tabs" :key="t.key" class="nav-link" :class="verwaltungTab === t.key ? 'active bg-danger' : ''" @click="openSettingsTab(t.key)"><i class="fa me-1" :class="t.icon"></i>{{ t.label }}</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="!settingsGroups.length" class="text-muted">Für deine Rolle gibt es hier keine Einstellungen.</div>
+
+                    <!-- Konten & Sicherheit -->
+                    <div v-show="verwaltungTab === 'logins'" v-if="isAdmin">
+                                                <div class="row g-4">
+                                                    <div class="col-12 col-lg-8">
+                                                        <div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-key text-danger me-2"></i>System-Logins verwalten <i class="fa fa-question-circle text-muted" style="font-size:0.9rem;" title="Erstelle, bearbeite und verwalte die Zugangskonten aller Kameraden."></i></h5>
+                                                            <div class="table-responsive" style="max-height: 400px;">
+                                                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                                                    <thead><tr class="text-muted"><th>BENUTZER</th><th>ROLLE</th><th>KAMERAD</th><th>LETZTER LOGIN</th><th>AKTIONEN</th></tr></thead>
+                                                                    <tbody>
+                                                                        <tr v-for="usr in systemUsers" :key="usr.id">
+                                                                            <td class="fw-bold text-white">{{ usr.username }}<i v-if="usr.totp_enabled" class="fa fa-shield-halved text-success ms-1" title="Zwei-Faktor aktiv" style="font-size:0.75rem;"></i></td>
+                                                                            <td>
+                                                                                <span class="badge" :class="usr.role==='admin'?'bg-danger':usr.role==='leitung'?'bg-warning text-dark':usr.role==='gruppenfuehrer'?'bg-primary':usr.role==='geratewart'?'bg-info text-dark':usr.role==='jugendwarte'?'bg-success':usr.role==='atemschutzwart'?'bg-dark border border-info text-info':'bg-secondary'">{{ usr.custom_role_label || usr.role }}</span>
+                                                                            </td>
+                                                                            <td><small class="text-muted">{{ usr.personnel_name || '—' }}</small></td>
+                                                                            <td>
+                                                                                <span v-if="usr.is_locked" class="badge bg-danger" title="Nach 5 Fehlversuchen automatisch für 15 Min. gesperrt."><i class="fa fa-lock me-1"></i>Gesperrt</span>
+                                                                                <span v-else-if="isDormantAccount(usr)" class="badge bg-warning text-dark" :title="usr.last_login ? ('Letzter Login: ' + usr.last_login) : 'Noch nie eingeloggt'"><i class="fa fa-moon me-1"></i>Ruhend</span>
+                                                                                <small v-else class="text-muted">{{ usr.last_login ? dt(usr.last_login.split(' ')[0]) : '—' }}</small>
+                                                                            </td>
+                                                                            <td>
+                                                                                <div class="d-flex gap-1 flex-wrap">
+                                                                                    <button v-if="usr.is_locked" class="btn btn-xs btn-outline-success rounded-pill" @click="unlockUserAccount(usr)" style="font-size:0.65rem;"><i class="fa fa-unlock me-1"></i>Sperre aufheben</button>
+                                                                                    <button class="btn btn-xs btn-outline-primary rounded-pill" @click="startUserEdit(usr)" style="font-size:0.65rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
+                                                                                    <button class="btn btn-xs btn-outline-warning rounded-pill" @click="resetUserPassword(usr)" style="font-size:0.65rem;">PW Reset</button>
+                                                                                    <button v-if="usr.is_first_login" class="btn btn-xs btn-outline-info rounded-pill" @click="resendInvite(usr)" style="font-size:0.65rem;" title="Neuen Einrichtungs-Link per E-Mail schicken"><i class="fa fa-envelope me-1"></i>Einladung</button>
+                                                                                    <button v-if="usr.totp_enabled" class="btn btn-xs btn-outline-secondary rounded-pill" @click="resetUser2fa(usr)" style="font-size:0.65rem;" title="Zwei-Faktor ausschalten (z.B. Handy verloren)">2FA zurücksetzen</button>
+                                                                                    <button class="btn btn-xs btn-outline-danger rounded-pill" @click="deleteUserAccount(usr.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                        <tr v-if="systemUsers.length === 0"><td colspan="5" class="text-center py-3 text-muted">Keine Benutzer gefunden.</td></tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-12 col-lg-4">
+                                                        <!-- Create / Edit Form -->
+                                                        <div class="card premium-card p-4">
+                                                            <h6 class="fw-bold text-white mb-3">
+                                                                <i class="fa" :class="editingUserId ? 'fa-pen-to-square text-warning' : 'fa-plus text-danger'"></i>
+                                                                <span v-if="editingUserId"> Login bearbeiten</span><span v-else> Neuen Login erstellen</span>
+                                                            </h6>
+
+                                                            <!-- Username only shown when creating -->
+                                                            <div class="mb-3" v-if="!editingUserId">
+                                                                <label class="form-label">Benutzername</label>
+                                                                <input type="text" v-model="newLogin.username" class="form-control" placeholder="z. B. f.mueller">
+                                                            </div>
+                                                            <div class="mb-3" v-if="!editingUserId && mailInviteOk">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input" type="checkbox" id="inviteSwitch" v-model="newLogin.invite">
+                                                                    <label class="form-check-label" for="inviteSwitch">Per E-Mail einladen</label>
+                                                                </div>
+                                                                <div class="small text-muted mt-1">{{ newLogin.invite ? 'Die Person legt ihr Passwort selbst fest - niemand sonst kennt es. Dafür unten einen Kameraden mit hinterlegter E-Mail-Adresse verknüpfen.' : 'Oder hier ein Passwort vergeben und weitergeben.' }}</div>
+                                                            </div>
+                                                            <div class="mb-3" v-if="!editingUserId && !newLogin.invite">
+                                                                <label class="form-label">Passwort</label>
+                                                                <input type="password" v-model="newLogin.password" class="form-control" placeholder="Min. 8 Zeichen" minlength="8" autocomplete="new-password">
+                                                                <div class="pw-rules small mt-2">
+                                                        <div v-for="i in pwRules(newLogin.password, newLogin.username)" :key="i.text" :class="i.ok === null ? 'text-muted' : (i.ok ? 'text-success' : 'text-danger')"><i class="fa fa-fw me-1" :class="i.ok === null ? 'fa-circle' : (i.ok ? 'fa-circle-check' : 'fa-circle-xmark')"></i>{{ i.text }}</div>
+                                                        <div class="text-muted mt-1">{{ pwHint }}</div>
+                                                    </div>                                        </div>
+
+                                                            <!-- Info banner in edit mode -->
+                                                            <div v-if="editingUserId" class="alert alert-info small p-2 rounded-3 mb-3" style="background:rgba(13,202,240,0.1); border: 1px solid rgba(13,202,240,0.3);">
+                                                                <i class="fa fa-circle-info me-1"></i>Bearbeite Rolle & Kamerad-Verknüpfung für <strong>{{ editingUsername }}</strong>. Für Passwort-Änderungen → PW Reset.
+                                                            </div>
+
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Systemrolle</label>
+                                                                <select v-if="editingUserId" v-model="editUserRole" class="form-select">
+                                                                    <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
+                                                                    <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
+                                                                    <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                                    <option value="atemschutzwart">Atemschutzwart (Nur Atemschutz-Einsätze)</option>
+                                                                    <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
+                                                                    <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
+                                                                    <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
+                                                                    <option v-for="r in customRoleList()" :key="r.key" :value="'custom:' + r.key">{{ r.label }} (eigene Rolle, wie {{ r.base_label }})</option>
+                                                                </select>
+                                                                <select v-else v-model="newLogin.role" class="form-select">
+                                                                    <option value="mannschaft">Mannschaft (Nur Lesezugriff)</option>
+                                                                    <option value="geratewart">Gerätewart (Nur Fahrzeuge & Material)</option>
+                                                                    <option value="jugendwarte">Jugendwart (Nur Jugendfeuerwehr)</option>
+                                                                    <option value="atemschutzwart">Atemschutzwart (Nur Atemschutz-Einsätze)</option>
+                                                                    <option value="gruppenfuehrer">Gruppenführer (Dienste & Einsätze erfassen)</option>
+                                                                    <option value="leitung">Leitung (Wehrführung - Volle Schreibrechte)</option>
+                                                                    <option value="admin">Administrator (Vollzugriff & System-Logins)</option>
+                                                                    <option v-for="r in customRoleList()" :key="r.key" :value="'custom:' + r.key">{{ r.label }} (eigene Rolle, wie {{ r.base_label }})</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Kamerad verknüpfen</label>
+                                                                <select v-if="editingUserId" v-model="editUserPersonnelId" class="form-select">
+                                                                    <option :value="null">-- Keiner --</option>
+                                                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                                                </select>
+                                                                <select v-else v-model="newLogin.personnel_id" class="form-select">
+                                                                    <option :value="null">-- Keiner --</option>
+                                                                    <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div class="d-flex gap-2">
+                                                                <button v-if="!editingUserId" class="btn btn-premium flex-grow-1 rounded-pill" @click="submitNewLogin"><i class="fa fa-plus me-1"></i>Login erstellen</button>
+                                                                <button v-if="editingUserId" class="btn btn-warning flex-grow-1 rounded-pill text-dark fw-bold" @click="saveUserEdit"><i class="fa fa-save me-1"></i>Speichern</button>
+                                                                <button v-if="editingUserId" class="btn btn-outline-light rounded-pill px-3" @click="cancelUserEdit">Abbrechen</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            <!-- Backup & Import Management Card -->
+                                            <div class="card premium-card p-4 mt-4" v-if="isAdmin">
+                                                <h5 class="fw-bold text-white mb-2"><i class="fa fa-database text-danger me-2"></i>Datenbank-Sicherung & Wiederherstellung (Backup & Import)</h5>
+                                                <p class="text-muted small mb-3">Erstelle vollständige Backups aller Tabellen (Personal, Einsätze, Geräte, Notizen, Fahrzeuge) oder spiele vorhandene Backups ein.</p>
+
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="p-3 rounded-4 bg-black bg-opacity-20 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between">
+                                                            <div>
+                                                                <h6 class="fw-bold text-white mb-1"><i class="fa fa-download text-success me-2"></i>Datenbank Exportieren (Backup)</h6>
+                                                                <small class="text-muted d-block mb-3">Lädt eine vollständige JSON-Sicherung aller Systemdaten herunter.</small>
+                                                            </div>
+                                                            <a href="/api/admin/backup/export" class="btn btn-success rounded-pill fw-bold text-white w-100" target="_blank">
+                                                                <i class="fa fa-file-export me-1"></i> Backup Jetzt Erstellen
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="p-3 rounded-4 bg-black bg-opacity-20 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between">
+                                                            <div>
+                                                                <h6 class="fw-bold text-white mb-1"><i class="fa fa-upload text-warning me-2"></i>Backup Wiederherstellen (Import)</h6>
+                                                                <small class="text-muted d-block mb-2">Spielt ein vorhandenes `.json` oder `.sql` Backup in die Datenbank ein.</small>
+                                                                <input type="file" ref="backupFileInput" class="form-control form-control-sm bg-dark border-secondary text-white mb-2" accept=".json,.sql">
+                                                            </div>
+                                                            <button class="btn btn-warning text-dark rounded-pill fw-bold w-100" @click="uploadBackupFile">
+                                                                <i class="fa fa-file-import me-1"></i> Backup Einspielen
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            </div>
+
+                    <div v-show="verwaltungTab === 'rechte'" v-if="isAdmin">
+                        <div class="card premium-card p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <h5 class="fw-bold text-white m-0"><i class="fa fa-user-lock text-danger me-2"></i>Rechte pro Rolle</h5>
+                                <button class="btn btn-outline-light btn-sm rounded-pill" @click="resetPermissions"><i class="fa fa-rotate-left me-1"></i>Auf Standard zurücksetzen</button>
+                            </div>
+                            <p class="text-muted small mb-3">Lege fest, welche Rolle was bearbeiten darf. Admins haben immer alle Rechte. Änderungen gelten sofort. Markierte Felder weichen vom Standard ab. Ansehen von Daten regeln weiterhin die Rollen selbst.</p>
+                            <div class="d-flex flex-wrap gap-2 align-items-end mb-3 p-3 rounded-3" style="background:rgba(255,255,255,0.04);">
+                                <div>
+                                    <label class="small text-muted fw-bold mb-1 d-block">Neue Rolle</label>
+                                    <input type="text" v-model="newCustomRole.label" class="form-control form-control-sm" placeholder="z. B. Kassenwart" maxlength="40" style="min-width:190px;" @keyup.enter="createCustomRole">
+                                </div>
+                                <div>
+                                    <label class="small text-muted fw-bold mb-1 d-block">Startet mit den Rechten von</label>
+                                    <select v-model="newCustomRole.base_role" class="form-select form-select-sm">
+                                        <option value="mannschaft">Mannschaft</option><option value="geratewart">Gerätewart</option><option value="jugendwarte">Jugendwart</option>
+                                        <option value="atemschutzwart">Atemschutzwart</option><option value="gruppenfuehrer">Gruppenführer</option><option value="leitung">Leitung</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-premium btn-sm rounded-pill px-3" @click="createCustomRole"><i class="fa fa-plus me-1"></i>Rolle anlegen</button>
+                                <div class="text-muted small w-100">Danach in der Tabelle die Rechte ankreuzen und der Rolle unter System-Logins ein Konto zuweisen. Was die Rolle sehen darf, richtet sich nach der Basisrolle.</div>
+                            </div>
+                            <div v-if="!permissionMatrix" class="text-muted small">Wird geladen …</div>
+                            <div v-else class="table-responsive">
+                                <table class="table table-dark align-middle small mb-0">
+                                    <thead><tr class="text-muted">
+                                        <th>Recht</th>
+                                        <th v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">
+                                            {{ r.label }}
+                                            <div v-if="r.custom" class="fw-normal" style="font-size:0.65rem;">wie {{ r.base_label }} <i class="fa fa-trash text-danger ms-1" style="cursor:pointer;" title="Rolle löschen" @click="deleteCustomRole(r)"></i></div>
+                                        </th>
+                                    </tr></thead>
+                                    <tbody>
+                                        <template v-for="g in permissionGroups()" :key="g.name">
+                                            <tr><td :colspan="permissionMatrix.roles.length + 1" class="text-uppercase fw-bold text-danger pt-3" style="font-size:0.7rem; letter-spacing:.08em;">{{ g.name }}</td></tr>
+                                            <tr v-for="p in g.items" :key="p.key">
+                                                <td><div class="fw-bold text-white">{{ p.label }}</div><div class="text-muted" style="font-size:0.72rem;">{{ p.hint }}</div></td>
+                                                <td v-for="r in permissionMatrix.roles" :key="r.key" class="text-center">
+                                                    <i v-if="r.key === 'admin'" class="fa fa-lock text-muted" title="Admins haben immer alle Rechte"></i>
+                                                    <input v-else type="checkbox" class="form-check-input" :class="p.changed[r.key] ? 'border-warning' : ''" :checked="p.roles[r.key]" @change="setPermission(p, r.key, $event.target.checked)" :title="p.changed[r.key] ? 'Weicht vom Standard ab' : 'Standard'">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="verwaltungTab === 'audit'" v-if="isAdmin">
+                                                <div class="card premium-card p-4">
+                                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                                        <h5 class="fw-bold text-white m-0"><i class="fa fa-clock-rotate-left text-danger me-2"></i>Aktivitäts-Log <i class="fa fa-question-circle text-muted" style="font-size:0.9rem;" title="Protokoll wichtiger Änderungen (Anlegen, Löschen, Rollenänderungen...) im System."></i></h5>
+                                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="loadAuditLog"><i class="fa fa-rotate me-1"></i>Aktualisieren</button>
+                                                    </div>
+                                                    <div class="table-responsive" style="max-height: 600px;">
+                                                        <table class="table table-dark table-hover mb-0 align-middle small">
+                                                            <thead><tr class="text-muted"><th>ZEITPUNKT</th><th>BENUTZER</th><th>AKTION</th><th>DETAILS</th></tr></thead>
+                                                            <tbody>
+                                                                <tr v-for="a in auditLog" :key="a.id">
+                                                                    <td class="text-muted" style="white-space:nowrap;">{{dt(a.created_at)}}</td>
+                                                                    <td class="fw-bold text-white">{{a.username}}</td>
+                                                                    <td><span class="badge bg-secondary">{{a.action}}</span></td>
+                                                                    <td class="text-muted">{{a.details}}</td>
+                                                                </tr>
+                                                                <tr v-if="auditLog.length === 0"><td colspan="4" class="text-center py-3 text-muted">Kein Log vorhanden.</td></tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                    <div v-show="verwaltungTab === 'sicherheit'" v-if="isAdmin">
+<div class="card premium-card p-4 mb-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-shield-halved text-danger me-2"></i>Sicherheit</h5>
+                                <small class="text-muted d-block mb-3">Anmeldungen, Sperren und Regeln für Zwei-Faktor und Passwörter.</small>
+                                <div v-if="security">
+                                    <div class="row g-2 mb-3 text-center">
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.failed_24h ? 'text-warning' : 'text-success'">{{ security.failed_24h }}</div><div class="small text-muted">Fehlversuche (24 Std.)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold">{{ security.failed_7d }}</div><div class="small text-muted">Fehlversuche (7 Tage)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.ip_blocked_7d ? 'text-warning' : 'text-success'">{{ security.ip_blocked_7d }}</div><div class="small text-muted">Adress-Sperren (7 Tage)</div></div></div>
+                                        <div class="col-6 col-md-3"><div class="p-3 rounded-3" style="background: rgba(255,255,255,0.04);"><div class="fs-3 fw-bold" :class="security.locked.length ? 'text-danger' : 'text-success'">{{ security.locked.length }}</div><div class="small text-muted">Gesperrte Konten</div></div></div>
+                                    </div>
+                                    <div v-if="security.locked.length" class="small mb-2"><i class="fa fa-lock text-danger me-1"></i>Gesperrt: <span v-for="l in security.locked" :key="l.username" class="badge bg-danger me-1">{{ l.username }} bis {{ dt(l.until) }}</span></div>
+                                    <div v-if="security.no_2fa.length" class="small mb-2"><i class="fa fa-triangle-exclamation text-warning me-1"></i>Ohne Zwei-Faktor (Admin/Leitung): <span v-for="u in security.no_2fa" :key="u.username" class="badge bg-warning text-dark me-1">{{ u.username }}</span></div>
+                                    <div v-if="security.pending_invites.length" class="small mb-2"><i class="fa fa-envelope text-info me-1"></i>Noch nicht eingerichtet (Erstanmeldung offen): <span v-for="u in security.pending_invites" :key="u" class="badge bg-secondary me-1">{{ u }}</span></div>
+                                    <hr class="border-secondary border-opacity-25">
+                                    <div class="row g-3 align-items-end mb-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Zwei-Faktor-Anmeldung ist Pflicht für</label>
+                                            <select class="form-select" v-model.number="security.settings.require_2fa">
+                                                <option :value="0">Niemanden (freiwillig)</option>
+                                                <option :value="1">Administratoren</option>
+                                                <option :value="2">Administratoren und Leitung</option>
+                                            </select>
+                                            <div class="form-text">Betroffene Konten dürfen ohne 2FA nur noch lesen, bis sie es unter „Mein Profil“ einrichten.</div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="pwnedSwitch" v-model="security.settings.pwned_check" :true-value="1" :false-value="0">
+                                                <label class="form-check-label" for="pwnedSwitch">Neue Passwörter mit bekannten Datenlecks abgleichen</label>
+                                            </div>
+                                            <div class="form-text">Über haveibeenpwned.com; gesendet werden nur die ersten 5 Zeichen eines Hashes, nie das Passwort. Fällt der Dienst aus, läuft alles normal weiter.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-warning btn-sm rounded-pill mb-3" @click="saveSecurity" :disabled="securitySaving"><i class="fa fa-floppy-disk me-1"></i>Sicherheits-Einstellungen speichern</button>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-lg-6">
+                                            <div class="small fw-bold text-white mb-1">Letzte Anmeldungen</div>
+                                            <div v-for="l in security.last_logins" :key="l.username" class="small text-muted d-flex justify-content-between"><span>{{ l.username }} <span>({{ l.role }})</span></span><span>{{ l.at }}</span></div>
+                                        </div>
+                                        <div class="col-12 col-lg-6">
+                                            <div class="small fw-bold text-white mb-1">Letzte Sicherheits-Ereignisse</div>
+                                            <div v-for="(e, i) in security.events" :key="i" class="small text-muted"><span>{{ e.at }}</span> · {{ e.who }} · {{ e.action }}</div>
+                                            <div v-if="!security.events.length" class="small text-muted">Noch nichts.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill mt-3" @click="loadSecurity"><i class="fa fa-rotate me-1"></i>Aktualisieren</button>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+<div class="card premium-card p-4 mb-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-user-shield text-danger me-2"></i>Datenschutz &amp; Aufbewahrung</h5>
+                                <small class="text-muted d-block mb-3">Was automatisch gelöscht wird und welche ausgeschiedenen Mitglieder bereinigt werden können.</small>
+                                <div v-if="privacy">
+                                    <div class="row g-3 align-items-end mb-2">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Sicherheits-Protokoll aufbewahren (Tage, 0 = unbegrenzt)</label>
+                                            <input type="number" min="0" max="3650" class="form-control form-control-sm" v-model.number="privacy.settings.retention_audit_days">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small">Ausgeschiedene Mitglieder vorschlagen nach (Jahren, 0 = nie)</label>
+                                            <input type="number" min="0" max="50" class="form-control form-control-sm" v-model.number="privacy.settings.retention_ex_member_years">
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mb-2">Automatisch täglich bereinigt: abgelaufene Passwort-Links, Geräte ohne Anmeldung seit 6 Monaten, Benachrichtigungen nach 60 Tagen. Dienstzeiten, Einsatz- und Atemschutzprotokolle bleiben wegen gesetzlicher Aufbewahrung erhalten, nur ohne Namen.</div>
+                                    <div class="d-flex gap-2 flex-wrap mb-3">
+                                        <button class="btn btn-outline-warning btn-sm rounded-pill" @click="savePrivacy"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="runRetentionNow">Bereinigung jetzt ausführen</button>
+                                    </div>
+                                    <div class="fw-bold text-white small mb-1">Ausgeschiedene Mitglieder über der Frist ({{ privacy.candidates.length }})</div>
+                                    <div v-if="!privacy.candidates.length" class="small text-muted">Keine.</div>
+                                    <div v-for="c in privacy.candidates" :key="c.id" class="d-flex justify-content-between align-items-center small py-1 border-top border-secondary border-opacity-10">
+                                        <span>{{ c.name }} <span class="text-muted">· {{ c.exit_date ? 'ausgeschieden ' + dt(c.exit_date) : 'Austrittsdatum unbekannt' }}</span></span>
+                                        <button class="btn btn-outline-danger btn-sm rounded-pill py-0" @click="anonymizePerson(c)">Personenbezug entfernen</button>
+                                    </div>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                    </div>
+
+                    <!-- Betrieb -->
+                    <div v-show="verwaltungTab === 'betrieb'" v-if="isAdmin">
+<div class="card premium-card p-4 mb-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-heart-pulse me-2"></i>Systemzustand</h5>
+                                <small class="text-muted d-block mb-3">Auf einen Blick: läuft alles, wie es soll?</small>
+                                <div v-if="health" class="d-flex flex-column gap-2">
+                                    <div v-for="c in health.checks" :key="c.key" class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(255,255,255,0.04);">
+                                        <i class="fa fa-lg mt-1" :class="{'fa-circle-check text-success': c.status === 'ok', 'fa-triangle-exclamation text-warning': c.status === 'warn', 'fa-circle-xmark text-danger': c.status === 'error', 'fa-circle-info text-info': c.status === 'info'}"></i>
+                                        <div><div class="fw-bold text-white">{{ c.label }}</div><div class="small text-muted">{{ c.detail }}</div></div>
+                                    </div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill align-self-start mt-2" @click="loadHealth"><i class="fa fa-rotate me-1"></i>Neu prüfen</button>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+<div class="card premium-card p-4 mb-3">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-database text-danger me-2"></i>Datensicherung</h5>
+                                <small class="text-muted d-block mb-3">Jede Sicherung wird geprüft und kann zusätzlich an einen zweiten Ort kopiert werden.</small>
+                                <div v-if="backupInfo">
+                                    <div v-if="backupInfo.status.last_run" class="small mb-2">
+                                        <div><i class="fa fa-clock me-1 text-muted"></i>Letzte Sicherung: <strong>{{ backupInfo.status.last_run }}</strong> <span class="text-muted">({{ backupInfo.status.dump_file }}<span v-if="backupInfo.status.size_bytes">, {{ (backupInfo.status.size_bytes / 1024 / 1024).toFixed(1) }} MB</span>)</span></div>
+                                        <div :class="backupInfo.status.verify_status === 'ok' ? 'text-success' : backupInfo.status.verify_status === 'warn' ? 'text-warning' : 'text-danger'"><i class="fa fa-circle-check me-1"></i>{{ backupInfo.status.verify_detail }}</div>
+                                        <div v-if="!backupInfo.real_restore_check" class="text-muted">Hinweis: Eine echte Probe-Wiederherstellung braucht den Datenbank-Root-Zugang (ROOT_PASS) und das mysql-Programm im Container - hier läuft nur die Plausibilitätsprüfung.</div>
+                                    </div>
+                                    <div v-else class="small text-muted mb-2">Noch keine Sicherung seit dem Update erfasst. „Jetzt sichern“ startet eine.</div>
+                                    <button class="btn btn-outline-light btn-sm rounded-pill mb-3" @click="runBackupNow" :disabled="backupBusy"><i class="fa me-1" :class="backupBusy ? 'fa-spinner fa-spin' : 'fa-play'"></i>{{ backupBusy ? 'Sichere und prüfe …' : 'Jetzt sichern und prüfen' }}</button>
+                                    <hr class="border-secondary border-opacity-25">
+                                    <div class="fw-bold text-white small mb-2">Kopie an einen zweiten Ort (WebDAV: Nextcloud, NAS, Storage Box …)</div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="offsiteOn" v-model="offsiteForm.enabled">
+                                        <label class="form-check-label" for="offsiteOn">Nach jeder Sicherung dorthin kopieren</label>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-12"><input type="text" class="form-control form-control-sm" v-model="offsiteForm.url" placeholder="Ordner-Adresse, z. B. https://cloud.example.org/remote.php/dav/files/NAME/Dienstbuch"></div>
+                                        <div class="col-12 col-md-6"><input type="text" class="form-control form-control-sm" v-model="offsiteForm.username" placeholder="Benutzername" autocomplete="off"></div>
+                                        <div class="col-12 col-md-6"><input type="password" class="form-control form-control-sm" v-model="offsiteForm.password" :placeholder="backupInfo.offsite.has_password ? 'Passwort (gespeichert - leer lassen zum Behalten)' : 'Passwort / App-Passwort'" autocomplete="new-password"></div>
+                                    </div>
+                                    <div class="form-text mb-2">Die Datei enthält personenbezogene Daten - nur an einen vertrauenswürdigen Speicher senden (https). Alte Kopien dort räumt der Speicher selbst auf (z. B. Versionierung/Papierkorb-Regeln).</div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-outline-warning btn-sm rounded-pill" @click="saveOffsite"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="testOffsite"><i class="fa fa-plug me-1"></i>Verbindung testen</button>
+                                    </div>
+                                </div>
+                                <div v-else class="text-muted">Wird geladen …</div>
+                            </div>
+                    </div>
+
+                    <!-- Kommunikation -->
+                    <div v-show="verwaltungTab === 'mail'" v-if="isAdmin">
+                                                <div class="card premium-card p-4">
+                                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-envelope text-danger me-2"></i>E-Mail-Versand</h5>
+                                                    <small class="text-muted d-block mb-4">Postfach, über das das Dienstbuch E-Mails verschickt (Passwort vergessen, Fristen-Erinnerungen, optional Alarme). Die Zugangsdaten bekommst du bei deinem Mail-Anbieter (SMTP).</small>
+                                                    <div class="form-check form-switch mb-4">
+                                                        <input class="form-check-input" type="checkbox" id="mailEnabled" v-model="mailSettings.enabled">
+                                                        <label class="form-check-label" for="mailEnabled">E-Mail-Versand aktiv</label>
+                                                    </div>
+                                                    <div class="row g-3">
+                                                        <div class="col-12 col-md-6"><label class="form-label small">SMTP-Server</label><input type="text" class="form-control" v-model="mailSettings.smtp_host" placeholder="z. B. smtp.gmail.com"></div>
+                                                        <div class="col-6 col-md-3"><label class="form-label small">Port</label><input type="number" class="form-control" v-model.number="mailSettings.smtp_port"></div>
+                                                        <div class="col-6 col-md-3"><label class="form-label small">Verschlüsselung</label>
+                                                            <select class="form-select" v-model="mailSettings.smtp_security">
+                                                                <option value="starttls">STARTTLS (meist Port 587)</option>
+                                                                <option value="ssl">SSL/TLS (meist Port 465)</option>
+                                                                <option value="none">Keine</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-12 col-md-6"><label class="form-label small">Benutzername</label><input type="text" class="form-control" v-model="mailSettings.smtp_user" autocomplete="off"></div>
+                                                        <div class="col-12 col-md-6"><label class="form-label small">Passwort</label><input type="password" class="form-control" v-model="mailSettings.smtp_password" autocomplete="new-password" :placeholder="mailSettings.has_password ? 'gespeichert – leer lassen zum Beibehalten' : ''"></div>
+                                                        <div class="col-12 col-md-6"><label class="form-label small">Absender-Adresse</label><input type="email" class="form-control" v-model="mailSettings.sender_address" placeholder="dienstbuch@feuerwehr-musterstadt.de"></div>
+                                                        <div class="col-12 col-md-6"><label class="form-label small">Absender-Name</label><input type="text" class="form-control" v-model="mailSettings.sender_name" placeholder="Feuerwehr Musterstadt"></div>
+                                                        <div class="col-12"><label class="form-label small">Adresse des Dienstbuchs (für Links in E-Mails)</label><input type="text" class="form-control" v-model="mailSettings.app_url" placeholder="https://..."></div>
+                                                    </div>
+                                                    <div class="mt-4 d-flex flex-column gap-2">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input" type="checkbox" id="mailReminder" v-model="mailSettings.reminder_mail">
+                                                            <label class="form-check-label" for="mailReminder">Erinnerungen per E-Mail (Fristen: Leitung bekommt die Übersicht, jeder Kamerad seine eigenen; dazu Mails zu neuen Terminen und Termin-Erinnerungen)</label>
+                                                        </div>
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input" type="checkbox" id="mailAlarm" v-model="mailSettings.alarm_mail">
+                                                            <label class="form-check-label" for="mailAlarm">Alarme zusätzlich per E-Mail an alle aktiven Mitglieder mit hinterlegter Adresse</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="d-flex flex-wrap gap-2 align-items-center mt-4">
+                                                        <button class="btn btn-premium rounded-pill px-4" @click="saveMailSettings" :disabled="mailSaving"><i class="fa fa-save me-1"></i>Speichern</button>
+                                                        <input type="email" class="form-control form-control-sm" style="max-width: 260px;" v-model="mailTestTo" placeholder="Test an ...">
+                                                        <button class="btn btn-outline-light rounded-pill btn-sm" @click="sendTestMail" :disabled="mailSaving"><i class="fa fa-paper-plane me-1"></i>Test-Mail senden</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                    
+
+                    <!-- Wache -->
+                    <div v-show="verwaltungTab === 'wache'" v-if="canSeeSettings">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-map-pin text-danger me-2"></i>Name und Standort der Wache</h5>
+                                                            <p class="text-muted small">Name und Koordinaten der Wache. Sie sind das Zentrum aller Einsatzkarten (Dashboard, Lagekarte und Hallen-Display).</p>
+                                        
+                                                            <div class="mb-3">
+                                                                <label class="form-label text-white">Name der Feuerwache / Wache</label>
+                                                                <div class="d-flex gap-2">
+                                                                    <input type="text" v-model="stationConfig.station_name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Feuerwehr Neustadt">
+                                                                    <button type="button" class="btn btn-outline-warning text-nowrap fw-bold" @click="lookupStationCoordinates"><i class="fa fa-search-location me-1"></i> Suchen</button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div class="row g-3 mb-3">
+                                                                <div class="col-md-6">
+                                                                    <label class="form-label text-white">Breitengrad (Latitude)</label>
+                                                                    <input type="number" step="any" v-model.number="stationConfig.lat" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 50.1109">
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <label class="form-label text-white">Längengrad (Longitude)</label>
+                                                                    <input type="number" step="any" v-model.number="stationConfig.lng" class="form-control bg-dark border-secondary text-white" placeholder="z. B. 8.6821">
+                                                                </div>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label text-white">Standard Zoomstufe (Map Zoom)</label>
+                                                                <input type="number" v-model.number="stationConfig.zoom" class="form-control bg-dark border-secondary text-white" min="1" max="20">
+                                                            </div>
+                                                            
+                                                            
+                                                            <button class="btn btn-premium w-100 rounded-pill fw-bold" @click="saveStationSettings"><i class="fa fa-save me-2"></i>Einstellungen speichern</button>
+                                                        </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-question text-danger me-2"></i>Wie finde ich die Koordinaten?</h5>
+                                                            <p class="text-muted small">Du kannst z.B. Google Maps oder OpenStreetMap aufrufen, mit der rechten Maustaste auf den Standort deiner Wache klicken und die Koordinaten kopieren.</p>
+                                                            <hr class="border-secondary border-opacity-10 my-3">
+                                                            <p class="text-white fw-bold mb-2">Aktuelle Einstellungen:</p>
+                                                            <table class="table table-sm table-dark table-borderless small text-muted">
+                                                                <tr><td>Wachenname:</td><td class="text-white">{{ stationConfig.station_name }}</td></tr>
+                                                                <tr><td>Breitengrad (Lat):</td><td class="text-white">{{ stationConfig.lat }}</td></tr>
+                                                                <tr><td>Längengrad (Lng):</td><td class="text-white">{{ stationConfig.lng }}</td></tr>
+                                                                <tr><td>Zoom:</td><td class="text-white">{{ stationConfig.zoom }}</td></tr>
+                                                            </table>
+                                                        </div>
+                            </div>
+                            <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                                <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-user-clock text-danger me-2"></i>Fristen & Intervalle</h5>
+                                <p class="text-muted small">Bestimmt, wann Untersuchungen und Unterweisungen als fällig gelten, wie früh erinnert wird und wie lange eine Anmeldung gültig bleibt.</p>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6"><label class="form-label">G26.3 Atemschutzuntersuchung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_g26"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Jährlicher Belastungslauf (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_belastung"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">UVV-Sicherheitsunterweisung (Monate)</label><input type="number" min="1" max="120" class="form-control" v-model.number="intervals.int_unterweisung"></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Fahrzeugkontrolle alle … Tage</label><input type="number" min="0" max="365" class="form-control" v-model.number="intervals.int_fahrzeugkontrolle"><div class="form-text">Standard 7 (wöchentlich). 0 = keine Erinnerung.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Führerscheinkontrolle alle … Monate</label><input type="number" min="0" max="120" class="form-control" v-model.number="intervals.int_fuehrerschein"><div class="form-text">Standard 12. 0 = keine Erinnerung.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Interessenten nachfassen nach … Tagen</label><input type="number" min="0" max="365" class="form-control" v-model.number="intervals.int_interessent"><div class="form-text">Standard 21. 0 = keine Erinnerung.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Erinnerungs-Vorlauf (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.reminder_window_days"><div class="form-text">So viele Tage vor einer Frist erscheint sie als „bald fällig“.</div></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Anmeldung bleibt gültig (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="intervals.session_max_days"><div class="form-text">Danach muss sich jeder neu anmelden.</div></div>
+                                </div>
+                                <button class="btn btn-outline-warning rounded-pill fw-bold mt-3" @click="saveIntervals"><i class="fa fa-floppy-disk me-1"></i>Speichern</button>
+                            </div>
+                            </div>
+                            <div class="col-12" v-if="dueCanCreate">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-clipboard-list text-danger me-2"></i>Eigene Fristarten</h5>
+                                    <p class="text-muted small">Für Fristen, die es nur bei euch gibt – etwa „Drohnenpilot Landkreis“. Du legst fest, worauf sie sich beziehen, wie oft sie wiederkehren und wer zuständig ist. Die Fristen selbst trägst du (oder die Zuständigen) auf der Seite <strong>Fristen</strong> ein.
+                                        Zuständige sehen und bearbeiten nur ihre Fristarten und werden per Glocke und Mail erinnert; die betroffene Person sieht ihre eigene Frist.</p>
+                                    <div v-if="!dueTypes.length" class="text-muted small mb-3">Noch keine eigene Fristart angelegt.</div>
+                                    <div v-for="t in dueTypes" :key="t.id" class="d-flex justify-content-between align-items-start gap-2 py-2 border-bottom border-secondary border-opacity-25">
+                                        <div style="min-width:0">
+                                            <div class="fw-bold text-white">{{ t.name }}</div>
+                                            <div class="small text-muted">Bezug: {{ dueSubjectLabel(t.subject) }} · <span v-if="t.interval_months">alle {{ t.interval_months }} Monate</span><span v-else>einmalig</span><span v-if="t.lead_days"> · Vorlauf {{ t.lead_days }} Tage</span> · Zuständig: {{ dueResponsible(t) }}<span v-if="t.logbook_id"> · aus Logbuch „{{ (logbooks.find(b => b.id === t.logbook_id) || {}).name }}“</span></div>
+                                        </div>
+                                        <div class="d-flex gap-1 flex-shrink-0">
+                                            <button class="btn btn-sm btn-outline-light rounded-pill" @click="editDueType(t)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteDueType(t)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <h6 class="fw-bold text-white mt-3">{{ dueTypeForm.id ? 'Fristart bearbeiten' : 'Neue Fristart' }}</h6>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6"><label class="form-label">Name</label><input type="text" class="form-control" v-model="dueTypeForm.name" maxlength="120" placeholder="z. B. Drohnenpilot Landkreis"></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Bezieht sich auf</label>
+                                            <select class="form-select" v-model="dueTypeForm.subject">
+                                                <option value="person">Person (z. B. Zeugnis, Übungsflug)</option>
+                                                <option value="vehicle">Fahrzeug</option>
+                                                <option value="equipment">Gerät (z. B. Drohne: Versicherung, Wartung)</option>
+                                                <option value="general">Allgemein, ohne Bezug</option>
+                                            </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Wiederholung (Monate)</label><input type="number" min="1" max="240" class="form-control" v-model.number="dueTypeForm.interval_months" placeholder="leer = einmalig"><div class="form-text">Beim Abhaken rückt die Frist um so viele Monate weiter.</div></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Vorlauf (Tage)</label><input type="number" min="1" max="365" class="form-control" v-model.number="dueTypeForm.lead_days" placeholder="leer = allgemeiner Vorlauf"><div class="form-text">So früh vorher erscheint sie als „bald fällig“.</div></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Zuständige Rolle</label>
+                                            <select class="form-select" v-model="dueTypeForm.responsible_role">
+                                                <option value="">keine (nur Admin/Leitung)</option>
+                                                <option value="geratewart">Gerätewart</option>
+                                                <option value="atemschutzwart">Atemschutzwart</option>
+                                                <option value="gruppenfuehrer">Gruppenführer</option>
+                                                <option value="jugendwarte">Jugendwart</option>
+                                            </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Zuständige Person <span class="text-muted">(zusätzlich)</span></label>
+                                            <select class="form-select" v-model="dueTypeForm.responsible_pid">
+                                                <option :value="null">keine</option>
+                                                <option v-for="p in (dueSubjects.person || [])" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            </select><div class="form-text">Die Person braucht ein Benutzerkonto, das mit ihr verknüpft ist, um die Frist zu sehen.</div></div>
+                                        <div class="col-12" v-if="logbooks.length"><label class="form-label">Frist aus einem Logbuch <span class="text-muted">(optional)</span></label>
+                                            <select class="form-select" v-model="dueTypeForm.logbook_id" @change="dueTypeForm.logbook_id && (dueTypeForm.subject = 'person')">
+                                                <option :value="null">nein - die Fristen trage ich von Hand ein</option>
+                                                <option v-for="b in logbooks" :key="b.id" :value="b.id">{{ b.name }}</option>
+                                            </select><div class="form-text">Dann prüft sich die Frist selbst: Für jedes Mitglied des Logbuchs gilt der letzte Eintrag plus die Wiederholung (Monate, oben - dann Pflicht). Beispiel: Pflicht-Übungsflug alle 3 Monate. Ein neuer Eintrag erledigt die Frist.</div></div>
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap mt-3">
+                                        <button class="btn btn-outline-warning rounded-pill fw-bold" @click="saveDueType"><i class="fa fa-floppy-disk me-1"></i>{{ dueTypeForm.id ? 'Änderung speichern' : 'Fristart speichern' }}</button>
+                                        <button v-if="dueTypeForm.id" class="btn btn-outline-light rounded-pill" @click="resetDueTypeForm">Abbrechen</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12" v-if="canSeeSettings">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-1"><i class="fa fa-book-open text-danger me-2"></i>Logbücher</h5>
+                                    <p class="text-muted small">Logbücher (zum Beispiel das Flugbuch der Drohnen) legst du direkt im Menü <strong>Logbücher</strong> an und richtest sie dort ein. Eine Frist, die sich auf ein Logbuch stützt, legst du oben bei „Eigene Fristarten“ an.</p>
+                                    <button class="btn btn-outline-warning rounded-pill" @click="openLogbooks"><i class="fa fa-book-open me-1"></i>Zu den Logbüchern</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+

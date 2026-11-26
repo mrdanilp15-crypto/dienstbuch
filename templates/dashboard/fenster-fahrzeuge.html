@@ -1,0 +1,221 @@
+        <!-- MODAL: ADD/EDIT VEHICLE -->
+        <div class="modal fade" id="vehicleFormModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeugakte bearbeiten</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeVehicle">
+                        <form @submit.prevent="saveVehicle">
+                            <div class="mb-3">
+                                <label class="form-label">Bezeichnung / Typ <i class="fa fa-question-circle text-muted" title="z.B. HLF 20 oder MZF"></i></label>
+                                <input type="text" v-model="activeVehicle.name" class="form-control" placeholder="z. B. HLF 20" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Funkrufname <i class="fa fa-question-circle text-muted" title="BOS Funkkennung, z.B. Florian Neustadt 40/1"></i></label>
+                                <input type="text" v-model="activeVehicle.radio_name" class="form-control" placeholder="z. B. Florian Neustadt 40/1">
+                            </div>
+                            <div class="row g-2 mb-3 align-items-end">
+                                <div class="col-6">
+                                    <label class="form-label">TÜV Datum</label>
+                                    <input type="date" v-model="activeVehicle.tuv_date" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Sicherheitsprüfung (SP)</label>
+                                    <input type="date" v-model="activeVehicle.sp_date" class="form-control">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3 align-items-end">
+                                <div class="col-6">
+                                    <label class="form-label">Kilometerstand</label>
+                                    <input type="number" v-model="activeVehicle.milage" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Nächster Service</label>
+                                    <input type="date" v-model="activeVehicle.next_service" class="form-control">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">BOS Status</label>
+                                <select v-model="activeVehicle.status" class="form-select">
+                                    <option :value="1">Status 1 (Einsatzbereit über Funk)</option>
+                                    <option :value="2">Status 2 (Einsatzbereit auf Wache)</option>
+                                    <option :value="3">Status 3 (Einsatzauftrag übernommen)</option>
+                                    <option :value="4">Status 4 (Am Einsatzort eingetroffen)</option>
+                                    <option :value="6">Status 6 (Nicht einsatzbereit / Werkstatt)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Erforderliche Führerscheinklasse <i class="fa fa-question-circle text-muted" title="Wird bei der Reservierung als Hinweis angezeigt"></i></label>
+                                <select v-model="activeVehicle.required_license" class="form-select">
+                                    <option :value="null">Keine besondere Anforderung</option>
+                                    <option value="B">Klasse B</option>
+                                    <option value="BE">Klasse BE</option>
+                                    <option value="C">Klasse C</option>
+                                    <option value="CE">Klasse CE</option>
+                                </select>
+                            </div>
+                            <div class="row g-2 mb-4 align-items-end">
+                                <div class="col-6">
+                                    <label class="form-label">Anschaffungswert (€)</label>
+                                    <input type="number" step="0.01" v-model.number="activeVehicle.purchase_value" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Versicherungs-Policennummer</label>
+                                    <input type="text" v-model="activeVehicle.insurance_policy" class="form-control">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Fahrzeug speichern</button>
+                        </form>
+
+                        <div v-if="activeVehicle.id" class="mt-4 pt-3 border-top border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-3"><i class="fa fa-paperclip text-danger me-2"></i>Dokumente (Fahrzeugschein, Versicherung, ...)</h6>
+                            <input type="file" ref="vehicleDocFile" class="form-control bg-dark border-secondary text-white mb-2" @change="uploadVehicleDocument">
+                            <div class="list-group list-group-flush bg-transparent">
+                                <div v-for="doc in vehicleDocuments" :key="doc.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                    <a :href="doc.url" target="_blank" class="small text-danger text-decoration-underline"><i class="fa fa-file-alt me-2"></i>{{doc.filename}}</a>
+                                    <button class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteVehicleDocument(doc.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                </div>
+                                <div v-if="vehicleDocuments.length === 0" class="text-muted small">Keine Dokumente hochgeladen.</div>
+                            </div>
+                        </div>
+
+                        <div v-if="activeVehicle.id" class="mt-4 pt-3 border-top border-secondary border-opacity-10">
+                            <h6 class="fw-bold text-white mb-3"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Wartungskosten-Historie</h6>
+                            <div class="row g-2 align-items-end mb-3">
+                                <div class="col-4">
+                                    <label class="form-label small">Datum</label>
+                                    <input type="date" v-model="newMaintenance.date" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-8">
+                                    <label class="form-label small">Beschreibung</label>
+                                    <input type="text" v-model="newMaintenance.description" class="form-control form-control-sm" placeholder="z. B. Bremsen erneuert">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">Werkstatt</label>
+                                    <input type="text" v-model="newMaintenance.workshop" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label small">Kosten (€)</label>
+                                    <input type="number" step="0.01" v-model.number="newMaintenance.cost" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-1">
+                                    <button class="btn btn-premium btn-sm w-100" @click="submitVehicleMaintenance"><i class="fa fa-plus"></i></button>
+                                </div>
+                            </div>
+                            <div class="list-group list-group-flush bg-transparent">
+                                <div v-for="m in vehicleMaintenance" :key="m.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-2">
+                                    <div>
+                                        <div class="fw-bold small">{{m.description}}</div>
+                                        <small class="text-muted">{{dt(m.date)}} &bull; {{m.workshop || '—'}} &bull; {{m.cost.toFixed(2)}} €</small>
+                                    </div>
+                                    <button class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteVehicleMaintenance(m.id)" style="font-size:0.65rem;"><i class="fa fa-trash"></i></button>
+                                </div>
+                                <div v-if="vehicleMaintenance.length === 0" class="text-muted small">Keine Einträge.</div>
+                                <div v-if="vehicleMaintenance.length > 0" class="text-end fw-bold text-white small pt-2">Gesamt: {{ vehicleMaintenance.reduce((s,m) => s+m.cost, 0).toFixed(2) }} €</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: VEHICLE CHECKLIST -->
+        <div class="modal fade" id="vehicleCheckModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-clipboard-check text-info me-2"></i>Fahrzeug-Check: {{activeVehicleForCheck?.name}}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="mb-3 row">
+                            <div class="col-md-6">
+                                <label class="form-label">Prüfer / Maschinist</label>
+                                <input type="text" v-model="currentChecklist.checker_name" class="form-control" placeholder="Dein Name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Datum</label>
+                                <input type="date" v-model="currentChecklist.date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <h6 class="fw-bold mb-3 text-info">Prüfpunkte</h6>
+                            <div class="list-group">
+                                <div v-for="(val, key) in currentChecklist.items_checked" :key="key" class="list-group-item bg-transparent border-secondary text-white d-flex justify-content-between align-items-center">
+                                    {{key}}
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" v-model="currentChecklist.items_checked[key]">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mängel / Bemerkungen</label>
+                            <textarea v-model="currentChecklist.notes" class="form-control" rows="3" placeholder="Gefundene Mängel hier eintragen..."></textarea>
+                        </div>
+                        <button class="btn btn-info w-100 rounded-pill fw-bold text-dark" @click="submitChecklist">Checkliste abspeichern</button>
+                    </div>
+                    
+                    <div class="modal-header border-secondary border-opacity-10 mt-3 border-top">
+                        <h6 class="modal-title text-muted">Bisherige Checks für dieses Fahrzeug</h6>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="list-group list-group-flush">
+                            <div v-for="chk in vehicleCheckHistory" :key="chk.id" class="list-group-item bg-transparent text-white border-secondary">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <strong>{{dt(chk.date)}} - {{chk.checker_name}}</strong>
+                                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                        <span :class="chk.status === 'Mängel' ? 'text-danger fw-bold' : 'text-success'">{{chk.status}}</span>
+                                        <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicleCheck(chk.id)" title="Check löschen"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1" v-if="chk.notes">{{chk.notes}}</small>
+                            </div>
+                            <div v-if="!vehicleCheckHistory.length" class="p-3 text-muted text-center small">Noch keine Checks vorhanden.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: VEHICLE LOG RIDE -->
+        <div class="modal fade" id="logRideModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-plus me-1"></i>Fahrtenbucheintrag</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitLogRide">
+                            <div class="mb-3">
+                                <label class="form-label">Datum</label>
+                                <input type="date" v-model="newLogRide.date" class="form-control" required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">KM Start</label>
+                                    <input type="number" v-model="newLogRide.mileage_start" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">KM Ende</label>
+                                    <input type="number" v-model="newLogRide.mileage_end" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fahrer</label>
+                                <input type="text" v-model="newLogRide.driver_name" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fahrzweck</label>
+                                <input type="text" v-model="newLogRide.purpose" class="form-control" placeholder="z. B. Übung oder Werkstatt" required>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Fahrt speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+

@@ -1,0 +1,35 @@
+                <!-- TAB: KALENDER -->
+                <div v-show="activeTab === 'kalender'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-calendar-days text-danger me-2"></i>Kalender</h2>
+                            <small class="text-muted">Dienste, Einsätze, Fahrzeug-Reservierungen & Jubiläen im Überblick</small>
+                        </div>
+                        <button v-if="canSeeSettings" class="btn btn-outline-light btn-sm rounded-pill" @click="openCalendarFeed"><i class="fa fa-rss me-1"></i>Kalender abonnieren</button>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-outline-light btn-sm rounded-pill" @click="shiftCalendarMonth(-1)"><i class="fa fa-chevron-left"></i></button>
+                            <div class="fw-bold text-white" style="min-width:160px;text-align:center;">{{ calendarMonthLabel }}</div>
+                            <button class="btn btn-outline-light btn-sm rounded-pill" @click="shiftCalendarMonth(1)"><i class="fa fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <div class="card premium-card p-3 mb-4">
+                        <div class="d-flex flex-wrap gap-3 small mb-2">
+                            <span><i class="fa fa-circle text-primary me-1"></i>Dienst</span>
+                            <span><i class="fa fa-circle text-danger me-1"></i>Einsatz</span>
+                            <span><i class="fa fa-circle" style="color:#a855f7;"></i> Geplanter Termin</span>
+                            <span><i class="fa fa-circle text-warning me-1"></i>Fahrzeug-Reservierung</span>
+                            <span><i class="fa fa-circle text-success me-1"></i>Jubiläum</span>
+                            <span><i class="fa fa-circle" style="color:#0f766e;"></i> Helfersuche</span>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-weekday" v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd">{{ wd }}</div>
+                            <div v-for="cell in calendarCells" :key="cell.key" class="calendar-cell" :class="{'calendar-cell-muted': !cell.inMonth, 'calendar-cell-today': cell.isToday, 'calendar-cell-clickable': cell.inMonth && canManageDienste}" @click="cell.inMonth && canManageDienste && openCalendarDayModal(cell.key)" :title="cell.inMonth && canManageDienste ? 'Klicken, um einen Termin an diesem Tag anzulegen' : ''">
+                                <div class="calendar-cell-num">{{ cell.day }}</div>
+                                <div v-for="ev in cell.events" :key="ev.type + '|' + (ev.schedule_id || ev.id || '') + '|' + ev.title + '|' + ev.date + '|' + (ev.time || '')" class="calendar-event" :class="['calendar-event-' + ev.type, {'calendar-event-editable': ev.type === 'termin', 'calendar-event-done': ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).done_session_id}]" :title="(ev.type === 'termin' ? 'Klicken für Details – ' : '') + ev.title + (ev.subtitle ? ' – ' + ev.subtitle : '')" @click="openCalendarEvent(ev, $event)">
+                                    <i v-if="ev.type === 'termin' && scheduleOf(ev) && scheduleOf(ev).audience === 'selected'" class="fa fa-lock me-1"></i>{{ ev.time ? ev.time + ' ' : '' }}{{ ev.title }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+

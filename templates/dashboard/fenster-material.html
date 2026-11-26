@@ -1,0 +1,245 @@
+        <!-- MODAL: ADD/EDIT EQUIPMENT -->
+        <div class="modal fade" id="equipmentModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräteakte</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeEquipment">
+                        <form @submit.prevent="saveEquipment">
+                            <div class="mb-3">
+                                <label class="form-label">Bezeichnung / Typ</label>
+                                <input type="text" v-model="activeEquipment.name" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Barcode / ID</label>
+                                <input type="text" v-model="activeEquipment.barcode" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Kategorie</label>
+                                <select v-model="activeEquipment.category" class="form-select">
+                                    <option value="Schläuche">Schläuche</option>
+                                    <option value="Armaturen">Armaturen</option>
+                                    <option value="Werkzeug">Werkzeug</option>
+                                    <option value="Atemschutz">Atemschutz</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüffrist (Monate)</label>
+                                <input type="number" v-model="activeEquipment.interval_months" class="form-control">
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Letzte Prüfung</label>
+                                    <input type="date" v-model="activeEquipment.last_inspection" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Nächste Prüfung</label>
+                                    <input type="date" v-model="activeEquipment.next_inspection" class="form-control">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-4">
+                                <div class="col-6">
+                                    <label class="form-label">Anschaffungswert (€)</label>
+                                    <input type="number" step="0.01" v-model.number="activeEquipment.purchase_value" class="form-control">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Versicherungs-Policennummer</label>
+                                    <input type="text" v-model="activeEquipment.insurance_policy" class="form-control">
+                                </div>
+                            </div>
+                            <div class="mb-4 text-center p-3 bg-black bg-opacity-25 rounded border border-secondary border-opacity-10" v-if="activeEquipment && activeEquipment.id">
+                                <label class="form-label d-block text-muted small fw-bold">GERÄTE-QR-CODE (FÜR AUSDRUCK/PRÜFUNG)</label>
+                                <canvas id="eqQrCanvas" class="bg-white p-2 rounded mb-2" style="width: 150px; height: 150px; display: inline-block;"></canvas>
+                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill d-block mx-auto mt-2" @click="printQrCode"><i class="fa fa-print me-1"></i>QR-Code drucken</button>
+                            </div>
+                            <div class="d-flex gap-2" v-if="activeEquipment && activeEquipment.id">
+                                <button type="button" class="btn btn-outline-danger w-50 rounded-pill" @click="deleteEquipmentInModal"><i class="fa fa-trash me-1"></i>Gerät löschen</button>
+                                <button type="submit" class="btn btn-premium w-50 rounded-pill">Gerät speichern</button>
+                            </div>
+                            <button v-else type="submit" class="btn btn-premium w-100 rounded-pill">Gerät speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: QR SCANNER -->
+        <div class="modal fade" id="qrScannerModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 bg-dark-layer">
+                    <div class="modal-header border-secondary border-opacity-25">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-barcode me-2 text-primary"></i>Gerät scannen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" @click="stopQrScanner"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #000;"></div>
+                        <p class="text-muted mt-3 small">Halte den Kamera-Sucher über den Barcode oder QR-Code des Geräts.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD INSPECTION -->
+        <div class="modal fade" id="addInspectionModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Geräteprüfung erfassen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activeEquipment">
+                        <form @submit.prevent="submitInspection">
+                            <div class="mb-3">
+                                <label class="form-label">Prüfdatum</label>
+                                <input type="date" v-model="newInspection.date" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfer / Sachkundiger</label>
+                                <input type="text" v-model="newInspection.inspector" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfergebnis</label>
+                                <select v-model="newInspection.status" class="form-select">
+                                    <option value="Bestanden">Bestanden</option>
+                                    <option value="Mangel">Mangel (Einsatzbereit)</option>
+                                    <option value="Defekt">Defekt (Außer Dienst)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz / Mängelbeschreibung</label>
+                                <textarea v-model="newInspection.note" class="form-control" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Prüfung verbuchen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: GERÄT AUSLEIHEN -->
+        <div class="modal fade" id="loanEquipmentModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Gerät ausleihen<span v-if="activeEquipment"> – {{activeEquipment.name}}</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitLoan">
+                            <div class="mb-3">
+                                <label class="form-label">Ausgeliehen an</label>
+                                <input type="text" v-model="newLoan.borrower_name" class="form-control" placeholder="Name des Kameraden" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz (optional)</label>
+                                <input type="text" v-model="newLoan.note" class="form-control" placeholder="z. B. für Übung am ...">
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Ausleihe eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: FAHRZEUG RESERVIEREN -->
+        <div class="modal fade" id="vehicleReservationModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Fahrzeug reservieren<span v-if="activeVehicleForLog"> – {{activeVehicleForLog.name}}</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div v-if="activeVehicleForLog && activeVehicleForLog.required_license && myLicenses && !myLicenses['lic_' + activeVehicleForLog.required_license.toLowerCase()]" class="alert alert-warning small py-2">
+                            <i class="fa fa-triangle-exclamation me-1"></i>Für dieses Fahrzeug wird Führerschein <strong>Klasse {{activeVehicleForLog.required_license}}</strong> benötigt. Laut deinem Personal-Datensatz ist diese Klasse nicht hinterlegt.
+                        </div>
+                        <div v-else-if="activeVehicleForLog && activeVehicleForLog.required_license" class="alert alert-secondary small py-2">
+                            <i class="fa fa-id-card me-1"></i>Für dieses Fahrzeug wird Führerschein Klasse {{activeVehicleForLog.required_license}} benötigt.
+                        </div>
+                        <form @submit.prevent="submitVehicleReservation">
+                            <div class="mb-3">
+                                <label class="form-label">Zweck</label>
+                                <input type="text" v-model="newReservation.purpose" class="form-control" placeholder="z. B. Übung, Ausbildung..." required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Von</label>
+                                    <input type="datetime-local" v-model="newReservation.start_datetime" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Bis</label>
+                                    <input type="datetime-local" v-model="newReservation.end_datetime" class="form-control" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Reservierung eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: BATCH INSPECT -->
+        <div class="modal fade" id="batchInspectModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-qrcode me-2"></i>Sammelprüfung (Batch)</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form @submit.prevent="submitBatchInspect">
+                            <div class="mb-3">
+                                <label class="form-label">Barcodes / IDs (Ein Code pro Zeile)</label>
+                                <textarea v-model="batchInspect.rawBarcodes" class="form-control font-monospace" rows="5" placeholder="Eingeben oder scannen..." required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfer</label>
+                                <input type="text" v-model="batchInspect.inspector" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Prüfergebnis</label>
+                                <select v-model="batchInspect.status" class="form-select">
+                                    <option value="Bestanden">Bestanden</option>
+                                    <option value="Mangel">Mangel</option>
+                                    <option value="Defekt">Defekt</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notiz</label>
+                                <textarea v-model="batchInspect.note" class="form-control" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill">Batch Prüfung eintragen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: INSPECTION HISTORY -->
+        <div class="modal fade" id="inspectionsHistoryModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white">Prüfungsverlauf</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="list-group list-group-flush border border-secondary border-opacity-10 rounded-3 overflow-y-auto" style="max-height: 400px;">
+                            <div v-for="h in inspectionsHistory" :key="h.id" class="list-group-item bg-transparent text-white border-secondary border-opacity-10 py-3">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="badge" :class="h.status==='Bestanden'?'bg-success':'bg-danger'">{{h.status}}</span>
+                                    <small class="text-muted">{{dt(h.date)}}</small>
+                                </div>
+                                <div class="fw-bold text-white small">Prüfer: {{h.inspector}}</div>
+                                <p class="text-muted mb-0 small" v-if="h.note">{{h.note}}</p>
+                            </div>
+                            <div v-if="inspectionsHistory.length === 0" class="text-center py-4 text-muted">Keine Prüfhistorie vorhanden.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+

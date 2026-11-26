@@ -1,0 +1,230 @@
+                <!-- TAB: STATISTIKEN -->
+                <div v-show="activeTab === 'stats'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-chart-bar text-danger me-2"></i>Statistiken</h2>
+                            <small class="text-muted">Übersicht der Einsatzstatistiken</small>
+                        </div>
+                        <select v-if="isAdmin || role === 'leitung'" v-model="statsYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadStats">
+                            <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
+                        </select>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="card premium-card p-4 text-center">
+                                <h5 class="fw-bold text-white mb-3">Einsätze {{ statsYear }}</h5>
+                                <h1 class="display-1 fw-bold text-danger m-0">{{ statsTotalMissions }}</h1>
+                                <small class="text-muted">Vorjahr: {{ statsPrevTotal }}<span v-if="statsPrevTotal"> ({{ statsTotalMissions >= statsPrevTotal ? '+' : '' }}{{ Math.round((statsTotalMissions - statsPrevTotal) / statsPrevTotal * 100) }} %)</span> &bull; ohne Test-Alarme</small>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Einsätze pro Wochentag</h5>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Einsätze pro Monat (mit Vorjahr)</h5>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChartMonth"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Einsätze nach Art</h5>
+                                <div style="height: 340px; position: relative;">
+                                    <canvas id="statsChartType"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3">Dienststunden nach Kategorie</h5>
+                                <div style="height: 340px; position: relative;">
+                                    <canvas id="statsChartHours"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white m-0">Beteiligung an Übungen ({{ statsYear }})</h5>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <label class="small text-muted mb-0">Mindestens</label>
+                                        <input type="number" min="0" max="100" class="form-control form-control-sm" style="width: 80px;" v-model.number="participationInput">
+                                        <span class="small text-muted">%</span>
+                                        <button class="btn btn-outline-light btn-sm rounded-pill" @click="saveParticipationThreshold">Übernehmen</button>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mb-3">Anteil der Übungen, an denen ein aktiver Kamerad teilgenommen hat. Erst ab 3 Übungen aussagekräftig. Gedacht als Anlass für ein Gespräch, nicht als Urteil.</small>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span v-for="m in participation.members" :key="m.name" class="badge rounded-pill px-3 py-2 fw-normal"
+                                          :class="{'bg-danger': m.status === 'low', 'bg-success': m.status === 'ok', 'bg-secondary': m.status === 'nodata'}"
+                                          :title="m.total ? (m.present + ' von ' + m.total + ' Übungen') : 'noch keine Übungen erfasst'">
+                                        {{ m.name }} · {{ m.pct === null ? '–' : m.pct + ' %' }}
+                                    </span>
+                                    <span v-if="participation.members.length === 0" class="text-muted">Keine Daten.</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" v-if="isAdmin || role === 'leitung'">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white m-0">Top 10 Kameraden nach Dienst-/Einsatzstunden ({{ statsYear }})</h5>
+                                    <button v-if="statsAttendanceTop.length > 0" class="btn btn-sm btn-outline-light rounded-pill" @click="exportAttendanceStatsCsv"><i class="fa fa-file-csv me-1"></i>CSV-Export ({{statsAttendanceTop.length}} Kameraden)</button>
+                                </div>
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="statsChartAttendance"></canvas>
+                                </div>
+                                <div v-if="statsAttendanceTop.length === 0" class="empty-state">
+                                    <i class="fa-solid fa-chart-simple"></i>
+                                    <p>Keine Stunden für {{ statsYear }} erfasst</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- TAB: ARBEITSBESCHEINIGUNGEN -->
+                <div v-show="activeTab === 'arbeitsbescheinigung'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-file-signature text-danger me-2"></i>Arbeitsbescheinigungen</h2>
+                            <small class="text-muted">Bescheinigung über die Einsatzteilnahme zur Vorlage beim Arbeitgeber erstellen und verwalten</small>
+                        </div>
+                    </div>
+                    <div class="mb-4"><div class="card premium-card p-4">
+                                                            <h5 class="fw-bold text-white mb-2"><i class="fa fa-stamp text-danger me-2"></i>Dienstsiegel / Stempel</h5>
+                                                            <p class="text-muted small">Wird automatisch in jede neu erstellte Arbeitsbescheinigung eingefügt, statt einer leeren Box zum manuellen Aufstempeln.</p>
+                                                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                                                <div v-if="stationConfig.stamp_image" class="p-2 bg-white rounded-3 border border-secondary border-opacity-25">
+                                                                    <img :src="stationConfig.stamp_image" style="height:70px;">
+                                                                </div>
+                                                                <input type="file" ref="stampFileInput" accept="image/*" class="form-control bg-dark border-secondary text-white" style="max-width:320px;" @change="uploadStampImage">
+                                                                <button v-if="stationConfig.stamp_image" class="btn btn-outline-danger rounded-pill btn-sm" @click="removeStampImage"><i class="fa fa-trash me-1"></i>Entfernen</button>
+                                                            </div>
+                                                        </div></div>
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Neue Bescheinigung erstellen</h5>
+                                <div class="mb-3">
+                                    <label class="form-label">Einsatz</label>
+                                    <select v-model="newCertMissionId" class="form-select" @change="loadCertMissionAttendees">
+                                        <option :value="null">-- Einsatz wählen --</option>
+                                        <option v-for="m in missions" :key="m.id" :value="m.id">{{formatDateDay(m.date)}}.{{formatDateMonth(m.date)}} – {{m.stichwort}}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Person <i class="fa fa-question-circle text-muted" title="Nur Personen, die für diesen Einsatz als anwesend erfasst wurden, können ausgewählt werden."></i></label>
+                                    <select v-model="newCertPersonnelId" class="form-select" :disabled="!newCertMissionId">
+                                        <option :value="null">-- Person wählen --</option>
+                                        <option v-for="a in certMissionAttendees" :key="a.personnel_id" :value="a.personnel_id">{{a.name}}</option>
+                                    </select>
+                                    <small v-if="newCertMissionId && certMissionAttendees.length === 0" class="text-muted">Keine anwesenden Personen für diesen Einsatz erfasst.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label d-block">Unterschrift (Einsatzleiter/Kommandant)</label>
+                                    <div class="sig-box-preview border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center" style="height:90px; background:#fff; cursor:pointer;" @click="openCertSigModal">
+                                        <img v-if="newCertSignature" :src="newCertSignature" style="max-height:80px; max-width:100%;">
+                                        <span v-else class="small" style="color:#495057 !important;"><i class="fa fa-signature me-1"></i>Zum Unterschreiben klicken</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Optional – kann auch später direkt im PDF nachgetragen werden. Das Dienstsiegel wird automatisch eingefügt, falls oben unter „Dienstsiegel / Stempel“ hinterlegt.</small>
+                                </div>
+                                <button class="btn btn-premium w-100 rounded-pill" :disabled="!newCertMissionId || !newCertPersonnelId" @click="submitEmployerCertificate"><i class="fa fa-file-export me-1"></i>Bescheinigung erstellen & öffnen</button>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-list text-danger me-2"></i>Erstellte Bescheinigungen</h5>
+                                <div class="table-responsive" style="max-height:520px; overflow-y:auto;">
+                                    <table class="table table-dark table-hover align-middle small">
+                                        <thead><tr class="text-muted"><th>Person</th><th>Einsatz</th><th>Erstellt</th><th class="text-end">Aktion</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="c in employerCertificates" :key="c.id">
+                                                <td class="fw-bold text-white">{{c.personnel_name}}</td>
+                                                <td>{{c.mission_stichwort}} <small class="text-muted d-block">{{dt(c.mission_date)}}</small></td>
+                                                <td class="text-muted small">{{dt(c.created_at)}}<span v-if="c.has_signature" class="badge bg-success ms-1" title="Mit Unterschrift"><i class="fa fa-signature"></i></span></td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-sm btn-outline-light rounded-pill me-1" @click="viewEmployerCertificate(c)" title="PDF öffnen"><i class="fa fa-file-pdf"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteEmployerCertificate(c.id)"><i class="fa fa-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="employerCertificates.length === 0"><td colspan="4" class="text-center py-4 text-muted">Noch keine Bescheinigungen erstellt.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 9: DOCUMENT ARCHIVE -->
+                <div v-show="activeTab === 'archiv'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-folder-open text-danger me-2"></i>Dokumente & Archiv</h2>
+                            <small class="text-muted">Lade Dienstanweisungen, Pläne, private Nachweise oder Protokolle hoch.</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Left pane: Upload new file -->
+                        <div class="col-12 col-lg-4">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-cloud-arrow-up text-danger me-2"></i>Datei hochladen</h5>
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Sichtbarkeit</label>
+                                    <select v-model="newArchiveFile.is_public" class="form-select bg-dark border-secondary text-white">
+                                        <option :value="false">🔒 Privat (nur für mich sichtbar)</option>
+                                        <option :value="true">🔓 Öffentlich (für jeden sichtbar)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Datei auswählen</label>
+                                    <input type="file" ref="archiveFileInput" class="form-control bg-dark border-secondary text-white" @change="uploadArchiveFile">
+                                </div>
+                                <div class="text-muted small"><i class="fa fa-info-circle me-1"></i> Private Dateien sind ausschließlich für dich sichtbar und können von keinem anderen Benutzer eingesehen werden.</div>
+                            </div>
+                        </div>
+
+                        <!-- Right pane: Files Directory list -->
+                        <div class="col-12 col-lg-8">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-file-invoice text-danger me-2"></i>Dateiverzeichnis</h5>
+                                    <input type="text" v-model="archiveSearch" class="form-control bg-dark border-secondary text-white form-control-sm w-auto" placeholder="Suchen...">
+                                </div>
+
+                                <!-- Filter Buttons -->
+                                <div class="d-flex gap-2 mb-3">
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'all' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'all'">Alle</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'public' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'public'">Öffentlich</button>
+                                    <button class="btn btn-xs rounded-pill px-3" :class="archiveFilter === 'private' ? 'btn-danger text-white' : 'btn-outline-light'" @click="archiveFilter = 'private'">Privat</button>
+                                </div>
+
+                                <div class="list-group list-group-flush" style="max-height: 480px; overflow-y: auto;">
+                                    <div v-for="f in filteredArchiveFiles" :key="f.id" class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-10 py-3 flex-wrap gap-2">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-1"><i class="fa fa-file me-2 text-danger"></i>{{ f.filename }}</h6>
+                                            <small class="text-muted">
+                                                Gemeldet von: <strong class="text-white">{{ f.uploaded_by }}</strong> &bull; 
+                                                <span>{{ f.is_public ? '🔓 Öffentlich' : '🔒 Privat' }}</span> &bull; 
+                                                <span>{{ dt(f.created_at) }}</span>
+                                            </small>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a :href="f.url" target="_blank" class="btn btn-xs btn-outline-light rounded-pill px-3 py-1" style="font-size:0.7rem;"><i class="fa fa-download me-1"></i>Öffnen</a>
+                                            <button v-if="f.uploaded_by === username || ((isAdmin || role === 'leitung') && f.is_public)" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" @click="deleteArchiveFile(f.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <div v-if="filteredArchiveFiles.length === 0" class="text-center py-5 text-muted">Keine passenden Dateien vorhanden.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+

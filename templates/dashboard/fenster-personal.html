@@ -1,0 +1,733 @@
+        <!-- MODAL: PERSONNEL EDIT / DETAILS -->
+        <div class="modal fade" id="personnelModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-id-card text-danger me-2"></i>Personalakte</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" v-if="activePersonnel" style="max-height: 70vh; overflow-y: auto;">
+                        <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
+                            <div class="modal-avatar-upload" @click="$refs.fileInput.click()">
+                                <img :src="activePersonnel.profile_picture || (activePersonnel.has_picture ? '/api/personnel/avatar/' + activePersonnel.id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Avatar">
+                                <input type="file" ref="fileInput" class="d-none" accept="image/*" @change="onAvatarChange">
+                            </div>
+                            <div class="flex-grow-1">
+                                <input type="text" v-model="activePersonnel.name" class="form-control form-control-lg fw-bold border-0 mb-2" placeholder="Vorname Nachname" style="background-color: rgba(255,255,255,0.05) !important;">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <select v-model="activePersonnel.membership_status" class="form-select">
+                                            <option value="Aktiv">Aktiver Dienst</option>
+                                            <option value="Passiv">Passiv / Fördernd</option>
+                                            <option value="Jugend">Jugendfeuerwehr</option>
+                                            <option value="Ehrenabteilung">Ehrenabteilung</option>
+                                            <option value="Ausgeschieden">Ausgeschieden</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <select v-model="activePersonnel.rank" class="form-select">
+                                            <option value="">-- Dienstgrad auswählen --</option>
+                                            <option v-for="r in ranks" :key="r" :value="r">{{ r }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs mb-4 border-0" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tp-base">Stammdaten</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-qual">Qualifikationen</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-lehr">Lehrgänge</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-inv">Kleidung & Inventar</button></li>
+                            <li class="nav-item" v-if="activePersonnel.id"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tp-avail" @click="loadAvailability(activePersonnel.id)">Verfügbarkeit</button></li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- BASE DATA -->
+                            <div class="tab-pane fade show active" id="tp-base">
+                                <div class="row g-3">
+                                    <div class="col-md-6"><label class="form-label">Geburtsdatum</label><input type="date" v-model="activePersonnel.birth_date" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Eintrittsdatum</label><input type="date" v-model="activePersonnel.entry_date" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Dienstausweis-Nr.</label><input type="text" v-model="activePersonnel.badge_number" class="form-control" placeholder="Ausweis ID..."></div>
+                                    <div class="col-md-6"><label class="form-label">Telefonnummer</label><input type="text" v-model="activePersonnel.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
+                                    <div class="col-md-12"><label class="form-label">E-Mail-Adresse</label><input type="email" v-model="activePersonnel.email" class="form-control" placeholder="name@beispiel.de"></div>
+                                    <div class="col-md-12"><label class="form-label">Adresse</label><textarea v-model="activePersonnel.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
+                                    <div class="col-md-12 mt-2">
+                                        <div class="p-3 rounded-3 border" style="background: rgba(183, 28, 28, 0.08); border-color: rgba(183, 28, 28, 0.3) !important;">
+                                            <label class="form-label text-danger fw-bold mb-2"><i class="fa fa-phone-volume me-1"></i>Notfallkontakt (Angehörige)</label>
+                                            <div class="row g-2">
+                                                <div class="col-md-6"><input type="text" v-model="activePersonnel.emergency_contact_name" class="form-control" placeholder="Name, Beziehung (z. B. Ehepartner/in)"></div>
+                                                <div class="col-md-6"><input type="text" v-model="activePersonnel.emergency_contact_phone" class="form-control" placeholder="Telefonnummer"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- QUALIFICATIONS -->
+                            <div class="tab-pane fade" id="tp-qual">
+                                <h6 class="fw-bold text-danger mb-3"><i class="fa fa-graduation-cap me-2"></i>Feuerwehr-Lehrgänge</h6>
+                                <div class="row g-2 mb-4">
+                                    <div class="col-6 col-md-4" v-for="q in qualifications">
+                                        <div class="form-check form-switch p-2 border border-secondary border-opacity-10 rounded bg-black bg-opacity-20 ps-5">
+                                            <input class="form-check-input" type="checkbox" :id="q.id" v-model="activePersonnel[q.id]">
+                                            <label class="form-check-label fw-bold small text-white" :for="q.id">{{ q.label }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h6 class="fw-bold text-primary mb-3"><i class="fa fa-id-card-clip me-2"></i>Führerscheinklassen</h6>
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">Letzte Führerscheinkontrolle</label>
+                                    <input type="date" class="form-control form-control-sm" style="max-width: 220px;" v-model="activePersonnel.license_checked_date" :disabled="!canManagePersonnel">
+                                    <small class="text-muted">Wer Einsatzfahrzeuge fährt, muss den Führerschein regelmäßig (üblich: jährlich) vorzeigen. Das Dienstbuch erinnert nach 12 Monaten.</small>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-3" v-for="l in [{id: 'lic_b', n: 'Klasse B'}, {id: 'lic_be', n: 'Klasse BE'}, {id: 'lic_c', n: 'Klasse C'}, {id: 'lic_ce', n: 'Klasse CE'}]">
+                                        <div class="form-check border border-secondary border-opacity-10 p-2 rounded text-center bg-black bg-opacity-20">
+                                            <input type="checkbox" :id="l.id" v-model="activePersonnel[l.id]" class="form-check-input float-none me-2">
+                                            <label :for="l.id" class="fw-bold small text-white">{{ l.n }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- LEHRGÄNGE -->
+                            <div class="tab-pane fade" id="tp-lehr">
+                                <div v-if="canManagePersonnel" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Lehrgang eintragen</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="small text-muted fw-bold mb-1">Lehrgangsname</label>
+                                            <input type="text" list="lehrgangTypesList" v-model="newCourse.course_name" class="form-control form-control-sm">
+                                            <datalist id="lehrgangTypesList">
+                                                <option v-for="t in lehrgangTypes" :key="t.id" :value="t.name"></option>
+                                            </datalist>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Datum</label>
+                                            <input type="date" v-model="newCourse.date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Gültig bis (optional)</label>
+                                            <input type="date" v-model="newCourse.valid_until" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitCourse"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 pt-3 border-top border-secondary border-opacity-10">
+                                        <button class="btn btn-xs btn-outline-light rounded-pill px-2" style="font-size:0.7rem;" type="button" data-bs-toggle="collapse" data-bs-target="#lehrgangTypesManage"><i class="fa fa-gear me-1"></i>Lehrgangsarten verwalten</button>
+                                        <div class="collapse mt-2" id="lehrgangTypesManage">
+                                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                                <span v-for="t in lehrgangTypes" :key="t.id" class="badge bg-secondary d-inline-flex align-items-center gap-1">
+                                                    {{t.name}}
+                                                    <i class="fa fa-times" style="cursor:pointer;" @click="deleteLehrgangType(t.id)"></i>
+                                                </span>
+                                                <span v-if="lehrgangTypes.length === 0" class="text-muted small">Noch keine Lehrgangsarten hinterlegt.</span>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <input type="text" v-model="newLehrgangType" class="form-control form-control-sm" placeholder="Neue Lehrgangsart..." @keyup.enter="addLehrgangType">
+                                                <button class="btn btn-outline-light btn-sm" @click="addLehrgangType"><i class="fa fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>LEHRGANG</th><th>DATUM</th><th>GÜLTIG BIS</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="c in activePersonnel.courses" :key="c.id">
+                                            <td class="fw-bold text-white">{{c.course_name}}</td>
+                                            <td>{{dt(c.date)}}</td>
+                                            <td>
+                                                <span v-if="c.valid_until" class="badge rounded-pill" :class="new Date(c.valid_until) < new Date() ? 'bg-danger' : 'bg-secondary'">{{dt(c.valid_until)}}</span>
+                                            </td>
+                                            <td>
+                                                <button v-if="canManagePersonnel" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteCourse(c.id)"><i class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <h6 class="fw-bold text-white mt-4 mb-2"><i class="fa fa-award me-2 text-warning"></i>Beförderungen &amp; Ehrungen</h6>
+                                <div v-if="canManagePersonnel" class="row g-2 align-items-end mb-3">
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold mb-1">Art</label>
+                                        <select v-model="newHonor.kind" class="form-select form-select-sm"><option>Beförderung</option><option>Ehrung</option></select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="small text-muted fw-bold mb-1">Bezeichnung</label>
+                                        <input type="text" v-model="newHonor.title" class="form-control form-control-sm" placeholder="z. B. Oberfeuerwehrmann" @keyup.enter="submitHonor">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small text-muted fw-bold mb-1">Datum</label>
+                                        <input type="date" v-model="newHonor.date" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-premium btn-sm w-100" @click="submitHonor"><i class="fa fa-plus"></i></button>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>ART</th><th>BEZEICHNUNG</th><th>DATUM</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="h in (activePersonnel.honors || [])" :key="h.id">
+                                            <td><span class="badge rounded-pill" :class="h.kind === 'Ehrung' ? 'bg-warning text-dark' : 'bg-primary'">{{h.kind}}</span></td>
+                                            <td class="fw-bold text-white">{{h.title}}</td>
+                                            <td>{{dt(h.date)}}</td>
+                                            <td><button v-if="canManagePersonnel" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteHonor(h.id)"><i class="fa fa-trash"></i></button></td>
+                                        </tr>
+                                        <tr v-if="!(activePersonnel.honors || []).length"><td colspan="4" class="text-center text-muted py-2">Noch keine Beförderungen oder Ehrungen eingetragen.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- INVENTAR / GEWERBLICHE AUSRÜSTUNG -->
+                            <div class="tab-pane fade" id="tp-inv">
+                                <div v-if="canManageMaterial" class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Ausrüstungsgegenstand ausgeben</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="small text-muted fw-bold mb-1">Gegenstand</label>
+                                            <input type="text" v-model="newGear.item_name" class="form-control form-control-sm" placeholder="z. B. Einsatzjacke S-Gard">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Größe</label>
+                                            <input type="text" v-model="newGear.size" class="form-control form-control-sm" placeholder="M, 52...">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Datum</label>
+                                            <input type="date" v-model="newGear.issue_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitGear"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>AUSRÜSTUNG</th><th>GRÖSSE</th><th>AUSGABE-DATUM</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="g in activePersonnel.gearList" :key="g.id" :class="{'opacity-50': g.return_date}">
+                                            <td class="fw-bold text-white">{{g.item_name}} <small v-if="g.return_date" class="text-muted fw-normal">(zurück am {{dt(g.return_date)}})</small></td>
+                                            <td>{{g.size}}</td>
+                                            <td>{{dt(g.issue_date)}}</td>
+                                            <td class="text-nowrap">
+                                                <button v-if="canManageMaterial && !g.return_date" class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="returnGear(g)" title="Rückgabe vermerken"><i class="fa fa-rotate-left me-1"></i>Zurück</button>
+                                                <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteGear(g.id)" title="Eintrag löschen (z. B. Fehleingabe)"><i class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- VERFÜGBARKEIT / ABWESENHEIT -->
+                            <div class="tab-pane fade" id="tp-avail">
+                                <div class="p-3 border border-secondary border-opacity-10 bg-black bg-opacity-20 rounded mb-4">
+                                    <h6 class="fw-bold text-white mb-3">Abwesenheit eintragen (Urlaub, Krankheit, ...)</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Von</label>
+                                            <input type="date" v-model="newAvailability.start_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="small text-muted fw-bold mb-1">Bis</label>
+                                            <input type="date" v-model="newAvailability.end_date" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted fw-bold mb-1">Grund (optional)</label>
+                                            <input type="text" v-model="newAvailability.reason" class="form-control form-control-sm" placeholder="Urlaub, Krankheit...">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button class="btn btn-premium btn-sm w-100" @click="submitAvailability(activePersonnel.id)"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="table table-dark table-hover mb-0 align-middle small">
+                                    <thead><tr class="text-muted"><th>VON</th><th>BIS</th><th>GRUND</th><th>Aktion</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="av in availabilityList" :key="av.id">
+                                            <td class="fw-bold text-white">{{dt(av.start_date)}}</td>
+                                            <td class="fw-bold text-white">{{dt(av.end_date)}}</td>
+                                            <td>{{av.reason || '-'}}</td>
+                                            <td><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteAvailability(av.id, activePersonnel.id)"><i class="fa fa-trash"></i></button></td>
+                                        </tr>
+                                        <tr v-if="availabilityList.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine Abwesenheiten erfasst.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+</div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20 d-flex justify-content-between flex-wrap gap-2" v-if="canManagePersonnel">
+                        <button type="button" class="btn btn-link text-danger fw-bold border-0" @click="deletePersonnel"><i class="fa fa-trash me-1"></i> Löschen</button>
+                        <div class="d-flex align-items-center gap-2 flex-wrap" v-if="activePersonnel && activePersonnel.id">
+                            <span class="text-muted small">Nachweis:</span>
+                            <select v-model.number="certYear" class="form-select form-select-sm" style="width:auto;" title="Berichtsjahr">
+                                <option v-for="y in certYears" :key="y" :value="y">{{y}}</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('dienstzeit')" title="Dienstzeitnachweis (Dienste und Einsätze des Jahres) als PDF"><i class="fa fa-clock me-1"></i>Dienstzeit</button>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('lehrgaenge')" title="Lehrgangsübersicht (vollständige Historie) als PDF"><i class="fa fa-graduation-cap me-1"></i>Lehrgänge</button>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="openPersonnelCertificate('atemschutz')" title="Atemschutznachweis des Jahres als PDF"><i class="fa fa-mask-face me-1"></i>Atemschutz</button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="button" class="btn btn-premium rounded-pill px-5 fw-bold" @click="savePersonnel">Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: WAS IST NEU (nur Admins) -->
+        <div class="modal fade" id="changelogModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-gift text-warning me-2"></i>Was ist neu</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+                        <div v-if="changelogEntries.length === 0" class="text-center text-muted py-4">Noch keine Einträge.</div>
+                        <div v-for="entry in changelogEntries" :key="entry.id" class="mb-4">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <span class="fw-bold text-white">Version {{entry.version}}</span>
+                                <span class="text-muted small">{{dt(entry.date)}}</span>
+                            </div>
+
+                            <div v-if="entry.items.some(i => i.type === 'new')" class="mb-3">
+                                <h6 class="fw-bold text-danger mb-2"><i class="fa fa-star me-2"></i>Neue Funktionen</h6>
+                                <div v-for="(item, idx) in entry.items.filter(i => i.type === 'new')" :key="'new'+idx" class="ps-3 mb-2 border-start border-danger border-opacity-50">
+                                    <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-1">
+                                        <span class="fw-bold text-white small">{{item.title}}</span>
+                                        <span class="text-muted" style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em;">{{item.tag}}</span>
+                                    </div>
+                                    <div class="text-muted small">{{item.text}}</div>
+                                </div>
+                            </div>
+
+                            <div v-if="entry.items.some(i => i.type === 'fix')">
+                                <h6 class="fw-bold text-warning mb-2"><i class="fa fa-circle-check me-2"></i>Behobene Fehler</h6>
+                                <div v-for="(item, idx) in entry.items.filter(i => i.type === 'fix')" :key="'fix'+idx" class="ps-3 mb-2 border-start border-warning border-opacity-50">
+                                    <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-1">
+                                        <span class="fw-bold text-white small">{{item.title}}</span>
+                                        <span class="text-muted" style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em;">{{item.tag}}</span>
+                                    </div>
+                                    <div class="text-muted small">{{item.text}}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 bg-black bg-opacity-20">
+                        <button type="button" class="btn btn-premium rounded-pill px-4" data-bs-dismiss="modal">Verstanden</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: JUBILÄEN & RUNDE GEBURTSTAGE -->
+        <div class="modal fade" id="anniversariesModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-award text-warning me-2"></i>Jubiläen & runde Geburtstage {{ anniversariesYear }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="d-flex gap-2 align-items-end mb-4">
+                            <div>
+                                <label class="form-label mb-1">Jahr</label>
+                                <input type="number" v-model.number="anniversariesYear" class="form-control" style="width: 120px;">
+                            </div>
+                            <button class="btn btn-outline-light rounded-pill" @click="loadAnniversaries(anniversariesYear)"><i class="fa fa-refresh me-1"></i>Laden</button>
+                        </div>
+
+                        <div v-if="isLoadingAnniversaries" class="text-center py-5 text-muted"><i class="fa fa-spinner fa-spin me-2"></i>Lädt...</div>
+
+                        <div v-else>
+                            <h6 class="fw-bold text-danger mb-2"><i class="fa fa-medal me-2"></i>Dienstjubiläen</h6>
+                            <div class="table-responsive mb-4">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr><th>Name</th><th>Dienstgrad</th><th>Jahre</th><th>Ehrung</th><th>Datum</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="a in anniversariesData.service_anniversaries" :key="'svc_' + a.personnel_id">
+                                            <td class="fw-bold text-white">{{ a.name }}</td>
+                                            <td>{{ a.rank }}</td>
+                                            <td><span class="badge bg-danger">{{ a.years }} Jahre</span></td>
+                                            <td class="small text-muted">{{ a.badge }}</td>
+                                            <td>{{ dt(a.anniversary_date) }}</td>
+                                        </tr>
+                                        <tr v-if="anniversariesData.service_anniversaries.length === 0"><td colspan="5" class="text-center text-muted py-3">Keine Dienstjubiläen in diesem Jahr.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h6 class="fw-bold text-warning mb-2"><i class="fa fa-cake-candles me-2"></i>Runde Geburtstage</h6>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr><th>Name</th><th>Dienstgrad</th><th>Alter</th><th>Datum</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="a in anniversariesData.birthday_anniversaries" :key="'bd_' + a.personnel_id">
+                                            <td class="fw-bold text-white">{{ a.name }}</td>
+                                            <td>{{ a.rank }}</td>
+                                            <td><span class="badge bg-warning text-dark">{{ a.age }} Jahre</span></td>
+                                            <td>{{ dt(a.birthday_date) }}</td>
+                                        </tr>
+                                        <tr v-if="anniversariesData.birthday_anniversaries.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine runden Geburtstage in diesem Jahr.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10">
+                        <a :href="'/api/personnel/anniversaries/pdf?year=' + anniversariesYear" target="_blank" class="btn btn-outline-light rounded-pill px-4"><i class="fa fa-file-pdf me-1"></i>Als PDF</a>
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: QUALIFIKATIONSMATRIX -->
+        <div class="modal fade" id="prospectsModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-handshake me-2"></i>Nachwuchs & Interessenten</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="row g-2 mb-3">
+                            <div class="col-12 col-md-3"><label class="small text-muted fw-bold mb-1">Name</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.name" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Telefon</label><input type="tel" class="form-control form-control-sm" v-model="prospectForm.phone" maxlength="255"></div>
+                            <div class="col-6 col-md-3"><label class="small text-muted fw-bold mb-1">E-Mail</label><input type="email" class="form-control form-control-sm" v-model="prospectForm.email" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Woher?</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.source" maxlength="255" placeholder="z. B. Tag der offenen Tür"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Betreuer</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.mentor" maxlength="255"></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Status</label>
+                                <select class="form-select form-select-sm" v-model="prospectForm.status"><option v-for="s in prospectStatuses" :key="s" :value="s">{{ s }}</option></select></div>
+                            <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Probezeit bis</label><input type="date" class="form-control form-control-sm" v-model="prospectForm.trial_end"></div>
+                            <div class="col-12 col-md-5"><label class="small text-muted fw-bold mb-1">Notiz</label><input type="text" class="form-control form-control-sm" v-model="prospectForm.note"></div>
+                            <div class="col-12 col-md-3 d-flex gap-1 align-items-end">
+                                <button class="btn btn-premium btn-sm rounded-pill flex-fill" @click="saveProspect"><i class="fa" :class="prospectForm.id ? 'fa-save' : 'fa-plus'"></i> {{ prospectForm.id ? 'Speichern' : 'Erfassen' }}</button>
+                                <button v-if="prospectForm.id" class="btn btn-outline-light btn-sm rounded-pill" @click="resetProspectForm"><i class="fa fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle small mb-0">
+                                <thead><tr class="text-muted"><th>NAME</th><th>STATUS</th><th>ERSTKONTAKT</th><th>LETZTER KONTAKT</th><th>PROBEZEIT</th><th>BETREUER</th><th class="text-end">AKTION</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="p in prospects" :key="p.id">
+                                        <td class="fw-bold text-white">{{ p.name }}<div class="text-muted fw-normal">{{ [p.phone, p.email].filter(Boolean).join(' · ') }}</div><div v-if="p.note" class="text-muted fw-normal fst-italic">{{ p.note }}</div></td>
+                                        <td><span class="badge" :class="{'bg-info text-dark': p.status === 'Interessent', 'bg-warning text-dark': p.status === 'Probe', 'bg-success': p.status === 'Aufgenommen', 'bg-secondary': p.status === 'Abgesagt'}">{{ p.status }}</span></td>
+                                        <td>{{ p.first_contact ? new Date(p.first_contact).toLocaleDateString('de-DE') : '–' }}<div class="text-muted">{{ p.source }}</div></td>
+                                        <td>{{ p.last_contact ? new Date(p.last_contact).toLocaleDateString('de-DE') : '–' }}</td>
+                                        <td>{{ p.trial_end ? new Date(p.trial_end).toLocaleDateString('de-DE') : '–' }}</td>
+                                        <td>{{ p.mentor || '–' }}</td>
+                                        <td class="text-end text-nowrap">
+                                            <button v-if="p.status === 'Interessent' || p.status === 'Probe'" class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="prospectContact(p)" title="Heute Kontakt gehabt"><i class="fa fa-phone me-1"></i>Kontakt</button>
+                                            <button class="btn btn-sm btn-outline-light border-0 p-1" @click="editProspect(p)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteProspect(p)" title="Endgültig löschen"><i class="fa fa-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="prospects.length === 0"><td colspan="7" class="text-center py-4 text-muted">Noch niemand erfasst.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted d-block mt-3"><i class="fa fa-shield-halved me-1"></i>Datenschutz: Das sind personenbezogene Daten von Menschen, die (noch) nicht Mitglied sind. Bitte nur erfassen, was nötig ist, und Absagen zeitnah löschen. Nach 3 Wochen ohne Kontakt erinnert das Dienstbuch ans Nachfassen.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="clothingModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-shirt text-danger me-2"></i>Kleiderkammer</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <ul class="nav nav-pills mb-4 gap-2 pill-nav">
+                            <li class="nav-item"><button class="nav-link" :class="clothingTab === 'stock' ? 'active bg-danger' : 'text-white'" @click="clothingTab = 'stock'">Lagerbestand</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="clothingTab === 'issued' ? 'active bg-danger' : 'text-white'" @click="clothingTab = 'issued'">Ausgegeben <span class="badge bg-secondary ms-1">{{ clothingIssued.length }}</span><span v-if="clothingOpenReturns" class="badge bg-warning text-dark ms-1">{{ clothingOpenReturns }} offen</span></button></li>
+                        </ul>
+
+                        <div v-show="clothingTab === 'stock'">
+                            <div class="row g-2 align-items-end mb-4">
+                                <div class="col-12 col-md-4"><label class="small text-muted fw-bold mb-1">Artikel</label><input type="text" class="form-control form-control-sm" v-model="newStock.item_name" placeholder="z. B. Einsatzjacke" list="clothingItemNames"></div>
+                                <div class="col-4 col-md-2"><label class="small text-muted fw-bold mb-1">Größe</label><input type="text" class="form-control form-control-sm" v-model="newStock.size" placeholder="L, 52 ..."></div>
+                                <div class="col-4 col-md-2"><label class="small text-muted fw-bold mb-1">Bestand</label><input type="number" min="0" class="form-control form-control-sm" v-model.number="newStock.quantity"></div>
+                                <div class="col-4 col-md-2"><label class="small text-muted fw-bold mb-1">Mindestbestand</label><input type="number" min="0" class="form-control form-control-sm" v-model.number="newStock.min_quantity"></div>
+                                <div class="col-12 col-md-2"><button class="btn btn-premium btn-sm w-100 rounded-pill" @click="saveStockItem"><i class="fa fa-plus me-1"></i>Eintragen</button></div>
+                            </div>
+                            <datalist id="clothingItemNames"><option v-for="n in [...new Set(clothingStock.map(s => s.item_name))]" :key="n" :value="n"></option></datalist>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr class="text-muted"><th>ARTIKEL</th><th>GRÖSSE</th><th class="text-center">BESTAND</th><th class="text-center">MINDEST</th><th class="text-end">AKTION</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="s in clothingStock" :key="s.id">
+                                            <td class="fw-bold text-white">{{ s.item_name }}</td>
+                                            <td>{{ s.size }}</td>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-outline-light border-0 py-0" @click="changeStock(s, -1)" :disabled="s.quantity <= 0"><i class="fa fa-minus"></i></button>
+                                                <span class="fw-bold mx-2" :class="s.min_quantity > 0 && s.quantity <= s.min_quantity ? 'text-warning' : 'text-white'">{{ s.quantity }}</span>
+                                                <button class="btn btn-sm btn-outline-light border-0 py-0" @click="changeStock(s, 1)"><i class="fa fa-plus"></i></button>
+                                            </td>
+                                            <td class="text-center">{{ s.min_quantity || '–' }}</td>
+                                            <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteStockItem(s)"><i class="fa fa-trash"></i></button></td>
+                                        </tr>
+                                        <tr v-if="clothingStock.length === 0"><td colspan="5" class="text-center py-4 text-muted">Noch kein Lagerbestand erfasst.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <small class="text-muted d-block mt-3">Ausgaben in der Personalakte (Reiter „Kleidung &amp; Inventar") buchen automatisch einen passenden Artikel vom Lager ab. Fällt der Bestand auf den Mindestbestand, erscheint er in den Fristen-Erinnerungen.</small>
+                        </div>
+
+                        <div v-show="clothingTab === 'issued'">
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover align-middle small mb-0">
+                                    <thead><tr class="text-muted"><th>KAMERAD</th><th>ARTIKEL</th><th>GRÖSSE</th><th>AUSGABE</th><th class="text-end">AKTION</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="g in clothingIssued" :key="g.id">
+                                            <td class="fw-bold text-white">{{ g.name }} <span v-if="g.membership_status === 'Ausgeschieden'" class="badge bg-warning text-dark ms-1">Rückgabe offen</span></td>
+                                            <td>{{ g.item_name }}</td>
+                                            <td>{{ g.size }}</td>
+                                            <td>{{ dt(g.issue_date) }}</td>
+                                            <td class="text-end"><button class="btn btn-sm btn-outline-light rounded-pill py-0" @click="returnGear(g)"><i class="fa fa-rotate-left me-1"></i>Zurück</button></td>
+                                        </tr>
+                                        <tr v-if="clothingIssued.length === 0"><td colspan="5" class="text-center py-4 text-muted">Aktuell ist nichts ausgegeben.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="qualMatrixModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-table-cells text-info me-2"></i>Qualifikationsmatrix (Aktive Mitglieder)</h5>
+                        <small class="ms-3 text-muted d-none d-md-inline"><i class="fa fa-check text-success"></i> gültig &nbsp;<i class="fa fa-clock text-warning"></i> läuft in &lt; 90 Tagen ab &nbsp;<i class="fa fa-circle-xmark text-danger"></i> abgelaufen</small>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle small mb-0">
+                                <thead>
+                                    <tr class="text-muted">
+                                        <th>Name</th>
+                                        <th v-for="q in qualifications" :key="q.id" class="text-center">{{q.label}}</th>
+                                        <th v-for="l in [{id:'lic_b',n:'Klasse B'},{id:'lic_be',n:'Klasse BE'},{id:'lic_c',n:'Klasse C'},{id:'lic_ce',n:'Klasse CE'}]" :key="l.id" class="text-center">{{l.n}}</th>
+                                        <th class="text-center">G26.3</th>
+                                        <th v-for="c in lehrgangMatrix.courses" :key="'c_'+c" class="text-center matrix-course-head" :title="c">{{c}}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="p in activePersonnelForMatrix" :key="p.id">
+                                        <td class="fw-bold text-white">{{p.name}}</td>
+                                        <td v-for="q in qualifications" :key="q.id" class="text-center">
+                                            <i class="fa" :class="p[q.id] ? 'fa-check text-success' : 'fa-minus text-muted'"></i>
+                                        </td>
+                                        <td v-for="l in [{id:'lic_b'},{id:'lic_be'},{id:'lic_c'},{id:'lic_ce'}]" :key="l.id" class="text-center">
+                                            <i class="fa" :class="p[l.id] ? 'fa-check text-success' : 'fa-minus text-muted'"></i>
+                                        </td>
+                                        <td class="text-center">
+                                            <i v-if="p.is_agt" class="fa" :class="p.g26_expired ? 'fa-circle-xmark text-danger' : 'fa-check text-success'" :title="p.g26_expired ? 'G26.3 abgelaufen' : 'G26.3 gültig'"></i>
+                                            <i v-else class="fa fa-minus text-muted"></i>
+                                        </td>
+                                        <td v-for="c in lehrgangMatrix.courses" :key="'c_'+c" class="text-center">
+                                            <template v-if="lehrgangCell(p, c)">
+                                                <i class="fa" :class="{'fa-check text-success': lehrgangCell(p, c).state === 'ok', 'fa-clock text-warning': lehrgangCell(p, c).state === 'soon', 'fa-circle-xmark text-danger': lehrgangCell(p, c).state === 'expired'}" :title="lehrgangCell(p, c).title"></i>
+                                            </template>
+                                            <i v-else class="fa fa-minus text-muted"></i>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="activePersonnelForMatrix.length === 0"><td :colspan="qualifications.length + 6 + lehrgangMatrix.courses.length" class="text-center py-3 text-muted">Keine aktiven Mitglieder.</td></tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="fw-bold text-white border-top border-secondary">
+                                        <td>Gesamt</td>
+                                        <td v-for="q in qualifications" :key="'sum_'+q.id" class="text-center">{{ activePersonnelForMatrix.filter(p => p[q.id]).length }}</td>
+                                        <td v-for="l in [{id:'lic_b'},{id:'lic_be'},{id:'lic_c'},{id:'lic_ce'}]" :key="'sum_'+l.id" class="text-center">{{ activePersonnelForMatrix.filter(p => p[l.id]).length }}</td>
+                                        <td class="text-center">{{ activePersonnelForMatrix.filter(p => p.is_agt && !p.g26_expired).length }}</td>
+                                        <td v-for="c in lehrgangMatrix.courses" :key="'sum_c_'+c" class="text-center">{{ activePersonnelForMatrix.filter(p => { const x = lehrgangCell(p, c); return x && x.state !== 'expired'; }).length }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: JUGEND-PERSONALAKTE -->
+        <div class="modal fade" id="youthModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                            <i class="fa fa-graduation-cap text-danger"></i>
+                            <span>{{ editingYouthId ? 'Jugend-Personalakte: ' + newYouth.name : 'Neue Jugend-Personalakte anlegen' }}</span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <ul class="nav nav-pills mb-4 flex-wrap gap-2" style="background: rgba(0,0,0,0.3); border-radius: 14px; padding: 6px;">
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'stamm' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'stamm'"><i class="fa fa-user me-1"></i>Stammdaten & Eltern</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'abzeichen' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'abzeichen'"><i class="fa fa-award me-1"></i>Abzeichen & MTA</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'skills' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'skills'"><i class="fa fa-screwdriver-wrench me-1"></i>Führerschein & Können</button></li>
+                            <li class="nav-item"><button class="nav-link" :class="youthModalTab === 'notes' ? 'active bg-danger' : 'text-white'" @click="youthModalTab = 'notes'"><i class="fa fa-notes-medical me-1"></i>Notfall & Notizen</button></li>
+                        </ul>
+
+                        <!-- TAB 1: Stammdaten & Eltern -->
+                        <div v-show="youthModalTab === 'stamm'">
+                            <div class="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom border-secondary border-opacity-10">
+                                <div class="modal-avatar-upload" @click="$refs.youthFileInput.click()">
+                                    <img :src="newYouth.profile_picture || '/static/img/avatar.svg'" alt="Avatar">
+                                    <input type="file" ref="youthFileInput" class="d-none" accept="image/*" @change="onYouthAvatarChange">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <label class="form-label text-white fw-bold mb-1">Name des Jugendlichen *</label>
+                                    <input type="text" v-model="newYouth.name" class="form-control form-control-lg fw-bold bg-dark border-secondary text-white" placeholder="Vorname Nachname" required style="background-color: rgba(255,255,255,0.05) !important;" :readonly="!!editingYouthId" :title="editingYouthId ? 'Name kann nur in der Personalverwaltung geändert werden.' : ''">
+                                </div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Geburtsdatum</label>
+                                    <input type="date" v-model="newYouth.birth_date" class="form-control bg-dark border-secondary text-white">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Eintrittsdatum</label>
+                                    <input type="date" v-model="newYouth.entry_date" class="form-control bg-dark border-secondary text-white">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label text-white">Erziehungsberechtigte (Elternkontakt)</label>
+                                    <input type="text" v-model="newYouth.parent_contact" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Max Mustermann (Vater)">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">Notfall-Telefon</label>
+                                    <input type="text" v-model="newYouth.phone" class="form-control bg-dark border-secondary text-white" placeholder="0170/1234567">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label text-white">E-Mail-Adresse</label>
+                                    <input type="email" v-model="newYouth.email" class="form-control bg-dark border-secondary text-white" placeholder="eltern@beispiel.de">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label text-white">Anschrift / Wohnort</label>
+                                    <input type="text" v-model="newYouth.address" class="form-control bg-dark border-secondary text-white" placeholder="Musterstraße 1, 12345 Ort">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: Abzeichen & MTA -->
+                        <div v-show="youthModalTab === 'abzeichen'">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <h6 class="text-danger fw-bold mb-3"><i class="fa fa-award me-1"></i>Jugendfeuerwehr Abzeichen</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf1" v-model="newYouth.has_jf1">
+                                        <label class="form-check-label text-white" for="m_has_jf1">Jugendflamme Stufe 1</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf2" v-model="newYouth.has_jf2">
+                                        <label class="form-check-label text-white" for="m_has_jf2">Jugendflamme Stufe 2</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jf3" v-model="newYouth.has_jf3">
+                                        <label class="form-check-label text-white" for="m_has_jf3">Jugendflamme Stufe 3</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_wissentest" v-model="newYouth.has_wissentest">
+                                        <label class="form-check-label text-white" for="m_has_wissentest">Wissentest (Bestanden)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="m_has_leistungsspange" v-model="newYouth.has_leistungsspange">
+                                        <label class="form-check-label text-white" for="m_has_leistungsspange">Leistungsspange der DJF</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <h6 class="text-danger fw-bold mb-3"><i class="fa fa-fire me-1"></i>Feuerwehr-Qualifikationen</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_mta_basis" v-model="newYouth.has_mta_basis">
+                                        <label class="form-check-label text-white fw-bold text-danger" for="m_has_mta_basis">MTA Basismodul (Truppmann)</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_erste_hilfe" v-model="newYouth.has_erste_hilfe">
+                                        <label class="form-check-label text-white" for="m_has_erste_hilfe">Erste Hilfe Kurs</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="m_has_funk" v-model="newYouth.has_funk">
+                                        <label class="form-check-label text-white" for="m_has_funk">Sprechfunker</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="m_has_jugendabzeichen" v-model="newYouth.has_jugendabzeichen">
+                                        <label class="form-check-label text-white" for="m_has_jugendabzeichen">Jugendleistungsabzeichen</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-3">
+                                    <label class="form-label text-white">Weitere Abzeichen / Auszeichnungen</label>
+                                    <input type="text" v-model="newYouth.badges" class="form-control bg-dark border-secondary text-white" placeholder="Kommagetrennt: z. B. Wissenstest Gold 2025...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: Führerschein & Können -->
+                        <div v-show="youthModalTab === 'skills'">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <h6 class="text-danger fw-bold mb-2"><i class="fa fa-id-card me-1"></i>Führerschein-Klassen</h6>
+                                    <div class="d-flex flex-wrap gap-4 bg-black bg-opacity-30 p-3 rounded-3 border border-secondary border-opacity-10">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_am" v-model="newYouth.lic_am">
+                                            <label class="form-check-label text-white" for="m_lic_am">AM (Moped / 45 km/h)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_a1" v-model="newYouth.lic_a1">
+                                            <label class="form-check-label text-white" for="m_lic_a1">A1 (125 ccm)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_b" v-model="newYouth.lic_b">
+                                            <label class="form-check-label text-white fw-bold text-warning" for="m_lic_b">B (BF17 / Pkw)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_l" v-model="newYouth.lic_l">
+                                            <label class="form-check-label text-white" for="m_lic_l">L (Traktor bis 40 km/h)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="m_lic_t" v-model="newYouth.lic_t">
+                                            <label class="form-check-label text-white" for="m_lic_t">T (Zugmaschinen)</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 mt-3">
+                                    <label class="form-label text-white"><i class="fa fa-screwdriver-wrench text-warning me-1"></i>Was er/sie schon alles kann (Fertigkeiten)</label>
+                                    <textarea v-model="newYouth.skills" class="form-control bg-dark border-secondary text-white" rows="4" placeholder="z. B. Saugschlauch kuppeln, Standrohr setzen, Funken, Erste Hilfe, Fahrzeugkunde HLF 20..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 4: Notfall & Notizen -->
+                        <div v-show="youthModalTab === 'notes'">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="p-3 rounded-4 bg-warning bg-opacity-10 border border-warning border-opacity-30 text-warning mb-3">
+                                        <i class="fa fa-triangle-exclamation me-2"></i><strong>Wichtiger Notfallhinweis:</strong> Notiere hier Allergien, Unverträglichkeiten, Medikamente oder Notfallkontakte.
+                                    </div>
+                                    <label class="form-label text-white">Notizen & Notfallhinweise</label>
+                                    <textarea v-model="newYouth.notes" class="form-control bg-dark border-secondary text-white" rows="5" placeholder="Besondere Hinweise, z. B. Bienenstichallergie, Asthmaspray..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-10 d-flex justify-content-between">
+                        <div>
+                            <button v-if="editingYouthId && canManageYouth" type="button" class="btn btn-link text-danger fw-bold border-0" @click="deleteYouthMemberInModal"><i class="fa fa-trash me-1"></i> Löschen</button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Schließen</button>
+                            <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4" @click="saveYouthModal"><i class="fa fa-save me-1"></i> Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+

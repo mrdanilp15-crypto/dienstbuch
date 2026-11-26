@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fw-app-cache-v86';
+const CACHE_NAME = 'fw-app-cache-v87';
 // Alle Bibliotheken werden jetzt selbst gehostet (static/vendor/) statt live von CDNs geladen -
 // dadurch sind das hier alles gleiche-Origin-Anfragen. Wichtig, denn cache.addAll() ist atomar:
 // schlägt (bei früheren Cross-Origin-URLs) auch nur EINE einzelne Anfrage fehl (CDN-Hänger,
@@ -18,6 +18,20 @@ const urlsToCache = [
   '/static/vendor/fonts-outfit/outfit.css',
   '/static/vendor/fonts-outfit/outfit-latin.woff2',
   '/static/vendor/fonts-outfit/outfit-latin-ext.woff2',
+  '/static/js/dashboard/start.js',
+  '/static/js/dashboard/dienste.js',
+  '/static/js/dashboard/einsaetze.js',
+  '/static/js/dashboard/alarm.js',
+  '/static/js/dashboard/planung.js',
+  '/static/js/dashboard/fristen.js',
+  '/static/js/dashboard/material.js',
+  '/static/js/dashboard/fahrzeuge.js',
+  '/static/js/dashboard/personal.js',
+  '/static/js/dashboard/finanzen.js',
+  '/static/js/dashboard/karte.js',
+  '/static/js/dashboard/jugend-verein-hvo.js',
+  '/static/js/dashboard/verwaltung.js',
+  '/static/js/dashboard/konto.js',
   '/static/js/dashboard.js',
   '/static/css/dashboard.css'
 ];

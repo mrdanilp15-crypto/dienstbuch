@@ -37,6 +37,17 @@ sys.path.insert(0, ROOT)
 findings = []
 
 
+def read_source(path):
+    """Das Dashboard besteht aus mehreren Dateien: geprüft wird die zusammengesetzte Seite bzw. alle Skripte gemeinsam."""
+    if path == "static/dashboard.html":
+        from core.pages import dashboard_html
+        return dashboard_html().replace("\r\n", "\n")
+    if path == "static/js/dashboard.js":
+        files = sorted(glob.glob("static/js/dashboard/*.js")) + [path]
+        return "\n".join(open(f, encoding="utf-8").read() for f in files)
+    return open(path, encoding="utf-8").read()
+
+
 def report(check, message, location=""):
     findings.append((check, message, location))
 
@@ -206,8 +217,8 @@ def _template_expressions(html):
 def check_templates():
     for html_file, js_file in VUE_PAGES:
         try:
-            html = open(html_file, encoding="utf-8").read()
-            js = open(js_file, encoding="utf-8").read()
+            html = read_source(html_file)
+            js = read_source(js_file)
         except OSError:
             continue
 
@@ -261,7 +272,7 @@ THIS_CALL_RE = re.compile(r"\bthis\.([A-Za-z_$][\w$]*)\s*\(")
 def check_this_calls():
     for _, js_file in VUE_PAGES:
         try:
-            src = open(js_file, encoding="utf-8").read()
+            src = read_source(js_file)
         except OSError:
             continue
         seen = {}
@@ -287,8 +298,8 @@ def check_tab_loaders():
     weg, steht der betroffene Reiter wieder leer da - genau der Fehler, der lange unentdeckt war.
     """
     try:
-        html = open("static/dashboard.html", encoding="utf-8").read()
-        js = open("static/js/dashboard.js", encoding="utf-8").read()
+        html = read_source("static/dashboard.html")
+        js = read_source("static/js/dashboard.js")
     except OSError:
         return
 
@@ -409,8 +420,8 @@ class BalanceChecker(HTMLParser):
 
 
 def check_html_balance():
-    for f in sorted(glob.glob("static/*.html")):
-        src = open(f, encoding="utf-8").read()
+    for f in sorted(glob.glob("static/*.html")) + ["static/dashboard.html"]:
+        src = read_source(f)
         src = re.sub(r"(<script[^>]*>)(.*?)(</script>)", lambda m: m.group(1) + m.group(3),
                      src, flags=re.S | re.I)
         src = re.sub(r"(<style[^>]*>)(.*?)(</style>)", lambda m: m.group(1) + m.group(3),

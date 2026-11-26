@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <script>
+        // Hell ist der Standard. Nur wer selbst auf Dunkel umgestellt hat, bekommt Dunkel - und zwar schon vor dem ersten Zeichnen (kein Aufblitzen).
+        try { document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'); } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- iPhone: Safari macht sonst aus langen Zahlen im Seitentext Telefon-Links und zerstört damit die Vue-Vorlage (Startfehler "Unexpected token '<'") -->
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+    <!-- Sagt dem Browser: diese Seite steuert Hell-/Dunkelmodus selbst (siehe dashboard.css,
+         color-scheme). Ohne das greifen manche Android-Browser mit einem eigenen erzwungenen
+         Dunkelmodus-Filter ein - das ergibt "gleiche Farben, aber dunkler mit hellem Schein",
+         unabhängig vom eigenen Umschalter der App. -->
+    <meta name="color-scheme" content="dark light">
+    <meta name="apple-mobile-web-app-title" content="Dienstbuch">
+    <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="manifest" href="/manifest.json">
+    <title>Digitales Dienstbuch</title>
+
+    <script>
+        // Boot-Watchdog: läuft VOR allen anderen Skripten und hängt von nichts ab (kein Vue,
+        // keine Vendor-Datei), damit er auch dann noch funktioniert, wenn genau eine dieser
+        // Dateien auf dem Handy (z.B. Netzwerkwechsel WLAN<->Mobilfunk mitten im Laden) nur
+        // kaputt/unvollständig ankam. #app bleibt bis "ready=true" per v-show unsichtbar - schlägt
+        // irgendwo beim Start ein Fehler auf (z.B. "Vue is not defined", weil vue.global.prod.js
+        // nicht sauber geladen wurde) oder dauert der Start ungewöhnlich lange (Server-Hänger,
+        // instabiles Netz), sah man bisher NUR den dunklen Hintergrund, ganz ohne jeden Hinweis -
+        // das war exakt das gemeldete "leere schwarze Seite nach dem Login"-Problem. Jetzt zeigt
+        // dieser Watchdog in beiden Fällen eine sichtbare, klickbare Fehlermeldung.
+        (function() {
+            var shown = false;
+            // Nur relevant, solange die App noch nicht sichtbar ist (v-show="ready" noch nicht
+            // aktiv). Ist #app einmal sichtbar, war der Start erfolgreich - ein späterer, davon
+            // unabhängiger Laufzeitfehler irgendwo in der App (z.B. beim Speichern eines einzelnen
+            // Formulars) soll dann NICHT mehr den ganzen Bildschirm mit diesem "Neu laden"-Overlay
+            // überdecken, das wäre für einen kleinen Folgefehler völlig überzogen.
+            function stillBooting() {
+                var app = document.getElementById('app');
+                return !app || getComputedStyle(app).display === 'none';
+            }
+            function showBootFallback(reason) {
+                if (shown || !stillBooting()) return;
+                shown = true;
+                var el = document.getElementById('bootFallback');
+                if (!el) return;
+                var msgEl = document.getElementById('bootFallbackMsg');
+                if (msgEl && reason) {
+                    msgEl.textContent = 'Der Start ist fehlgeschlagen oder dauert ungewöhnlich lange. Das kann an einer instabilen Internetverbindung liegen. Technische Meldung: ' + reason + (/Unexpected token '<'/.test(reason) ? ' - Der Server hat statt der Seite eine Fehlerseite geliefert, meist weil er gerade neu startet. Bitte in ein bis zwei Minuten neu laden.' : '');
+                }
+                el.style.display = 'flex';
+            }
+            // Fundstelle (Datei:Zeile:Spalte) und Gerät mit ausgeben: "Unexpected token '<'" allein sagt nicht,
+            // WELCHE Datei statt Code eine Fehlerseite geliefert hat - genau das ist auf dem Handy sonst nicht herauszufinden.
+            function where(e) {
+                var f = (e && e.filename) ? String(e.filename).replace(location.origin, '') + ':' + e.lineno + ':' + e.colno : '';
+                var m = /(iPhone OS|CPU OS|Android) ([\d_.]+)/.exec(navigator.userAgent || '');
+                return ' [' + (f ? f + ' · ' : '') + (m ? m[1] + ' ' + m[2] : 'Gerät unbekannt') + ']';
+            }
+            window.addEventListener('error', function(e) {
+                var t = e.target;
+                if (t && t !== window && t.tagName === 'SCRIPT') { showBootFallback('Skript nicht ladbar: ' + String(t.src).replace(location.origin, '')); return; }
+                if (t && t !== window) return; // Bild/Schrift/Stylesheet: kein Startfehler
+                showBootFallback((e.message || 'Unbekannter Fehler') + where(e));
+            }, true);
+            window.addEventListener('unhandledrejection', function(e) {
+                var reason = e.reason && (e.reason.message || String(e.reason));
+                var st = e.reason && e.reason.stack ? ' {' + String(e.reason.stack).split(String.fromCharCode(10)).slice(0, 2).join(' | ').replace(location.origin, '') + '}' : '';
+                showBootFallback((reason || 'Unbekannter Fehler (Promise)') + st + where());
+            });
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    if (stillBooting()) showBootFallback('Zeitüberschreitung beim Laden');
+                }, 15000);
+            });
+
+            // Ein neu ausgerollter Service Worker übernimmt die Kontrolle erst, NACHDEM diese Seite
+            // bereits geladen ist - die laufende Seite arbeitet dann noch mit der alten dashboard.js
+            // weiter, und erst der übernächste Start zeigte den neuen Stand. Genau deshalb wirkten
+            // ausgerollte Korrekturen oft "gar nicht". Sobald die Übernahme passiert, einmal neu
+            // laden. Beim allerersten Besuch (noch gar kein Service Worker aktiv) ist das nicht
+            // nötig - das "hadController"-Flag verhindert dort den überflüssigen Reload, das
+            // "reloading"-Flag eine Reload-Schleife.
+            if ('serviceWorker' in navigator) {
+                var hadController = !!navigator.serviceWorker.controller;
+                var reloading = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    if (!hadController || reloading) return;
+                    reloading = true;
+                    window.__swReloading = true;
+                    window.location.reload();
+                });
+            }
+        })();
+    </script>
+    
+    <!-- Premium Fonts & Icons -->
+    <!-- Alle Drittanbieter-Bibliotheken werden lokal ausgeliefert (static/vendor/) statt live von
+         CDNs geladen: das behebt sowohl das "nach dem Login passiert manchmal nichts" Problem
+         (ein einzelner blockierender CDN-Ausfall/Netzwerk-Hänger ließ Vue nie starten, siehe Chat)
+         als auch das Sicherheitsrisiko unversionierter "@latest"-Fremdskripte (Vue, html5-qrcode,
+         Chart.js liefen zuvor ungepinnt) und das DSGVO-Problem beim Live-Nachladen von Google Fonts
+         (Übertragung der Besucher-IP an Google ohne Einwilligung, siehe LG München Google-Fonts-Urteil).
+    -->
+    <link href="/static/vendor/fonts-outfit/outfit.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Leaflet Map CSS/JS for Hydrants -->
+    <link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css" />
+    <script src="/static/vendor/leaflet-1.9.4/leaflet.js"></script>
+
+    <script src="/static/vendor/vue-3.5.42/vue.global.prod.js"></script>
+    <script src="/static/vendor/signature_pad-4.0.0/signature_pad.umd.min.js"></script>
+    <script src="/static/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/qrious-4.0.2/qrious.min.js"></script>
+    <script src="/static/vendor/html5-qrcode-2.3.8/html5-qrcode.min.js"></script>
+    <script src="/static/vendor/chartjs-4.5.1/chart.umd.js"></script>
+
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div id="bootFallback" style="display:none; position:fixed; inset:0; z-index:99999; background:radial-gradient(circle at 50% 50%, #201414 0%, #100a0a 100%); color:#fff; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; font-family:'Outfit', sans-serif;">
+        <i class="fa fa-triangle-exclamation" style="font-size:2.5rem; color:#ff5252; margin-bottom:16px;"></i>
+        <div id="bootFallbackMsg" style="max-width:420px; margin-bottom:20px; line-height:1.5; color:rgba(255,255,255,0.85);">Der Start ist fehlgeschlagen. Bitte neu laden.</div>
+        <button onclick="location.reload()" style="background:#b71c1c; color:#fff; border:none; border-radius:12px; padding:12px 28px; font-weight:600; cursor:pointer;"><i class="fa fa-rotate-right me-1"></i> Neu laden</button>
+    </div>
+    <div id="app" v-cloak v-show="ready">
+        <!-- Offline Banner -->
+        <div v-if="!isOnline" class="bg-warning text-dark text-center fw-bold py-1 w-100" style="position: fixed; top: 0; z-index: 9999; left: 0;">
+            <i class="fa fa-wifi-slash me-2"></i> Offline-Modus aktiv. Eingeschränkte Funktionen verfügbar.
+        </div>
+        <!-- Top Nav -->
+        <nav class="top-nav shadow">
+            <div class="container-fluid d-flex align-items-center justify-content-between px-4 py-2 flex-wrap gap-2">
+                <div class="fw-bold text-danger d-flex align-items-center gap-2 brand-title fs-4">
+                    <i class="fa-solid fa-fire-extinguisher"></i> Dienstbuch
+                </div>
+                <div class="position-relative d-none d-lg-block global-search" :class="{'mobile-search-open': mobileSearchOpen}" style="width: 260px;" @focusout="onGlobalSearchBlur">
+                    <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="globalSearchQuery" @input="onGlobalSearchInput" @focus="globalSearchOpen = true" placeholder="Suche: Kamerad, Fahrzeug, Gerät, Dokument..." style="padding-left: 32px !important;">
+                    <i class="fa fa-search text-muted position-absolute" style="left: 13px; top: 50%; transform: translateY(-50%); font-size: 0.8rem;"></i>
+                    <div v-if="globalSearchOpen && globalSearchResults" class="card premium-card p-2 position-absolute shadow" style="top: 110%; left: 0; right: 0; z-index: 2000; max-height: 60vh; overflow-y: auto;">
+                        <div v-if="globalSearchResultCount === 0 && !searchCommands.length" class="text-muted small text-center py-2">Keine Treffer.</div>
+                        <div v-if="searchCommands.length">
+                            <div class="small text-muted fw-bold px-2 pt-1">BEREICHE &amp; FUNKTIONEN</div>
+                            <div v-for="c in searchCommands" :key="c.id" class="px-2 py-1 rounded search-result-item" @click="runSearchCommand(c)"><i class="fa text-danger me-2" :class="c.icon"></i>{{ c.label }} <span class="text-muted small">{{ c.hint }}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.personnel.length">
+                            <div class="small text-muted fw-bold px-2 pt-1">KAMERADEN</div>
+                            <div v-for="p in globalSearchResults.personnel" :key="'p'+p.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchPersonnel(p)"><i class="fa fa-user text-danger me-2"></i>{{p.name}} <span class="text-muted small">{{p.rank}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.vehicles.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">FAHRZEUGE</div>
+                            <div v-for="v in globalSearchResults.vehicles" :key="'v'+v.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchVehicle(v)"><i class="fa fa-truck text-danger me-2"></i>{{v.name}} <span class="text-muted small">{{v.radio_name}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.equipment.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">GERÄTE</div>
+                            <div v-for="eq in globalSearchResults.equipment" :key="'e'+eq.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchEquipment(eq)"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>{{eq.name}} <span class="text-muted small">{{eq.barcode}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.documents.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">DOKUMENTE</div>
+                            <div v-for="d in globalSearchResults.documents" :key="'d'+d.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchDocument(d)"><i class="fa fa-file-alt text-danger me-2"></i>{{d.filename}}</div>
+                        </div>
+                        <div v-if="globalSearchResults.notes.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">NOTIZEN</div>
+                            <div v-for="n in globalSearchResults.notes" :key="'n'+n.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchNote(n)"><i class="fa fa-sticky-note text-danger me-2"></i>{{n.title}}</div>
+                        </div>
+                        <div v-if="globalSearchResults.missions.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">EINSÄTZE</div>
+                            <div v-for="m in globalSearchResults.missions" :key="'m'+m.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchMission(m)"><i class="fa fa-fire text-danger me-2"></i>{{m.stichwort}} <span class="text-muted small">{{m.adresse}}</span></div>
+                        </div>
+                        <div v-if="globalSearchResults.bmas.length">
+                            <div class="small text-muted fw-bold px-2 pt-2">BMA-OBJEKTE</div>
+                            <div v-for="b in globalSearchResults.bmas" :key="'b'+b.id" class="px-2 py-1 rounded search-result-item" @click="goToSearchBma(b)"><i class="fa fa-building-shield text-danger me-2"></i>{{b.object_name}} <span class="text-muted small">{{b.address}}</span></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Handy: Such-Knopf (öffnet die Suche über die ganze Breite) -->
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-lg-none ms-auto me-2" :class="{active: mobileSearchOpen}" @click="toggleMobileSearch" title="Suchen" aria-label="Suchen"><i class="fa" :class="mobileSearchOpen ? 'fa-xmark' : 'fa-magnifying-glass'"></i></button>
+                <!-- Benachrichtigungs-Glocke -->
+                <div class="position-relative ms-auto" id="notifBell">
+                    <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 position-relative" @click="toggleNotifPanel" title="Benachrichtigungen">
+                        <i class="fa fa-bell" :class="{'text-warning': notifUnread, 'bell-ring': bellRinging}"></i>
+                        <span v-if="notifUnread" class="position-absolute top-0 end-0 badge rounded-pill bg-danger" style="transform: translate(-8%, -45%);">{{ notifUnread > 99 ? '99+' : notifUnread }}</span>
+                    </button>
+                    <div v-if="notifOpen" class="notif-panel card premium-card shadow">
+                        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom border-secondary border-opacity-25">
+                            <strong><i class="fa fa-bell me-2 text-warning"></i>Benachrichtigungen</strong>
+                            <span class="d-flex gap-1">
+                                <button v-if="notifUnread && !notifShowPrefs" class="btn btn-sm btn-outline-secondary py-0 px-2" @click="readAllNotifs()" title="Alle als gelesen markieren"><i class="fa fa-check-double"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" :class="{active: notifShowPrefs}" @click="toggleNotifPrefs" title="Einstellungen"><i class="fa fa-sliders"></i></button>
+                            </span>
+                        </div>
+                        <div v-if="notifShowPrefs" class="p-3">
+                            <div class="small text-muted mb-2">Push aufs Handy je Kategorie. Die Glocke selbst sammelt immer alles.</div>
+                            <div v-for="p in notifPrefs" :key="p.key" class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" :id="'np_'+p.key" :checked="p.push" :disabled="p.locked" @change="setNotifPref(p, $event.target.checked)">
+                                <label class="form-check-label" :for="'np_'+p.key">{{ p.label }} <span v-if="p.locked" class="text-muted small">(immer an)</span></label>
+                            </div>
+                            <hr class="border-secondary border-opacity-25">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="np_quiet" v-model="notifSettings.quiet_enabled" @change="saveNotifSettings">
+                                <label class="form-check-label" for="np_quiet">Ruhezeit (kein Push)</label>
+                            </div>
+                            <div v-if="notifSettings.quiet_enabled" class="d-flex align-items-center gap-2 mb-2 small">
+                                von <input type="time" class="form-control form-control-sm" style="width: 6.5rem;" v-model="notifSettings.quiet_from" @change="saveNotifSettings">
+                                bis <input type="time" class="form-control form-control-sm" style="width: 6.5rem;" v-model="notifSettings.quiet_to" @change="saveNotifSettings">
+                            </div>
+                            <div class="small text-muted mb-2">Einsatzalarme und Sicherheitsmeldungen kommen immer durch. Alles andere steht danach in der Glocke.</div>
+                            <div v-if="mailInviteOk" class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="np_digest" v-model="notifSettings.digest_mail" @change="saveNotifSettings">
+                                <label class="form-check-label" for="np_digest">E-Mails als Tageszusammenfassung (morgens)</label>
+                            </div>
+                            <div v-if="mailInviteOk" class="small text-muted">Statt einer Mail je Termin oder Frist kommt einmal täglich eine Übersicht. Alarme bleiben sofort.</div>
+                        </div>
+                        <div v-else class="notif-scroll">
+                            <div v-if="!notifCats.length" class="text-center text-muted py-4 small"><i class="fa fa-bell-slash d-block fs-3 mb-2 opacity-50"></i>Keine Benachrichtigungen.</div>
+                            <div v-for="c in notifCats" :key="c.key" class="notif-cat">
+                                <div class="notif-cat-head" @click="toggleNotifCat(c.key)">
+                                    <i class="fa fa-fw" :class="c.icon"></i>
+                                    <span class="fw-semibold flex-grow-1">{{ c.label }}</span>
+                                    <span v-if="c.unread" class="badge rounded-pill bg-danger">{{ c.unread }}</span>
+                                    <span v-else class="badge rounded-pill bg-secondary bg-opacity-50">{{ c.total }}</span>
+                                    <i class="fa fa-chevron-down small opacity-50" :class="{'fa-rotate-180': notifCatOpen[c.key]}"></i>
+                                </div>
+                                <div v-if="notifCatOpen[c.key]">
+                                    <div v-for="n in c.items" :key="n.id" class="notif-item" :class="n.read ? '' : 'unread'" @click="openNotif(n)">
+                                        <div class="d-flex justify-content-between gap-2">
+                                            <span class="notif-title">{{ n.title }}</span>
+                                            <span class="text-muted small text-nowrap">{{ notifAgo(n) }}</span>
+                                        </div>
+                                        <div v-if="n.body" class="notif-body small text-muted">{{ n.body }}</div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center px-3 py-1 small">
+                                        <button v-if="c.items.length < c.total" class="btn btn-link btn-sm p-0" @click="moreNotifs(c)">Weitere laden ({{ c.total - c.items.length }})</button>
+                                        <span v-else></span>
+                                        <span class="d-flex gap-3">
+                                            <button v-if="c.unread" class="btn btn-link btn-sm p-0" @click="readAllNotifs(c.key)">Alle gelesen</button>
+                                            <button v-if="c.items.some(i => i.read)" class="btn btn-link btn-sm p-0 text-danger" @click="clearNotifs(c)">Gelesene löschen</button>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Menü am Namen -->
+                <div class="position-relative d-none d-lg-block action-menu">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold user-menu-btn position-relative" @click="toggleAction('user')" :aria-expanded="openIncident === 'user' ? 'true' : 'false'">
+                        <i class="fa-regular fa-circle-user me-1"></i>{{ displayName || username }}<i class="fa fa-chevron-down ms-2 small"></i>
+                        <span v-if="isAdmin && changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Neuigkeiten</span></span>
+                    </button>
+                    <div v-if="openIncident === 'user'" class="incident-menu" @click="openIncident = null">
+                        <div class="incident-menu-head">{{ username }} · <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span></div>
+                        <button type="button" @click="openSelfPasswordModal"><i class="fa fa-user-gear"></i>Profil &amp; Dienststunden</button>
+                        <button type="button" @click="openIdCard"><i class="fa fa-id-card"></i>Dienstausweis</button>
+                        <button type="button" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i>{{ isDarkMode ? 'Heller Modus' : 'Dunkler Modus' }}</button>
+                        <a href="/static/alarmdisplay.html" target="_blank"><i class="fa fa-desktop"></i>Hallen-Display</a>
+                        <button v-if="isAdmin" type="button" @click="openChangelogModal"><i class="fa fa-gift"></i>Was ist neu<span v-if="changelogUnseen" class="badge bg-danger ms-auto">neu</span></button>
+                        <button type="button" @click="requestPushPermission"><i class="fa fa-bell"></i>Push-Alarm einschalten</button>
+                        <button type="button" class="text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i>Logout</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="sidebar-overlay" :class="{'mobile-open': showMobileSidebar}" @click="showMobileSidebar = false"></div>
+
+        <div v-if="!isOnline" class="bg-danger text-white text-center p-2 fw-bold" style="z-index: 9999; position: sticky; top: 0;">
+            <i class="fa fa-wifi-slash me-2"></i> Du bist offline! Änderungen werden lokal gespeichert und später synchronisiert.
+        </div>
+        <div v-if="must2fa" class="alert alert-danger rounded-0 m-0 py-2 px-4 d-flex flex-wrap align-items-center justify-content-between gap-2" style="z-index: 900;">
+            <span><i class="fa fa-shield-halved me-2"></i><strong>Zwei-Faktor-Anmeldung ist für deine Rolle Pflicht.</strong> Bis du sie eingerichtet hast, kannst du nur lesen.</span>
+            <button class="btn btn-sm btn-light rounded-pill fw-bold" @click="openSelfPasswordModal()">Jetzt einrichten</button>
+        </div>
+        <div class="app-container" :data-area="activeTab">
+            <div class="sidebar" :class="{'mobile-open': showMobileSidebar}">
+                <div class="d-flex justify-content-between align-items-center p-3 d-lg-none border-bottom border-secondary border-opacity-10 bg-black bg-opacity-20">
+                    <span class="fw-bold text-white small"><i class="fa fa-fire-extinguisher text-danger me-2"></i>Dienstbuch</span>
+                    <button class="btn btn-sm btn-outline-danger px-2 py-1 border-0" @click="showMobileSidebar = false"><i class="fa fa-times"></i></button>
+                </div>
+                <div class="sidebar-menu flex-grow-1" style="overflow-y: auto;">
+                    <button class="sidebar-btn mb-1" :class="{active: activeTab === 'uebersicht'}" @click="activeTab = 'uebersicht'; showMobileSidebar = false"><i class="fa fa-gauge-high"></i> Übersicht<span class="sidebar-pin" :class="isFavorite('uebersicht') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('uebersicht')"><i class="fa-star" :class="isFavorite('uebersicht') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <div v-if="menuFavoriteItems.length" class="mb-1">
+                        <div class="sidebar-section-header"><i class="fa-solid fa-star me-1" style="font-size:0.65rem; color:#ffc107;"></i>Favoriten</div>
+                        <button v-for="f in menuFavoriteItems" :key="'fav_' + f.id" class="sidebar-btn" :class="{active: f.active}" @click="goMenu(f.id)"><i class="fa" :class="f.icon"></i> {{ f.label }}<span class="sidebar-pin pinned" role="button" title="Aus den Favoriten entfernen" @click.stop="toggleFavorite(f.id)"><i class="fa-solid fa-star"></i></span></button>
+                    </div>
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('org')" @click="toggleMenuSection('org')" @keyup.enter="toggleMenuSection('org')"><span>Organisation</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('org') && dueBadge" class="badge rounded-pill bg-danger">{{ dueBadge }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('org')}"></i></span></div>
+                    <div v-show="menuOpen('org')">
+                    <button class="sidebar-btn" :class="{active: activeTab === 'dienste'}" @click="activeTab = 'dienste'; showMobileSidebar = false"><i class="fa fa-book"></i> Dienste<span class="sidebar-pin" :class="isFavorite('dienste') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('dienste')"><i class="fa-star" :class="isFavorite('dienste') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'kalender'}" @click="activeTab = 'kalender'; showMobileSidebar = false"><i class="fa fa-calendar-days"></i> Kalender<span class="sidebar-pin" :class="isFavorite('kalender') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('kalender')"><i class="fa-star" :class="isFavorite('kalender') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fristen'}" @click="activeTab = 'fristen'; showMobileSidebar = false"><i class="fa fa-clock"></i> Fristen <span v-if="dueBadge" class="badge rounded-pill bg-danger ms-auto">{{ dueBadge }}</span><span class="sidebar-pin" :class="isFavorite('fristen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('fristen')"><i class="fa-star" :class="isFavorite('fristen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeePersonnel" :class="{active: activeTab === 'personal'}" @click="activeTab = 'personal'; showMobileSidebar = false"><i class="fa fa-users"></i> Personal<span class="sidebar-pin" :class="isFavorite('personal') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('personal')"><i class="fa-star" :class="isFavorite('personal') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeeYouth" :class="{active: activeTab === 'jugend'}" @click="activeTab = 'jugend'; showMobileSidebar = false"><i class="fa fa-graduation-cap"></i> Jugendfeuerwehr<span class="sidebar-pin" :class="isFavorite('jugend') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('jugend')"><i class="fa-star" :class="isFavorite('jugend') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'lehrgaenge'}" @click="activeTab = 'lehrgaenge'; showMobileSidebar = false"><i class="fa fa-user-graduate"></i> Lehrgänge<span class="sidebar-pin" :class="isFavorite('lehrgaenge') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('lehrgaenge')"><i class="fa-star" :class="isFavorite('lehrgaenge') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'umfragen'}" @click="activeTab = 'umfragen'; showMobileSidebar = false"><i class="fa fa-square-poll-vertical"></i> Umfragen & Helfer<span class="sidebar-pin" :class="isFavorite('umfragen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('umfragen')"><i class="fa-star" :class="isFavorite('umfragen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'notizen'}" @click="activeTab = 'notizen'; showMobileSidebar = false"><i class="fa fa-sticky-note"></i> Notizen<span class="sidebar-pin" :class="isFavorite('notizen') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('notizen')"><i class="fa-star" :class="isFavorite('notizen') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeeStats" :class="{active: activeTab === 'stats'}" @click="activeTab = 'stats'; showMobileSidebar = false"><i class="fa fa-chart-bar"></i> Statistiken<span class="sidebar-pin" :class="isFavorite('stats') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('stats')"><i class="fa-star" :class="isFavorite('stats') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+
+                    </div>
+
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('einsatz')" @click="toggleMenuSection('einsatz')" @keyup.enter="toggleMenuSection('einsatz')"><span>Einsatz &amp; Taktik</span><span class="d-flex align-items-center gap-2"><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('einsatz')}"></i></span></div>
+                    <div v-show="menuOpen('einsatz')">
+                    <button class="sidebar-btn" :class="{active: activeTab === 'apager'}" @click="activeTab = 'apager'; showMobileSidebar = false"><i class="fa fa-bell"></i> Alarmierung<span class="sidebar-pin" :class="isFavorite('apager') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('apager')"><i class="fa-star" :class="isFavorite('apager') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'einsaetze'}" @click="activeTab = 'einsaetze'; showMobileSidebar = false"><i class="fa fa-fire"></i> Einsätze<span class="sidebar-pin" :class="isFavorite('einsaetze') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('einsaetze')"><i class="fa-star" :class="isFavorite('einsaetze') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'lagekarte'}" @click="activeTab = 'lagekarte'; showMobileSidebar = false"><i class="fa fa-map-location-dot"></i> Lagekarte & Hydranten<span class="sidebar-pin" :class="isFavorite('lagekarte') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('lagekarte')"><i class="fa-star" :class="isFavorite('lagekarte') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'bma'}" @click="activeTab = 'bma'; showMobileSidebar = false"><i class="fa fa-building-shield"></i> Objekte & BMA<span class="sidebar-pin" :class="isFavorite('bma') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('bma')"><i class="fa-star" :class="isFavorite('bma') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'hvo'}" @click="activeTab = 'hvo'; showMobileSidebar = false"><i class="fa fa-heart-pulse"></i> First Responder<span class="sidebar-pin" :class="isFavorite('hvo') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('hvo')"><i class="fa-star" :class="isFavorite('hvo') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="logbooks.length || canSeeSettings" :class="{active: activeTab === 'logbuch'}" @click="activeTab = 'logbuch'; showMobileSidebar = false"><i class="fa fa-book-open"></i> Logbücher<span class="sidebar-pin" :class="isFavorite('logbuch') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('logbuch')"><i class="fa-star" :class="isFavorite('logbuch') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+
+                    </div>
+
+                    <div class="sidebar-section-header sidebar-section-toggle" role="button" tabindex="0" :aria-expanded="menuOpen('material')" @click="toggleMenuSection('material')" @keyup.enter="toggleMenuSection('material')"><span>Material &amp; Finanzen</span><span class="d-flex align-items-center gap-2"><span v-if="!menuOpen('material') && overviewDefects.length" class="badge rounded-pill bg-danger">{{ overviewDefects.length }}</span><i class="fa fa-chevron-down" style="font-size:0.6rem;" :class="{'fa-rotate-270': !menuOpen('material')}"></i></span></div>
+                    <div v-show="menuOpen('material')">
+                    <button class="sidebar-btn" :class="{active: activeTab === 'fahrzeuge'}" @click="activeTab = 'fahrzeuge'; showMobileSidebar = false"><i class="fa fa-truck"></i> Fahrzeuge<span class="sidebar-pin" :class="isFavorite('fahrzeuge') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('fahrzeuge')"><i class="fa-star" :class="isFavorite('fahrzeuge') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'material' && materialSubTab !== 'maengel'}" @click="goMenu('material')"><i class="fa fa-screwdriver-wrench"></i> Geräte & Material<span class="sidebar-pin" :class="isFavorite('material') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('material')"><i class="fa-star" :class="isFavorite('material') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'material' && materialSubTab === 'maengel'}" @click="goMenu('maengel')"><i class="fa fa-triangle-exclamation"></i> Mängel <span v-if="overviewDefects.length" class="badge rounded-pill bg-warning text-dark ms-auto">{{ overviewDefects.length }}</span><span class="sidebar-pin" :class="isFavorite('maengel') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('maengel')"><i class="fa-star" :class="isFavorite('maengel') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'abrechnung'}" @click="activeTab = 'abrechnung'; showMobileSidebar = false"><i class="fa fa-euro-sign"></i> Abrechnung<span class="sidebar-pin" :class="isFavorite('abrechnung') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('abrechnung')"><i class="fa-star" :class="isFavorite('abrechnung') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'arbeitsbescheinigung'}" @click="activeTab = 'arbeitsbescheinigung'; showMobileSidebar = false"><i class="fa fa-file-signature"></i> Arbeitsbescheinigungen<span class="sidebar-pin" :class="isFavorite('arbeitsbescheinigung') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('arbeitsbescheinigung')"><i class="fa-star" :class="isFavorite('arbeitsbescheinigung') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" v-if="canSeeFinance" :class="{active: activeTab === 'verein'}" @click="activeTab = 'verein'; showMobileSidebar = false"><i class="fa fa-building-columns"></i> Vereinskasse & Inventar<span class="sidebar-pin" :class="isFavorite('verein') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('verein')"><i class="fa-star" :class="isFavorite('verein') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+                    <button class="sidebar-btn" :class="{active: activeTab === 'archiv'}" @click="activeTab = 'archiv'; showMobileSidebar = false"><i class="fa fa-folder-open"></i> Dokumente & Archiv<span class="sidebar-pin" :class="isFavorite('archiv') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('archiv')"><i class="fa-star" :class="isFavorite('archiv') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+
+                    </div>
+
+                    <div class="sidebar-section-header" v-if="canSeeSettings">Verwaltung</div>
+                    <button class="sidebar-btn" v-if="canSeeSettings" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Einstellungen<span class="sidebar-pin" :class="isFavorite('verwaltung') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('verwaltung')"><i class="fa-star" :class="isFavorite('verwaltung') ? 'fa-solid' : 'fa-regular'"></i></span></button>
+
+                    <div class="sidebar-section-header d-lg-none">Aktionen</div>
+                    <button class="sidebar-btn d-lg-none" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i> Theme wechseln</button>
+                    <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop"></i> Hallen-Display</a>
+                    <button v-if="isAdmin" class="sidebar-btn d-lg-none text-warning" @click="openChangelogModal(); showMobileSidebar = false"><i class="fa fa-gift"></i> Was ist neu <span v-if="changelogUnseen" class="badge bg-danger rounded-circle ms-1" style="width:8px; height:8px; padding:0;"></span></button>
+                    <button class="sidebar-btn d-lg-none text-info" @click="requestPushPermission"><i class="fa fa-bell"></i> Push-Alarm Test</button>
+                    <button class="sidebar-btn d-lg-none text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i> Logout</button>
+                </div>
+
+                <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
+                    <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
+                        <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
+                        <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
+                    </div>
+                    <div class="mt-2 ms-2"><a class="text-info text-decoration-none" style="font-size:0.72rem; cursor:pointer;" @click="openIdCard(); showMobileSidebar = false"><i class="fa fa-id-card me-1"></i>Dienstausweis</a></div>
+                    <div class="d-flex gap-2 justify-content-center mt-2 pt-2 border-top border-secondary border-opacity-10">
+                        <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
+                        <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
+                        <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
+                        <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
+                        <a class="text-warning text-decoration-none" style="font-size:0.68rem; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#donationModal"><i class="fa fa-mug-hot me-1"></i>Unterstützen</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="main-content">
+                
+                <!-- Handy: feste Leiste unten mit den wichtigsten Bereichen -->
+                <nav class="mobile-bottom-nav d-lg-none" aria-label="Schnellzugriff">
+                    <button v-for="i in mobileNavItems" :key="i.id" type="button" :class="i.active ? 'active' : ''" @click="goMenu(i.id)"><i class="fa" :class="i.icon"></i><span>{{ i.label }}</span><b v-if="i.badge" class="mbn-badge">{{ i.badge }}</b></button>
+                    <button type="button" @click="showMobileSidebar = true"><i class="fa fa-bars"></i><span>Menü</span></button>
+                </nav>
+
+                <div v-if="fabItems.length" class="fab action-menu">
+                    <div v-if="openIncident === 'fab'" class="incident-menu fab-menu" @click="openIncident = null">
+                        <button v-for="f in fabItems" :key="f.id" type="button" @click="runFab(f.id)"><i class="fa" :class="f.icon"></i>{{ f.label }}</button>
+                    </div>
+                    <button type="button" class="fab-btn" title="Neu anlegen" aria-label="Neu anlegen" @click="toggleAction('fab')"><i class="fa" :class="openIncident === 'fab' ? 'fa-xmark' : 'fa-plus'"></i></button>
+                </div>
+
+                <!-- System Broadcast Banners -->
+                <button v-if="compactBroadcasts.length" type="button" class="broadcast-line mb-3" @click="activeTab = 'uebersicht'">
+                    <i class="fa fa-bullhorn"></i>
+                    <span class="text-truncate">{{ compactBroadcasts.length === 1 ? compactBroadcasts[0].title : compactBroadcasts.length + ' neue Mitteilungen' }}</span>
+                    <span class="broadcast-line-go">Ansehen <i class="fa fa-chevron-right"></i></span>
+                </button>
+                <div v-for="b in bannerBroadcasts" :key="b.id" :class="['broadcast-card p-3 mb-3 d-flex justify-content-between align-items-center', b.is_mandatory ? 'mandatory' : '']">
+                    <div class="d-flex align-items-start gap-3">
+                        <div :class="['broadcast-icon-box', b.is_mandatory ? 'bg-danger-soft' : 'bg-warning-soft']">
+                            <i :class="['fa', b.is_mandatory ? 'fa-exclamation-triangle' : 'fa-bullhorn']"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                <span v-if="b.is_mandatory" class="badge bg-danger text-uppercase px-2" style="font-size:0.55rem; letter-spacing:0.5px;">Lesepflicht</span>
+                                <span v-else class="badge bg-warning text-dark text-uppercase px-2" style="font-size:0.55rem; letter-spacing:0.5px;">Mitteilung</span>
+                                <small class="text-muted fw-bold"><i class="fa fa-calendar-alt me-1"></i>{{ b.datum }}</small>
+                                <small class="text-muted fw-bold"><i class="fa fa-user me-1"></i>Leitung: {{ b.autor }}</small>
+                            </div>
+                            <h5 class="fw-bold text-white m-0 mb-1" style="letter-spacing: -0.3px;">{{ b.title }}</h5>
+                            <p class="text-secondary m-0 small lh-base broadcast-text" style="white-space: pre-wrap;">{{ b.content }}</p>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-shrink-0 ms-3">
+                        <button :class="['btn btn-sm rounded-pill fw-bold transition-all px-3 py-1.5', b.is_mandatory ? 'btn-danger shadow-sm' : 'btn-outline-secondary text-white border-secondary']" @click="markBroadcastAsRead(b)">
+                            <i class="fa fa-check-circle me-1"></i> Gelesen
+                        </button>
+                        <button v-if="isAdmin" class="btn btn-sm btn-outline-danger rounded-circle p-2 d-flex align-items-center justify-content-center" @click="deleteBroadcast(b)" title="Permanent löschen" style="width: 32px; height: 32px;">
+                            <i class="fa fa-trash-alt" style="font-size: 0.8rem;"></i>
+                        </button>
+                    </div>
+                </div>
+
+<!-- @teil tab-uebersicht -->
+<!-- @teil tab-dienste -->
+<!-- @teil tab-planung -->
+<!-- @teil tab-notizen -->
+<!-- @teil tab-kalender -->
+<!-- @teil tab-einsaetze -->
+<!-- @teil tab-fahrzeuge -->
+<!-- @teil tab-material -->
+<!-- @teil tab-personal -->
+<!-- @teil tab-alarmierung -->
+<!-- @teil tab-abrechnung -->
+<!-- @teil tab-objekte-verein -->
+<!-- @teil tab-einstellungen -->
+<!-- @teil tab-fristen-logbuch -->
+<!-- @teil tab-statistik-archiv -->
+<!-- @teil tab-lagekarte -->
+<!-- @teil tab-jugend-hvo -->
+<!-- @teil fenster-karte-allgemein -->
+<!-- @teil fenster-termine-unterschriften -->
+<!-- @teil fenster-fahrzeuge -->
+<!-- @teil fenster-material -->
+<!-- @teil fenster-personal -->
+<!-- @teil fenster-konto -->
+    </div>
+    <script src="/static/js/password-policy.js"></script>
+    <script src="/static/js/dashboard/start.js"></script>
+    <script src="/static/js/dashboard/dienste.js"></script>
+    <script src="/static/js/dashboard/einsaetze.js"></script>
+    <script src="/static/js/dashboard/alarm.js"></script>
+    <script src="/static/js/dashboard/planung.js"></script>
+    <script src="/static/js/dashboard/fristen.js"></script>
+    <script src="/static/js/dashboard/material.js"></script>
+    <script src="/static/js/dashboard/fahrzeuge.js"></script>
+    <script src="/static/js/dashboard/personal.js"></script>
+    <script src="/static/js/dashboard/finanzen.js"></script>
+    <script src="/static/js/dashboard/karte.js"></script>
+    <script src="/static/js/dashboard/jugend-verein-hvo.js"></script>
+    <script src="/static/js/dashboard/verwaltung.js"></script>
+    <script src="/static/js/dashboard/konto.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
+

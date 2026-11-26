@@ -1,0 +1,86 @@
+                <!-- TAB 2: EINSATZBERICHTE -->
+                <div v-show="activeTab === 'einsaetze'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-fire text-danger me-2"></i>Einsätze</h2>
+                            <small class="text-muted">Teilautomatische Dokumentation und Atemschutz-Nachweise</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <select v-model="missionGroupFilter" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.08);">
+                                <option value="all">Alle Gruppen / Einheiten</option>
+                                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                            </select>
+                            <button v-if="canManageMissions" class="btn btn-premium rounded-pill fw-bold" @click="goToNewMission"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="text" v-model="missionSearch" class="form-control form-control-sm rounded-pill" style="max-width:320px;" placeholder="Suchen: Stichwort, Adresse …">
+                            <button type="button" class="btn btn-sm rounded-pill flex-shrink-0" :class="missionFiltersOpen || missionFilterCount ? 'btn-premium' : 'btn-outline-light'" @click="missionFiltersOpen = !missionFiltersOpen" :aria-expanded="missionFiltersOpen ? 'true' : 'false'"><i class="fa fa-sliders me-1"></i>Filter<span v-if="missionFilterCount" class="badge bg-light text-dark ms-1">{{ missionFilterCount }}</span></button>
+                            <span class="text-muted small ms-auto flex-shrink-0">{{ allIncidents.length }} Treffer</span>
+                        </div>
+                        <div v-if="savedFilters.einsaetze.length" class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                            <span v-for="f in savedFilters.einsaetze" :key="f.name" class="badge rounded-pill bg-secondary d-inline-flex align-items-center gap-2" style="cursor:pointer; font-size:0.78rem;" @click="applySavedFilter('einsaetze', f)"><i class="fa fa-filter"></i>{{ f.name }}<i class="fa fa-times" title="Gespeicherten Filter löschen" @click.stop="deleteSavedFilter('einsaetze', f)"></i></span>
+                        </div>
+                        <div v-if="missionFiltersOpen" class="mt-2 p-3 rounded-4" style="background:rgba(255,255,255,0.04);">
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <select v-model="missionYear" class="form-select form-select-sm rounded-pill" style="width:auto;">
+                                    <option value="all">Alle Jahre</option>
+                                    <option v-for="y in missionYearOptions()" :key="y" :value="y">{{ y }}</option>
+                                </select>
+                                <span class="d-flex flex-wrap gap-1">
+                                    <button v-for="s in ['alle', 'Entwurf', 'In Prüfung', 'Freigegeben']" :key="s" class="btn btn-sm rounded-pill" :class="missionStatus === s ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionStatus = s">{{ s === 'alle' ? 'Alle Status' : s }}</button>
+                                </span>
+                                <span class="d-flex flex-wrap gap-1">
+                                    <button v-for="k in ['alle', 'Brand', 'Hilfeleistung', 'Sonstige']" :key="k" class="btn btn-sm rounded-pill" :class="missionKind === k ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionKind = k">{{ k === 'alle' ? 'Alle Arten' : k }}</button>
+                                </span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="saveCurrentFilter('einsaetze')"><i class="fa fa-floppy-disk me-1"></i>Filter speichern</button>
+                                <button v-if="filterIsActive('einsaetze')" class="btn btn-sm btn-link text-muted" @click="resetFilter('einsaetze')">Zurücksetzen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div v-for="m in allIncidents" :key="m.isNewMission ? 'new_' + m.id : 'old_' + m.id" class="col-12" :class="openIncident === incidentKey(m) ? 'incident-open' : ''">
+                            <div class="mission-item" @click="handleIncidentClick(m)">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <div class="text-center bg-black bg-opacity-30 rounded-4 p-2" style="min-width: 65px; border: 1px solid var(--card-border);">
+                                            <div class="fw-bold text-danger h4 m-0">{{ formatDateDay(m.date) }}</div>
+                                            <div class="small text-muted fw-bold" style="font-size: 0.65rem;">{{ formatDateMonthYear(m.date) }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-danger text-uppercase px-2 rounded-pill mb-1">Einsatz</span>
+                                            <div class="fw-bold text-white fs-5">{{m.stichwort}} &bull; {{m.adresse}}</div>
+                                            <small class="text-muted fw-bold d-block mt-1">
+                                                <i class="fa fa-clock me-1"></i>{{m.time}}<span v-if="m.end_time"> - {{m.end_time}}</span> Uhr &bull; {{m.duration}} Std &bull; 
+                                                <span :class="m.status === 'Freigegeben' ? 'text-success' : 'text-warning'">{{m.status}}</span>
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 align-items-center incident-actions" @click.stop>
+                                        <button v-if="incidentPrimary(m) === 'approve'" class="btn btn-sm btn-success rounded-pill" @click="releaseMission(m, 'approve')"><i class="fa fa-check me-1"></i>Freigeben</button>
+                                        <button v-else-if="incidentPrimary(m) === 'submit'" class="btn btn-sm btn-premium rounded-pill" @click="releaseMission(m, 'submit')"><i class="fa fa-paper-plane me-1"></i>Einreichen</button>
+                                        <button v-else-if="incidentPrimary(m) === 'sign'" class="btn btn-sm btn-premium rounded-pill" @click="openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
+                                        <button v-else-if="incidentPrimary(m) === 'pdf'" class="btn btn-sm btn-outline-light rounded-pill" @click="downloadMissionPdf(m)" title="Einsatzbericht als PDF"><i class="fa fa-file-pdf me-1"></i>PDF</button>
+                                        <div v-if="incidentMenu(m).length" class="position-relative action-menu">
+                                            <button type="button" class="btn btn-sm btn-outline-light rounded-circle incident-more" title="Weitere Aktionen" aria-label="Weitere Aktionen" @click="toggleIncidentMenu(m)"><i class="fa fa-ellipsis"></i></button>
+                                            <div v-if="openIncident === incidentKey(m)" class="incident-menu">
+                                                <button v-for="a in incidentMenu(m)" :key="a.id" type="button" :class="a.id === 'delete' ? 'text-danger' : ''" @click="incidentAction(m, a.id)"><i class="fa" :class="a.icon"></i>{{ a.label }}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="allIncidents.length === 0" class="text-center py-5 text-muted">
+                            <div class="mb-2">{{ filterIsActive('einsaetze') ? 'Keine Einsätze mit diesem Filter.' : 'Noch keine Einsätze erfasst. Der erste Bericht dauert nur wenige Minuten.' }}</div>
+                            <button v-if="filterIsActive('einsaetze')" class="btn btn-sm btn-outline-light rounded-pill" @click="resetFilter('einsaetze')">Filter zurücksetzen</button>
+                            <button v-else-if="canManageMissions" class="btn btn-sm btn-premium rounded-pill" @click="goToNewMission"><i class="fa fa-plus me-1"></i>Einsatz erfassen</button>
+                        </div>
+                    </div>
+                </div>
+

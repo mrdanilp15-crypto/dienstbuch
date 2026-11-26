@@ -1,0 +1,134 @@
+        <!-- MODAL: MAP OBJECT CREATION -->
+
+        <!-- MODAL: ENTWICKLER UNTERSTÜTZEN -->
+        <div class="modal fade" id="donationModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-mug-hot text-warning me-2"></i>Entwickler unterstützen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="text-white">
+                            Dieses Digitale Dienstbuch wird von mir als Privatperson in meiner Freizeit entwickelt und
+                            weiterentwickelt - ohne Firma oder Team dahinter. Fehlerbehebungen, neue Funktionen und
+                            der Support kosten einiges an Zeit.
+                        </p>
+                        <p class="text-secondary small">
+                            Wenn dir die App hilft und du die Weiterentwicklung unterstützen möchtest, freue ich mich
+                            über eine kleine Spende. Das ist völlig freiwillig und hat keinerlei Einfluss auf die
+                            Nutzung der App.
+                        </p>
+                        <a href="https://www.paypal.me/Breteax" target="_blank" rel="noopener noreferrer" class="btn btn-premium w-100 rounded-pill fw-bold mt-3">
+                            <i class="fa-brands fa-paypal me-2"></i>Über PayPal unterstützen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="mapObjectModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-secondary border-opacity-10">
+                        <h5 class="modal-title fw-bold text-white"><i class="fa fa-map-pin text-danger me-2"></i>Karten-Objekt anlegen</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="mb-3 text-muted small bg-black bg-opacity-25 p-2 rounded">
+                            <i class="fa fa-location-crosshairs me-1 text-danger"></i> Geklickte Position: <strong>{{ clickedLat.toFixed(6) }}</strong>, <strong>{{ clickedLng.toFixed(6) }}</strong>
+                        </div>
+                        <form @submit.prevent="submitMapObject">
+                            <!-- Category Select -->
+                            <div class="mb-3">
+                                <label class="form-label">Kategorie des Objekts</label>
+                                <select v-model="newMapObject.category" class="form-select bg-dark border-secondary text-white">
+                                    <option value="hydrant">💧 Wasserentnahmestelle (Hydrant/POI)</option>
+                                    <option value="access">🚪 Zufahrt / Rettungsweg / Sammelplatz</option>
+                                    <option value="bma">🏢 Brandmeldeanlage (BMA)</option>
+                                    <option value="danger">⚠️ Gefahrenschwerpunkt (Gefahrgut)</option>
+                                </select>
+                            </div>
+
+                            <!-- Fields for Hydrant -->
+                            <div v-show="newMapObject.category === 'hydrant'">
+                                <div class="mb-3">
+                                    <label class="form-label">Hydranten-Typ (Vorlage)</label>
+                                    <select v-model="newMapObject.hydrantType" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Unterflurhydrant">Unterflurhydrant</option>
+                                        <option value="Überflurhydrant">Überflurhydrant</option>
+                                        <option value="Löschwasserzisterne">Löschwasserzisterne</option>
+                                        <option value="Tiefbrunnen">Tiefbrunnen</option>
+                                        <option value="Saugstelle (Bach/Fluss)">Saugstelle (Bach/Fluss)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Eigene Bezeichnung (Optional)</label>
+                                    <input type="text" v-model="newMapObject.label" class="form-control" placeholder="z. B. H100 Hauptstr.">
+                                </div>
+                            </div>
+
+                            <!-- Fields for Access -->
+                            <div v-show="newMapObject.category === 'access'">
+                                <div class="mb-3">
+                                    <label class="form-label">Art des Rettungswegs (Vorlage)</label>
+                                    <select v-model="newMapObject.accessType" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Feuerwehrzufahrt">Feuerwehrzufahrt</option>
+                                        <option value="Rettungsweg">Rettungsweg</option>
+                                        <option value="Sammelplatz">Sammelplatz</option>
+                                        <option value="Anleiterbereitschaft">Anleiterbereitschaft</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Eigene Bezeichnung (Optional)</label>
+                                    <input type="text" v-model="newMapObject.label" class="form-control" placeholder="z. B. Tor 2 West">
+                                </div>
+                            </div>
+
+                            <!-- Fields for BMA -->
+                            <div v-show="newMapObject.category === 'bma'">
+                                <div class="mb-3">
+                                    <label class="form-label">Objektname / Gebäude</label>
+                                    <input type="text" v-model="newMapObject.bma_name" class="form-control" placeholder="z. B. Seniorenheim St. Josef" :required="newMapObject.category === 'bma'">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Adresse</label>
+                                    <input type="text" v-model="newMapObject.bma_address" class="form-control" placeholder="z. B. Bergstr. 12" :required="newMapObject.category === 'bma'">
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label">BMA Nummer</label>
+                                        <input type="text" v-model="newMapObject.bma_number" class="form-control" placeholder="z. B. 1004" :required="newMapObject.category === 'bma'">
+                                    </div>
+                                    <div class="col-6 d-flex align-items-center mt-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" v-model="newMapObject.bma_fsd" id="fsdCheck">
+                                            <label class="form-check-label text-white" for="fsdCheck">Schlüsseldepot (FSD)</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Fields for Danger -->
+                            <div v-show="newMapObject.category === 'danger'">
+                                <div class="mb-3">
+                                    <label class="form-label">Gefahrenstoff / Gefahrenquelle</label>
+                                    <input type="text" v-model="newMapObject.danger_name" class="form-control" placeholder="z. B. Gefahrstofflager NH3" :required="newMapObject.category === 'danger'">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Gefahrenstufe</label>
+                                    <select v-model="newMapObject.danger_level" class="form-select bg-dark border-secondary text-white">
+                                        <option value="Mittel">Mittel (Gefahrenstufe 1)</option>
+                                        <option value="Hoch">Hoch (Gefahrenstufe 2)</option>
+                                        <option value="Sehr hoch">Sehr hoch (Gefahrenstufe 3)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-premium w-100 rounded-pill py-2 mt-3">Objekt auf Karte anlegen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+

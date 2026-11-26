@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 36,
+        "version": "2.86",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "improved", "tag": "Technik", "title": "Oberfläche unter der Haube aufgeteilt",
+             "text": "Die Programmdateien sind jetzt nach Bereichen getrennt. Das macht künftige Änderungen und die Fehlersuche sicherer. An der Bedienung ändert sich nichts."},
+        ],
+    },
+    {
         "id": 35,
         "version": "2.85",
         "date": "2026-11-26",

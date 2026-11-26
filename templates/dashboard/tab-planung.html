@@ -1,0 +1,153 @@
+                <!-- TAB: LEHRGANGSPLANUNG -->
+                <div v-show="activeTab === 'lehrgaenge'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-user-graduate text-danger me-2"></i>Lehrgänge</h2>
+                            <small class="text-muted">{{ wishData.manage ? 'Wünsche ansehen und Plätze zuteilen' : 'Melde an, welchen Lehrgang du machen möchtest' }}</small>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-lg-4">
+                            <form class="card premium-card p-3 mb-3" @submit.prevent="addWish">
+                                <h6 class="fw-bold text-white"><i class="fa fa-lightbulb me-2 text-warning"></i>Wunschbox</h6>
+                                <label class="form-label small text-muted mb-1" for="wishCourse">Welchen Lehrgang möchtest du demnächst machen?</label>
+                                <input id="wishCourse" class="form-control mb-2" v-model="newWish.course_name" list="wishCourseList" maxlength="255" required placeholder="z. B. Maschinist">
+                                <datalist id="wishCourseList"><option v-for="t in wishData.types" :key="t" :value="t"></option></datalist>
+                                <div v-if="wishData.me && !wishForOther" class="small text-muted mb-2">
+                                    <i class="fa fa-user me-1"></i>Wird für dich eingetragen ({{ wishData.me.name }}).
+                                    <button v-if="wishData.manage" type="button" class="btn btn-link btn-sm p-0 align-baseline" @click="wishForOther = true">Für jemand anderen</button>
+                                </div>
+                                <template v-if="wishData.manage && (wishForOther || !wishData.me)">
+                                    <label class="form-label small text-muted mb-1" for="wishPerson">Für wen</label>
+                                    <select id="wishPerson" class="form-select mb-2" v-model="newWish.personnel_id" required>
+                                        <option value="" disabled>Person wählen</option>
+                                        <option v-for="p in personnel" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                    </select>
+                                    <button v-if="wishData.me" type="button" class="btn btn-link btn-sm p-0 mb-2 text-start" @click="wishForOther = false; newWish.personnel_id = ''">Doch für mich</button>
+                                </template>
+                                <label class="form-label small text-muted mb-1" for="wishNote">Anmerkung (optional)</label>
+                                <input id="wishNote" class="form-control mb-3" v-model="newWish.note" maxlength="500" placeholder="z. B. nur an Wochenenden">
+                                <button type="submit" class="btn btn-premium rounded-pill"><i class="fa fa-plus me-1"></i>Wunsch eintragen</button>
+                            </form>
+                            <div v-if="wishData.manage && wishDemand.length" class="card premium-card p-3">
+                                <h6 class="fw-bold text-white">Bedarf</h6>
+                                <div v-for="d in wishDemand" :key="d.name" class="d-flex justify-content-between align-items-center py-1 gap-2">
+                                    <span class="text-white">{{ d.name }}</span>
+                                    <span class="text-nowrap"><span v-if="d.open" class="badge bg-warning text-dark">{{ d.open }} offen</span> <span v-if="d.assigned" class="badge bg-primary">{{ d.assigned }} zugeteilt</span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-8">
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button v-for="s in ['alle', 'Wunsch', 'Zugeteilt', 'Teilgenommen', 'Abgelehnt']" :key="s" type="button" class="btn btn-sm rounded-pill" :class="wishFilter === s ? 'btn-premium' : 'btn-outline-light'" @click="wishFilter = s">{{ s === 'alle' ? 'Alle' : s }}</button>
+                            </div>
+                            <div v-if="!wishList.length" class="card premium-card p-4 text-muted text-center">{{ wishData.me || wishData.manage ? 'Noch keine Lehrgangswünsche.' : 'Dein Konto ist mit keiner Person verknüpft. Bitte den Admin, das nachzuholen.' }}</div>
+                            <div v-for="w in wishList" :key="w.id" class="card premium-card p-3 mb-2 wish-item">
+                                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                                    <div>
+                                        <div class="fw-bold text-white">{{ w.course_name }} <span class="badge ms-1" :class="wishTone(w.status)">{{ w.status }}</span></div>
+                                        <div class="small text-muted">{{ w.name }}<span v-if="w.course_date"> · Termin {{ germanDate(w.course_date) }}</span></div>
+                                        <div v-if="w.note" class="small text-muted">{{ w.note }}</div>
+                                        <div v-if="w.reply" class="small text-white">Antwort: {{ w.reply }}</div>
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button v-if="wishData.manage && (w.status === 'Wunsch' || w.status === 'Abgelehnt')" type="button" class="btn btn-sm btn-success rounded-pill" @click="decideWish(w, 'Zugeteilt')">Platz zuteilen</button>
+                                        <button v-if="wishData.manage && w.status === 'Zugeteilt'" type="button" class="btn btn-sm btn-success rounded-pill" @click="decideWish(w, 'Teilgenommen')">Teilgenommen</button>
+                                        <button v-if="wishData.manage && (w.status === 'Wunsch' || w.status === 'Zugeteilt')" type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="decideWish(w, 'Abgelehnt')">Ablehnen</button>
+                                        <button v-if="wishData.manage || (w.mine && w.status === 'Wunsch')" type="button" class="btn btn-sm btn-outline-danger rounded-pill" :aria-label="'Wunsch ' + w.course_name + ' entfernen'" @click="deleteWish(w)"><i class="fa fa-trash-alt"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: UMFRAGEN UND HELFERSUCHE -->
+                <div v-show="activeTab === 'umfragen'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-square-poll-vertical text-danger me-2"></i>Umfragen & Helfer</h2>
+                            <small class="text-muted">Abstimmen und sich als Helfer eintragen</small>
+                        </div>
+                        <div v-if="canManagePolls && !pollForm" class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-premium rounded-pill px-3" @click="startPoll('helfer')"><i class="fa fa-hand me-1"></i>Helfer suchen</button>
+                            <button type="button" class="btn btn-outline-light rounded-pill px-3" @click="startPoll('umfrage')"><i class="fa fa-square-poll-vertical me-1"></i>Neue Umfrage</button>
+                        </div>
+                    </div>
+                    <form v-if="pollForm" class="card premium-card p-3 mb-3" @submit.prevent="savePoll">
+                        <h6 class="fw-bold text-white">{{ pollForm.id ? 'Bearbeiten' : (pollForm.kind === 'helfer' ? 'Helfer suchen' : 'Neue Umfrage') }}</h6>
+                        <label class="form-label small text-muted mb-1" for="pollTitle">{{ pollForm.kind === 'helfer' ? 'Wofür' : 'Frage' }}</label>
+                        <input id="pollTitle" class="form-control mb-2" v-model="pollForm.title" maxlength="150" required :placeholder="pollForm.kind === 'helfer' ? 'z. B. Osterfeuer' : 'z. B. Wohin geht der Ausflug?'">
+                        <label class="form-label small text-muted mb-1" for="pollDesc">Beschreibung (optional)</label>
+                        <textarea id="pollDesc" class="form-control mb-2" rows="2" v-model="pollForm.description" maxlength="2000"></textarea>
+                        <div class="small text-muted mb-1">{{ pollForm.kind === 'helfer' ? 'Aufgaben und Anzahl der Plätze (leer = beliebig viele)' : 'Antworten' }}</div>
+                        <div v-for="(o, i) in pollForm.options" :key="i" class="d-flex gap-2 mb-2">
+                            <input class="form-control" v-model="o.label" maxlength="150" :aria-label="'Eintrag ' + (i + 1)" :placeholder="pollForm.kind === 'helfer' ? 'z. B. Aufbau ab 14 Uhr' : 'Antwort'">
+                            <input v-if="pollForm.kind === 'helfer'" class="form-control poll-capacity" type="number" min="1" max="999" v-model="o.capacity" :aria-label="'Plätze ' + (i + 1)" placeholder="Plätze">
+                            <button v-if="pollForm.options.length > 1" type="button" class="btn btn-sm btn-outline-danger rounded-circle flex-shrink-0 align-self-center" :aria-label="'Eintrag ' + (i + 1) + ' entfernen'" @click="removePollOption(i)"><i class="fa fa-xmark"></i></button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-light rounded-pill align-self-start mb-3" @click="addPollOption"><i class="fa fa-plus me-1"></i>Zeile</button>
+                        <div class="d-flex gap-3 flex-wrap align-items-end mb-3">
+                            <div>
+                                <label class="form-label small text-muted mb-1" for="pollDeadline">Eintragen bis (optional)</label>
+                                <input id="pollDeadline" type="date" class="form-control" v-model="pollForm.deadline">
+                            </div>
+                            <div v-if="pollForm.kind === 'helfer'">
+                                <label class="form-label small text-muted mb-1" for="pollEventDate">Wann wird geholfen? (kommt in den Kalender)</label>
+                                <div class="d-flex gap-2">
+                                    <input id="pollEventDate" type="date" class="form-control" v-model="pollForm.event_date">
+                                    <input type="time" class="form-control" v-model="pollForm.event_time" aria-label="Uhrzeit" :disabled="!pollForm.event_date">
+                                </div>
+                            </div>
+                            <div v-if="pollForm.kind === 'umfrage' && !pollForm.id" class="form-check">
+                                <input class="form-check-input" type="checkbox" id="pollMulti" v-model="pollForm.multi">
+                                <label class="form-check-label text-white" for="pollMulti">Mehrere Antworten erlaubt</label>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-premium rounded-pill px-4">{{ pollForm.id ? 'Speichern' : 'Veröffentlichen' }}</button>
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" @click="pollForm = null">Abbrechen</button>
+                        </div>
+                        <div class="small text-muted mt-2">{{ pollForm.id ? 'Vorhandene Eintragungen bleiben erhalten.' : 'Alle Konten bekommen eine Benachrichtigung. Namen der Eingetragenen sind für alle sichtbar.' }}</div>
+                    </form>
+                    <div v-if="!polls.length && !pollForm" class="card premium-card p-4 text-muted text-center">
+                        <div>Gerade läuft nichts.</div>
+                        <div v-if="canManagePolls" class="mt-2"><button type="button" class="btn btn-sm btn-premium rounded-pill px-3" @click="startPoll('helfer')">Erste Helfersuche anlegen</button></div>
+                    </div>
+                    <div class="row g-3">
+                        <div v-for="p in polls" :key="p.id" class="col-xl-6">
+                            <div class="card premium-card p-3 h-100 poll-card">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-bold text-white">{{ p.title }}</div>
+                                        <div class="small text-muted">{{ p.kind === 'helfer' ? 'Helfersuche' : 'Umfrage' }} · {{ p.participants }} dabei<span v-if="p.deadline"> · bis {{ germanDate(p.deadline) }}</span></div>
+                                        <div v-if="p.event_date" class="small text-white"><i class="fa fa-calendar-day me-1 text-danger"></i>{{ germanDate(p.event_date) }}<span v-if="p.event_time">, {{ p.event_time }} Uhr</span></div>
+                                    </div>
+                                    <span class="badge" :class="p.open ? (p.answered ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'">{{ p.open ? (p.answered ? 'Dabei' : 'Offen') : 'Beendet' }}</span>
+                                </div>
+                                <div v-if="p.description" class="small text-white mt-2" style="white-space: pre-line;">{{ p.description }}</div>
+                                <div class="mt-2">
+                                    <div v-for="o in p.options" :key="o.id" class="poll-option">
+                                        <div class="d-flex justify-content-between align-items-center gap-2">
+                                            <span class="text-white">{{ o.label }}</span>
+                                            <span class="d-flex align-items-center gap-2">
+                                                <span class="small text-muted text-nowrap">{{ o.capacity ? o.count + ' / ' + o.capacity : o.count }}</span>
+                                                <button v-if="p.open" type="button" class="btn btn-sm rounded-pill poll-btn" :class="o.mine ? 'btn-success' : 'btn-outline-light'" :aria-pressed="o.mine" :disabled="o.full && !o.mine" @click="votePoll(p, o)">
+                                                    <i v-if="o.mine" class="fa fa-check me-1"></i>{{ o.mine ? (p.kind === 'helfer' ? 'Eingetragen' : 'Gewählt') : (o.full ? 'Voll' : (p.kind === 'helfer' ? 'Ich helfe' : 'Wählen')) }}
+                                                </button>
+                                            </span>
+                                        </div>
+                                        <div class="poll-bar"><div :style="{ width: pollShare(p, o) + '%' }" :class="{ 'full': o.full }"></div></div>
+                                        <div v-if="o.names.length" class="small text-muted">{{ o.names.join(', ') }}</div>
+                                    </div>
+                                </div>
+                                <div v-if="p.can_edit" class="d-flex gap-2 mt-auto pt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="editPoll(p)">Bearbeiten</button>
+                                    <button type="button" class="btn btn-sm btn-outline-light rounded-pill" @click="closePoll(p, p.open)">{{ p.open ? 'Beenden' : 'Wieder öffnen' }}</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" :aria-label="p.title + ' löschen'" @click="deletePoll(p)"><i class="fa fa-trash-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+

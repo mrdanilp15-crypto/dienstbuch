@@ -1,0 +1,207 @@
+                <!-- TAB 8: VERWALTUNG & VB -->
+                                <!-- TAB: OBJEKTE & BRANDMELDEANLAGEN (früher unter Verwaltung) -->
+                <div v-show="activeTab === 'bma'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-shield text-danger me-2"></i>Objekte & Brandmeldeanlagen</h2>
+                            <small class="text-muted">Objekte mit Brandmeldeanlage, Schlüsseldepots und Einsatzhinweise</small>
+                        </div>
+                    </div>
+                <div>
+                                        <div class="row g-4">
+                                            <div class="col-12 col-lg-7">
+                                                <div class="card premium-card p-4">
+                                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-building-shield text-danger me-2"></i>Objektverzeichnis & Brandmeldeanlagen</h5>
+                                                <div class="list-group list-group-flush mb-4">
+                                                    <div v-for="b in bmas" :key="b.id" class="list-group-item bg-transparent text-white px-0 border-secondary border-opacity-10 py-3">
+                                                        <h6 class="fw-bold text-white mb-1">{{b.object_name}}</h6>
+                                                        <p class="text-muted small mb-2">{{b.address}} &bull; BMA ID: {{b.bma_number}} &bull; Schlüssel-Depot: {{b.key_depot ? 'JA' : 'NEIN'}}</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button v-if="canManageSettings" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="startBmaEdit(b)" style="font-size: 0.7rem;"><i class="fa fa-pen me-1"></i>Bearbeiten</button>
+                                                            <button v-if="canManageSettings" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteBma(b.id)" style="font-size: 0.7rem;"><i class="fa fa-trash me-1"></i>Löschen</button>
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="bmas.length === 0" class="text-center py-4 text-muted">Keine BMA-Objekte erfasst.</div>
+                                                </div>
+
+                                                <div v-if="canManageSettings">
+                                                    <h6 class="fw-bold text-white mb-3">
+                                                        <i class="fa" :class="activeBmaId ? 'fa-pen-to-square' : 'fa-plus'"></i>
+                                                        <span v-if="activeBmaId">BMA-Objekt bearbeiten</span><span v-else>Neues BMA Objekt</span>
+                                                    </h6>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Objekt-Name</label>
+                                                        <input type="text" v-model="newBma.object_name" class="form-control" placeholder="z. B. Altenheim St. Florian">
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Adresse</label>
+                                                        <textarea v-model="newBma.address" class="form-control" rows="2"></textarea>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">BMA Nummer</label>
+                                                        <input type="text" v-model="newBma.bma_number" class="form-control" placeholder="z. B. 1205">
+                                                    </div>
+                                                    <div class="form-check form-switch mb-3 bg-black bg-opacity-20 p-2 border border-secondary border-opacity-10 rounded ps-5">
+                                                        <input class="form-check-input" type="checkbox" id="keyDepot" v-model="newBma.key_depot">
+                                                        <label class="form-check-label small fw-bold text-white" for="keyDepot">Schlüssel-Depot (FSD) vorhanden</label>
+                                                    </div>
+                                                    <div class="d-flex gap-2">
+                                                        <button class="btn btn-premium flex-grow-1 rounded-pill" @click="submitBma">
+                                                            <span v-if="activeBmaId">Speichern</span><span v-else>Objekt anlegen</span>
+                                                        </button>
+                                                        <button v-if="activeBmaId" class="btn btn-outline-light rounded-pill px-3" @click="cancelBmaEdit">Abbrechen</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- SUB-TAB BMA: right column for quick info card -->
+                                                <div class="col-12 col-lg-5">
+                                                    <div class="card premium-card p-4">
+                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-circle-info text-danger me-2"></i>Hinweise</h5>
+                                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-secondary border-opacity-10 small mb-3">
+                                                            <p class="text-white mb-1"><i class="fa fa-fire-extinguisher text-danger me-2"></i><strong>BMA = Brandmeldeanlage</strong></p>
+                                                            <p class="text-muted mb-1">Erfasse hier alle Objekte mit automatischen Meldern oder Sonderobjekte im Ausrückebereich.</p>
+                                                        </div>
+                                                        <div class="bg-black bg-opacity-20 p-3 rounded-3 border border-warning border-opacity-20 small">
+                                                            <p class="text-white mb-1"><i class="fa fa-key text-warning me-2"></i><strong>FSD = Feuerwehr-Schlüsseldepot</strong></p>
+                                                            <p class="text-muted mb-0">Markiere Objekte, bei denen ein Schlüsseldepot für schnellen Zugang vorhanden ist.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                </div>
+
+                <!-- TAB: VEREINSKASSE & BANK (früher unter Verwaltung) -->
+                <div v-show="activeTab === 'verein'" v-if="canSeeFinance">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-building-columns text-danger me-2"></i>Vereinskasse & Inventar</h2>
+                            <small class="text-muted">Kasse, Spenden, Mitgliedsbeiträge und Vereinsinventar</small>
+                        </div>
+                    </div>
+                    
+                <div>
+                                            <div class="row g-4">
+                                                <!-- Club finances and inventory -->
+                                                <div class="col-12 col-lg-8">
+                                                    <div class="card premium-card p-4 mb-4">
+                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-boxes text-danger me-2"></i>Vereinsinventar</h5>
+                                                        <div class="table-responsive">
+                                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Gegenstand</th>
+                                                                        <th>Menge</th>
+                                                                        <th>Zustand</th>
+                                                                        <th v-if="canManageMaterial">Aktion</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr v-for="item in clubInventory" :key="item.id">
+                                                                        <td><strong>{{ item.item_name }}</strong></td>
+                                                                        <td>{{ item.quantity }}x</td>
+                                                                        <td><span class="badge bg-success">{{ item.status }}</span></td>
+                                                                        <td v-if="canManageMaterial">
+                                                                            <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteClubItem(item.id)"><i class="fa fa-trash"></i></button>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr v-if="canManageMaterial">
+                                                                        <td><input type="text" v-model="newClubItem.item_name" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="z. B. Festzelt 4x8"></td>
+                                                                        <td><input type="number" v-model="newClubItem.quantity" class="form-control form-control-sm bg-dark border-secondary text-white" style="width: 70px;"></td>
+                                                                        <td><span class="badge bg-success">OK</span></td>
+                                                                        <td><button class="btn btn-xs btn-premium rounded-pill px-2" @click="submitClubItem"><i class="fa fa-plus"></i></button></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="card premium-card p-4">
+                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-hand-holding-dollar text-danger me-2"></i>Mitgliederbeiträge & Spenden</h5>
+                                                        <div class="table-responsive">
+                                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Spender / Mitglied</th>
+                                                                        <th>Betrag</th>
+                                                                        <th>Datum</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr v-for="d in clubDonations" :key="d.id">
+                                                                        <td><strong>{{ d.donor }}</strong></td>
+                                                                        <td class="text-success fw-bold">{{ d.amount.toFixed(2) }} €</td>
+                                                                        <td>{{ d.formatted_date }}</td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Add donation form -->
+                                                <div class="col-12 col-lg-4">
+                                                    <div class="card premium-card p-4 h-100">
+                                                        <h5 class="fw-bold text-white mb-3"><i class="fa fa-coins text-danger me-2"></i>Kassenbuch Eintrag</h5>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">Zahler / Spender</label>
+                                                            <input type="text" v-model="newDonation.donor" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schreinerei Huber" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">Betrag (€)</label>
+                                                            <input type="number" step="0.01" v-model="newDonation.amount" class="form-control bg-dark border-secondary text-white" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label text-white">Datum</label>
+                                                            <input type="date" v-model="newDonation.date" class="form-control bg-dark border-secondary text-white" required>
+                                                        </div>
+                                                        <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitDonation">Eintrag verbuchen</button>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Mitgliedsbeiträge -->
+                                                <div class="col-12">
+                                                    <div class="card premium-card p-4">
+                                                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                                            <h5 class="fw-bold text-white mb-0"><i class="fa fa-id-card text-danger me-2"></i>Mitgliedsbeiträge</h5>
+                                                            <select v-model="feesYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadMembershipFees">
+                                                                <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="table-responsive">
+                                                            <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Mitglied</th>
+                                                                        <th>Betrag (€)</th>
+                                                                        <th>Status</th>
+                                                                        <th class="text-end">Aktion</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr v-for="f in membershipFees" :key="f.personnel_id">
+                                                                        <td class="fw-bold text-white">{{f.name}}</td>
+                                                                        <td>
+                                                                            <input type="number" step="0.01" v-model.number="f.amount" style="width: 90px;" class="form-control form-control-sm bg-dark border-secondary text-white">
+                                                                        </td>
+                                                                        <td>
+                                                                            <span class="badge" :class="f.paid_at ? 'bg-success' : 'bg-secondary'">{{ f.paid_at ? ('Bezahlt am ' + dt(f.paid_at)) : 'Offen' }}</span>
+                                                                        </td>
+                                                                        <td class="text-end">
+                                                                            <button v-if="!f.paid_at" class="btn btn-xs btn-premium rounded-pill px-2" @click="toggleMembershipFee(f, true)">Als bezahlt markieren</button>
+                                                                            <button v-else class="btn btn-xs btn-outline-secondary rounded-pill px-2" @click="toggleMembershipFee(f, false)">Zurücksetzen</button>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr v-if="membershipFees.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine aktiven Mitglieder gefunden.</td></tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                
+                </div>
+

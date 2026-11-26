@@ -1,0 +1,98 @@
+                <!-- TAB 3: VEHICLES (FUHRPARK & FAHRTENBUCH) -->
+                <div v-show="activeTab === 'fahrzeuge'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-truck text-danger me-2"></i>Fahrzeuge <i class="fa fa-question-circle text-muted" style="font-size:1.1rem; cursor:pointer;" title="Hier verwaltest du den Fuhrpark und trägst Fahrtenbucheinträge ein. Status 1-6 zeigt den BOS Status."></i></h2>
+                            <small class="text-muted">Fahrtenbuch-Erfassung und FMS Status-Übersicht</small>
+                        </div>
+                        <button v-if="canManageVehicles" class="btn btn-premium rounded-pill btn-sm fw-bold" @click="openVehicleFormModal(null)"><i class="fa fa-plus me-1"></i>Fahrzeug anlegen</button>
+                    </div>
+                    <due-strip area="fahrzeuge" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-truck text-danger me-2"></i>Fahrzeug-Status</h5>
+                                <div class="list-group list-group-flush">
+                                    <div v-for="v in vehicles" :key="v.id" class="list-group-item bg-transparent text-white px-0 py-3 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <h6 class="fw-bold text-white mb-0">{{v.name}} <span v-if="v.required_license" class="badge bg-secondary rounded-pill ms-1" style="font-size:0.6rem;" title="Erforderliche Führerscheinklasse">FS {{v.required_license}}</span></h6>
+                                            <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}} &bull; {{v.milage}} km</small>
+                                            <div v-if="v.tuv_date || v.sp_date" class="small text-muted"><span v-if="v.tuv_date" :class="{'text-danger fw-bold': isOverdue(v.tuv_date)}">TÜV bis {{ dt(v.tuv_date) }}</span><span v-if="v.tuv_date && v.sp_date"> &bull; </span><span v-if="v.sp_date" :class="{'text-danger fw-bold': isOverdue(v.sp_date)}">SP bis {{ dt(v.sp_date) }}</span></div>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="status-dot" :class="'status-' + v.status"></span>
+                                            <select v-model="v.status" class="form-select form-select-sm w-auto" @change="quickStatusChange(v)" :disabled="!canManageMaterial">
+                                                <option :value="1">S1</option>
+                                                <option :value="2">S2</option>
+                                                <option :value="3">S3</option>
+                                                <option :value="4">S4</option>
+                                                <option :value="6">S6</option>
+                                            </select>
+                                            <div v-if="canManageMaterial" class="d-flex gap-1 ms-1">
+                                                <button class="btn btn-xs btn-outline-info border-0 p-1" @click="openChecklist(v)" title="Fahrzeug-Check"><i class="fa fa-clipboard-check text-info"></i></button>
+                                                <button class="btn btn-xs btn-outline-light border-0 p-1" @click="openVehicleFormModal(v)"><i class="fa fa-edit text-muted"></i></button>
+                                                <button class="btn btn-xs btn-outline-danger border-0 p-1" @click="deleteVehicle(v.id)"><i class="fa fa-trash text-danger"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-book-open text-danger me-2"></i>Fahrtenbuch</h5>
+                                    <button v-if="canManageMaterial && activeVehicleForLog" class="btn btn-premium btn-sm rounded-pill" @click="openLogRideModal"><i class="fa fa-plus me-1"></i>Fahrt eintragen</button>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Fahrzeug wählen</label>
+                                    <select v-model="activeVehicleForLog" class="form-select" @change="loadVehicleLogs">
+                                        <option :value="null">-- Bitte wählen --</option>
+                                        <option v-for="v in vehicles" :key="v.id" :value="v">{{v.name}} ({{v.radio_name}})</option>
+                                    </select>
+                                </div>
+
+                                <div v-if="activeVehicleForLog && vehicleLogs.length > 1" class="mb-3" style="height: 220px; position: relative;">
+                                    <canvas id="mileageChart"></canvas>
+                                </div>
+                                <div class="table-responsive" v-if="activeVehicleForLog">
+                                    <table class="table table-dark table-hover mb-0 align-middle">
+                                        <thead><tr class="text-muted small"><th>DATUM</th><th>FAHRER</th><th>ZWECK</th><th>KM START</th><th>KM ENDE</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="log in vehicleLogs" :key="log.id">
+                                                <td>{{dt(log.date)}}</td>
+                                                <td class="fw-bold text-white">{{log.driver_name}}</td>
+                                                <td>{{log.purpose}}</td>
+                                                <td>{{log.mileage_start}} KM</td>
+                                                <td>{{log.mileage_end}} KM</td>
+                                            </tr>
+                                            <tr v-if="vehicleLogs.length === 0">
+                                                <td colspan="5" class="text-center py-4 text-muted">Keine Fahrtenbucheinträge vorhanden.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="card premium-card p-4 mt-4" v-if="activeVehicleForLog">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold text-white mb-0"><i class="fa fa-calendar-days text-danger me-2"></i>Belegungsplan</h5>
+                                    <button class="btn btn-premium btn-sm rounded-pill" @click="openReservationModal"><i class="fa fa-plus me-1"></i>Reservieren</button>
+                                </div>
+                                <div class="d-flex flex-column gap-2">
+                                    <div v-for="res in vehicleReservations" :key="res.id" class="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <div class="text-white fw-bold small">{{res.purpose}}</div>
+                                            <div class="text-muted" style="font-size:0.75rem;"><i class="fa-regular fa-clock me-1"></i>{{ new Date(res.start_datetime).toLocaleString('de-DE') }} – {{ new Date(res.end_datetime).toLocaleString('de-DE') }} &bull; {{res.reserved_by}}</div>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteVehicleReservation(res.id)" title="Stornieren"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="vehicleReservations.length === 0" class="text-center py-3 text-muted small">Keine anstehenden Reservierungen.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>

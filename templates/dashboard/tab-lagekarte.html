@@ -1,0 +1,79 @@
+                <!-- TAB: LAGEKARTE & HYDRANTEN -->
+                <div v-show="activeTab === 'lagekarte'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-map-location-dot text-danger me-2"></i>Lagekarte</h2>
+                            <small class="text-muted">Digitale Lagekarte mit Wasserentnahmestellen, Brandmeldeanlagen (BMA) und Rettungswegen</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Map Column -->
+                        <div class="col-12 col-lg-8">
+                            <div class="card premium-card p-0 overflow-hidden shadow-lg border border-secondary border-opacity-10" style="position: relative; border-radius: 16px;">
+                                <div id="hydrantMap" style="height: 520px; width: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Objects list sidebar -->
+                        <div class="col-12 col-lg-4">
+                            <div class="card premium-card p-4 d-flex flex-column" style="height: 520px; max-height: 520px;">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-list text-danger me-2"></i>Kartenverzeichnis</h5>
+                                <input type="text" v-model="mapSearchQuery" class="form-control form-control-sm mb-3 bg-dark border-secondary text-white" placeholder="Objekt suchen...">
+                                
+                                <div class="btn-group btn-group-sm mb-3 w-100 shadow-sm" role="group">
+                                    <button class="btn fw-bold" :class="mapFilterCategory === 'all' ? 'btn-danger' : 'btn-outline-secondary'" @click="mapFilterCategory = 'all'">Alle</button>
+                                    <button class="btn fw-bold" :class="mapFilterCategory === 'hydrant' ? 'btn-danger' : 'btn-outline-secondary'" @click="mapFilterCategory = 'hydrant'">Hydranten</button>
+                                    <button class="btn fw-bold" :class="mapFilterCategory === 'bma' ? 'btn-danger' : 'btn-outline-secondary'" @click="mapFilterCategory = 'bma'">BMAs</button>
+                                </div>
+
+                                <div class="list-group list-group-flush flex-grow-1 overflow-auto pe-1" style="max-height: 320px;">
+                                    <!-- Hydrants list -->
+                                    <div v-for="h in filteredMapHydrants" :key="'h-'+h.id" class="list-group-item bg-transparent text-white px-0 py-2 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div style="cursor: pointer;" @click="panToCoords(h.lat, h.lng, 20)">
+                                            <i class="fa fa-location-crosshairs text-danger me-2"></i>
+                                            <span class="fw-bold small">{{ h.label }}</span>
+                                            <div class="text-muted" style="font-size:0.7rem;">{{ h.type }} &bull; GPS: {{ h.lat.toFixed(4) }}, {{ h.lng.toFixed(4) }}</div>
+                                        </div>
+                                        <button v-if="canManageSettings" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteHydrantItem(h.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    
+                                    <!-- BMAs list -->
+                                    <div v-for="b in filteredMapBmas" :key="'b-'+b.id" class="list-group-item bg-transparent text-white px-0 py-2 border-secondary border-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div style="cursor: pointer;" @click="b.lat ? panToCoords(b.lat, b.lng, 20) : null">
+                                            <i class="fa fa-building-shield text-warning me-2"></i>
+                                            <span class="fw-bold small">{{ b.object_name }}</span>
+                                            <div class="text-muted" style="font-size:0.7rem;">BMA-Nr: {{ b.bma_number }} &bull; FSD: {{ b.key_depot ? 'JA' : 'NEIN' }}</div>
+                                            <div v-if="!b.lat" class="text-warning" style="font-size:0.65rem;"><i class="fa fa-exclamation-triangle me-1"></i>Nicht auf Karte platziert</div>
+                                        </div>
+                                        <button v-if="canManageSettings" class="btn btn-xs btn-outline-danger rounded-pill px-2 border-0" @click="deleteBmaItem(b.id)"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                    <div v-if="filteredMapHydrants.length === 0 && filteredMapBmas.length === 0" class="text-center py-4 text-muted small">Keine passenden Objekte gefunden.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drone footage and air maps -->
+                    <div class="row g-4 mt-1">
+                        <div class="col-12">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-2"><i class="fa fa-images text-danger me-2"></i>Luftbilder & Wärmebildkameras</h5>
+                                <p class="text-muted small mb-3">Lade Drohnenaufnahmen oder Einsatzpläne hoch, um sie als taktische Orientierungshilfe zu sichern.</p>
+                                <div class="mb-3" v-if="canManageMaterial">
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" @change="uploadDroneImage">
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-3" v-for="img in droneImages" :key="img.id">
+                                        <div class="position-relative rounded overflow-hidden shadow-sm" style="height: 100px; border: 1px solid rgba(255,255,255,0.05);">
+                                            <a :href="img.url" target="_blank"><img :src="img.url" class="w-100 h-100 object-fit-cover"></a>
+                                            <button v-if="canManageMaterial" class="btn btn-xs btn-danger position-absolute top-0 end-0 p-1 m-1 border-0 rounded" @click="deleteDroneImage(img.id)"><i class="fa fa-trash" style="font-size: 8px;"></i></button>
+                                        </div>
+                                    </div>
+                                    <div v-if="droneImages.length === 0" class="col-12 text-center text-muted small py-3">Keine Luftbilder vorhanden.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            

@@ -1,0 +1,406 @@
+                       <!-- TAB 4: GERÄTE & MATERIAL -->
+                <div v-show="activeTab === 'material'">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 page-head">
+                        <div>
+                            <h2 class="fw-bold m-0 text-white"><i class="fa fa-screwdriver-wrench text-danger me-2"></i>Geräte & Material</h2>
+                            <small class="text-muted">Bestandsakten, Prüffristen und Sammelprüfungen</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button v-if="canManageMaterial" class="btn btn-premium rounded-pill px-3" @click="openEquipmentModal"><i class="fa fa-plus me-1"></i>Gerät erfassen</button>
+                            <button v-if="canManageMaterial" class="btn btn-outline-light rounded-pill px-3" @click="openBatchInspectModal"><i class="fa fa-qrcode me-1"></i>Sammelprüfung</button>
+                        </div>
+                    </div>
+
+                    <!-- Material sub-tabs: Geräteliste / Mängelmelder / Prüftermine / Funkgeräte -->
+                    <ul class="nav nav-pills mb-4 gap-2 pill-nav">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'geraete' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'geraete'"><i class="fa fa-list me-1"></i>Geräteliste</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link position-relative" :class="materialSubTab === 'maengel' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'maengel'; loadDefectReports()">
+                                <i class="fa fa-triangle-exclamation me-1"></i>Mängel
+                                <span v-if="defectReports.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size:0.6rem;">{{defectReports.length}}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'pruefungen' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'pruefungen'"><i class="fa fa-calendar-check me-1"></i>PSA & Prüffristen</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="materialSubTab === 'funk' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'funk'"><i class="fa fa-walkie-talkie me-1"></i>Funkgeräte (TETRA)</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link position-relative" :class="materialSubTab === 'verbrauch' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'verbrauch'; loadConsumables()">
+                                <i class="fa fa-box me-1"></i>Verbrauchsmaterial
+                                <span v-if="lowStockConsumables.length > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:0.6rem;">{{lowStockConsumables.length}}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" v-if="canManageMaterial">
+                            <button v-if="canManageBuildings" class="nav-link" :class="materialSubTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
+                        </li>
+                        <li class="nav-item ms-auto">
+                            <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
+                        </li>
+                    </ul>
+
+                    <!-- Geräteliste -->
+                    <div v-show="materialSubTab === 'geraete'">
+                        <due-strip area="material" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-4">
+                                <input type="text" v-model="eqSearch" class="form-control" placeholder="Nach Name / Barcode suchen...">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <select v-model="eqCategory" class="form-select">
+                                    <option value="">Alle Kategorien</option>
+                                    <option value="Schläuche">Schläuche</option>
+                                    <option value="Armaturen">Armaturen</option>
+                                    <option value="Werkzeug">Werkzeug</option>
+                                    <option value="Atemschutz">Atemschutz</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <button class="btn w-100 rounded-pill fw-bold" :class="filterDefectiveOnly ? 'btn-warning text-dark' : 'btn-outline-warning text-white border-warning border-opacity-50'" @click="filterDefectiveOnly = !filterDefectiveOnly">
+                                    <i class="fa fa-triangle-exclamation me-2"></i> <span v-if="filterDefectiveOnly">Nur Mängel/Defekte aktiv</span><span v-else>Nur Mängel anzeigen</span>
+                                </button>
+                                <div class="form-check form-switch mt-2 ms-2">
+                                    <input class="form-check-input" type="checkbox" id="showArchivedEq" v-model="showArchivedEquipment" @change="loadEquipment()">
+                                    <label class="form-check-label small text-muted" for="showArchivedEq">Archiv anzeigen</label>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                                    <span v-for="f in savedFilters.material" :key="f.name" class="badge rounded-pill bg-secondary d-inline-flex align-items-center gap-2" style="cursor:pointer; font-size:0.75rem;" @click="applySavedFilter('material', f)"><i class="fa fa-filter"></i>{{ f.name }}<i class="fa fa-times" title="Gespeicherten Filter löschen" @click.stop="deleteSavedFilter('material', f)"></i></span>
+                                    <button class="btn btn-sm btn-outline-light rounded-pill" @click="saveCurrentFilter('material')"><i class="fa fa-floppy-disk me-1"></i>Filter speichern</button>
+                                    <button v-if="filterIsActive('material')" class="btn btn-sm btn-link text-muted p-0" @click="resetFilter('material')">Zurücksetzen</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div v-for="eq in filteredEquipment" :key="eq.id" class="col-12 col-md-6 col-lg-4">
+                                <div class="equipment-item" @click="editEquipment(eq)">
+                                    <div class="mb-3">
+                                        <div>
+                                            <h4 class="fw-bold text-white mb-0">{{eq.name}}</h4>
+                                            <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                                                <small class="text-muted">ID: {{eq.barcode}} &bull; {{eq.category}}</small>
+                                                <span v-if="eq.current_status && eq.current_status !== 'Bestanden'" class="badge bg-danger ms-1" style="font-size:0.6rem; padding: 2px 5px;">
+                                                    <i class="fa-solid fa-triangle-exclamation me-1"></i>{{eq.current_status}}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <span class="badge mt-2" :class="isOverdue(eq.next_inspection)?'bg-danger':'bg-success'">
+                                            Nächste Prüfung: {{dt(eq.next_inspection) || 'keine'}}
+                                        </span>
+                                    </div>
+                                    <div class="bg-black bg-opacity-20 p-3 rounded-3 mb-3 border border-secondary border-opacity-10 small">
+                                        <div class="text-muted"><strong>Letzte Prüfung:</strong> <span class="text-white">{{dt(eq.last_inspection) || 'Nie'}}</span></div>
+                                        <div class="text-muted"><strong>Intervall:</strong> <span class="text-white">{{eq.interval_months}} Monate</span></div>
+                                    </div>
+                                    <div v-if="eq.loaned_to" class="p-2 rounded-3 mb-3 small" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.3);">
+                                        <i class="fa fa-user-clock text-warning me-1"></i>Ausgeliehen an <strong class="text-white">{{eq.loaned_to}}</strong> seit {{ new Date(eq.loaned_since).toLocaleDateString('de-DE') }}
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-sm btn-outline-light rounded-pill flex-fill" @click.stop="openInspectionsHistoryModal(eq)"><i class="fa fa-history me-1"></i>Verlauf</button>
+                                        <button v-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill flex-fill" @click.stop="openAddInspectionModal(eq)"><i class="fa fa-check me-1"></i>Prüfen</button>
+                                        <button v-if="!eq.loaned_to" class="btn btn-sm btn-outline-info rounded-pill" @click.stop="openLoanModal(eq)" title="Ausleihen"><i class="fa fa-hand-holding"></i></button>
+                                        <button v-else class="btn btn-sm btn-info rounded-pill text-dark" @click.stop="returnEquipmentLoan(eq)" title="Zurückgeben"><i class="fa fa-rotate-left"></i></button>
+                                        <button class="btn btn-sm btn-outline-warning rounded-pill" @click.stop="openDefectReportModal(eq)" title="Mangel melden"><i class="fa fa-triangle-exclamation"></i></button>
+                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click.stop="openEquipmentReportPdf(eq)" title="Prüf- und Mängelnachweis als PDF"><i class="fa fa-file-pdf"></i></button>
+                                        <button v-if="canManageMaterial && !showArchivedEquipment" class="btn btn-sm btn-outline-secondary rounded-pill" @click.stop="archiveEquipment(eq, true)" title="Archivieren (statt löschen)"><i class="fa fa-box-archive"></i></button>
+                                        <button v-if="canManageMaterial && showArchivedEquipment" class="btn btn-sm btn-outline-success rounded-pill" @click.stop="archiveEquipment(eq, false)" title="Wiederherstellen"><i class="fa fa-box-open"></i></button>
+                                        <button v-if="canManageMaterial" class="btn btn-sm btn-outline-danger rounded-pill" @click.stop="deleteEquipmentFromSubtab(eq.id)" title="Gerät löschen"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="filteredEquipment.length === 0" class="col-12 empty-state">
+                                <i class="fa-solid fa-toolbox"></i>
+                                <p>{{ filterIsActive('geraete') ? 'Kein Gerät passt zur Auswahl.' : 'Noch keine Geräte erfasst.' }}</p>
+                                <button v-if="filterIsActive('geraete')" class="btn btn-sm btn-outline-light rounded-pill" @click="resetFilter('geraete')">Filter zurücksetzen</button>
+                                <button v-else-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill" @click="openEquipmentModal">Erstes Gerät erfassen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mängelmelder -->
+                    <div v-show="materialSubTab === 'maengel'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-triangle-exclamation text-warning me-2"></i>Gemeldete Mängel</h5>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Offen' ? 'btn-warning text-dark' : 'btn-outline-secondary text-white'" @click="defectFilter='Offen'; loadDefectReports()">Offen</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'In Bearbeitung' ? 'btn-info text-dark' : 'btn-outline-secondary text-white'" @click="defectFilter='In Bearbeitung'; loadDefectReports()">In Bearbeitung</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'Erledigt' ? 'btn-success' : 'btn-outline-secondary text-white'" @click="defectFilter='Erledigt'; loadDefectReports()">Erledigt</button>
+                                            <button class="btn btn-sm rounded-pill" :class="defectFilter === 'alle' ? 'btn-secondary' : 'btn-outline-secondary text-white'" @click="defectFilter='alle'; loadDefectReports()">Alle</button>
+                                        </div>
+                                    </div>
+                                    <div v-if="defectReports.length === 0" class="text-center py-5 text-muted">
+                                        <i class="fa fa-circle-check fa-3x mb-3 text-success"></i>
+                                        <p class="fw-bold">{{ defectFilter === 'Offen' ? 'Keine offenen Mängel vorhanden!' : 'Keine Mängel in dieser Ansicht.' }}</p>
+                                    </div>
+                                    <div v-for="dr in defectReports" :key="dr.id" class="p-3 mb-3 rounded-3 border" :class="dr.severity === 'Kritisch' ? 'border-danger bg-danger bg-opacity-10' : dr.severity === 'Mittel' ? 'border-warning bg-warning bg-opacity-10' : 'border-secondary bg-black bg-opacity-20'">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div>
+                                                <span class="badge me-2" :class="dr.severity === 'Kritisch' ? 'bg-danger' : dr.severity === 'Mittel' ? 'bg-warning text-dark' : 'bg-secondary'">{{dr.severity}}</span>
+                                                <span class="badge" :class="dr.status === 'Erledigt' ? 'bg-success' : dr.status === 'In Bearbeitung' ? 'bg-warning text-dark' : 'bg-danger'">{{dr.status}}</span>
+                                            </div>
+                                            <small class="text-muted">{{dr.created_at ? dt(dr.created_at.substring(0,10)) : ''}}</small>
+                                        </div>
+                                        <h6 class="fw-bold text-white mb-1"><i class="fa fa-screwdriver-wrench me-1 text-muted"></i>{{dr.equipment_name}} <small class="text-muted fw-normal">(ID: {{dr.barcode}})</small></h6>
+                                        <p class="text-white mb-2 small">{{dr.description}}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted"><i class="fa fa-user me-1"></i>Gemeldet von: <strong class="text-white">{{dr.reporter_name}}</strong></small>
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <div v-if="canManageMaterial && dr.status !== 'Erledigt'" class="d-flex gap-1">
+                                                    <button class="btn btn-xs btn-success rounded-pill px-2" @click="resolveDefect(dr.id, 'Erledigt')" style="font-size:0.7rem;"><i class="fa fa-check me-1"></i>Erledigt</button>
+                                                    <button v-if="dr.status !== 'In Bearbeitung'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="resolveDefect(dr.id, 'In Bearbeitung')" style="font-size:0.7rem;">In Bearbeitung</button>
+                                                </div>
+                                                <small v-else-if="dr.status === 'Erledigt'" class="text-muted me-2">Erledigt: <strong class="text-success">{{dr.resolved_by}}</strong></small>
+                                                <button v-if="canManageMaterial && dr.status === 'Erledigt'" class="btn btn-xs btn-outline-light rounded-pill px-2" @click="resolveDefect(dr.id, 'Offen')" style="font-size:0.7rem;"><i class="fa fa-rotate-left me-1"></i>Wieder öffnen</button>
+                                                <button class="btn btn-xs btn-outline-light rounded-pill px-2" @click="toggleDefectComments(dr)" style="font-size:0.7rem;"><i class="fa fa-comments me-1"></i>Rückfragen<span v-if="dr.comment_count"> ({{dr.comment_count}})</span></button>
+                                                <button v-if="canManageMaterial" class="btn btn-xs btn-outline-danger rounded-pill px-2" @click="deleteDefectReport(dr.id)" style="font-size:0.7rem;"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2 mt-2 small">
+                                            <span class="text-muted"><i class="fa fa-user-check me-1"></i>Zuständig:</span>
+                                            <input v-if="canManageMaterial && dr.status !== 'Erledigt'" type="text" v-model="dr.assigned_to" class="form-control form-control-sm w-auto" style="min-width:160px;" placeholder="Name eintragen" @change="saveDefectAssignee(dr)">
+                                            <strong v-else class="text-white">{{ dr.assigned_to || '—' }}</strong>
+                                        </div>
+                                        <div v-if="openDefectId === dr.id" class="mt-3 pt-3 border-top border-secondary border-opacity-25">
+                                            <div v-if="defectComments.length === 0" class="text-muted small mb-2">Noch keine Rückfragen oder Verlaufseinträge.</div>
+                                            <div v-for="c in defectComments" :key="c.id" class="small mb-2">
+                                                <strong class="text-white">{{c.author}}</strong> <span class="text-muted">{{ dt(c.created_at) }}</span>
+                                                <div class="text-white-50" style="white-space: pre-wrap;">{{c.text}}</div>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <input type="text" v-model="newDefectComment" class="form-control form-control-sm" placeholder="Rückfrage oder Antwort schreiben …" maxlength="2000" @keyup.enter="sendDefectComment(dr)">
+                                                <button class="btn btn-sm btn-premium rounded-pill px-3" @click="sendDefectComment(dr)"><i class="fa fa-paper-plane"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-exclamation-circle text-warning me-2"></i>Mangel melden</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">Gerät auswählen</label>
+                                        <select v-model="newDefect.equipment_id" class="form-select">
+                                            <option :value="null">-- Gerät wählen --</option>
+                                            <option v-for="eq in equipment" :key="eq.id" :value="eq.id">{{eq.name}} ({{eq.barcode}})</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Beschreibung des Mangels</label>
+                                        <textarea v-model="newDefect.description" class="form-control" rows="3" placeholder="Was ist defekt / mangelhaft?"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Dringlichkeit</label>
+                                        <select v-model="newDefect.severity" class="form-select">
+                                            <option value="Gering">Gering (kein Einsatzhindernis)</option>
+                                            <option value="Mittel" selected>Mittel (baldige Reparatur)</option>
+                                            <option value="Kritisch">Kritisch (sofort außer Betrieb!)</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-warning w-100 rounded-pill fw-bold text-dark" @click="submitDefectReport"><i class="fa fa-triangle-exclamation me-2"></i>Mangel melden</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: PRÜFUNGEN (PSA & Prüffristen) -->
+                    <div v-show="materialSubTab === 'pruefungen'">
+                        <div class="row g-4">
+                            <!-- Inspection planner list -->
+                            <div class="col-12">
+                                <div class="card premium-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-clock text-danger me-2"></i>Geräteprüfungs-Fristen</h5>
+                                        <button v-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill" @click="addPsaEquipment"><i class="fa fa-plus me-1"></i>Objekt anlegen</button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Barcode/ID</th>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Kategorie</th>
+                                                    <th>Letzte Prüfung</th>
+                                                    <th>Intervall</th>
+                                                    <th>Status</th>
+                                                    <th v-if="canManageMaterial" class="text-end">Aktion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in equipInspectSchedule" :key="item.barcode">
+                                                    <td class="font-monospace text-danger">{{ item.barcode }}</td>
+                                                    <td><strong>{{ item.name }}</strong></td>
+                                                    <td>{{ item.category }}</td>
+                                                    <td>{{ item.lastTest }}</td>
+                                                    <td>{{ item.interval }} Monate</td>
+                                                    <td>
+                                                        <span class="badge" :class="item.status === 'OK' || item.status === 'Bestanden' ? 'bg-success' : 'bg-warning text-dark'">{{ item.status }}</span>
+                                                    </td>
+                                                    <td v-if="canManageMaterial" class="text-end">
+                                                        <div class="d-flex justify-content-end gap-1">
+                                                            <button class="btn btn-sm btn-outline-light p-1 border-0" @click="editEquipment(item.rawEq)" title="Bearbeiten"><i class="fa fa-edit"></i></button>
+                                                            <button class="btn btn-sm btn-outline-danger p-1 border-0" @click="deleteEquipmentFromSubtab(item.id)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="equipInspectSchedule.length === 0">
+                                                    <td colspan="7" class="text-center text-muted py-3">Keine Geräteprüfungen erfasst.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: FUNK (TETRA MRT/HRT) -->
+                    <div v-show="materialSubTab === 'funk'">
+                        <div class="row g-4">
+                            <div class="col-12">
+                                <div class="card premium-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="fw-bold text-white mb-0"><i class="fa fa-walkie-talkie text-danger me-2"></i>Funkgeräte (TETRA MRT/HRT)</h5>
+                                        <button v-if="canManageMaterial" class="btn btn-sm btn-premium rounded-pill" @click="addFunkEquipment"><i class="fa fa-plus me-1"></i>Gerät anlegen</button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
+                                            <thead>
+                                                <tr>
+                                                    <th>Bezeichnung</th>
+                                                    <th>Typ</th>
+                                                    <th>Barcode</th>
+                                                    <th>Letzte Prüfung</th>
+                                                    <th>Status</th>
+                                                    <th v-if="canManageMaterial" class="text-end">Aktion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="dev in funkDevices" :key="dev.id">
+                                                    <td><strong>{{ dev.name }}</strong></td>
+                                                    <td>{{ dev.type }}</td>
+                                                    <td class="text-muted font-monospace">{{ dev.barcode }}</td>
+                                                    <td>{{ dev.lastInspection }}</td>
+                                                    <td><span class="badge" :class="dev.currentStatus === 'Bestanden' ? 'bg-success' : 'bg-danger'">{{ dev.currentStatus }}</span></td>
+                                                    <td v-if="canManageMaterial" class="text-end">
+                                                        <div class="d-flex justify-content-end gap-1">
+                                                            <button class="btn btn-sm btn-outline-light p-1 border-0" @click="editEquipment(dev.rawEq)" title="Bearbeiten"><i class="fa fa-edit"></i></button>
+                                                            <button class="btn btn-sm btn-outline-danger p-1 border-0" @click="deleteEquipmentFromSubtab(dev.id)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr v-if="funkDevices.length === 0">
+                                                    <td colspan="6" class="text-center text-muted py-3">Keine Funkgeräte erfasst.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTAB: VERBRAUCHSMATERIAL / BESTANDSALARM -->
+                    <div v-show="materialSubTab === 'verbrauch'">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-box text-danger me-2"></i>Verbrauchsmaterial-Bestand</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-hover align-middle small">
+                                            <thead><tr class="text-muted"><th>Bezeichnung</th><th>Bestand</th><th>Mindestbestand</th><th>Notiz</th><th></th></tr></thead>
+                                            <tbody>
+                                                <tr v-for="c in consumables" :key="c.id" :class="{'table-danger': c.min_stock > 0 && c.current_stock <= c.min_stock}">
+                                                    <td class="fw-bold text-white">{{c.name}}</td>
+                                                    <td>
+                                                        <input type="number" step="0.5" v-model.number="c.current_stock" style="width:80px;" class="form-control form-control-sm bg-dark border-secondary text-white d-inline-block" @change="saveConsumable(c)"> {{c.unit}}
+                                                    </td>
+                                                    <td>{{c.min_stock}} {{c.unit}}</td>
+                                                    <td class="text-muted">{{c.note}}</td>
+                                                    <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteConsumable(c.id)"><i class="fa fa-trash"></i></button></td>
+                                                </tr>
+                                                <tr v-if="consumables.length === 0"><td colspan="5" class="text-center py-3 text-muted">Kein Verbrauchsmaterial erfasst.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card premium-card p-4">
+                                    <h5 class="fw-bold text-white mb-3"><i class="fa fa-plus text-danger me-2"></i>Material erfassen</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Bezeichnung</label>
+                                        <input type="text" v-model="newConsumable.name" class="form-control bg-dark border-secondary text-white" placeholder="z. B. Schaummittel">
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Einheit</label>
+                                            <input type="text" v-model="newConsumable.unit" class="form-control bg-dark border-secondary text-white" placeholder="Stk, L, kg...">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-white">Aktueller Bestand</label>
+                                            <input type="number" step="0.5" v-model.number="newConsumable.current_stock" class="form-control bg-dark border-secondary text-white">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Mindestbestand (Warnschwelle)</label>
+                                        <input type="number" step="0.5" v-model.number="newConsumable.min_stock" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white">Notiz</label>
+                                        <input type="text" v-model="newConsumable.note" class="form-control bg-dark border-secondary text-white">
+                                    </div>
+                                    <button class="btn btn-premium w-100 rounded-pill py-2" @click="submitConsumable">Hinzufügen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                
+                <div v-show="materialSubTab === 'gebaeude'" v-if="canManageBuildings">
+                    <due-strip area="gebaeude" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
+                                            <div class="card premium-card p-4">
+                                                <h5 class="fw-bold text-white mb-1"><i class="fa fa-building me-2"></i>Gerätehaus-Prüfungen</h5>
+                                                <small class="text-muted d-block mb-3">Wiederkehrende Prüfungen am Gebäude. Fällige Prüfungen erscheinen automatisch in den Erinnerungen. Die Vorschläge sind nur Richtwerte – bitte mit eurer Gemeinde und Versicherung abgleichen.</small>
+                                                <div class="d-flex flex-wrap gap-2 mb-3" v-if="!buildingForm.id">
+                                                    <button v-for="s in buildingSuggestions" :key="s.name" type="button" class="btn btn-outline-light btn-sm rounded-pill" @click="applyBuildingSuggestion(s)">+ {{ s.name }}</button>
+                                                </div>
+                                                <div class="row g-2 align-items-end mb-4">
+                                                    <div class="col-12 col-md-4"><label class="small text-muted fw-bold mb-1">Prüfung</label><input type="text" class="form-control form-control-sm" v-model="buildingForm.name" maxlength="255" placeholder="z. B. Feuerlöscher"></div>
+                                                    <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Alle (Monate)</label><input type="number" min="1" max="240" class="form-control form-control-sm" v-model.number="buildingForm.interval_months"></div>
+                                                    <div class="col-6 col-md-2"><label class="small text-muted fw-bold mb-1">Zuletzt geprüft</label><input type="date" class="form-control form-control-sm" v-model="buildingForm.last_check"></div>
+                                                    <div class="col-12 col-md-2"><label class="small text-muted fw-bold mb-1">Zuständig</label><input type="text" class="form-control form-control-sm" v-model="buildingForm.responsible" maxlength="255"></div>
+                                                    <div class="col-12 col-md-2 d-flex gap-1">
+                                                        <button class="btn btn-premium btn-sm rounded-pill flex-fill" @click="saveBuildingCheck"><i class="fa" :class="buildingForm.id ? 'fa-save' : 'fa-plus'"></i> {{ buildingForm.id ? 'Speichern' : 'Anlegen' }}</button>
+                                                        <button v-if="buildingForm.id" class="btn btn-outline-light btn-sm rounded-pill" @click="resetBuildingForm" title="Abbrechen"><i class="fa fa-xmark"></i></button>
+                                                    </div>
+                                                </div>
+                                                <div class="table-responsive">
+                                                    <table class="table table-dark table-hover align-middle small mb-0">
+                                                        <thead><tr class="text-muted"><th>PRÜFUNG</th><th>INTERVALL</th><th>ZULETZT</th><th>NÄCHSTE</th><th>ZUSTÄNDIG</th><th class="text-end">AKTION</th></tr></thead>
+                                                        <tbody>
+                                                            <tr v-for="c in buildingChecks" :key="c.id">
+                                                                <td class="fw-bold text-white">{{ c.name }}</td>
+                                                                <td>{{ c.interval_months }} Mon.</td>
+                                                                <td>{{ c.last_check ? new Date(c.last_check).toLocaleDateString('de-DE') : 'noch nie' }}</td>
+                                                                <td><span class="badge" :class="buildingStatus(c).cls">{{ c.next_check ? new Date(c.next_check).toLocaleDateString('de-DE') : '–' }} · {{ buildingStatus(c).label }}</span></td>
+                                                                <td>{{ c.responsible || '–' }}</td>
+                                                                <td class="text-end text-nowrap">
+                                                                    <button class="btn btn-sm btn-outline-light rounded-pill py-0 me-1" @click="markBuildingDone(c)"><i class="fa fa-check me-1"></i>Heute geprüft</button>
+                                                                    <button class="btn btn-sm btn-outline-light border-0 p-1" @click="editBuildingCheck(c)" title="Bearbeiten"><i class="fa fa-pen"></i></button>
+                                                                    <button class="btn btn-sm btn-outline-danger border-0 p-1" @click="deleteBuildingCheck(c)" title="Löschen"><i class="fa fa-trash"></i></button>
+                                                                </td>
+                                                            </tr>
+                                                            <tr v-if="buildingChecks.length === 0"><td colspan="6" class="text-center py-4 text-muted">Noch keine Prüfungen eingetragen – oben eine Vorlage antippen.</td></tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                </div>
+
