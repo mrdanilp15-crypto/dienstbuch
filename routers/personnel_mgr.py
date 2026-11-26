@@ -291,6 +291,7 @@ def get_avatar(member_id: int, request: Request):
 # --- KORREKTUR: MITGLIED NEU ANLEGEN UND SOFORT ALLERWEGS FREISCHALTEN ---
 @router.post("/add")
 def add_member(m: PersonnelMember, request: Request):
+    new_id = None
     user = check_auth(request, permission="personnel.manage")
     if not m.name or len(m.name.strip()) == 0:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein!")
@@ -333,6 +334,8 @@ def add_member(m: PersonnelMember, request: Request):
                      m.emergency_contact_name, m.emergency_contact_phone,
                      clean_name))
         conn.commit()
+        cur.execute("SELECT id FROM personnel WHERE name = %s", (clean_name,))
+        new_id = cur.fetchone()[0]
     except Exception as e:
         conn.rollback()
         print(f"Fehler beim Hinzufügen: {e}")
@@ -344,7 +347,7 @@ def add_member(m: PersonnelMember, request: Request):
     internal_sync_personnel_to_groups()
     from core.utils import log_audit_action
     log_audit_action(user["username"], "PERSONAL_ANLEGEN", f"Mitglied '{clean_name}' neu angelegt.")
-    return {"status": "success"}
+    return {"status": "success", "id": new_id}
 
 @router.post("/license-checked")
 def mark_licenses_checked(data: dict, request: Request):

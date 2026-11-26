@@ -51,6 +51,13 @@
                                     <div class="col-md-6"><label class="form-label">Dienstausweis-Nr.</label><input type="text" v-model="activePersonnel.badge_number" class="form-control" placeholder="Ausweis ID..."></div>
                                     <div class="col-md-6"><label class="form-label">Telefonnummer</label><input type="text" v-model="activePersonnel.phone" class="form-control" placeholder="Handy / Festnetz..."></div>
                                     <div class="col-md-12"><label class="form-label">E-Mail-Adresse</label><input type="email" v-model="activePersonnel.email" class="form-control" placeholder="name@beispiel.de"></div>
+                                    <div v-if="!activePersonnel.id && role === 'admin' && activePersonnel.email" class="col-md-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="inviteNewMember" v-model="inviteNew.on">
+                                            <label class="form-check-label" for="inviteNewMember">Gleich ein Konto anlegen und per E-Mail einladen (Rolle Mannschaft)</label>
+                                        </div>
+                                        <input v-if="inviteNew.on" type="text" class="form-control mt-2" v-model="inviteNew.username" :placeholder="'Benutzername: ' + suggestUsername(activePersonnel.name)" aria-label="Benutzername für das neue Konto">
+                                    </div>
                                     <div class="col-md-12"><label class="form-label">Adresse</label><textarea v-model="activePersonnel.address" class="form-control" rows="2" placeholder="Straße, Hausnummer, PLZ Ort"></textarea></div>
                                     <div class="col-md-12 mt-2">
                                         <div class="p-3 rounded-3 border" style="background: rgba(183, 28, 28, 0.08); border-color: rgba(183, 28, 28, 0.3) !important;">

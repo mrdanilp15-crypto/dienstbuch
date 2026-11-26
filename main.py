@@ -40,7 +40,7 @@ from routers import planning_api
 from core.pages import dashboard_html
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.86"
+CURRENT_VERSION = "2.87"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -1382,6 +1382,19 @@ def init_db_extensions():
         except Exception as m_err:
             print("Fehler bei missions Freigabe Migration:", m_err)
 
+        # Automatische Abläufe: Erinnerung an offene Berichte, Mängel aus der Fahrzeug-Checkliste, Monatsbericht
+        for table, column, ddl in (
+            ("missions", "reminded_at", "ADD COLUMN reminded_at DATETIME NULL"),
+            ("equipment_defect_reports", "vehicle_id", "ADD COLUMN vehicle_id INT NULL, MODIFY equipment_id INT NULL"),
+            ("mail_settings", "monthly_report", "ADD COLUMN monthly_report BOOLEAN DEFAULT FALSE"),
+        ):
+            try:
+                cur.execute(f"SHOW COLUMNS FROM {table} LIKE '{column}'")
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE {table} {ddl}")
+            except Exception as m_err:
+                print(f"Fehler bei Migration {table}.{column}:", m_err)
+
         # Einsaetze ohne Gruppe (frueher per Alarm angelegt) bekommen die Alarm-Gruppe - sonst standen sie in jeder Dienstliste
         try:
             from core.utils import alarm_group_id
@@ -1538,12 +1551,15 @@ async def start_reminder_scheduler():
     async def _schedule_reminder_loop():
         # Stuendlich: erinnert 24 h vor jedem Termin (siehe core/schedule_notify.py)
         from core.schedule_notify import check_schedule_reminders, check_schedule_nudges, check_poll_reminders
+        from core.automation import check_open_reports, run_monthly_report
         await asyncio.sleep(120)
         while True:
             try:
                 await asyncio.to_thread(check_schedule_reminders)
                 await asyncio.to_thread(check_schedule_nudges)
                 await asyncio.to_thread(check_poll_reminders)
+                await asyncio.to_thread(check_open_reports)
+                await asyncio.to_thread(run_monthly_report)
             except Exception as e:
                 print(f"Termin-Erinnerung Fehler: {e}")
             await asyncio.sleep(3600)

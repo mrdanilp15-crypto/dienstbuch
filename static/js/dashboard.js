@@ -193,6 +193,8 @@ applyChartTheme();
                     newWish: { course_name: '', note: '', personnel_id: '' },
                     wishFilter: 'alle',
                     wishForOther: false,
+                    inviteNew: { on: false, username: '' },
+                    reportSending: false,
                     polls: [],
                     canManagePolls: false,
                     pollForm: null,

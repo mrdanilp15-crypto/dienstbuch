@@ -128,7 +128,8 @@ window.DB_MIXINS.push({
                         });
                         if (res.ok) {
                             bootstrap.Modal.getInstance(document.getElementById('vehicleCheckModal')).hide();
-                            await appAlert("Fahrzeug-Check erfolgreich gespeichert!");
+                            const defect = (await res.json().catch(() => ({}))).defect;
+                            await appAlert("Fahrzeug-Check erfolgreich gespeichert!" + (!defect ? "" : defect.new ? " Der Mangel wurde angelegt und der Gerätewart benachrichtigt." : " Der Mangel war schon gemeldet, der Check wurde dort vermerkt."));
                             await this.loadVehicles(); // update status if needed
                         } else {
                             await appAlert("Fahrzeug-Check konnte nicht gespeichert werden.");

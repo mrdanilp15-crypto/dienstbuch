@@ -195,7 +195,7 @@ window.DB_MIXINS.push({
                             this.activeTab = 'fristen';
                         } else if (type === 'alarm') {
                             this.activeTab = 'apager';
-                        } else if (type === 'lehrgaenge' || type === 'umfragen') {
+                        } else if (type === 'lehrgaenge' || type === 'umfragen' || type === 'einsaetze') {
                             this.activeTab = type;
                         } else if (type === 'kalender') {
                             this.activeTab = 'kalender';

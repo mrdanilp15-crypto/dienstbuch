@@ -6,6 +6,21 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 37,
+        "version": "2.87",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Einsätze", "title": "Erinnerung an offene Berichte",
+             "text": "Liegt ein Einsatzbericht seit drei Tagen als Entwurf oder wartet auf Freigabe, werden die Zuständigen gebündelt erinnert, danach höchstens wöchentlich."},
+            {"type": "new", "tag": "Fahrzeuge", "title": "Mangel direkt aus der Fahrzeug-Checkliste",
+             "text": "Nicht abgehakte Punkte werden automatisch als Mangel angelegt und der Gerätewart benachrichtigt. Ist derselbe Mangel noch offen, kommt nur ein Vermerk dazu."},
+            {"type": "new", "tag": "Personal", "title": "Neues Mitglied gleich einladen",
+             "text": "Beim Anlegen mit E-Mail-Adresse lässt sich in einem Schritt ein verknüpftes Konto erstellen und die Einladung verschicken (nur Admin)."},
+            {"type": "new", "tag": "E-Mail", "title": "Monatsbericht",
+             "text": "Unter Einstellungen → E-Mail-Versand einschaltbar: Am Monatsanfang gehen Einsätze, Dienste, Stunden, offene Mängel und überfällige Fristen an Admin und Leitung."},
+        ],
+    },
+    {
         "id": 36,
         "version": "2.86",
         "date": "2026-11-26",

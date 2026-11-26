@@ -762,7 +762,40 @@ def add_vehicle_check(veh_id: int, check: VehicleCheckCreate, request: Request):
         VALUES (%s, %s, %s, %s, %s, %s)
     """, (veh_id, check.date, check.checker_name, check.status, json.dumps(check.items_checked), check.notes))
     conn.commit(); cur.close(); conn.close()
-    return {"status": "success"}
+    defect = _defect_from_check(veh_id, check, user["username"]) if check.status == "Mängel" else None
+    return {"status": "success", "defect": defect}
+
+
+def _defect_from_check(veh_id: int, check, username: str):
+    """Nicht abgehakte Punkte werden zum Mangel. Ist derselbe Mangel noch offen, kommt nur ein Vermerk dazu."""
+    from core.notify import notify
+    from core.permissions import users_with
+    failed = [name for name, ok in (check.items_checked or {}).items() if not ok]
+    if not failed:
+        return None
+    head = "Fahrzeug-Check, nicht in Ordnung: " + ", ".join(failed)
+    notes = (check.notes or "").strip()
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT name FROM vehicles WHERE id = %s", (veh_id,))
+        vehicle = cur.fetchone()
+        if not vehicle:
+            return None
+        cur.execute("SELECT id, description FROM equipment_defect_reports WHERE vehicle_id = %s AND status != 'Erledigt'", (veh_id,))
+        same = next((r for r in cur.fetchall() if r["description"].split("\n")[0] == head), None)
+        if same:
+            cur.execute("INSERT INTO defect_comments (report_id, author, text) VALUES (%s, %s, %s)",
+                        (same["id"], username, ("Beim Check erneut festgestellt. " + notes).strip()[:2000]))
+            conn.commit()
+            return {"id": same["id"], "new": False}
+        cur.execute("INSERT INTO equipment_defect_reports (equipment_id, vehicle_id, reporter_name, description, severity, priority) "
+                    "VALUES (NULL, %s, %s, %s, 'Mittel', 'Mittel')", (veh_id, username, head + ("\n" + notes if notes else "")))
+        defect_id = cur.lastrowid
+        conn.commit()
+    finally:
+        cur.close(); conn.close()
+    notify("maengel", f"Neuer Mangel: Fahrzeug {vehicle['name']}", head, f"/dashboard?open=maengel:{defect_id}", usernames=users_with("material.manage"))
+    return {"id": defect_id, "new": True}
 
 @router.delete("/vehicles/checks/{check_id}")
 def delete_vehicle_check(check_id: int, request: Request):

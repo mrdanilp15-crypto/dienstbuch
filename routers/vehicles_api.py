@@ -111,6 +111,8 @@ def delete_vehicle(id: int, request: Request):
     c = get_db_connection(); cur = c.cursor(dictionary=True)
     cur.execute("SELECT name FROM vehicles WHERE id=%s", (id,))
     row = cur.fetchone()
+    cur.execute("DELETE FROM defect_comments WHERE report_id IN (SELECT id FROM equipment_defect_reports WHERE vehicle_id=%s)", (id,))
+    cur.execute("DELETE FROM equipment_defect_reports WHERE vehicle_id=%s", (id,))  # Mängel aus der Checkliste
     cur.execute("DELETE FROM vehicles WHERE id=%s", (id,))
     c.commit(); c.close()
     log_audit_action(user["username"], "FAHRZEUG_LOESCHEN", f"Fahrzeug ID {id} ('{row['name'] if row else '?'}') gelöscht.")

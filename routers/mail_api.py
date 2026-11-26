@@ -32,6 +32,7 @@ class MailSettingsIn(BaseModel):
     app_url: str = ""
     alarm_mail: bool = False
     reminder_mail: bool = True
+    monthly_report: bool = False
 
 
 @router.get("/api/admin/mail-settings")
@@ -50,7 +51,28 @@ def get_settings(request: Request):
         "app_url": s.get("app_url") or "",
         "alarm_mail": bool(s.get("alarm_mail")),
         "reminder_mail": bool(s.get("reminder_mail")) if s else True,
+        "monthly_report": bool(s.get("monthly_report")),
     }
+
+
+@router.post("/api/admin/monthly-report/test")
+def send_monthly_report_to_me(request: Request):
+    """Der Bericht des Vormonats nur an die eigene Adresse - zum Ansehen, ohne auf den Monatsersten zu warten."""
+    user = check_auth(request, require_admin=True)
+    from datetime import date
+    from core.automation import build_monthly_report, previous_month
+    from core.security import get_user_email
+    email = get_user_email(user["username"])
+    if not email:
+        raise HTTPException(status_code=400, detail="Für dein Konto ist keine E-Mail-Adresse hinterlegt (verknüpfte Personalakte).")
+    if not is_mail_configured(get_mail_settings()):
+        raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet.")
+    subject, body = build_monthly_report(*previous_month(date.today()))
+    try:
+        send_mail([email], subject, body)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Versand fehlgeschlagen: {e}")
+    return {"status": "success", "email": email}
 
 
 @router.put("/api/admin/mail-settings")
@@ -75,6 +97,7 @@ def save_settings(data: MailSettingsIn, request: Request):
         "app_url": app_url,
         "alarm_mail": data.alarm_mail,
         "reminder_mail": data.reminder_mail,
+        "monthly_report": data.monthly_report,
     }
     if data.smtp_password:
         fields["smtp_password_enc"] = encrypt_secret(data.smtp_password)

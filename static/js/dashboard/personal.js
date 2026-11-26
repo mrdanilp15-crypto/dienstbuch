@@ -31,6 +31,7 @@ window.DB_MIXINS.push({
                     } catch(e) { console.error("Error loading personnel", e); }
                 },
                 openPersonnelModal() {
+                    this.inviteNew = { on: false, username: '' };
                     this.activePersonnel = { id: null, name: '', rank: '', membership_status: 'Aktiv', phone: '', email: '', address: '', badge_number: '', birth_date: null, entry_date: null, honors: '', profile_picture: '', has_picture: false, courses: [], gearList: [], emergency_contact_name: '', emergency_contact_phone: '' };
                     this.qualifications.forEach(q => this.activePersonnel[q.id] = false);
                     ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => this.activePersonnel[k] = false);
@@ -75,14 +76,30 @@ window.DB_MIXINS.push({
                         await appAlert("Verbindung fehlgeschlagen beim Hochladen des Profilbilds.");
                     }
                 },
+                // "Jürgen Groß" -> "juergen.gross"
+                suggestUsername(name) {
+                    const map = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss' };
+                    return String(name || '').trim().toLowerCase().replace(/[äöüß]/g, c => map[c]).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+                },
+                async inviteMember(personnelId, username) {
+                    if (!personnelId) return await appAlert("Das Mitglied wurde nicht angelegt, daher auch kein Konto.");
+                    const res = await fetch('/api/users/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ username, password: '', role: 'mannschaft', personnel_id: personnelId, invite: true }) });
+                    if (res.ok) return await appAlert(`Mitglied gespeichert. Konto "${username}" angelegt, die Einladung ist unterwegs.`);
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert("Das Mitglied ist gespeichert, aber das Konto wurde nicht angelegt: " + (err.detail || "Unbekannter Fehler") + " (nachholen unter Einstellungen → System-Logins)");
+                },
                 async savePersonnel() {
                     const payload = { ...this.activePersonnel };
                     this.qualifications.forEach(q => payload[q.id] = this.activePersonnel[q.id] ? 1 : 0);
                     ['lic_b', 'lic_be', 'lic_c', 'lic_ce'].forEach(k => payload[k] = this.activePersonnel[k] ? 1 : 0);
                     const isNew = this.activePersonnel.id === null;
                     const endpoint = isNew ? '/api/personnel/add' : `/api/personnel/update/${this.activePersonnel.id}`;
+                    const invite = isNew && this.role === 'admin' && this.inviteNew.on && !!(this.activePersonnel.email || '').trim();
+                    const username = (this.inviteNew.username || this.suggestUsername(this.activePersonnel.name)).trim();
                     const res = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(payload) });
                     if(res.ok) {
+                        if (invite) await this.inviteMember((await res.json()).id, username);
                         this.cacheBuster = Date.now();
                         bootstrap.Modal.getInstance(document.getElementById('personnelModal')).hide();
                         await this.loadPersonnel();

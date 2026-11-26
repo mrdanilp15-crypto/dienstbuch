@@ -292,6 +292,14 @@ window.DB_MIXINS.push({
                         await appAlert('E-Mail-Einstellungen gespeichert.');
                     } finally { this.mailSaving = false; }
                 },
+                async sendMonthlyReportTest() {
+                    this.reportSending = true;
+                    try {
+                        const res = await fetch('/api/admin/monthly-report/test', { method: 'POST', credentials: 'include' });
+                        const data = await res.json().catch(() => ({}));
+                        await appAlert(res.ok ? `Der Monatsbericht ist an ${data.email} unterwegs.` : (data.detail || 'Das hat nicht geklappt.'));
+                    } finally { this.reportSending = false; }
+                },
                 async sendTestMail() {
                     if (!this.mailTestTo) { await appAlert('Bitte eine Empfängeradresse für die Test-Mail eingeben.'); return; }
                     this.mailSaving = true;

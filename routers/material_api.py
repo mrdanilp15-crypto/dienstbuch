@@ -53,10 +53,11 @@ def get_defect_reports(request: Request, status: str = "Offen"):
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
     if status == "alle":
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode,
+            SELECT dr.*, COALESCE(e.name, CONCAT('Fahrzeug: ', v.name)) as equipment_name, e.barcode,
                    (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
+            LEFT JOIN vehicles v ON v.id = dr.vehicle_id
             ORDER BY dr.created_at DESC LIMIT 100
         """)
     elif status == "Offen":
@@ -64,19 +65,21 @@ def get_defect_reports(request: Request, status: str = "Offen"):
         # sonst verschwand ein Mangel beim Setzen auf "In Bearbeitung" sofort aus der
         # Offen-Ansicht und war dort nicht mehr auffindbar, um ihn später als erledigt zu markieren.
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode,
+            SELECT dr.*, COALESCE(e.name, CONCAT('Fahrzeug: ', v.name)) as equipment_name, e.barcode,
                    (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
+            LEFT JOIN vehicles v ON v.id = dr.vehicle_id
             WHERE dr.status != 'Erledigt'
             ORDER BY dr.created_at DESC LIMIT 100
         """)
     else:
         cur.execute("""
-            SELECT dr.*, e.name as equipment_name, e.barcode,
+            SELECT dr.*, COALESCE(e.name, CONCAT('Fahrzeug: ', v.name)) as equipment_name, e.barcode,
                    (SELECT COUNT(*) FROM defect_comments c WHERE c.report_id = dr.id) AS comment_count
             FROM equipment_defect_reports dr
             LEFT JOIN equipment e ON dr.equipment_id = e.id
+            LEFT JOIN vehicles v ON v.id = dr.vehicle_id
             WHERE dr.status = %s
             ORDER BY dr.created_at DESC LIMIT 100
         """, (status,))
