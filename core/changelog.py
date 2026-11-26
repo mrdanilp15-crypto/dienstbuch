@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 34,
+        "version": "2.84",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Personal", "title": "Lehrgangsplanung",
+             "text": "Unter „Lehrgänge“ meldet jedes Mitglied an, welchen Lehrgang es machen möchte. Die Wehrführung sieht den Bedarf, teilt Plätze zu oder lehnt ab; „Teilgenommen“ trägt den Lehrgang in die Personalakte ein. Neues Recht „Lehrgänge planen“."},
+            {"type": "new", "tag": "Organisation", "title": "Umfragen und Helfersuche",
+             "text": "Unter „Umfragen & Helfer“ Aufgaben mit begrenzten Plätzen ausschreiben oder abstimmen lassen. Alle bekommen eine Benachrichtigung und tragen sich per Klick ein. Neues Recht „Umfragen und Helfersuche anlegen“."},
+        ],
+    },
+    {
         "id": 33,
         "version": "2.83",
         "date": "2026-11-26",

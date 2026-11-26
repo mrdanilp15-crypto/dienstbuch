@@ -147,7 +147,7 @@ applyChartTheme();
         }
 
         // Gültige Reiter - für den Zurück-Knopf des Browsers (Adresse /dashboard#reiter)
-        const DASHBOARD_TABS = ['uebersicht', 'dienste', 'kalender', 'fristen', 'personal', 'jugend', 'notizen', 'stats', 'apager', 'einsaetze', 'lagekarte', 'bma', 'hvo', 'logbuch', 'fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv', 'verwaltung'];
+        const DASHBOARD_TABS = ['uebersicht', 'dienste', 'kalender', 'fristen', 'personal', 'jugend', 'lehrgaenge', 'umfragen', 'notizen', 'stats', 'apager', 'einsaetze', 'lagekarte', 'bma', 'hvo', 'logbuch', 'fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv', 'verwaltung'];
         function appPrompt(message, defaultValue = '', title = 'Eingabe', inputType = 'text') {
             return new Promise((resolve) => {
                 const { el, modal } = _appDialogShow(`
@@ -185,6 +185,13 @@ applyChartTheme();
             data() {
                 return {
                     isOnline: navigator.onLine,
+                    wishData: { wishes: [], types: [], manage: false, me: null },
+                    newWish: { course_name: '', note: '', personnel_id: '' },
+                    wishFilter: 'alle',
+                    wishForOther: false,
+                    polls: [],
+                    canManagePolls: false,
+                    pollForm: null,
                     html5Qrcode: null,
                     isDarkMode: (() => { try { return localStorage.getItem('theme') === 'dark'; } catch (e) { return false; } })(),
                     ready: false, isAdmin: false, username: '', role: '',
@@ -495,6 +502,8 @@ applyChartTheme();
                         fristen: { label: 'Fristen', icon: 'fa-clock', show: true },
                         personal: { label: 'Personal', icon: 'fa-users', show: this.canSeePersonnel },
                         jugend: { label: 'Jugendfeuerwehr', icon: 'fa-graduation-cap', show: this.canSeeYouth },
+                        lehrgaenge: { label: 'Lehrgänge', icon: 'fa-user-graduate', show: true },
+                        umfragen: { label: 'Umfragen & Helfer', icon: 'fa-square-poll-vertical', show: true },
                         notizen: { label: 'Notizen', icon: 'fa-sticky-note', show: true },
                         stats: { label: 'Statistiken', icon: 'fa-chart-bar', show: this.canSeeStats },
                         apager: { label: 'Alarmierung', icon: 'fa-bell', show: true },
@@ -578,7 +587,7 @@ applyChartTheme();
                     const q = (this.globalSearchQuery || '').trim().toLowerCase();
                     if (q.length < 2) return [];
                     const list = [];
-                    const words = { dienste: 'dienstbetrieb übung anwesenheit', kalender: 'termine', apager: 'alarm webhook apager', personal: 'kameraden mitglieder lehrgänge',
+                    const words = { dienste: 'dienstbetrieb übung anwesenheit', kalender: 'termine', lehrgaenge: 'lehrgang wunsch ausbildung kurs', umfragen: 'abstimmung helfersuche helfer eintragen', apager: 'alarm webhook apager', personal: 'kameraden mitglieder lehrgänge',
                         einsaetze: 'einsatzberichte', fahrzeuge: 'fahrtenbuch fahrzeugpool', material: 'geräte prüfung', maengel: 'defekt kaputt melden', notizen: 'notizbuch', verwaltung: 'einstellungen' };
                     Object.entries(this.menuCatalog).forEach(([id, m]) => { if (m.show) list.push({ id: 'tab:' + id, label: m.label, hint: 'Bereich', icon: m.icon, words: words[id] || '' }); });
                     const more = { mail: 'e-mail smtp versand', rechte: 'berechtigungen rollen freigabe', logins: 'benutzer konten passwort zurücksetzen', betrieb: 'sicherung backup', sicherheit: 'datenschutz zwei-faktor', wache: 'fristen logbücher standort' };
@@ -930,8 +939,21 @@ applyChartTheme();
                     add('rueckmeldung', rsvp.length, 'Termin ohne deine Rückmeldung', 'Termine ohne deine Rückmeldung', 'yellow');
                     add('fristen', this.overviewDue.overdue, 'überfällige Frist', 'überfällige Fristen', 'red');
                     if (this.canManageMaterial) add('maengel', (this.overviewDefects || []).length, 'neuer Mangel', 'neue Mängel', 'red');
+                    add('umfragen', this.polls.filter(p => p.open && !p.answered).length, 'Umfrage oder Helfersuche ohne deine Antwort', 'Umfragen oder Helfersuchen ohne deine Antwort', 'yellow');
+                    if (this.wishData.manage) add('lehrgaenge', this.wishData.wishes.filter(w => w.status === 'Wunsch').length, 'offener Lehrgangswunsch', 'offene Lehrgangswünsche', 'yellow');
                     return items;
                 },
+                // Wie oft wird welcher Lehrgang gewünscht (nur offene Wünsche und zugeteilte Plätze)
+                wishDemand() {
+                    const by = {};
+                    this.wishData.wishes.filter(w => w.status === 'Wunsch' || w.status === 'Zugeteilt').forEach(w => {
+                        const k = w.course_name.trim().toLowerCase();
+                        by[k] = by[k] || { name: w.course_name.trim(), open: 0, assigned: 0 };
+                        if (w.status === 'Wunsch') by[k].open++; else by[k].assigned++;
+                    });
+                    return Object.values(by).sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
+                },
+                wishList() { return this.wishData.wishes.filter(w => this.wishFilter === 'alle' || w.status === this.wishFilter); },
                 certYears() {
                     const now = new Date().getFullYear();
                     return [0, 1, 2, 3, 4, 5].map(offset => now - offset);
@@ -1803,7 +1825,98 @@ applyChartTheme();
                     }
                     else if (id === 'rueckmeldung') this.activeTab = 'kalender';
                     else if (id === 'fristen') this.activeTab = 'fristen';
+                    else if (id === 'umfragen' || id === 'lehrgaenge') this.activeTab = id;
                     else if (id === 'maengel') { this.activeTab = 'material'; this.materialSubTab = 'maengel'; }
+                },
+                // --- Lehrgangsplanung ---
+                async loadWishes() {
+                    try {
+                        const res = await fetch('/api/course-wishes', { credentials: 'include' });
+                        if (res.ok) this.wishData = await res.json();
+                    } catch (e) { console.error(e); }
+                },
+                async planningError(res) {
+                    const err = await res.json().catch(() => ({}));
+                    await appAlert(typeof err.detail === 'string' ? err.detail : 'Das hat nicht geklappt.');
+                },
+                async addWish() {
+                    const body = { course_name: this.newWish.course_name, note: this.newWish.note, personnel_id: this.newWish.personnel_id || null };
+                    const res = await fetch('/api/course-wishes', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(body) });
+                    if (!res.ok) return this.planningError(res);
+                    this.newWish = { course_name: '', note: '', personnel_id: '' };
+                    this.wishForOther = false;
+                    await this.loadWishes();
+                },
+                async decideWish(w, status) {
+                    let course_date = w.course_date, reply = w.reply || '';
+                    if (status === 'Zugeteilt') {
+                        course_date = await appPrompt(`Wann findet "${w.course_name}" statt? (leer lassen, wenn noch offen)`, w.course_date || '', 'Platz zuteilen', 'date');
+                        if (course_date === null) return;
+                    } else if (status === 'Teilgenommen') {
+                        course_date = await appPrompt(`Wann hat ${w.name} teilgenommen? Der Lehrgang wird in die Personalakte eingetragen.`, w.course_date || localISODate(), 'Teilnahme eintragen', 'date');
+                        if (!course_date) return;
+                    } else if (status === 'Abgelehnt') {
+                        reply = await appPrompt(`Kurze Begründung für ${w.name} (optional):`, '', 'Wunsch ablehnen');
+                        if (reply === null) return;
+                    }
+                    const res = await fetch(`/api/course-wishes/${w.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status, course_date: course_date || null, reply }) });
+                    if (!res.ok) return this.planningError(res);
+                    await this.loadWishes();
+                },
+                async deleteWish(w) {
+                    if (!await appConfirm(`Wunsch "${w.course_name}" entfernen?`)) return;
+                    const res = await fetch(`/api/course-wishes/${w.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (!res.ok) return this.planningError(res);
+                    await this.loadWishes();
+                },
+                wishTone(status) { return { Wunsch: 'bg-warning text-dark', Zugeteilt: 'bg-primary', Teilgenommen: 'bg-success', Abgelehnt: 'bg-secondary' }[status]; },
+                germanDate(d) { return d ? new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''; },
+                // --- Umfragen und Helfersuche ---
+                async loadPolls() {
+                    try {
+                        const res = await fetch('/api/polls', { credentials: 'include' });
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        this.polls = data.polls;
+                        this.canManagePolls = data.manage;
+                    } catch (e) { console.error(e); }
+                },
+                startPoll(kind) {
+                    this.pollForm = { kind, title: '', description: '', multi: false, deadline: '', options: [{ label: '', capacity: '' }, { label: '', capacity: '' }] };
+                },
+                addPollOption() { this.pollForm.options.push({ label: '', capacity: '' }); },
+                async savePoll() {
+                    const f = this.pollForm;
+                    const options = f.options.filter(o => o.label.trim()).map(o => ({ label: o.label, capacity: f.kind === 'helfer' && o.capacity ? Number(o.capacity) : null }));
+                    const res = await fetch('/api/polls', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify({ kind: f.kind, title: f.title, description: f.description, multi: f.multi, deadline: f.deadline || null, options }) });
+                    if (!res.ok) return this.planningError(res);
+                    this.pollForm = null;
+                    await this.loadPolls();
+                },
+                async votePoll(poll, option) {
+                    const chosen = poll.options.filter(o => o.mine).map(o => o.id);
+                    let ids;
+                    if (option.mine) ids = chosen.filter(id => id !== option.id);
+                    else ids = poll.multi ? chosen.concat(option.id) : [option.id];
+                    const res = await fetch(`/api/polls/${poll.id}/vote`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ option_ids: ids }) });
+                    if (!res.ok) await this.planningError(res);
+                    await this.loadPolls();
+                },
+                async closePoll(poll, closed) {
+                    const res = await fetch(`/api/polls/${poll.id}/closed`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ closed }) });
+                    if (!res.ok) return this.planningError(res);
+                    await this.loadPolls();
+                },
+                async deletePoll(poll) {
+                    if (!await appConfirm(`"${poll.title}" mit allen Eintragungen löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+                    const res = await fetch(`/api/polls/${poll.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (!res.ok) return this.planningError(res);
+                    await this.loadPolls();
+                },
+                pollShare(poll, option) {
+                    if (option.capacity) return Math.min(100, Math.round(option.count / option.capacity * 100));
+                    return poll.participants ? Math.round(option.count / poll.participants * 100) : 0;
                 },
                 incidentKey(m) { return (m.isNewMission ? 'new_' : 'old_') + m.id; },
                 // Der naechste sinnvolle Schritt steht als Knopf da, alles andere im Menue
@@ -2185,6 +2298,8 @@ applyChartTheme();
                 loadDataForActiveTab(tab) {
                     const loaders = {
                         jugend: () => this.loadJugendData(),
+                        lehrgaenge: () => this.loadWishes(),
+                        umfragen: () => this.loadPolls(),
                         notizen: () => this.loadNotes(),
                         kalender: () => this.loadCalendar(),
                         einsaetze: () => { this.loadMissions(); this.loadSavedFilters(); },
@@ -2199,7 +2314,7 @@ applyChartTheme();
                         fristen: () => this.loadDueManager(),
                         logbuch: () => this.loadLogbookData(),
                         verein: () => this.loadClubData(),
-                        uebersicht: () => this.loadOverview()
+                        uebersicht: () => { this.loadOverview(); this.loadWishes(); this.loadPolls(); }
                     };
                     const load = loaders[tab || this.activeTab];
                     if (!load) return;
@@ -3577,7 +3692,7 @@ applyChartTheme();
                 // Menü-Gruppen: einklappbar, Wahl bleibt gespeichert; die Gruppe mit dem geöffneten Reiter ist immer offen
                 menuSectionOfTab(tab) {
                     const groups = {
-                        org: ['dienste', 'kalender', 'fristen', 'personal', 'jugend', 'notizen', 'stats'],
+                        org: ['dienste', 'kalender', 'fristen', 'personal', 'jugend', 'lehrgaenge', 'umfragen', 'notizen', 'stats'],
                         einsatz: ['apager', 'einsaetze', 'lagekarte', 'bma', 'hvo', 'logbuch'],
                         material: ['fahrzeuge', 'material', 'abrechnung', 'arbeitsbescheinigung', 'verein', 'archiv']
                     };
@@ -4041,6 +4156,8 @@ applyChartTheme();
                             this.activeTab = 'fristen';
                         } else if (type === 'alarm') {
                             this.activeTab = 'apager';
+                        } else if (type === 'lehrgaenge' || type === 'umfragen') {
+                            this.activeTab = type;
                         } else if (type === 'kalender') {
                             this.activeTab = 'kalender';
                         }

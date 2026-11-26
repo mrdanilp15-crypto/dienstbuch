@@ -472,6 +472,7 @@ def delete_member(member_id: int, request: Request):
         }
 
     cur.execute("DELETE FROM personnel_honors WHERE personnel_id = %s", (member_id,))
+    cur.execute("DELETE FROM course_wishes WHERE personnel_id = %s", (member_id,))
     cur.execute("DELETE FROM personnel WHERE id = %s", (member_id,))
     cur.execute("DELETE FROM persons WHERE name = %s", (name,))
     conn.commit()

@@ -73,7 +73,7 @@ def ex_member_candidates():
 _CLEAR = ("phone", "email", "address", "badge_number", "birth_date", "honors", "profile_picture", "notes", "skills", "parent_contact",
           "emergency_contact_name", "emergency_contact_phone", "g26_3_date", "belastungslauf_date", "unterweisung_date",
           "dsgvo_ack_date", "dienstordnung_ack_date", "license_checked_date")
-_DELETE_ROWS = ("employer_certificates", "personnel_availability", "schedule_rsvp", "schedule_audience", "schedule_nudges", "schedule_attendance")
+_DELETE_ROWS = ("employer_certificates", "personnel_availability", "schedule_rsvp", "schedule_audience", "schedule_nudges", "schedule_attendance", "course_wishes")
 
 
 def anonymize_person(personnel_id: int) -> str:

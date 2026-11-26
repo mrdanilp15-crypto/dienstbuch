@@ -36,9 +36,10 @@ from routers import legal_api
 from routers import due_api
 from routers import aao_api
 from routers import logbook_api
+from routers import planning_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.83"
+CURRENT_VERSION = "2.84"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -222,6 +223,7 @@ app.include_router(aao_api.router)
 app.include_router(logbook_api.router)
 app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
+app.include_router(planning_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
@@ -1043,6 +1045,59 @@ def init_db_extensions():
                 trial_end DATE NULL,
                 note TEXT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        # Lehrgangsplanung sowie Umfragen/Helfersuche
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS course_wishes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                personnel_id INT NOT NULL,
+                course_name VARCHAR(255) NOT NULL,
+                note VARCHAR(500) DEFAULT '',
+                status VARCHAR(20) NOT NULL DEFAULT 'Wunsch',
+                course_date DATE NULL,
+                reply VARCHAR(500) DEFAULT '',
+                decided_by VARCHAR(100) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_wish_person (personnel_id)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS polls (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(150) NOT NULL,
+                description TEXT NULL,
+                kind VARCHAR(10) NOT NULL DEFAULT 'umfrage',
+                multi TINYINT NOT NULL DEFAULT 0,
+                deadline DATE NULL,
+                closed TINYINT NOT NULL DEFAULT 0,
+                created_by VARCHAR(100) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_options (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                poll_id INT NOT NULL,
+                label VARCHAR(150) NOT NULL,
+                capacity INT NULL,
+                position INT NOT NULL DEFAULT 0,
+                INDEX idx_poll_options (poll_id)
+            ) ENGINE=InnoDB;
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_votes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                poll_id INT NOT NULL,
+                option_id INT NOT NULL,
+                username VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_poll_vote (option_id, username),
+                INDEX idx_poll_votes (poll_id)
             ) ENGINE=InnoDB;
         """)
 

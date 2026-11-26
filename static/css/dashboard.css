@@ -1404,6 +1404,13 @@ body { color: var(--text-color); }
 /* Badges: weiße Schrift auf kräftigem Grund, gelb/hellblau mit dunkler Schrift */
 .badge { color: #fff; font-size: max(12px, 0.75em); }
 .badge.bg-primary { background-color: #0b5ed7 !important; }
+/* Umfragen und Helfersuche */
+.poll-option { padding: 8px 0; border-top: 1px solid rgba(127,127,127,0.2); }
+.poll-bar { height: 6px; border-radius: 3px; background: rgba(127,127,127,0.2); margin: 6px 0 2px; overflow: hidden; }
+.poll-bar > div { height: 100%; background: #157347; }
+.poll-bar > div.full { background: #c1272d; }
+.poll-btn { min-width: 112px; }
+.poll-capacity { max-width: 110px; }
 .badge.bg-danger { background-color: #c1272d !important; }
 .badge.bg-success { background-color: #157347 !important; }
 .badge.bg-secondary { background-color: #565e65 !important; }

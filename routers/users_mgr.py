@@ -254,7 +254,7 @@ def delete_user(user_id: int, request: Request):
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     if row:
         # Nichts zurücklassen, was ein später neu angelegtes Konto mit gleichem Namen erben würde
-        for tbl in ("login_devices", "notifications", "notification_prefs"):
+        for tbl in ("login_devices", "notifications", "notification_prefs", "poll_votes"):
             cur.execute(f"DELETE FROM {tbl} WHERE username = %s", (row[0],))
     conn.commit(); cur.close(); conn.close()
     if row:
@@ -590,6 +590,10 @@ def export_my_data(request: Request):
                    "WHERE personnel_id = %s ORDER BY date DESC", (personnel_id,))
         export["lehrgaenge"] = [_jsonable(r) for r in cur.fetchall()]
 
+        cur.execute("SELECT course_name, note, status, course_date, reply, created_at FROM course_wishes "
+                   "WHERE personnel_id = %s ORDER BY created_at DESC", (personnel_id,))
+        export["lehrgangswuensche"] = [_jsonable(r) for r in cur.fetchall()]
+
         cur.execute("SELECT item_name, size, issue_date, return_date FROM personal_inventar "
                    "WHERE personnel_id = %s", (personnel_id,))
         export["ausgegebene_ausruestung"] = [_jsonable(r) for r in cur.fetchall()]
@@ -602,6 +606,10 @@ def export_my_data(request: Request):
             WHERE p.name = %s ORDER BY s.date DESC
         """, (personnel_name,))
         export["dienst_teilnahmen"] = [_jsonable(r) for r in cur.fetchall()]
+
+    cur.execute("SELECT p.title, o.label, v.created_at FROM poll_votes v JOIN polls p ON p.id = v.poll_id "
+               "JOIN poll_options o ON o.id = v.option_id WHERE v.username = %s ORDER BY v.created_at DESC", (user["username"],))
+    export["umfragen_und_helfereintraege"] = [_jsonable(r) for r in cur.fetchall()]
 
     cur.execute("SELECT title, content, visibility, created_at FROM notes "
                "WHERE username = %s ORDER BY created_at DESC", (user["username"],))

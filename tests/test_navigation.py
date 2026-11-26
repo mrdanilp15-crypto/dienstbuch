@@ -22,11 +22,11 @@ def check(name, cond, extra=""):
 def items_for(*, personal, youth):
     """Basis für alle; Personalverwaltung nur für Rollen mit Aufgabe dort, Jugendfeuerwehr (Daten Minderjähriger) nur für Jugendwarte."""
     return ["Übersicht", "Dienste", "Kalender", "Fristen"] + (["Personal"] if personal else []) + (["Jugendfeuerwehr"] if youth else []) + [
-        "Notizen", "Alarmierung", "Einsätze", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
+        "Lehrgänge", "Umfragen & Helfer", "Notizen", "Alarmierung", "Einsätze", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder",
         "Fahrzeuge", "Geräte & Material", "Mängel", "Dokumente & Archiv"]
 
 
-MANAGER_ITEMS = ["Übersicht", "Dienste", "Kalender", "Fristen", "Personal", "Jugendfeuerwehr", "Notizen", "Statistiken",
+MANAGER_ITEMS = ["Übersicht", "Dienste", "Kalender", "Fristen", "Personal", "Jugendfeuerwehr", "Lehrgänge", "Umfragen & Helfer", "Notizen", "Statistiken",
                  "Alarmierung", "Einsätze", "Lagekarte & Hydranten", "Objekte & BMA", "First Responder", "Logbücher",
                  "Fahrzeuge", "Geräte & Material", "Mängel", "Abrechnung", "Arbeitsbescheinigungen", "Vereinskasse & Inventar", "Dokumente & Archiv",
                  "Einstellungen"]

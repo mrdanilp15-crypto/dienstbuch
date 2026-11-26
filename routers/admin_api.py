@@ -37,7 +37,8 @@ BACKUP_TABLES = [
     "apager_feedbacks", "system_broadcasts", "broadcast_reads", "schedules",
     "schedule_attendance", "schedule_audience", "missions", "mission_attendance", "respiration_log",
     "billing_verursacher", "personal_inventar", "clothing_stock", "lehrgaenge", "hydrants", "bma",
-    "drone_images", "push_subscriptions", "mail_settings", "building_checks", "prospects", "club_inventory", "club_donations"
+    "drone_images", "push_subscriptions", "mail_settings", "building_checks", "prospects", "club_inventory", "club_donations",
+    "course_wishes", "polls", "poll_options", "poll_votes"
 ]
 
 
