@@ -100,7 +100,7 @@ def get_sessions(id: int, request: Request):
                 'description': desc,
                 'duration': float(m['duration'] or 2.0),
                 'leader_signature': decoded_sig,
-                'status': 'Freigegeben' if (decoded_sig or m.get('status') == 'Freigegeben') else 'Entwurf',
+                'status': 'Freigegeben' if (decoded_sig or m.get('status') == 'Freigegeben') else ('In Prüfung' if m.get('status') == 'In Prüfung' else 'Entwurf'),
                 'is_signed': bool(decoded_sig and len(str(decoded_sig).strip()) > 10),
                 'is_mission': True
             })
@@ -260,8 +260,10 @@ def save_attendance(payload: AttendanceUpload, request: Request):
             s_str = str(payload.session_id).strip()
             if s_str.startswith("m_"):
                 real_m_id = int(s_str.replace("m_", ""))
-                cur.execute("""UPDATE missions SET date=%s, time=%s, end_time=%s, duration=%s, leader_signature=%s WHERE id=%s""",
-                            (payload.date, payload.time or "", payload.end_time or "", payload.duration, payload.leader_signature, real_m_id))
+                cur.execute("""UPDATE missions SET date=%s, time=%s, end_time=%s, duration=%s WHERE id=%s""",
+                            (payload.date, payload.time or "", payload.end_time or "", payload.duration, real_m_id))
+                if has_permission(user, "missions.approve"):  # ohne das Recht bleibt die Leitungs-Unterschrift unangetastet
+                    cur.execute("UPDATE missions SET leader_signature=%s WHERE id=%s", (payload.leader_signature, real_m_id))
                 session_id = payload.session_id
             else:
                 s_int = int(payload.session_id)
@@ -305,7 +307,10 @@ def save_leader_sig(session_id: str, data: dict, request: Request):
     sig = data.get("signature")
     if sid_str.startswith("m_"):
         real_id = int(sid_str.replace("m_", ""))
-        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (sig, real_id))
+        if not has_permission(user, "missions.approve"):
+            c.close()
+            raise HTTPException(status_code=403, detail="Einsatzberichte freigeben darf nur, wer das Recht dazu hat.")
+        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben', approved_by = %s, approved_at = NOW() WHERE id = %s", (sig, user["username"], real_id))
     else:
         real_id = int(sid_str)
         cur.execute("UPDATE sessions SET leader_signature = %s WHERE id = %s", (sig, real_id))

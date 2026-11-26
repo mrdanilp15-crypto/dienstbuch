@@ -620,6 +620,7 @@ applyChartTheme();
                 canManageBuildings() { return this.hasPerm('buildings.manage'); },
                 canManageProspects() { return this.hasPerm('prospects.manage'); },
                 canManageMissions() { return this.hasPerm('missions.manage'); },
+                canApproveMissions() { return this.hasPerm('missions.approve'); },
                 canManagePersonnel() { return this.hasPerm('personnel.manage'); },
                 dueBadge() { return this.dueItems.filter(i => !i.first_check).length; },
                 dueItemsFiltered() { return this.dueOnlyOverdue ? this.dueItems.filter(i => i.overdue) : this.dueItems; },
@@ -799,8 +800,9 @@ applyChartTheme();
                             adresse: m.adresse,
                             meldung: m.meldung,
                             duration: m.duration,
-                            status: isSigned ? 'Freigegeben' : 'Entwurf',
+                            status: isSigned ? 'Freigegeben' : (m.status === 'In Prüfung' ? 'In Prüfung' : 'Entwurf'),
                             leader_signature: m.leader_signature,
+                            approved_by: m.approved_by,
                             group_id: m.group_id
                         };
                     });
@@ -1712,6 +1714,18 @@ applyChartTheme();
                         }
                         await Promise.all([this.loadMissions(), this.loadData()]);
                     }
+                },
+                async releaseMission(m, action) {
+                    const approve = action === 'approve';
+                    const text = approve ? `Bericht "${m.stichwort}" freigeben? Danach kann ihn nur noch ein Admin ändern.` : `Bericht "${m.stichwort}" zur Freigabe einreichen?`;
+                    if (!await appConfirm(text)) return;
+                    const res = await fetch(approve ? `/api/missions/${m.id}/approve` : `/api/missions/${m.id}/submit`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ approve: true }) });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        await appAlert((approve ? 'Freigabe' : 'Einreichen') + ' fehlgeschlagen: ' + (err.detail || 'Unbekannter Fehler.'));
+                    }
+                    await this.loadMissions();
+                    await this.loadData();
                 },
                 openMissionSigModal(m) {
                     this.activeS = m;

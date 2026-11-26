@@ -101,13 +101,29 @@ class ScheduleAttendanceEntry(BaseModel):
 class EmployerCertCreate(BaseModel):
     signature: Optional[str] = None  # Base64 Data-URL aus dem SignaturePad, optional
 
+def _require_approve(user):
+    if not has_permission(user, "missions.approve"):
+        raise HTTPException(status_code=403, detail="Freigeben darf nur, wer das Recht \"Einsatzberichte freigeben\" hat. Bitte zur Freigabe einreichen.")
+
+def notify_review(mission_id: int, stichwort: str, by: str):
+    """Hühnerleiter: wer freigeben darf, erfährt, dass ein Bericht wartet."""
+    try:
+        from core.notify import notify
+        from core.permissions import users_with
+        users = [u for u in users_with("missions.approve") if u != by]
+        if users:
+            notify("verwaltung", f"Einsatzbericht wartet auf Freigabe: {stichwort}", f"Eingereicht von {by}.",
+                   f"/editor?mission_id={mission_id}", usernames=users)
+    except Exception as e:
+        print(f"Hinweis zur Freigabe fehlgeschlagen: {e}")
+
 # --- 🚨 EINSÄTZE ENDPUNKTE ---
 @router.get("")
 def list_missions(request: Request):
     check_auth(request)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, date, time, end_time, ausrueck_zeit, eintreff_zeit, stichwort, adresse, meldung, status, duration, group_id, leader_signature FROM missions ORDER BY date DESC, time DESC")
+    cur.execute("SELECT id, date, time, end_time, ausrueck_zeit, eintreff_zeit, stichwort, adresse, meldung, status, duration, group_id, leader_signature, approved_by, approved_at FROM missions ORDER BY date DESC, time DESC")
     res = cur.fetchall()
     cur.close()
     conn.close()
@@ -211,6 +227,10 @@ def _prepare_mission_report_data(mission_id: int):
         WHERE ma.mission_id = %s
     """, (mission_id,))
     att = cur.fetchall()
+    if m.get("approved_by"):
+        cur.execute("SELECT p.name FROM users u JOIN personnel p ON p.id = u.personnel_id WHERE u.username = %s", (m["approved_by"],))
+        who = cur.fetchone()
+        m["approved_name"] = who["name"] if who else m["approved_by"]
     cur.close(); conn.close()
 
     if isinstance(m["date"], date):
@@ -607,6 +627,8 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
     user = check_auth(request)
     if not has_permission(user, "missions.manage"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    if m.status == "Freigegeben":
+        _require_approve(user)
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute("""
         INSERT INTO missions (date, time, end_time, ausrueck_zeit, eintreff_zeit, stichwort, adresse, meldung, description, duration, status, media_files, group_id)
@@ -621,7 +643,11 @@ def create_mission(m: MissionCreate, request: Request, background_tasks: Backgro
                 VALUES (%s, %s, %s, %s)
             """, (mission_id, entry.personnel_id, entry.is_present, entry.vehicle))
         
+    if m.status == "Freigegeben":
+        cur.execute("UPDATE missions SET approved_by = %s, approved_at = NOW() WHERE id = %s", (user["username"], mission_id))
     conn.commit(); cur.close(); conn.close()
+    if m.status == "In Prüfung":
+        notify_review(mission_id, m.stichwort, user["username"])
     from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_ERSTELLT", f"Einsatz '{m.stichwort}' anlegen.")
     
@@ -648,6 +674,10 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
     final_status = m.status
     if existing.get("leader_signature") and final_status == "Entwurf":
         final_status = "Freigegeben"
+    newly_approved = final_status == "Freigegeben" and existing["status"] != "Freigegeben"
+    if newly_approved and not existing.get("leader_signature") and not has_permission(user, "missions.approve"):
+        cur.close(); conn.close()
+        _require_approve(user)
 
     # 1. Update Stammdaten
     cur.execute("""
@@ -656,6 +686,11 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
         WHERE id=%s
     """, (m.date, m.time, m.end_time or "", m.ausrueck_zeit or "", m.eintreff_zeit or "", m.stichwort, m.adresse, m.meldung, m.description, m.duration, final_status, m.media_files, m.group_id, mission_id))
     
+    if newly_approved:
+        cur.execute("UPDATE missions SET approved_by = %s, approved_at = NOW() WHERE id = %s", (user["username"], mission_id))
+    elif final_status != "Freigegeben":
+        cur.execute("UPDATE missions SET approved_by = NULL, approved_at = NULL WHERE id = %s", (mission_id,))
+
     # 2. Update Personnel/Vehicles Attendance
     cur.execute("DELETE FROM mission_attendance WHERE mission_id = %s", (mission_id,))
     for entry in m.attendance:
@@ -666,6 +701,8 @@ def update_mission(mission_id: int, m: MissionCreate, request: Request, backgrou
         
     conn.commit()
     cur.close(); conn.close()
+    if final_status == "In Prüfung" and existing["status"] != "In Prüfung":
+        notify_review(mission_id, m.stichwort, user["username"])
     from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_GEAENDERT", f"Einsatz ID {mission_id} geändert (Status: {final_status}).")
     
@@ -689,8 +726,7 @@ def delete_mission(mission_id: int, request: Request):
 @router.post("/{mission_id}/signature")
 def save_mission_signature(mission_id: int, data: dict, request: Request):
     user = check_auth(request)
-    if not has_permission(user, "missions.manage"):
-        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    _require_approve(user)
     sig = data.get("signature") or None
     if sig is not None and (not isinstance(sig, str) or not sig.startswith("data:image/") or len(sig) > 2_000_000):
         raise HTTPException(status_code=400, detail="Ungültige Unterschrift")
@@ -705,13 +741,58 @@ def save_mission_signature(mission_id: int, data: dict, request: Request):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Freigegebene Einsätze können nur von Admins editiert werden!")
     if sig:
-        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben' WHERE id = %s", (sig, mission_id))
+        cur.execute("UPDATE missions SET leader_signature = %s, status = 'Freigegeben', approved_by = %s, approved_at = NOW() WHERE id = %s", (sig, user["username"], mission_id))
     else:
         # Unterschrift entfernt: Freigabe zurücknehmen
-        cur.execute("UPDATE missions SET leader_signature = NULL, status = 'In Prüfung' WHERE id = %s", (mission_id,))
+        cur.execute("UPDATE missions SET leader_signature = NULL, status = 'In Prüfung', approved_by = NULL, approved_at = NULL WHERE id = %s", (mission_id,))
     conn.commit(); cur.close(); conn.close()
     from core.utils import log_audit_action
     log_audit_action(user["username"], "EINSATZ_FREIGABE" if sig else "EINSATZ_FREIGABE_ENTFERNT", f"Einsatz ID {mission_id}")
+    return {"status": "success"}
+
+@router.post("/{mission_id}/submit")
+def submit_mission(mission_id: int, request: Request):
+    """Entwurf zur Freigabe einreichen."""
+    user = check_auth(request)
+    if not has_permission(user, "missions.manage"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT status, stichwort, leader_signature FROM missions WHERE id = %s", (mission_id,))
+    m = cur.fetchone()
+    if not m:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+    if m["status"] == "Freigegeben" or m["leader_signature"]:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="Der Bericht ist bereits freigegeben.")
+    cur.execute("UPDATE missions SET status = 'In Prüfung' WHERE id = %s", (mission_id,))
+    conn.commit(); cur.close(); conn.close()
+    if m["status"] != "In Prüfung":
+        notify_review(mission_id, m["stichwort"], user["username"])
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "EINSATZ_EINGEREICHT", f"Einsatz ID {mission_id}")
+    return {"status": "success"}
+
+@router.post("/{mission_id}/approve")
+def approve_mission(mission_id: int, data: dict, request: Request):
+    """Freigabe per Klick (ohne Unterschrift). Zurücknehmen darf - wie das Bearbeiten freigegebener Berichte - nur der Admin."""
+    user = check_auth(request)
+    _require_approve(user)
+    approve = bool(data.get("approve", True))
+    if not approve and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Eine Freigabe kann nur ein Admin zurücknehmen.")
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT id FROM missions WHERE id = %s", (mission_id,))
+    if not cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
+    if approve:
+        cur.execute("UPDATE missions SET status = 'Freigegeben', approved_by = %s, approved_at = NOW() WHERE id = %s AND status <> 'Freigegeben'", (user["username"], mission_id))
+    else:
+        cur.execute("UPDATE missions SET status = 'In Prüfung', leader_signature = NULL, approved_by = NULL, approved_at = NULL WHERE id = %s", (mission_id,))
+    conn.commit(); cur.close(); conn.close()
+    from core.utils import log_audit_action
+    log_audit_action(user["username"], "EINSATZ_FREIGABE" if approve else "EINSATZ_FREIGABE_ENTFERNT", f"Einsatz ID {mission_id} (per Klick)")
     return {"status": "success"}
 
 # --- 💨 ATEMSCHUTZ OVERVIEW & LOGGER ---

@@ -51,6 +51,10 @@ def generate_single_report(s, persons, town_name):
     sign_date = s['date'].strftime('%d.%m.%Y') if hasattr(s['date'], 'strftime') else str(s['date'])
     l_sig_data = _sig_src(s.get('leader_signature'))
     l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data else "<div style='height:75px;'></div>"
+    sig_label = "Unterschrift Leitung"
+    if not l_sig_data and s.get('approved_name') and s.get('approved_at'):
+        l_sig_html = f"<div style='height:75px; padding-top:40px;'>Digital freigegeben von {_e(s['approved_name'])} am {s['approved_at'].strftime('%d.%m.%Y %H:%M')} Uhr</div>"
+        sig_label = "Freigabe Leitung"
     cat = s.get('category') or 'Übung'
     cat_class = f"bg-{cat.lower()}" if cat in ('Übung', 'Einsatz', 'Sonstiges') else "bg-sonstiges"
     # Ausrück-/Eintreffzeit gibt es nur bei Einsätzen (FwDV 100) und nur, wenn tatsächlich
@@ -86,7 +90,7 @@ def generate_single_report(s, persons, town_name):
         <table class="sig-table">
             <tr>
                 <td>{_e(town_name)}, den {sign_date}<div class="sig-line-text">Ort / Datum</div></td>
-                <td>{l_sig_html}<div class="sig-line-text">Unterschrift Leitung</div></td>
+                <td>{l_sig_html}<div class="sig-line-text">{sig_label}</div></td>
             </tr>
         </table>
     </div>"""

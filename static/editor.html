@@ -457,7 +457,7 @@
                         <select class="form-select" v-model="missionStatus" @change="autoSaveMission" :disabled="isReadOnly">
                             <option value="Entwurf">Entwurf</option>
                             <option value="In Prüfung">In Prüfung</option>
-                            <option value="Freigegeben">Freigegeben (Sperrung)</option>
+                            <option value="Freigegeben" :disabled="!canApprove">Freigegeben (Sperrung)</option>
                         </select>
                     </div>
                     <div class="col-12 col-md-6 mt-3">
@@ -491,14 +491,17 @@
             <div v-else class="d-flex justify-content-between align-items-center">
                 <div>
                     <span class="small text-muted fw-bold d-block">BESTÄTIGUNG DER LEITUNG</span>
-                    <small v-if="!leaderSignature" class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i>Unterschrift ausstehend</small>
-                    <small v-else class="text-success fw-bold"><i class="fa fa-check-circle me-1"></i>Freigegeben</small>
+                    <small v-if="leaderSignature || (mode === 'mission' && missionStatus === 'Freigegeben')" class="text-success fw-bold"><i class="fa fa-check-circle me-1"></i>Freigegeben<span v-if="approvedBy"> von {{ approvedBy }}</span></small>
+                    <small v-else-if="mode === 'mission' && missionStatus === 'In Prüfung'" class="text-warning fw-bold"><i class="fa fa-hourglass-half me-1"></i>Wartet auf Freigabe</small>
+                    <small v-else class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i>Freigabe ausstehend</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button v-if="leaderSignature && !isReadOnly" class="btn btn-sm btn-outline-danger border-0 p-2" @click="clearLeaderSig">
+                    <button v-if="leaderSignature && !isReadOnly && (mode !== 'mission' || canApprove)" class="btn btn-sm btn-outline-danger border-0 p-2" @click="clearLeaderSig">
                         <i class="fas fa-eraser"></i>
                     </button>
-                    <div class="sig-box" @click="openSig('LEADER')">
+                    <button v-if="mode === 'mission' && canApprove && !isReadOnly && missionStatus !== 'Freigegeben'" class="btn btn-sm btn-success rounded-pill fw-bold" @click="releaseReport('approve')"><i class="fa fa-check me-1"></i>Freigeben</button>
+                    <button v-if="mode === 'mission' && !canApprove && !isReadOnly && missionStatus === 'Entwurf'" class="btn btn-sm btn-premium rounded-pill fw-bold" @click="releaseReport('submit')"><i class="fa fa-paper-plane me-1"></i>Zur Freigabe einreichen</button>
+                    <div v-if="mode !== 'mission' || canApprove || leaderSignature" class="sig-box" @click="openSig('LEADER')">
                         <img v-if="leaderSignature" :src="leaderSignature">
                         <i v-else class="fas fa-pen text-muted"></i>
                     </div>
@@ -942,7 +945,7 @@
     createApp({
         data() {
             return {
-                isAdmin: false,
+                isAdmin: false, canApprove: false, approvedBy: '',
                 isReadOnly: false,
                 groupId: null,
                 sessionId: null,
@@ -1030,6 +1033,7 @@
                 const authData = await authRes.json();
 
                 this.isAdmin = (authData.role === 'admin');
+                this.canApprove = this.isAdmin || (authData.permissions || []).includes('missions.approve');
                 // Muss zum Schreibrechte-Check des Backends passen (siehe groups_api.py save_attendance
                 // UND mission_mgr.py create_mission/update_mission - beide verlangen dieselbe Rollenmenge):
                 // nur admin/leitung/gruppenfuehrer dürfen Dienste/Einsätze tatsächlich speichern.
@@ -1354,6 +1358,7 @@
                     this.meldung = detail.meldung || '';
                     this.description = detail.description || '';
                     this.missionStatus = detail.status || 'Entwurf';
+                    this.approvedBy = detail.approved_by || '';
                     this.missionGroupId = detail.group_id || null;
                     this.currentDate = detail.date || this.currentDate;
                     this.time = detail.time || '';
@@ -1471,7 +1476,21 @@
             },
 
             // --- GEMEINSAM: UNTERSCHRIFT ---
+            async releaseReport(action) {
+                const approve = action === 'approve';
+                if (!this.missionId) return await appAlert("Speichere den Einsatz zuerst.");
+                if (!await appConfirm(approve ? "Bericht freigeben? Danach kann ihn nur noch ein Admin ändern." : "Bericht zur Freigabe einreichen?")) return;
+                await this.saveMission();
+                const res = await fetch(approve ? `/api/missions/${this.missionId}/approve` : `/api/missions/${this.missionId}/submit`, { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ approve: true }) });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return await appAlert("Das hat nicht geklappt: " + (err.detail || "Unbekannter Fehler."));
+                }
+                this.missionStatus = approve ? 'Freigegeben' : 'In Prüfung';
+                if (approve && !this.isAdmin) this.isReadOnly = true;
+            },
             openSig(t) {
+                if (t === 'LEADER' && this.mode === 'mission' && !this.canApprove) return;
                 // Laden der vorhandenen Unterschrift passiert zentral in resizeAndLoadCanvas()
                 // (ausgelöst durch das "shown.bs.modal"-Event) - hier NICHT nochmal per eigenem
                 // Timer laden, sonst ist man wieder beim alten Race-Bug (siehe mounted()).

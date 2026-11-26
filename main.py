@@ -38,7 +38,7 @@ from routers import aao_api
 from routers import logbook_api
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.79"
+CURRENT_VERSION = "2.80"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")
@@ -1302,6 +1302,14 @@ def init_db_extensions():
                 cur.execute("ALTER TABLE missions ADD COLUMN group_id INT NULL")
         except Exception as m_err:
             print("Fehler bei missions group_id Migration:", m_err)
+
+        # Freigabe per Klick: wer hat wann freigegeben
+        try:
+            cur.execute("SHOW COLUMNS FROM missions LIKE 'approved_by'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE missions ADD COLUMN approved_by VARCHAR(100) NULL, ADD COLUMN approved_at DATETIME NULL")
+        except Exception as m_err:
+            print("Fehler bei missions Freigabe Migration:", m_err)
 
         # Einsaetze ohne Gruppe (frueher per Alarm angelegt) bekommen die Alarm-Gruppe - sonst standen sie in jeder Dienstliste
         try:

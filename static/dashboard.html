@@ -881,7 +881,7 @@
                                 <option v-for="y in missionYearOptions()" :key="y" :value="y">{{ y }}</option>
                             </select>
                             <span class="d-flex gap-1">
-                                <button v-for="s in ['alle', 'Entwurf', 'Freigegeben']" :key="s" class="btn btn-sm rounded-pill" :class="missionStatus === s ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionStatus = s">{{ s === 'alle' ? 'Alle Status' : s }}</button>
+                                <button v-for="s in ['alle', 'Entwurf', 'In Prüfung', 'Freigegeben']" :key="s" class="btn btn-sm rounded-pill" :class="missionStatus === s ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionStatus = s">{{ s === 'alle' ? 'Alle Status' : s }}</button>
                             </span>
                             <span class="d-flex gap-1">
                                 <button v-for="k in ['alle', 'Brand', 'Hilfeleistung', 'Sonstige']" :key="k" class="btn btn-sm rounded-pill" :class="missionKind === k ? 'btn-premium' : 'btn-outline-secondary text-white'" @click="missionKind = k">{{ k === 'alle' ? 'Alle Arten' : k }}</button>
@@ -915,7 +915,9 @@
                                     </div>
                                     <div class="d-flex gap-2">
                                         <button v-if="m.isNewMission" class="btn btn-sm btn-outline-light rounded-pill" @click.stop="downloadMissionPdf(m)" title="Einsatzbericht als PDF"><i class="fa fa-file-pdf me-1"></i>PDF</button>
-                                        <button v-if="canManageMissions" class="btn btn-sm btn-premium rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
+                                        <button v-if="m.isNewMission && canApproveMissions && m.status !== 'Freigegeben'" class="btn btn-sm btn-success rounded-pill" @click.stop="releaseMission(m, 'approve')"><i class="fa fa-check me-1"></i>Freigeben</button>
+                                        <button v-if="m.isNewMission && !canApproveMissions && canManageMissions && m.status === 'Entwurf'" class="btn btn-sm btn-premium rounded-pill" @click.stop="releaseMission(m, 'submit')"><i class="fa fa-paper-plane me-1"></i>Einreichen</button>
+                                        <button v-if="m.isNewMission ? canApproveMissions : canManageMissions" class="btn btn-sm btn-outline-light rounded-pill" @click.stop="m.isNewMission ? openMissionSigModal(m) : openSig(m.rawSession)"><i class="fa fa-pen me-1"></i>Unterschrift</button>
                                         <button v-if="canDeleteMissions" class="btn btn-outline-danger btn-sm rounded-circle p-2" @click.stop="m.isNewMission ? deleteMission(m.id) : deleteSession(m.rawSession)" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa fa-trash-alt"></i></button>
                                     </div>
                                 </div>

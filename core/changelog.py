@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 30,
+        "version": "2.80",
+        "date": "2026-11-26",
+        "items": [
+            {"type": "new", "tag": "Einsätze", "title": "Freigabe per Klick (Hühnerleiter)",
+             "text": "Einsatzberichte lassen sich jetzt ohne Unterschrift per Klick freigeben. Neues Recht „Einsatzberichte freigeben“: Nimmt man dem Gruppenführer den Haken (Verwaltung, Rechte), reicht er den Bericht nur ein, die Wehrführung wird benachrichtigt und gibt frei. Wer wann freigegeben hat, steht im PDF. Neuer Status-Filter „In Prüfung“."},
+        ],
+    },
+    {
         "id": 29,
         "version": "2.79",
         "date": "2026-11-24",
