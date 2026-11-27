@@ -135,6 +135,38 @@ async def send_test_mail(request: Request):
     return {"status": "success"}
 
 
+_samples_sent_at = {"t": 0.0}
+
+
+@router.post("/api/admin/mail-settings/samples")
+async def send_sample_mails(request: Request):
+    """Je eine Muster-Mail jeder Art (Alarm, Helfersuche, Termin, Fristen, Einladung, Monatsbericht) an eine Adresse."""
+    user = check_auth(request, require_admin=True)
+    from core.mail_samples import build_samples
+    from core.utils import get_station_name
+    data = await request.json()
+    to = (data.get("to") or "").strip()
+    if "@" not in to or len(to) > 200:
+        raise HTTPException(status_code=400, detail="Bitte eine gültige Empfängeradresse angeben.")
+    s = get_mail_settings()
+    if not is_mail_configured(s):
+        raise HTTPException(status_code=400, detail="Der E-Mail-Versand ist noch nicht eingerichtet.")
+    if time.time() - _samples_sent_at["t"] < 60:
+        raise HTTPException(status_code=429, detail="Bitte eine Minute warten, die Muster sind gerade unterwegs.")
+    _samples_sent_at["t"] = time.time()
+    sent = 0
+    try:
+        for subject, body in build_samples(s.get("app_url") or "", get_station_name()):
+            send_mail([to], subject, body, settings=s)
+            sent += 1
+    except Exception as e:
+        record_mail_result(f"Muster-Mails: {e}")
+        raise HTTPException(status_code=400, detail=f"Nach {sent} Mail(s) fehlgeschlagen: {e}")
+    record_mail_result(None)
+    log_audit_action(user["username"], "MAIL_MUSTER", f"{sent} Muster-Mails an {to}")
+    return {"status": "success", "sent": sent}
+
+
 @router.get("/api/auth/mail-enabled")
 def mail_enabled():
     try:

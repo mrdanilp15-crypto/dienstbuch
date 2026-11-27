@@ -178,6 +178,19 @@ if hs:
     check("… mit Titel, Termin und Link", "Mail-Helfer" in subj and "14:00 Uhr" in body and "Grillfest" in body and f"{B}/dashboard?open=umfragen" in body, subj)
 sql("delete from poll_votes where poll_id in (select id from polls where title='Mail-Helfer'); delete from poll_options where poll_id in (select id from polls where title='Mail-Helfer'); delete from polls where title='Mail-Helfer'")
 
+# --- Muster aller Mailarten (zum Prüfen der Darstellung in echten Mailprogrammen)
+time.sleep(2); mails.clear()
+r = admin.post("/api/admin/mail-settings/samples", json={"to": "probe@example.org"})
+check("Muster-Mails: verschickt", r.status_code == 200 and r.json().get("sent") == 6, r.text)
+probe = [i for i in range(len(mails)) if mails[i][0] == ["probe@example.org"]]
+subjects = [mail_text(i)[0] for i in probe]
+check("Muster-Mails: sechs Arten an die Adresse", len(probe) == 6 and any(s.startswith("Alarm:") for s in subjects)
+      and any("Helfer gesucht" in s for s in subjects) and any("Monatsbericht" in s for s in subjects), str(subjects))
+check("Muster-Mails: jede mit HTML-Teil", all(email.message_from_bytes(mails[i][1], policy=policy.default).get_body(("html",)) is not None for i in probe))
+check("Muster-Mails: deutlich als Muster gekennzeichnet", all("Muster" in mail_text(i)[0] + mail_text(i)[1] or "MUSTER" in mail_text(i)[0] for i in probe))
+check("Muster-Mails: nicht im Minutentakt", admin.post("/api/admin/mail-settings/samples", json={"to": "probe@example.org"}).status_code == 429)
+check("Muster-Mails: nur Admin", wa.post("/api/admin/mail-settings/samples", json={"to": "probe@example.org"}).status_code == 403)
+
 admin.put("/api/admin/mail-settings", json={"enabled": False, "smtp_host": "", "smtp_port": 587, "smtp_security": "starttls", "sender_address": "", "app_url": "", "reminder_mail": False})
 ctl.stop()
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")

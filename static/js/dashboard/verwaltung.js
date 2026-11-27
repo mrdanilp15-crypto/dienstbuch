@@ -314,6 +314,19 @@ window.DB_MIXINS.push({
                     } finally { this.mailSaving = false; }
                 },
                 
+                async sendSampleMails() {
+                    if (!this.mailTestTo) { await appAlert('Bitte links eine Empfängeradresse eintragen.'); return; }
+                    this.mailSaving = true;
+                    try {
+                        const res = await fetch('/api/admin/mail-settings/samples', {
+                            method: 'POST', credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to: this.mailTestTo })
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        await appAlert(res.ok ? `${data.sent} Muster-Mails verschickt. Schau sie dir am besten am PC und am Handy an (auch im Spam-Ordner).` : (data.detail || 'Versand fehlgeschlagen.'));
+                    } finally { this.mailSaving = false; }
+                },
                 async uploadBackupFile() {
                     const fileInput = this.$refs.backupFileInput;
                     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {

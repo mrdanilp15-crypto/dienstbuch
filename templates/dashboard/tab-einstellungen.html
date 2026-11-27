@@ -408,7 +408,9 @@
                                                         <button class="btn btn-premium rounded-pill px-4" @click="saveMailSettings" :disabled="mailSaving"><i class="fa fa-save me-1"></i>Speichern</button>
                                                         <input type="email" class="form-control form-control-sm" style="max-width: 260px;" v-model="mailTestTo" placeholder="Test an ...">
                                                         <button class="btn btn-outline-light rounded-pill btn-sm" @click="sendTestMail" :disabled="mailSaving"><i class="fa fa-paper-plane me-1"></i>Test-Mail senden</button>
+                                                        <button class="btn btn-outline-light rounded-pill btn-sm" @click="sendSampleMails" :disabled="mailSaving" title="Alarm, Helfersuche, Termin, Fristen, Einladung und Monatsbericht als Muster an die Adresse links"><i class="fa fa-envelopes-bulk me-1"></i>Alle Mailarten als Muster</button>
                                                     </div>
+                                                    <div class="small text-muted mt-2">Mit „Alle Mailarten als Muster“ kommen sechs Beispiel-Mails an die eingetragene Adresse. So siehst du, wie sie in deinem Mailprogramm und am Handy aussehen.</div>
                                                 </div>
                                             </div>
 
