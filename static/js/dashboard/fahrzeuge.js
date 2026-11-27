@@ -11,7 +11,19 @@ window.DB_MIXINS.push({
                         if (res.ok) this.vehicles = await res.json();
                     } catch(e) { console.error("Error loading vehicles", e); }
                 },
-                async quickStatusChange(v) { await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify({ status: parseInt(v.status) }) }); },
+                async quickStatusChange(v) {
+                    const body = { status: parseInt(v.status) };
+                    if (body.status === 6) {
+                        // Außer Dienst: Grund und voraussichtliches Ende abfragen (beides freiwillig, Abbrechen = Status bleibt wie vorher)
+                        const reason = await appPrompt('Warum ist das Fahrzeug außer Dienst? (z. B. Werkstatt, Pumpe defekt)', '', v.name + ' außer Dienst melden');
+                        if (reason === null) { await this.loadVehicles(); return; }
+                        const until = await appPrompt('Voraussichtlich wieder einsatzbereit am (leer lassen, wenn unbekannt):', '', v.name + ' außer Dienst melden', 'date');
+                        body.out_reason = reason; body.out_until = until || null;
+                    }
+                    const res = await fetch(`/api/vehicles/${v.id}/status`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include', body: JSON.stringify(body) });
+                    if (!res.ok) await appAlert('Status konnte nicht gespeichert werden.');
+                    await this.loadVehicles();
+                },
                 async loadVehicleLogs() {
                     if(!this.activeVehicleForLog) return;
                     const res = await fetch(`/api/material/vehicles/${this.activeVehicleForLog.id}/log`, { credentials: 'include' });

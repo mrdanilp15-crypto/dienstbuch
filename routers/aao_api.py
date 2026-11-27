@@ -54,8 +54,24 @@ def recommend(request: Request, stichwort: str = ""):
     """Für das Hallen-Display (Session oder Display-Token): die Fahrzeuge der passendsten Regel, sonst eine leere Liste."""
     check_display_access(request)
     conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-    rule = pick_rule(_rules(cur), stichwort); cur.close(); conn.close()
-    return {"rule": rule["pattern"] if rule else None, "entries": rule["entries"] if rule else []}
+    rule = pick_rule(_rules(cur), stichwort)
+    entries = [dict(e) for e in rule["entries"]] if rule else []
+    if entries:
+        # Fahrzeuge außer Dienst (Status 6) markieren, damit am Display sofort klar ist, wer stattdessen fährt
+        cur.execute("SELECT name, radio_name, out_reason, out_until FROM vehicles WHERE status = 6")
+        out = {}
+        for v in cur.fetchall():
+            for key in (v["name"], v["radio_name"]):
+                if key and key.strip():
+                    out[key.strip().lower()] = v
+        for e in entries:
+            v = out.get(e["vehicle"].strip().lower())
+            if v:
+                e["out_of_service"] = True
+                e["out_reason"] = v["out_reason"] or ""
+                e["out_until"] = str(v["out_until"]) if v["out_until"] else None
+    cur.close(); conn.close()
+    return {"rule": rule["pattern"] if rule else None, "entries": entries}
 
 
 @router.post("")

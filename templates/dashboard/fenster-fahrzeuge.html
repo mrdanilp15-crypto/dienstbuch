@@ -46,6 +46,16 @@
                                     <option :value="6">Status 6 (Nicht einsatzbereit / Werkstatt)</option>
                                 </select>
                             </div>
+                            <div v-if="activeVehicle.status == 6" class="row g-2 mb-3">
+                                <div class="col-sm-7">
+                                    <label class="form-label">Grund des Ausfalls</label>
+                                    <input type="text" v-model="activeVehicle.out_reason" class="form-control" maxlength="255" placeholder="z. B. Werkstatt, Pumpe defekt">
+                                </div>
+                                <div class="col-sm-5">
+                                    <label class="form-label">Voraussichtlich bis</label>
+                                    <input type="date" v-model="activeVehicle.out_until" class="form-control">
+                                </div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Erforderliche Führerscheinklasse <i class="fa fa-question-circle text-muted" title="Wird bei der Reservierung als Hinweis angezeigt"></i></label>
                                 <select v-model="activeVehicle.required_license" class="form-select">

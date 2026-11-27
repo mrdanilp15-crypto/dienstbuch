@@ -143,6 +143,7 @@ window.DB_MIXINS.push({
                     }
                     else if (id === 'rueckmeldung') this.activeTab = 'kalender';
                     else if (id === 'fristen') this.activeTab = 'fristen';
+                    else if (id === 'ausfall') this.activeTab = 'fahrzeuge';
                     else if (id === 'umfragen' || id === 'lehrgaenge') this.activeTab = id;
                     else if (id === 'maengel') { this.activeTab = 'material'; this.materialSubTab = 'maengel'; }
                 },

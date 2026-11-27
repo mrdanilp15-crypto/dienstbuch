@@ -341,6 +341,10 @@
         .fms-3 { color: #eab308; background-color: #eab308; }
         .fms-4 { color: #dc2626; background-color: #dc2626; }
         .fms-6 { color: #475569; background-color: #475569; }
+        /* Fahrzeug außer Dienst: am Display deutlich, in der AAO durchgestrichen */
+        .out-note { color: #fca5a5; font-size: 0.78rem; font-weight: 700; }
+        .aao-out { opacity: .75; border-style: dashed !important; }
+        .aao-out .aao-name { text-decoration: line-through; }
 
         /* Map styling */
         #displayMap {
@@ -589,11 +593,12 @@
                     <span class="card-label"><i class="fa fa-route me-1"></i> AAO Taktischer Ausrücke-Leitfaden</span>
                     <p class="text-light small mb-2" style="color: #e4e4e7;">Ausrückereihenfolge laut AAO für das Stichwort.</p>
                     <div class="d-flex flex-column gap-2">
-                        <div v-for="(rec, index) in aaoRecommendations" :key="index" class="aao-badge">
-                            <span class="badge bg-danger rounded-pill fs-6">{{ index + 1 }}</span>
+                        <div v-for="(rec, index) in aaoRecommendations" :key="index" class="aao-badge" :class="{ 'aao-out': rec.out_of_service }">
+                            <span class="badge rounded-pill fs-6" :class="rec.out_of_service ? 'bg-secondary' : 'bg-danger'">{{ index + 1 }}</span>
                             <div>
-                                <div class="text-white fw-bold fs-6">{{ rec.vehicle }}</div>
-                                <div v-if="rec.role" class="small fw-semibold" style="color: #cbd5e1; font-size:0.8rem;">{{ rec.role }}</div>
+                                <div class="text-white fw-bold fs-6"><span class="aao-name">{{ rec.vehicle }}</span></div>
+                                <div v-if="rec.out_of_service" class="out-note">Außer Dienst<span v-if="rec.out_reason">: {{ rec.out_reason }}</span><span v-if="rec.out_until"> &middot; bis {{ deDate(rec.out_until) }}</span></div>
+                                <div v-else-if="rec.role" class="small fw-semibold" style="color: #cbd5e1; font-size:0.8rem;">{{ rec.role }}</div>
                             </div>
                         </div>
                     </div>
@@ -669,6 +674,7 @@
                             <div>
                                 <div class="fw-extrabold text-white" style="font-size: 0.95rem; font-weight: 800;">{{ v.name }}</div>
                                 <div class="fw-bold text-warning" style="font-size: 0.85rem; color: #facc15 !important;">{{ v.radio_name || v.name }}</div>
+                                <div v-if="v.status == 6" class="out-note">Außer Dienst<span v-if="v.out_reason">: {{ v.out_reason }}</span><span v-if="v.out_until"> &middot; bis {{ deDate(v.out_until) }}</span></div>
                             </div>
                             <div class="status-badge" :class="'fms-' + v.status">
                                 {{ v.status }}
@@ -820,6 +826,7 @@
                 setInterval(this.fetchWeatherWarnings, 600000); // DWD-Warnungen alle 10 Min neu laden
             },
             methods: {
+                deDate(v) { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}.${m[2]}.${m[1]}` : v; },
                 async loadAao(stichwort) {
                     if (!stichwort || stichwort.startsWith('Bereitstellung')) { this.aaoRecommendations = []; return; }  // kein Einsatz = keine AAO
                     try {

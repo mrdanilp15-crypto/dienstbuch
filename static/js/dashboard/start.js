@@ -192,6 +192,7 @@ window.DB_MIXINS.push({
                     const rsvp = this.overviewUpcoming.filter(s => { const r = this.scheduleRsvpMap[s.id]; return r && !r.unlinked && !r.my_status && String(s.date).slice(0, 10) <= limit; });
                     add('rueckmeldung', rsvp.length, 'Termin ohne deine Rückmeldung', 'Termine ohne deine Rückmeldung', 'yellow');
                     add('fristen', this.overviewDue.overdue, 'überfällige Frist', 'überfällige Fristen', 'red');
+                    add('ausfall', (this.vehicles || []).filter(v => v.status == 6).length, 'Fahrzeug außer Dienst', 'Fahrzeuge außer Dienst', 'red');
                     if (this.canManageMaterial) add('maengel', (this.overviewDefects || []).length, 'neuer Mangel', 'neue Mängel', 'red');
                     add('umfragen', this.polls.filter(p => p.open && !p.answered).length, 'Umfrage oder Helfersuche ohne deine Antwort', 'Umfragen oder Helfersuchen ohne deine Antwort', 'yellow');
                     if (this.wishData.manage) add('lehrgaenge', this.wishData.wishes.filter(w => w.status === 'Wunsch').length, 'offener Lehrgangswunsch', 'offene Lehrgangswünsche', 'yellow');

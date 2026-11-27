@@ -48,6 +48,32 @@ def check_open_reports(now: datetime.datetime = None) -> int:
     return total
 
 
+def check_vehicle_returns(now: datetime.datetime = None) -> int:
+    """Fahrzeuge außer Dienst, deren „voraussichtlich bis“ vorbei ist: die Zuständigen einmal fragen, ob es wieder einsatzbereit ist
+    (bei geändertem Datum erneut). Nur tagsüber. Gibt die Zahl der angemahnten Fahrzeuge zurück."""
+    from core.notify import notify
+    from core.permissions import users_with
+    now = now or datetime.datetime.now()
+    if not (8 <= now.hour < 21):
+        return 0
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, name, out_reason, out_until FROM vehicles WHERE status = 6 AND out_until IS NOT NULL AND out_until < %s "
+                "AND out_reminded IS NULL", (now.date(),))
+    rows = cur.fetchall()
+    users = users_with("vehicles.manage") if rows else []
+    for r in rows:
+        if users:
+            notify("maengel", f"Wieder einsatzbereit? {r['name']}",
+                   f"Sollte seit {r['out_until']:%d.%m.%Y} zurück sein" + (f" (Grund: {r['out_reason']})" if r["out_reason"] else "") +
+                   ". Bitte Status setzen oder das Datum verlängern.", "/dashboard?open=fahrzeuge", usernames=users)
+        cur.execute("UPDATE vehicles SET out_reminded = %s WHERE id = %s", (now.date(), r["id"]))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return len(rows)
+
+
 def build_monthly_report(year: int, month: int):
     """(Betreff, Text) für den angegebenen Monat. Fristen und Mängel sind der Stand von heute."""
     from core.reminders import get_due_items

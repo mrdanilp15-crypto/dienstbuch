@@ -18,6 +18,7 @@
                                         <div>
                                             <h6 class="fw-bold text-white mb-0">{{v.name}} <span v-if="v.required_license" class="badge bg-secondary rounded-pill ms-1" style="font-size:0.6rem;" title="Erforderliche Führerscheinklasse">FS {{v.required_license}}</span></h6>
                                             <small class="text-muted">{{v.radio_name || 'Keine Funkkennung'}} &bull; {{v.milage}} km</small>
+                                            <div v-if="v.status == 6" class="small text-danger fw-semibold"><i class="fa fa-ban me-1"></i>Außer Dienst<span v-if="v.out_since"> seit {{ dt(v.out_since.slice(0, 10)) }}</span><span v-if="v.out_reason">: {{ v.out_reason }}</span><span v-if="v.out_until" :class="{'fw-bold': isOverdue(v.out_until)}"> &bull; voraussichtlich bis {{ dt(v.out_until) }}</span></div>
                                             <div v-if="v.tuv_date || v.sp_date" class="small text-muted"><span v-if="v.tuv_date" :class="{'text-danger fw-bold': isOverdue(v.tuv_date)}">TÜV bis {{ dt(v.tuv_date) }}</span><span v-if="v.tuv_date && v.sp_date"> &bull; </span><span v-if="v.sp_date" :class="{'text-danger fw-bold': isOverdue(v.sp_date)}">SP bis {{ dt(v.sp_date) }}</span></div>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">

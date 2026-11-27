@@ -21,12 +21,71 @@ class VehicleData(BaseModel):
     purchase_value: Optional[float] = None
     insurance_policy: Optional[str] = ""
 
+    out_reason: Optional[str] = None
+    out_until: Optional[str] = None
+
 class VehicleReservationCreate(BaseModel):
     purpose: str
     start_datetime: str
     end_datetime: str
 
-_VEHICLE_PUBLIC_FIELDS = {"id", "name", "radio_name", "status"}
+OUT_OF_SERVICE = 6
+
+
+def _parse_until(value):
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ungültiges Datum bei „voraussichtlich bis“.")
+
+
+def apply_status(cur, vehicle_id: int, new_status: int, user: dict, reason=None, until=None):
+    """Setzt den Funkstatus. Wechsel auf/aus Status 6 (außer Dienst) merkt sich Grund und Zeitraum und meldet es den Zuständigen."""
+    cur.execute("SELECT name, status, out_reason, out_until FROM vehicles WHERE id=%s", (vehicle_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    name, old_status, old_reason, old_until = row
+    new_status = int(new_status or 2)
+    if not 1 <= new_status <= 9:
+        raise HTTPException(status_code=400, detail="Unbekannter Status")
+    until_date = _parse_until(until)
+    reason = (reason or "").strip()[:255]
+    event = None
+    if new_status == OUT_OF_SERVICE:
+        if old_status != OUT_OF_SERVICE:
+            cur.execute("UPDATE vehicles SET status=%s, out_reason=%s, out_until=%s, out_since=NOW(), out_reminded=NULL WHERE id=%s",
+                        (new_status, reason, until_date, vehicle_id))
+            event = "out"
+        elif reason or until is not None:
+            # schon außer Dienst: nur Grund/Datum nachtragen bzw. ändern
+            cur.execute("UPDATE vehicles SET out_reason=%s, out_until=%s, out_reminded=NULL WHERE id=%s",
+                        (reason or old_reason or "", until_date, vehicle_id))
+    else:
+        cur.execute("UPDATE vehicles SET status=%s, out_reason='', out_until=NULL, out_since=NULL, out_reminded=NULL WHERE id=%s",
+                    (new_status, vehicle_id))
+        if old_status == OUT_OF_SERVICE:
+            event = "back"
+    return name, event, reason, until_date
+
+
+def notify_status_event(name, event, reason, until_date, user):
+    if not event:
+        return
+    from core.notify import notify
+    from core.permissions import users_with
+    recipients = sorted(set(users_with("vehicles.manage")) | set(users_with("missions.approve")))
+    who = user.get("username", "")
+    if event == "out":
+        body = (f"Grund: {reason}. " if reason else "") + (f"Voraussichtlich bis {until_date:%d.%m.%Y}. " if until_date else "") + f"Gemeldet von {who}."
+        notify("maengel", f"Außer Dienst: {name}", body, "/dashboard?open=fahrzeuge", usernames=recipients)
+    else:
+        notify("maengel", f"Wieder einsatzbereit: {name}", f"Zurückgemeldet von {who}.", "/dashboard?open=fahrzeuge", usernames=recipients)
+
+
+_VEHICLE_PUBLIC_FIELDS = {"id", "name", "radio_name", "status", "out_reason", "out_until"}  # Ausfall steht auch am Hallen-Display
 
 @router.get("/api/vehicles")
 def get_vehicles(request: Request):
@@ -37,12 +96,13 @@ def get_vehicles(request: Request):
     check_display_access(request)
     is_authenticated = bool(get_current_user(request))
     c = get_db_connection(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service, required_license, purchase_value, insurance_policy FROM vehicles ORDER BY name")
+    cur.execute("SELECT id, name, radio_name, status, tuv_date, sp_date, milage, next_service, required_license, purchase_value, insurance_policy, "
+                "out_reason, out_since, out_until FROM vehicles ORDER BY name")
     r = cur.fetchall(); c.close()
     for v in r:
-        if v['tuv_date']: v['tuv_date'] = str(v['tuv_date'])
-        if v['sp_date']: v['sp_date'] = str(v['sp_date'])
-        if v['next_service']: v['next_service'] = str(v['next_service'])
+        for k in ('tuv_date', 'sp_date', 'next_service', 'out_until'):
+            if v[k]: v[k] = str(v[k])
+        if v['out_since']: v['out_since'] = v['out_since'].strftime('%Y-%m-%d %H:%M')
     if not is_authenticated:
         r = [{k: v[k] for k in _VEHICLE_PUBLIC_FIELDS} for v in r]
     return r
@@ -67,10 +127,12 @@ def update_vehicle(id: int, v: VehicleData, request: Request):
     c = get_db_connection(); cur = c.cursor()
     cur.execute("""
         UPDATE vehicles
-        SET name=%s, radio_name=%s, status=%s, tuv_date=%s, sp_date=%s, milage=%s, next_service=%s, required_license=%s, purchase_value=%s, insurance_policy=%s
+        SET name=%s, radio_name=%s, tuv_date=%s, sp_date=%s, milage=%s, next_service=%s, required_license=%s, purchase_value=%s, insurance_policy=%s
         WHERE id=%s
-    """, (v.name, v.radio_name, v.status or 2, v.tuv_date or None, v.sp_date or None, v.milage or 0, v.next_service or None, v.required_license or None, v.purchase_value, v.insurance_policy or "", id))
+    """, (v.name, v.radio_name, v.tuv_date or None, v.sp_date or None, v.milage or 0, v.next_service or None, v.required_license or None, v.purchase_value, v.insurance_policy or "", id))
+    name, event, reason, until_date = apply_status(cur, id, v.status or 2, user, v.out_reason, v.out_until)
     c.commit(); c.close()
+    notify_status_event(name, event, reason, until_date, user)
     log_audit_action(user["username"], "FAHRZEUG_BEARBEITEN", f"Fahrzeug ID {id} ('{v.name}') aktualisiert.")
     return {"status": "updated"}
 
@@ -99,9 +161,13 @@ def update_vehicle_status(id: int, data: dict, request: Request):
     if not user or not has_permission(user, "vehicles.manage"): raise HTTPException(status_code=403, detail="Schreibgeschützt")
     new_status = data.get("status", 2)
     c = get_db_connection(); cur = c.cursor()
-    cur.execute("UPDATE vehicles SET status=%s WHERE id=%s", (new_status, id))
-    c.commit(); c.close()
-    log_audit_action(user["username"], "FUNKSTATUS", f"Fahrzeug ID {id} auf BOS Status {new_status} gesetzt.")
+    try:
+        name, event, reason, until_date = apply_status(cur, id, new_status, user, data.get("out_reason"), data.get("out_until"))
+        c.commit()
+    finally:
+        c.close()
+    notify_status_event(name, event, reason, until_date, user)
+    log_audit_action(user["username"], "FUNKSTATUS", f"Fahrzeug {name} (ID {id}) auf BOS Status {new_status} gesetzt." + (f" Grund: {reason}" if event == "out" and reason else ""))
     return {"status": "status updated"}
 
 @router.delete("/api/vehicles/{id}")
