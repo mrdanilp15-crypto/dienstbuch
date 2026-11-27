@@ -30,27 +30,30 @@ def collect(year: int) -> dict:
         row = cur.fetchone()
         return list(row.values())[0] or 0 if row else 0
 
-    real = "m.date >= %s AND m.date < %s AND m.stichwort NOT LIKE '[TEST]%%'"
-    cur.execute(f"SELECT m.id, m.date, m.stichwort, m.duration FROM missions m WHERE {real}", period)
-    missions = cur.fetchall()
+    from core.mission_stats import mission_rows, legacy_hours, NOT_LEGACY
+    real = "m.date >= %s AND m.date < %s AND COALESCE(m.stichwort, '') NOT LIKE '[TEST]%%'"
+    # Neue Einsatzberichte und alte Logbuch-Einträge "Einsatz"
+    missions = mission_rows(cur, start, end)
     by_type, by_month = {}, [0] * 12
     for m in missions:
         t = _mission_type(m["stichwort"])
         by_type[t] = by_type.get(t, 0) + 1
         if m["date"]:
             by_month[m["date"].month - 1] += 1
-    prev_missions = one("SELECT COUNT(*) FROM missions m WHERE m.date >= %s AND m.date < %s AND m.stichwort NOT LIKE '[TEST]%%'",
-                        (datetime.date(year - 1, 1, 1), start))
+    prev_missions = len(mission_rows(cur, datetime.date(year - 1, 1, 1), start))
     mission_hours = one("SELECT SUM(m.duration) FROM mission_attendance a JOIN missions m ON m.id = a.mission_id "
                         f"WHERE {real} AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}")
     mission_people = one("SELECT COUNT(*) FROM mission_attendance a JOIN missions m ON m.id = a.mission_id "
                          f"WHERE {real} AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}")
+    old_h, old_n = legacy_hours(cur, start, end, _NOT_PRESENT)
+    mission_hours = float(mission_hours or 0) + old_h
+    mission_people += old_n
 
-    cur.execute("SELECT COALESCE(NULLIF(category, ''), 'Sonstiges') AS cat, COUNT(*) AS n, SUM(duration) AS h FROM sessions "
-                "WHERE date >= %s AND date < %s GROUP BY cat ORDER BY n DESC", period)
+    cur.execute("SELECT COALESCE(NULLIF(s.category, ''), 'Sonstiges') AS cat, COUNT(*) AS n, SUM(s.duration) AS h FROM sessions s "
+                f"WHERE s.date >= %s AND s.date < %s AND {NOT_LEGACY} GROUP BY cat ORDER BY n DESC", period)
     service_cats = [{"category": r["cat"], "count": r["n"], "hours": _hours(r["h"])} for r in cur.fetchall()]
     service_hours = one("SELECT SUM(s.duration) FROM attendance a JOIN sessions s ON s.id = a.session_id "
-                        f"WHERE s.date >= %s AND s.date < %s AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}")
+                        f"WHERE s.date >= %s AND s.date < %s AND {NOT_LEGACY} AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}")
 
     cur.execute("SELECT COALESCE(NULLIF(membership_status, ''), 'Aktiv') AS st, COUNT(*) AS n FROM personnel "
                 "WHERE entry_date IS NULL OR entry_date < %s GROUP BY st", (end,))

@@ -103,14 +103,16 @@ def build_monthly_report(year: int, month: int):
         return list(row.values())[0] or 0
 
     period = (start, end)
-    real = "date >= %s AND date < %s AND stichwort NOT LIKE '[TEST]%%'"
-    missions = one(f"SELECT COUNT(*) FROM missions WHERE {real}", period)
+    from core.mission_stats import mission_rows, legacy_hours, NOT_LEGACY
+    real = "date >= %s AND date < %s AND COALESCE(stichwort, '') NOT LIKE '[TEST]%%'"
+    missions = len(mission_rows(cur, start, end))
     unfinished = one(f"SELECT COUNT(*) FROM missions WHERE {real} AND status != 'Freigegeben' AND (leader_signature IS NULL OR leader_signature = '')", period)
     mission_hours = one("SELECT SUM(m.duration) FROM mission_attendance a JOIN missions m ON m.id = a.mission_id "
-                        f"WHERE m.date >= %s AND m.date < %s AND m.stichwort NOT LIKE '[TEST]%%' AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}", period)
-    services = one("SELECT COUNT(*) FROM sessions WHERE date >= %s AND date < %s", period)
+                        f"WHERE m.date >= %s AND m.date < %s AND COALESCE(m.stichwort, '') NOT LIKE '[TEST]%%' AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}", period)
+    mission_hours = float(mission_hours or 0) + legacy_hours(cur, start, end, _NOT_PRESENT)[0]
+    services = one(f"SELECT COUNT(*) FROM sessions s WHERE s.date >= %s AND s.date < %s AND {NOT_LEGACY}", period)
     service_hours = one("SELECT SUM(s.duration) FROM attendance a JOIN sessions s ON s.id = a.session_id "
-                        f"WHERE s.date >= %s AND s.date < %s AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}", period)
+                        f"WHERE s.date >= %s AND s.date < %s AND {NOT_LEGACY} AND CAST(a.is_present AS CHAR) NOT IN {_NOT_PRESENT}", period)
     cur.execute("SELECT COALESCE(e.name, CONCAT('Fahrzeug ', v.name), 'Unbekannt') AS name, d.status, d.description FROM equipment_defect_reports d "
                 "LEFT JOIN equipment e ON e.id = d.equipment_id LEFT JOIN vehicles v ON v.id = d.vehicle_id "
                 "WHERE d.status != 'Erledigt' ORDER BY d.created_at")

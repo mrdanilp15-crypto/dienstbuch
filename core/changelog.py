@@ -6,6 +6,17 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 41,
+        "version": "2.91",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Statistik", "title": "Alte Einsätze zählen wieder mit",
+             "text": "Einsätze, die vor dem Einsatz-Editor als Logbuch-Eintrag „Einsatz“ erfasst wurden, zählen jetzt in Statistik, Jahresbericht und Monatsbericht mit, samt Einsatzart und Personenstunden. Haben mehrere Gruppen denselben Einsatz eingetragen, zählt er einmal. Unter Dienste zählen sie nicht mehr doppelt."},
+            {"type": "improved", "tag": "Bedienung", "title": "Profil-Menü oben rechts, auch am Handy",
+             "text": "Profil, Dienstausweis, Hell/Dunkel, Hallen-Display, Push und Logout stehen jetzt überall im Menü oben rechts. Der doppelte Kasten unten in der Seitenleiste ist weg."},
+        ],
+    },
+    {
         "id": 40,
         "version": "2.90",
         "date": "2026-11-27",

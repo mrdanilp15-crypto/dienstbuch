@@ -486,13 +486,13 @@ def get_admin_stats(request: Request, year: Optional[int] = None):
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
 
-    # Test-/Probealarme verfälschen sonst die Jahresstatistik
-    not_test = "stichwort NOT LIKE '[TEST]%%'"
-
-    cur.execute(f"SELECT date, stichwort FROM missions WHERE YEAR(date) = %s AND {not_test}", (year,))
-    missions = cur.fetchall()
-    cur.execute(f"SELECT MONTH(date) AS m, COUNT(*) AS c FROM missions WHERE YEAR(date) = %s AND {not_test} GROUP BY MONTH(date)", (year - 1,))
-    prev_by_month = {r["m"]: r["c"] for r in cur.fetchall()}
+    # Neue Einsatzberichte und alte Logbuch-Einträge "Einsatz", ohne Test-/Probealarme
+    from core.mission_stats import mission_rows, NOT_LEGACY
+    missions = mission_rows(cur, date(year, 1, 1), date(year + 1, 1, 1))
+    prev_by_month = {}
+    for m in mission_rows(cur, date(year - 1, 1, 1), date(year, 1, 1)):
+        if m["date"]:
+            prev_by_month[m["date"].month] = prev_by_month.get(m["date"].month, 0) + 1
 
     days_german = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
     months_german = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
@@ -508,9 +508,9 @@ def get_admin_stats(request: Request, year: Optional[int] = None):
         by_type[t] = by_type.get(t, 0) + 1
 
     cur.execute("""
-        SELECT MONTH(date) AS m, category, SUM(duration) AS h FROM sessions
-        WHERE YEAR(date) = %s GROUP BY MONTH(date), category
-    """, (year,))
+        SELECT MONTH(s.date) AS m, s.category, SUM(s.duration) AS h FROM sessions s
+        WHERE YEAR(s.date) = %s AND {NOT_LEGACY} GROUP BY MONTH(s.date), s.category
+    """.format(NOT_LEGACY=NOT_LEGACY), (year,))
     hours = {}
     for r in cur.fetchall():
         cat = r["category"] or "Sonstiges"

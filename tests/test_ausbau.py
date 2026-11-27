@@ -244,5 +244,24 @@ check("System: Warnung höchstens einmal am Tag", sql("select count(*) from noti
 aa.compute_health = orig
 sql("delete from system_events; delete from notifications where title = 'Systemwarnung: Datensicherung'")
 
+# --- Alte Einsätze (Logbuch-Eintrag Kategorie "Einsatz") zählen in der Statistik mit
+gid = sql("select id from groups_table order by id limit 1")
+before = admin.get("/api/admin/stats", params={"year": 2011}).json()
+sql(f"insert into sessions (group_id, date, time, description, duration, category) values "
+    f"({gid}, '2011-03-04', '10:00', 'B2 Scheunenbrand TSTALT', 3, 'Einsatz'), "
+    f"({gid}, '2011-03-04', '10:00', 'B2 Scheunenbrand TSTALT', 3, 'Einsatz'), "
+    f"({gid}, '2011-05-06', '', 'THL Baum TSTALT', 1, 'Einsatz'), "
+    f"({gid}, '2011-05-07', '', 'Übungsdienst TSTALT', 2, 'Übung')")
+st = admin.get("/api/admin/stats", params={"year": 2011}).json()
+check("Statistik: alte Einsätze aus dem Logbuch zählen mit (doppelt eingetragen zählt einmal)", st["total_missions"] == before["total_missions"] + 2, str(st["total_missions"]))
+types = {t["type"]: t["count"] for t in st["missions_by_type"]}
+check("Statistik: alte Einsätze bekommen eine Einsatzart", types.get("Brand", 0) >= 1 and types.get("Technische Hilfe", 0) >= 1, str(types))
+check("Statistik: alte Einsätze zählen nicht als Dienststunden", "Einsatz" not in st["hours_by_category"] and "Übung" in st["hours_by_category"], str(st["hours_by_category"]))
+from core.annual_report import collect  # noqa: E402
+rep = collect(2011)
+check("Jahresbericht: alte Einsätze zählen mit", rep["missions"]["total"] >= 2, str(rep["missions"]))
+check("Jahresbericht: alte Einsätze nicht unter Dienste", all(c["category"] != "Einsatz" for c in rep["services"]["by_category"]), str(rep["services"]))
+sql("delete from sessions where description like '%TSTALT%'")
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)

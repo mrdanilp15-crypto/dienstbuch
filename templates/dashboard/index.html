@@ -248,9 +248,9 @@
                     </div>
                 </div>
                 <!-- Menü am Namen -->
-                <div class="position-relative d-none d-lg-block action-menu">
-                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold user-menu-btn position-relative" @click="toggleAction('user')" :aria-expanded="openIncident === 'user' ? 'true' : 'false'">
-                        <i class="fa-regular fa-circle-user me-1"></i>{{ displayName || username }}<i class="fa fa-chevron-down ms-2 small"></i>
+                <div class="position-relative action-menu ms-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold user-menu-btn position-relative" @click="toggleAction('user')" :aria-expanded="openIncident === 'user' ? 'true' : 'false'" title="Profil und Konto" aria-label="Profil und Konto">
+                        <i class="fa-regular fa-circle-user"></i><span class="d-none d-lg-inline ms-1">{{ displayName || username }}</span><i class="fa fa-chevron-down ms-2 small d-none d-lg-inline"></i>
                         <span v-if="isAdmin && changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Neuigkeiten</span></span>
                     </button>
                     <div v-if="openIncident === 'user'" class="incident-menu" @click="openIncident = null">
@@ -328,23 +328,10 @@
                     <div class="sidebar-section-header" v-if="canSeeSettings">Verwaltung</div>
                     <button class="sidebar-btn" v-if="canSeeSettings" :class="{active: activeTab === 'verwaltung'}" @click="activeTab = 'verwaltung'; showMobileSidebar = false"><i class="fa fa-gears"></i> Einstellungen<span class="sidebar-pin" :class="isFavorite('verwaltung') ? 'pinned' : ''" role="button" title="An-/abheften (Favorit)" @click.stop="toggleFavorite('verwaltung')"><i class="fa-star" :class="isFavorite('verwaltung') ? 'fa-solid' : 'fa-regular'"></i></span></button>
 
-                    <div class="sidebar-section-header d-lg-none">Aktionen</div>
-                    <button class="sidebar-btn d-lg-none" @click="toggleTheme"><i class="fa" :class="isDarkMode ? 'fa-sun' : 'fa-moon'"></i> Theme wechseln</button>
-                    <a href="/static/alarmdisplay.html" target="_blank" class="sidebar-btn text-decoration-none d-lg-none" style="display: flex; align-items: center;"><i class="fa fa-desktop"></i> Hallen-Display</a>
-                    <button v-if="isAdmin" class="sidebar-btn d-lg-none text-warning" @click="openChangelogModal(); showMobileSidebar = false"><i class="fa fa-gift"></i> Was ist neu <span v-if="changelogUnseen" class="badge bg-danger rounded-circle ms-1" style="width:8px; height:8px; padding:0;"></span></button>
-                    <button class="sidebar-btn d-lg-none text-info" @click="requestPushPermission"><i class="fa fa-bell"></i> Push-Alarm Test</button>
-                    <button class="sidebar-btn d-lg-none text-danger" @click="fullLogout"><i class="fa fa-sign-out-alt"></i> Logout</button>
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
-                    <!-- Profil nur am Handy; am PC steht es im Menü am Namen oben rechts -->
-                    <div class="d-lg-none mb-2 pb-2 border-bottom border-secondary border-opacity-10">
-                        <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
-                            <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
-                            <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
-                        </div>
-                        <div class="mt-2 ms-2"><a class="text-info text-decoration-none" style="font-size:0.72rem; cursor:pointer;" @click="openIdCard(); showMobileSidebar = false"><i class="fa fa-id-card me-1"></i>Dienstausweis</a></div>
-                    </div>
+                    <!-- Profil, Ausweis, Design, Logout: im Menü am Namen oben rechts (PC und Handy) -->
                     <div class="d-flex gap-2 justify-content-center">
                         <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
                         <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
