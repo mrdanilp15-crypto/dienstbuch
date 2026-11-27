@@ -3,6 +3,27 @@
 window.DB_MIXINS = window.DB_MIXINS || [];
 window.DB_MIXINS.push({
             computed: {
+                // Alte Einsätze (vor dem Einsatz-Editor als Logbuch-Eintrag "Einsatz" erfasst), aus allen Gruppen
+                legacyIncidents() {
+                    return (this.legacyMissions || []).map(s => ({
+                        id: 'alt_' + s.id,
+                        isNewMission: false,
+                        isLegacy: true,
+                        date: s.date,
+                        time: s.time || '00:00',
+                        stichwort: s.description || 'Einsatz',
+                        adresse: s.instructors || 'Siehe Bericht',
+                        meldung: s.description || '',
+                        duration: s.duration,
+                        status: s.signed ? 'Freigegeben' : 'Entwurf',
+                        rawSession: { id: s.id, group_id: s.group_id },
+                        group_id: s.group_id
+                    }));
+                },
+                // Neue Einsatzberichte und alte Einsätze zusammen, ohne Filter (Übersicht)
+                allMissionEntries() {
+                    return [...(this.missions || []).map(m => ({ ...m, isNewMission: true })), ...this.legacyIncidents];
+                },
                 allIncidents() {
                     let list = this.missions.map(m => {
                         const isSigned = !!(m.leader_signature || m.status === 'Freigegeben');
@@ -21,29 +42,7 @@ window.DB_MIXINS.push({
                             group_id: m.group_id
                         };
                     });
-                    if (this.sessionsList) {
-                        const past = this.sessionsList.filter(s => s && s.date && s.category === 'Einsatz' && !s.is_mission && new Date(s.date).getFullYear() === this.selectedYear).map(s => {
-                            const isSigned = !!(s.leader_signature || s.is_signed || s.status === 'Freigegeben');
-                            let sTime = '00:00';
-                            if (s.time && s.time !== 'None' && s.time.trim() !== '') {
-                                sTime = s.time.length > 5 ? s.time.substring(0, 5) : s.time;
-                            }
-                            return {
-                                id: s.id,
-                                isNewMission: false,
-                                date: s.date,
-                                time: sTime,
-                                stichwort: s.description || 'Einsatz',
-                                adresse: s.instructors || 'Siehe Bericht',
-                                meldung: s.description || '',
-                                duration: s.duration,
-                                status: isSigned ? 'Freigegeben' : 'Entwurf',
-                                rawSession: s,
-                                group_id: s.group_id || (this.selectedGroup ? this.selectedGroup.id : null)
-                            };
-                        });
-                        list.push(...past);
-                    }
+                    list.push(...this.legacyIncidents);
                     if (this.missionGroupFilter !== 'all') {
                         list = list.filter(m => m.group_id == this.missionGroupFilter || !m.group_id);
                     }
@@ -101,8 +100,12 @@ window.DB_MIXINS.push({
                 // Missions
                 async loadMissions() {
                     try {
-                        const res = await fetch('/api/missions', { credentials: 'include' });
+                        const [res, oldRes] = await Promise.all([
+                            fetch('/api/missions', { credentials: 'include' }),
+                            fetch('/api/missions/legacy', { credentials: 'include' })
+                        ]);
                         if(res.ok) this.missions = await res.json();
+                        if(oldRes.ok) this.legacyMissions = await oldRes.json();
                     } catch(e) { console.error("Error loading missions", e); }
                 },
                 goToNewMission() {

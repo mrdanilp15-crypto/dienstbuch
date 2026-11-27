@@ -261,6 +261,9 @@ from core.annual_report import collect  # noqa: E402
 rep = collect(2011)
 check("Jahresbericht: alte Einsätze zählen mit", rep["missions"]["total"] >= 2, str(rep["missions"]))
 check("Jahresbericht: alte Einsätze nicht unter Dienste", all(c["category"] != "Einsatz" for c in rep["services"]["by_category"]), str(rep["services"]))
+old = [x for x in admin.get("/api/missions/legacy").json() if "TSTALT" in x["description"]]
+check("Einsatzliste: alte Einsätze aller Gruppen, doppelte einmal", len(old) == 2 and all(x["group_id"] for x in old), str(old))
+check("Einsatzliste: alte Einsätze nur angemeldet", httpx.get(f"{B}/api/missions/legacy").status_code == 401)
 sql("delete from sessions where description like '%TSTALT%'")
 
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")

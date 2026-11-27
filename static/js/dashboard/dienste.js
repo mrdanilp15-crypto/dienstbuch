@@ -342,7 +342,8 @@ window.DB_MIXINS.push({
                         const realId = s.real_mission_id || parseInt(String(s.id).replace('m_', ''));
                         window.location.href = `/editor?mission_id=${realId}`;
                     } else {
-                        window.location.href = `/editor?group_id=${this.selectedGroup.id}&session_id=${s.id}`;
+                        const gid = s.group_id || (this.selectedGroup ? this.selectedGroup.id : '');
+                        window.location.href = `/editor?group_id=${gid}&session_id=${s.id}`;
                     }
                 },
                 async loadStats() {

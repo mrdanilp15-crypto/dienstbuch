@@ -118,6 +118,20 @@ def notify_review(mission_id: int, stichwort: str, by: str):
         print(f"Hinweis zur Freigabe fehlgeschlagen: {e}")
 
 # --- 🚨 EINSÄTZE ENDPUNKTE ---
+@router.get("/legacy")
+def list_legacy_missions(request: Request):
+    """Alte Einsätze aus der Zeit vor dem Einsatz-Editor (Logbuch-Eintrag Kategorie "Einsatz"), aus allen Gruppen."""
+    check_auth(request)
+    from core.mission_stats import legacy_list
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        return legacy_list(cur)
+    finally:
+        cur.close()
+        conn.close()
+
+
 @router.get("")
 def list_missions(request: Request):
     check_auth(request)

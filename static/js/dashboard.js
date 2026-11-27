@@ -259,6 +259,7 @@ applyChartTheme();
                     // Missions / Einsatzberichte
                     isSaving: false,
                     missions: [],
+                    legacyMissions: [],
                     missionGroupFilter: 'all',
 
                     // Equipment

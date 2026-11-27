@@ -110,8 +110,8 @@ window.DB_MIXINS.push({
                 },
                 overviewStats() {
                     const year = new Date().getFullYear();
-                    const list = (this.missions || []).filter(m => m && m.date && String(m.date).slice(0, 4) === String(year));
-                    const open = list.filter(m => !(m.leader_signature || m.status === 'Freigegeben')).length;
+                    const list = this.allMissionEntries.filter(m => m && m.date && String(m.date).slice(0, 4) === String(year));
+                    const open = list.filter(m => !m.isLegacy && !(m.leader_signature || m.status === 'Freigegeben')).length;
                     const by = { Brand: 0, Hilfeleistung: 0, Sonstige: 0 };
                     list.forEach(m => { by[this.kindOfStichwort(m.stichwort)]++; });
                     const latest = [...list].sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 3);
@@ -130,11 +130,12 @@ window.DB_MIXINS.push({
                         .sort((a, b) => (mine(a) ? 1 : 0) - (mine(b) ? 1 : 0)).slice(0, 4);
                 },
                 overviewLatestMissions() {
-                    return [...(this.missions || [])].filter(m => m && m.date)
+                    return [...this.allMissionEntries].filter(m => m && m.date)
                         .sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || '')))).slice(0, 4);
                 },
                 overviewDrafts() {
-                    const list = (this.missions || []).filter(m => m && !(m.leader_signature || m.status === 'Freigegeben'))
+                    // nur neue Einsatzberichte: alte Logbuch-Einsätze ohne Unterschrift sind keine offene Arbeit
+                    const list = (this.missions || []).filter(m => m && !(m.leader_signature || m.status === 'Freigegeben')).map(m => ({ ...m, isNewMission: true }))
                         .sort((a, b) => String(b.date + (b.time || '')).localeCompare(String(a.date + (a.time || ''))));
                     return { count: list.length, top: list.slice(0, 4) };
                 },

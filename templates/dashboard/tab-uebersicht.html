@@ -122,7 +122,7 @@
 
                                 <div v-else-if="w.id === 'letzteEinsaetze'">
                                     <div v-if="!overviewLatestMissions.length" class="text-muted small py-3 text-center">Noch keine Einsätze erfasst.</div>
-                                    <div v-for="m in overviewLatestMissions" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick({ ...m, isNewMission: true })">
+                                    <div v-for="m in overviewLatestMissions" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick(m)">
                                         <span class="badge bg-danger">{{ formatDateDay(String(m.date).slice(0,10)) }}.{{ String(m.date).slice(5,7) }}.</span>
                                         <div class="flex-grow-1 text-truncate small text-white">{{ m.stichwort }} <span class="text-muted">· {{ m.adresse }}</span></div>
                                         <i class="fa" :class="(m.leader_signature || m.status === 'Freigegeben') ? 'fa-circle-check text-success' : 'fa-pen text-warning'"></i>
@@ -132,7 +132,7 @@
 
                                 <div v-else-if="w.id === 'offeneBerichte'">
                                     <div class="d-flex align-items-baseline gap-2 mb-1"><span class="fs-2 fw-bold" :class="overviewDrafts.count ? 'text-warning' : 'text-success'">{{ overviewDrafts.count }}</span><span class="text-muted small">Berichte noch nicht freigegeben</span></div>
-                                    <div v-for="m in overviewDrafts.top" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick({ ...m, isNewMission: true })">
+                                    <div v-for="m in overviewDrafts.top" :key="m.id" class="d-flex gap-2 align-items-center py-1 border-top border-secondary border-opacity-10" style="cursor:pointer;" @click="handleIncidentClick(m)">
                                         <span class="text-muted small text-nowrap">{{ dt(String(m.date).slice(0,10)) }}</span>
                                         <span class="flex-grow-1 text-truncate small text-white">{{ m.stichwort }}</span>
                                     </div>

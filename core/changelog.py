@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 42,
+        "version": "2.92",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Einsätze", "title": "Alte Einsätze auch in Übersicht und Einsatzliste",
+             "text": "Die Übersicht (Einsatzberichte, Letzte Einsätze) und die Einsatzliste zeigen jetzt auch die alten Einsätze aus den Logbüchern, und zwar aus allen Gruppen und allen Jahren, nicht nur aus der gerade gewählten Gruppe. Unter „Davon offen“ zählen sie nicht."},
+        ],
+    },
+    {
         "id": 41,
         "version": "2.91",
         "date": "2026-11-27",
