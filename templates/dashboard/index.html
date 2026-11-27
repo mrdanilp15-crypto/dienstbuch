@@ -337,12 +337,15 @@
                 </div>
 
                 <div class="p-3 bg-black bg-opacity-20 border-top border-secondary border-opacity-10">
-                    <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
-                        <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
-                        <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
+                    <!-- Profil nur am Handy; am PC steht es im Menü am Namen oben rechts -->
+                    <div class="d-lg-none mb-2 pb-2 border-bottom border-secondary border-opacity-10">
+                        <div class="profile-trigger" @click="openSelfPasswordModal(); showMobileSidebar = false">
+                            <div class="text-white small fw-bold mb-1"><i class="fa-regular fa-circle-user text-danger me-1"></i> {{ username }}</div>
+                            <span class="text-muted small" style="font-size: 0.7rem; text-decoration: underline;">Profil & Dienststunden</span>
+                        </div>
+                        <div class="mt-2 ms-2"><a class="text-info text-decoration-none" style="font-size:0.72rem; cursor:pointer;" @click="openIdCard(); showMobileSidebar = false"><i class="fa fa-id-card me-1"></i>Dienstausweis</a></div>
                     </div>
-                    <div class="mt-2 ms-2"><a class="text-info text-decoration-none" style="font-size:0.72rem; cursor:pointer;" @click="openIdCard(); showMobileSidebar = false"><i class="fa fa-id-card me-1"></i>Dienstausweis</a></div>
-                    <div class="d-flex gap-2 justify-content-center mt-2 pt-2 border-top border-secondary border-opacity-10">
+                    <div class="d-flex gap-2 justify-content-center">
                         <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('impressum')">Impressum</a>
                         <span class="text-muted" style="font-size:0.68rem;">&bull;</span>
                         <a class="text-muted text-decoration-none" style="font-size:0.68rem; cursor:pointer;" @click="openLegalModal('datenschutz')">Datenschutz</a>
