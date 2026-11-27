@@ -8,8 +8,13 @@ on:
 jobs:
   # Erst testen, dann bauen: schlaegt etwas fehl, wird KEIN neues Image veroeffentlicht und
   # Portainer bleibt auf dem letzten funktionierenden Stand.
+  # Drei parallele Teile mit je eigener Datenbank: die langen Browser-Tests laufen gleichzeitig statt nacheinander.
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       db:
         image: mariadb:10.6
@@ -53,10 +58,11 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - name: Routen- und Vertragspruefung
+        if: matrix.shard == 1
         run: python tools/check.py
 
-      - name: Tests
-        run: python tests/run_all.py
+      - name: Tests (Teil ${{ matrix.shard }} von 3)
+        run: python tests/run_all.py --shard ${{ matrix.shard }}/3
 
   build:
     needs: test

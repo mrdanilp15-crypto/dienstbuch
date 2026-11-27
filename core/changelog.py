@@ -6,6 +6,27 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 40,
+        "version": "2.90",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "new", "tag": "Material", "title": "Inventur",
+             "text": "Unter Geräte & Material → Inventur alle Geräte (oder eine Kategorie) am Handy abhaken: vorhanden, fehlt oder defekt, auch per Barcode-Scan in einem Rutsch. Beim Abschluss wird aus Fehlendem und Defektem automatisch ein Mangel, gezähltes Verbrauchsmaterial wird neuer Bestand. Dazu gibt es ein PDF-Protokoll."},
+            {"type": "new", "tag": "Statistik", "title": "Jahresbericht für die Versammlung",
+             "text": "Unter Statistiken mit einem Klick als PDF: Einsätze nach Art und Monat, Dienste, Lehrgänge, Mitgliederstand, Beförderungen, Ehrungen, Jubiläen, Fahrzeuge und Jugendfeuerwehr."},
+            {"type": "new", "tag": "Personal", "title": "Atemschutz-Übersicht mit Ampel",
+             "text": "Unter Personal sieht man je Geräteträger G26.3, Belastungsübung, Unterweisung und Einsätze unter Atemschutz. Rot heißt: so nicht einsatzbereit. Belastungsübung und Unterweisung stehen jetzt auch bei den Fristen."},
+            {"type": "new", "tag": "Fahrzeuge", "title": "Fahrzeug außer Dienst melden",
+             "text": "Bei Status 6 werden Grund und „voraussichtlich bis“ abgefragt. Das Hallen-Display und die AAO zeigen das Fahrzeug als außer Dienst, die Zuständigen werden benachrichtigt und nach Ablauf des Datums erinnert."},
+            {"type": "improved", "tag": "Verein", "title": "Mitgliedsbeiträge ausgebaut",
+             "text": "Standardbetrag und Fälligkeit einstellbar, Summen bezahlt/offen, Filter, Notiz je Mitglied und CSV-Export. Fördernde Mitglieder stehen jetzt mit drin. Offene Beiträge nach der Frist erscheinen unter „Zu erledigen“ und im Monatsbericht."},
+            {"type": "improved", "tag": "System", "title": "Systemzustand mit Warnung",
+             "text": "Zeigt jetzt auch Push-Zustellfehler, die Alarm-Schnittstelle sowie Version und Laufzeit. Steht etwas auf Rot, bekommen Admin und Leitung eine Meldung, und unter „Zu erledigen“ erscheint ein Hinweis. Abgelaufene Push-Anmeldungen werden automatisch entfernt."},
+            {"type": "new", "tag": "E-Mail", "title": "Alle Mailarten als Muster",
+             "text": "Unter Einstellungen → E-Mail-Versand verschickt ein Knopf je eine Muster-Mail jeder Art an eine Adresse, um die Darstellung in Gmail, Outlook und am Handy zu prüfen."},
+        ],
+    },
+    {
         "id": 39,
         "version": "2.89",
         "date": "2026-11-27",
