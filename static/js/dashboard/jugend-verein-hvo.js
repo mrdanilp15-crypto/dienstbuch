@@ -3,6 +3,16 @@
 window.DB_MIXINS = window.DB_MIXINS || [];
 window.DB_MIXINS.push({
             computed: {
+                filteredFees() {
+                    if (this.feeFilter === 'offen') return this.membershipFees.filter(f => !f.paid_at);
+                    if (this.feeFilter === 'bezahlt') return this.membershipFees.filter(f => f.paid_at);
+                    return this.membershipFees;
+                },
+                feeTotals() {
+                    const sum = list => list.reduce((a, f) => a + (Number(f.amount) || 0), 0);
+                    const paid = this.membershipFees.filter(f => f.paid_at), open = this.membershipFees.filter(f => !f.paid_at);
+                    return { paid: sum(paid), open: sum(open), paidCount: paid.length, openCount: open.length };
+                },
 
                 filteredYouthMembers() {
                     if (!this.youthSearch) return this.youthMembers;
@@ -214,20 +224,47 @@ window.DB_MIXINS.push({
                 },
                 async loadMembershipFees() {
                     try {
-                        const res = await fetch(`/api/verein/membership-fees?year=${this.feesYear}`, { credentials: 'include' });
+                        const [res, st] = await Promise.all([
+                            fetch(`/api/verein/membership-fees?year=${this.feesYear}`, { credentials: 'include' }),
+                            fetch('/api/verein/fee-settings', { credentials: 'include' })
+                        ]);
                         this.membershipFees = res.ok ? await res.json() : [];
+                        if (st.ok) this.feeSettings = await st.json();
                     } catch(e) { this.membershipFees = []; }
                 },
-                async toggleMembershipFee(f, paid) {
+                async loadFeeOverview() {
+                    // Für "Zu erledigen": nur wer die Vereinskasse führt, und nur wenn die Fälligkeit vorbei ist
+                    if (!this.canSeeFinance) { this.feeOverview = null; return; }
+                    try {
+                        const res = await fetch('/api/verein/membership-fees/summary', { credentials: 'include' });
+                        this.feeOverview = res.ok ? await res.json() : null;
+                    } catch(e) { this.feeOverview = null; }
+                },
+                async saveMembershipFee(f, paid) {
+                    const body = { personnel_id: f.personnel_id, year: this.feesYear, amount: f.amount === '' ? null : f.amount, note: f.note || '' };
+                    if (paid !== undefined) body.paid = paid;
                     const res = await fetch('/api/verein/membership-fees', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         credentials: 'include',
-                        body: JSON.stringify({ personnel_id: f.personnel_id, year: this.feesYear, amount: f.amount || 0, paid: paid })
+                        body: JSON.stringify(body)
                     });
-                    if (res.ok) await this.loadMembershipFees();
-                    else await appAlert("Konnte nicht gespeichert werden.");
+                    if (!res.ok) { await appAlert("Konnte nicht gespeichert werden."); return; }
+                    if (paid !== undefined) { await this.loadMembershipFees(); this.loadFeeOverview(); }
                 },
+                toggleMembershipFee(f, paid) { return this.saveMembershipFee(f, paid); },
+                async saveFeeSettings() {
+                    const res = await fetch('/api/verein/fee-settings', {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                        body: JSON.stringify(this.feeSettings)
+                    });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(d.detail || 'Konnte nicht gespeichert werden.'); return; }
+                    this.feeSettingsOpen = false;
+                    await this.loadMembershipFees();
+                    this.loadFeeOverview();
+                },
+                feeEuro(v) { return (Number(v) || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }); },
+                exportMembershipFees() { window.location.href = `/api/verein/membership-fees.csv?year=${this.feesYear}`; },
                 async submitClubItem() {
                     const res = await fetch('/api/verein/inventory', {
                         method: 'POST',

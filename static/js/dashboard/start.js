@@ -195,6 +195,7 @@ window.DB_MIXINS.push({
                     add('ausfall', (this.vehicles || []).filter(v => v.status == 6).length, 'Fahrzeug außer Dienst', 'Fahrzeuge außer Dienst', 'red');
                     if (this.canManageMaterial) add('maengel', (this.overviewDefects || []).length, 'neuer Mangel', 'neue Mängel', 'red');
                     add('umfragen', this.polls.filter(p => p.open && !p.answered).length, 'Umfrage oder Helfersuche ohne deine Antwort', 'Umfragen oder Helfersuchen ohne deine Antwort', 'yellow');
+                    if (this.feeOverview && this.feeOverview.overdue) add('beitraege', this.feeOverview.open_count, `Mitgliedsbeitrag ${this.feeOverview.year} offen`, `Mitgliedsbeiträge ${this.feeOverview.year} offen`, 'yellow');
                     if (this.wishData.manage) add('lehrgaenge', this.wishData.wishes.filter(w => w.status === 'Wunsch').length, 'offener Lehrgangswunsch', 'offene Lehrgangswünsche', 'yellow');
                     return items;
                 },
@@ -421,7 +422,7 @@ window.DB_MIXINS.push({
                     try {
                         await Promise.all([
                             this.loadMissions(), this.loadSchedules(), this.loadNotifs(), this.loadBroadcasts(),
-                            this.loadDueItems(),
+                            this.loadDueItems(), this.loadFeeOverview(),
                             fetch('/api/material/defect-reports?status=Offen', { credentials: 'include' })
                                 .then(r => r.ok ? r.json() : []).then(d => { this.overviewDefects = d; }).catch(() => {})
                         ]);

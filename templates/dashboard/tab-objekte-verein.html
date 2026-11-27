@@ -166,9 +166,36 @@
                                                     <div class="card premium-card p-4">
                                                         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                                                             <h5 class="fw-bold text-white mb-0"><i class="fa fa-id-card text-danger me-2"></i>Mitgliedsbeiträge</h5>
-                                                            <select v-model="feesYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadMembershipFees">
-                                                                <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
-                                                            </select>
+                                                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                                                                <select v-model="feesYear" class="form-select form-select-sm rounded-pill" style="width: auto;" @change="loadMembershipFees">
+                                                                    <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
+                                                                </select>
+                                                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="feeSettingsOpen = !feeSettingsOpen"><i class="fa fa-sliders me-1"></i>Standardbetrag</button>
+                                                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="exportMembershipFees"><i class="fa fa-file-csv me-1"></i>CSV</button>
+                                                            </div>
+                                                        </div>
+                                                        <div v-if="feeSettingsOpen" class="row g-2 align-items-end mb-3 p-3 rounded" style="background: rgba(127,127,127,0.08);">
+                                                            <div class="col-sm-4">
+                                                                <label class="form-label small">Standardbetrag pro Jahr (€)</label>
+                                                                <input type="number" step="0.01" min="0" v-model.number="feeSettings.default_amount" class="form-control form-control-sm">
+                                                            </div>
+                                                            <div class="col-sm-5">
+                                                                <label class="form-label small">Fällig bis (Tag / Monat)</label>
+                                                                <div class="d-flex gap-2">
+                                                                    <input type="number" min="1" max="31" v-model.number="feeSettings.due_day" class="form-control form-control-sm" aria-label="Tag">
+                                                                    <input type="number" min="1" max="12" v-model.number="feeSettings.due_month" class="form-control form-control-sm" aria-label="Monat">
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-sm-3"><button class="btn btn-sm btn-premium rounded-pill w-100" @click="saveFeeSettings">Speichern</button></div>
+                                                            <div class="col-12 small text-muted">Gilt für alle ohne eigenen Betrag. Ist die Frist vorbei und noch etwas offen, erscheint es unter „Zu erledigen“ und im Monatsbericht.</div>
+                                                        </div>
+                                                        <div class="d-flex gap-3 flex-wrap small mb-3">
+                                                            <span><span class="text-muted">Bezahlt:</span> <strong class="text-success">{{ feeTotals.paidCount }}</strong> ({{ feeEuro(feeTotals.paid) }})</span>
+                                                            <span><span class="text-muted">Offen:</span> <strong :class="feeTotals.openCount ? 'text-danger' : ''">{{ feeTotals.openCount }}</strong> ({{ feeEuro(feeTotals.open) }})</span>
+                                                            <span class="text-muted">Fällig bis {{ String(feeSettings.due_day).padStart(2, '0') }}.{{ String(feeSettings.due_month).padStart(2, '0') }}.{{ feesYear }}</span>
+                                                        </div>
+                                                        <div class="btn-group btn-group-sm mb-3" role="group">
+                                                            <button v-for="opt in feeFilterOptions" :key="opt[0]" type="button" class="btn" :class="feeFilter === opt[0] ? 'btn-premium' : 'btn-outline-light'" @click="feeFilter = opt[0]">{{ opt[1] }}</button>
                                                         </div>
                                                         <div class="table-responsive">
                                                             <table class="table table-dark table-striped align-middle small text-white border-secondary border-opacity-10">
@@ -176,15 +203,19 @@
                                                                     <tr>
                                                                         <th>Mitglied</th>
                                                                         <th>Betrag (€)</th>
+                                                                        <th>Notiz</th>
                                                                         <th>Status</th>
                                                                         <th class="text-end">Aktion</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    <tr v-for="f in membershipFees" :key="f.personnel_id">
-                                                                        <td class="fw-bold text-white">{{f.name}}</td>
+                                                                    <tr v-for="f in filteredFees" :key="f.personnel_id">
+                                                                        <td class="fw-bold text-white">{{f.name}} <span v-if="f.membership_status && f.membership_status !== 'Aktiv'" class="badge bg-secondary ms-1">{{ f.membership_status }}</span></td>
                                                                         <td>
-                                                                            <input type="number" step="0.01" v-model.number="f.amount" style="width: 90px;" class="form-control form-control-sm bg-dark border-secondary text-white">
+                                                                            <input type="number" step="0.01" min="0" v-model.number="f.amount" @change="saveMembershipFee(f)" style="width: 90px;" class="form-control form-control-sm" aria-label="Betrag">
+                                                                        </td>
+                                                                        <td>
+                                                                            <input type="text" v-model="f.note" @change="saveMembershipFee(f)" maxlength="255" style="min-width: 120px;" class="form-control form-control-sm" placeholder="z. B. Lastschrift" aria-label="Notiz">
                                                                         </td>
                                                                         <td>
                                                                             <span class="badge" :class="f.paid_at ? 'bg-success' : 'bg-secondary'">{{ f.paid_at ? ('Bezahlt am ' + dt(f.paid_at)) : 'Offen' }}</span>
@@ -194,7 +225,7 @@
                                                                             <button v-else class="btn btn-xs btn-outline-secondary rounded-pill px-2" @click="toggleMembershipFee(f, false)">Zurücksetzen</button>
                                                                         </td>
                                                                     </tr>
-                                                                    <tr v-if="membershipFees.length === 0"><td colspan="4" class="text-center text-muted py-3">Keine aktiven Mitglieder gefunden.</td></tr>
+                                                                    <tr v-if="filteredFees.length === 0"><td colspan="5" class="text-center text-muted py-3">{{ membershipFees.length ? 'Keine Einträge für diesen Filter.' : 'Keine Mitglieder gefunden.' }}</td></tr>
                                                                 </tbody>
                                                             </table>
                                                         </div>

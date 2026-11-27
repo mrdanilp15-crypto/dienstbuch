@@ -100,8 +100,16 @@ def build_monthly_report(year: int, month: int):
                 "LEFT JOIN equipment e ON e.id = d.equipment_id LEFT JOIN vehicles v ON v.id = d.vehicle_id "
                 "WHERE d.status != 'Erledigt' ORDER BY d.created_at")
     defects = cur.fetchall()
+    cur.execute("SELECT name, out_reason, out_until FROM vehicles WHERE status = 6 ORDER BY name")
+    vehicles_out = cur.fetchall()
     cur.close()
     conn.close()
+    try:
+        from routers.verein_api import fee_summary
+        fees = fee_summary(datetime.date.today().year)
+    except Exception as e:
+        print(f"Beitragsstand nicht lesbar: {e}")
+        fees = None
 
     due = [i for i in get_due_items() if not i.get("first_check")]
     overdue = [i for i in due if i["overdue"]]
@@ -111,7 +119,13 @@ def build_monthly_report(year: int, month: int):
              f"Einsätze: {missions}", f"Personenstunden im Einsatz: {hours(mission_hours)}",
              f"Dienste: {services}", f"Personenstunden im Dienst: {hours(service_hours)}",
              f"Einsatzberichte noch offen: {unfinished}", "", "STAND HEUTE",
-             f"Offene Mängel: {len(defects)}", f"Überfällige Fristen: {len(overdue)}", f"Bald fällig: {len(due) - len(overdue)}"]
+             f"Offene Mängel: {len(defects)}", f"Überfällige Fristen: {len(overdue)}", f"Bald fällig: {len(due) - len(overdue)}",
+             f"Fahrzeuge außer Dienst: {len(vehicles_out)}"]
+    if fees and fees["overdue"]:
+        lines.append(f"Mitgliedsbeiträge {fees['year']} offen: {fees['open_count']}")
+    if vehicles_out:
+        lines += ["", "AUSSER DIENST"] + [f"  - {v['name']}" + (f": {v['out_reason']}" if v["out_reason"] else "")
+                                          + (f" (bis {v['out_until']:%d.%m.%Y})" if v["out_until"] else "") for v in vehicles_out]
     if defects:
         lines += ["", "OFFENE MÄNGEL"] + [f"  - {d['name']}: {d['description'].splitlines()[0][:100]} ({d['status']})" for d in defects[:10]]
         if len(defects) > 10:

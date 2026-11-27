@@ -424,6 +424,11 @@ applyChartTheme();
                     newDonation: { donor: '', amount: 15.00, date: localISODate() },
                     membershipFees: [],
                     feesYear: new Date().getFullYear(),
+                    feeFilter: 'alle',          // alle | offen | bezahlt
+                    feeFilterOptions: [['alle', 'Alle'], ['offen', 'Offen'], ['bezahlt', 'Bezahlt']],
+                    feeSettings: { default_amount: 0, due_month: 3, due_day: 31 },
+                    feeSettingsOpen: false,
+                    feeOverview: null,          // Stand des laufenden Jahres für "Zu erledigen"
                     
                     hvoTab: 'protocols',
                     hvoProtocols: [],
