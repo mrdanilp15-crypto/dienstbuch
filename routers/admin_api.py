@@ -739,3 +739,38 @@ def get_audit_log(request: Request, limit: int = 200):
     for r in res:
         r["created_at"] = str(r["created_at"])
     return res
+
+
+# --- JAHRESBERICHT (Jahreshauptversammlung) ---
+@router.get("/api/admin/annual-report")
+def get_annual_report(request: Request, year: Optional[int] = None):
+    from core.annual_report import collect
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    year = year or date.today().year
+    if not 2000 <= year <= date.today().year + 1:
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr")
+    d = collect(year)
+    for key in ("joined", "left"):
+        for row in d["members"][key]:
+            row["date"] = str(row["date"]) if row["date"] else None
+    for h in d["honors"]:
+        h["date"] = str(h["date"]) if h["date"] else None
+    return d
+
+
+@router.get("/api/admin/annual-report.pdf")
+def get_annual_report_pdf(request: Request, year: Optional[int] = None):
+    from fastapi.responses import Response
+    from core.annual_report import collect, render_pdf
+    from core.utils import get_station_name
+    user = get_current_user(request)
+    if not user or user["role"] not in ["admin", "leitung"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    year = year or date.today().year
+    if not 2000 <= year <= date.today().year + 1:
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr")
+    pdf = render_pdf(collect(year), get_station_name())
+    log_audit_action(user["username"], "JAHRESBERICHT", f"Jahresbericht {year} erstellt")
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="Jahresbericht_{year}.pdf"'})

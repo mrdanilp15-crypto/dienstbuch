@@ -163,5 +163,30 @@ check("Inventur: leere Auswahl abgelehnt", admin.post("/api/inventur", json={"ca
 sql("delete from equipment_defect_reports where description like 'Inventur%'; delete from inventories; "
     "delete from equipment where barcode like 'TSTINV%'; delete from consumables where name like 'TST-%'")
 
+# ------------------------------------------------------------ Jahresbericht
+JB = 2010  # Jahr ohne Demo-Daten
+sql(f"delete from missions where stichwort like '%TSTJB%'; delete from personnel_honors where title like 'TSTJB%'")
+sql(f"insert into missions (date, time, stichwort, adresse, meldung, duration, status) values ('{JB}-03-04', '10:00', 'B2 Zimmerbrand TSTJB', 'x', '', 2, 'Freigegeben'), "
+    f"('{JB}-03-20', '10:00', 'THL Baum TSTJB', 'x', '', 1.5, 'Freigegeben'), ('{JB}-07-01', '10:00', '[TEST] TSTJB Probealarm', 'x', '', 1, 'Entwurf')")
+m1 = int(sql("select id from missions where stichwort = 'B2 Zimmerbrand TSTJB'"))
+pids = sql("select id from personnel where membership_status = 'Aktiv' order by id limit 3").split("\n")
+sql(f"insert into mission_attendance (mission_id, personnel_id, is_present, vehicle) values ({m1}, {pids[0]}, 'Abgerückt', 'HLF 20'), "
+    f"({m1}, {pids[1]}, 'Gerätehaus', ''), ({m1}, {pids[2]}, 'Entschuldigt', '')")
+sql(f"insert into personnel_honors (personnel_id, kind, title, date) values ({pids[0]}, 'Beförderung', 'TSTJB Oberfeuerwehrmann', '{JB}-05-01')")
+check("Jahresbericht: Mannschaft darf nicht", crew.get(f"/api/admin/annual-report?year={JB}").status_code == 403)
+d = admin.get(f"/api/admin/annual-report?year={JB}").json()
+check("Jahresbericht: Einsätze ohne Test-Alarm", d["missions"]["total"] == 2, str(d["missions"]))
+check("Jahresbericht: Einsätze nach Art", {t["type"] for t in d["missions"]["by_type"]} == {"Brand", "Technische Hilfe"}, str(d["missions"]["by_type"]))
+check("Jahresbericht: März hat 2 Einsätze", d["missions"]["by_month"][2] == 2, str(d["missions"]["by_month"]))
+check("Jahresbericht: Entschuldigt zählt nicht als Einsatzstunde", d["missions"]["hours"] == 4.0 and d["missions"]["people"] == 2, str(d["missions"]))
+check("Jahresbericht: Beförderung steht drin", any(h["title"] == "TSTJB Oberfeuerwehrmann" for h in d["honors"]), str(d["honors"]))
+hlf = next((v for v in d["vehicles"] if v["name"] == "HLF 20"), None)
+check("Jahresbericht: Fahrzeug-Einsätze gezählt", hlf is None or hlf["missions"] >= 1, str(hlf))
+pdf = admin.get(f"/api/admin/annual-report.pdf?year={JB}")
+check("Jahresbericht: PDF", pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 3000, str(pdf.status_code))
+check("Jahresbericht: unsinniges Jahr abgelehnt", admin.get("/api/admin/annual-report?year=1800").status_code == 400)
+check("Jahresbericht: aktuelles Jahr ohne Angabe", admin.get("/api/admin/annual-report").json()["year"] == datetime.date.today().year)
+sql(f"delete from mission_attendance where mission_id = {m1}; delete from missions where stichwort like '%TSTJB%'; delete from personnel_honors where title like 'TSTJB%'")
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)

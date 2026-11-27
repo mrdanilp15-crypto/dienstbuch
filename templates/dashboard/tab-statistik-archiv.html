@@ -5,9 +5,12 @@
                             <h2 class="fw-bold m-0 text-white"><i class="fa fa-chart-bar text-danger me-2"></i>Statistiken</h2>
                             <small class="text-muted">Übersicht der Einsatzstatistiken</small>
                         </div>
-                        <select v-if="isAdmin || role === 'leitung'" v-model="statsYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadStats">
-                            <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
-                        </select>
+                        <div v-if="isAdmin || role === 'leitung'" class="d-flex gap-2 align-items-center flex-wrap">
+                            <select v-model="statsYear" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="width: auto; background-color: rgba(255,255,255,0.05);" @change="loadStats">
+                                <option v-for="y in yearOptions" :value="y">Jahr {{ y }}</option>
+                            </select>
+                            <a class="btn btn-premium btn-sm rounded-pill" :href="'/api/admin/annual-report.pdf?year=' + statsYear" target="_blank" rel="noopener" title="Einsätze, Dienste, Lehrgänge, Beförderungen, Jubiläen und Fahrzeuge des Jahres als PDF für die Versammlung"><i class="fa fa-file-pdf me-1"></i>Jahresbericht {{ statsYear }}</a>
+                        </div>
                     </div>
                     <div class="row g-4">
                         <div class="col-12">
