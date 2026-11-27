@@ -87,6 +87,25 @@ with sync_playwright() as pw:
     check("Keine Fehler in der Seite", not errors, str(errors))
     browser.close()
 
+# --- Einsatzbericht: Titel, Datum, Status, Freigabe; "Entschuldigt" zählt nicht als Teilnahme
+sql("insert into missions (date, time, stichwort, adresse, meldung, description, duration, status, approved_by, approved_at) "
+    "values ('2026-11-19', '01:30', 'Bericht-Probe', 'Hauptstr. 5', '', 'Kein Feuer', 0.5, 'Freigegeben', 'demo', '2026-11-27 02:00:00')")
+mid = count("select max(id) from missions where stichwort='Bericht-Probe'")
+pids = sql("select id from personnel order by id limit 3").split()
+for pid, st in zip(pids, ("Abgerückt", "Gerätehaus", "Entschuldigt")):
+    sql(f"insert into mission_attendance (mission_id, personnel_id, is_present, vehicle) values ({mid}, {pid}, '{st}', '')")
+rep = admin.get(f"/api/missions/{mid}/report").text
+check("Bericht: Titel Einsatzbericht", ">Einsatzbericht<" in rep and "Dienstbericht" not in rep)
+check("Bericht: deutsches Datum", "19.11.2026" in rep and "2026-11-19" not in rep)
+check("Bericht: keine Platzhalter", "Einsatzleiter" not in rep and "Hauptstr. 5" in rep and "Kein Feuer" in rep)
+check("Bericht: Status wie erfasst", all(x in rep for x in ("Abgerückt", "Gerätehaus", "Entschuldigt")) and "Abwesend" not in rep)
+check("Bericht: Freigabe in zwei Zeilen", "am 27.11.2026 um 02:00 Uhr" in rep and "sig-space" in rep)
+check("Bericht: Dauer mit Komma", "0,5 h" in rep)
+check("PDF wird erzeugt", admin.get(f"/api/missions/{mid}/pdf").content[:4] == b"%PDF")
+excused = pids[2]
+check("Bescheinigung für Entschuldigte abgelehnt", admin.get(f"/api/missions/{mid}/employer-certificate/{excused}").status_code == 400)
+sql(f"delete from mission_attendance where mission_id={mid}; delete from missions where id={mid}")
+
 # Testdaten wieder entfernen, damit spätere Tests sie nicht sehen
 sql("delete from personnel where name = 'Jürgen Groß'; delete from persons where name = 'Jürgen Groß'")
 sql("delete from missions where stichwort in ('Alt-Entwurf', 'Alt-Pruefung', 'Neu-Entwurf', '[TEST] Probe'); update missions set reminded_at = null")

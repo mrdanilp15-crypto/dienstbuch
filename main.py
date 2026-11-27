@@ -40,7 +40,7 @@ from routers import planning_api
 from core.pages import dashboard_html
 
 # --- SYSTEM-KONFIGURATION ---
-CURRENT_VERSION = "2.87"
+CURRENT_VERSION = "2.88"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 TOWN_NAME = os.getenv("TOWN_NAME", "Deine Feuerwehr")
 UPDATE_BASE_URL = os.getenv("UPDATE_BASE_URL", "https://raw.githubusercontent.com/mrdanilp15-crypto/dienstbuch/main/")

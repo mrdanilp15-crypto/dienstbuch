@@ -13,6 +13,16 @@ def _sig_src(v):
     v = str(v or "")
     return escape(v, quote=True) if v.startswith("data:image/") and len(v) > 100 else ""
 
+def _de_date(v):
+    """2026-11-19 (Text oder Datum) -> 19.11.2026; Unbekanntes bleibt wie es ist."""
+    if hasattr(v, 'strftime'):
+        return v.strftime('%d.%m.%Y')
+    try:
+        return datetime.strptime(str(v)[:10], '%Y-%m-%d').strftime('%d.%m.%Y')
+    except ValueError:
+        return _e(v)
+
+
 def get_report_styles():
     # WICHTIG: xhtml2pdf (erzeugt die PDFs) unterstützt kein CSS-Flexbox/Grid - display:flex
     # wird stillschweigend ignoriert und alles fällt auf normales Block-Layout zurück
@@ -37,10 +47,14 @@ def get_report_styles():
     th { background: #f8f9fa; border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
     td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: middle; }
     .sig-img { height: 45px; max-width: 140px; object-fit: contain; mix-blend-mode: multiply; }
-    .sig-table { margin-top: 30px; width: 100%; }
+    .sig-table { margin-top: 40px; width: 100%; }
     .sig-table td { border: none; padding: 0 20px; text-align: center; width: 50%; vertical-align: bottom; }
-    .sig-line-text { border-top: 1.5px solid #333; padding-top: 6px; font-size: 10px; font-weight: bold; margin-top: 5px; }
-    .leader-sig-img { height: 75px; max-width: 220px; object-fit: contain; margin-bottom: -15px; mix-blend-mode: multiply; }
+    .sig-space { height: 70px; font-size: 10px; line-height: 1.3; padding-bottom: 4px; }
+    .sig-line-text { border-top: 1.5px solid #333; padding-top: 6px; font-size: 10px; font-weight: bold; }
+    .leader-sig-img { height: 65px; max-width: 220px; object-fit: contain; mix-blend-mode: multiply; }
+    .detail-table td { border: none; padding: 2px 8px 2px 0; vertical-align: top; }
+    .detail-label { width: 90px; font-weight: bold; color: #555; }
+    .detail-table { margin: 0 0 12px 0; }
     .stat-table { width: 100%; margin-bottom: 30px; margin-top: 20px; border-collapse: separate; border-spacing: 8px 0; }
     .stat-box { background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #eee; text-align: center; width: 25%; }
     .total-val { font-size: 20px; font-weight: bold; color: #b71c1c; display: block; margin-top: 5px; }
@@ -48,12 +62,14 @@ def get_report_styles():
 
 def generate_single_report(s, persons, town_name):
     # WICHTIG: town_name muss hier als 3. Argument stehen!
-    sign_date = s['date'].strftime('%d.%m.%Y') if hasattr(s['date'], 'strftime') else str(s['date'])
+    sign_date = _de_date(s['date'])
     l_sig_data = _sig_src(s.get('leader_signature'))
-    l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data else "<div style='height:75px;'></div>"
+    l_sig_html = f"<img src='{l_sig_data}' class='leader-sig-img'>" if l_sig_data else ""
     sig_label = "Unterschrift Leitung"
     if not l_sig_data and s.get('approved_name') and s.get('approved_at'):
-        l_sig_html = f"<div style='height:75px; padding-top:40px;'>Digital freigegeben von {_e(s['approved_name'])} am {s['approved_at'].strftime('%d.%m.%Y %H:%M')} Uhr</div>"
+        # Zwei feste Zeilen statt automatischem Umbruch, unten an der Linie wie die Ortsangabe links
+        l_sig_html = (f"Digital freigegeben von {_e(s['approved_name'])}<br>"
+                      f"am {s['approved_at'].strftime('%d.%m.%Y')} um {s['approved_at'].strftime('%H:%M')} Uhr")
         sig_label = "Freigabe Leitung"
     cat = s.get('category') or 'Übung'
     cat_class = f"bg-{cat.lower()}" if cat in ('Übung', 'Einsatz', 'Sonstiges') else "bg-sonstiges"
@@ -68,30 +84,40 @@ def generate_single_report(s, persons, town_name):
         if s.get('eintreff_zeit'):
             teile.append(f"Eingetroffen: {_e(s['eintreff_zeit'])} Uhr")
         zeiten_zeile = f"<br>{' &bull; '.join(teile)}"
+    dauer = f"{float(s['duration'] or 0):g}".replace('.', ',')
+    leitung_zeile = f"<br><strong>Leitung:</strong> {_e(s.get('instructors') or '---')}" if s.get('instructors') is not False else ""
+    details = [(k, v) for k, v in (s.get('details') or []) if v]
+    details_html = ""
+    if details:
+        details_html = "<table class='detail-table'>" + "".join(
+            f"<tr><td class='detail-label'>{_e(k)}</td><td class='report-text'>{_e(v).replace(chr(10), '<br>')}</td></tr>" for k, v in details) + "</table>"
     html = f"""
     <div class="session-page">
-        <div class="main-title">Dienstbericht</div>
+        <div class="main-title">{_e(s.get('report_title') or 'Dienstbericht')}</div>
         <div class="info-box clearfix">
-            <div class="info-left"><strong>Einheit:</strong> {_e(s.get('gname', '---'))}<br><strong>Leitung:</strong> {_e(s.get('instructors') or '---')}</div>
-            <div class="info-right"><strong>Datum:</strong> {sign_date}<br><strong>Dauer:</strong> {float(s['duration']):g} h{zeiten_zeile}</div>
+            <div class="info-left"><strong>Einheit:</strong> {_e(s.get('gname') or '---')}{leitung_zeile}</div>
+            <div class="info-right"><strong>Datum:</strong> {sign_date}<br><strong>Dauer:</strong> {dauer} h{zeiten_zeile}</div>
         </div>
         <div class="topic-box {cat_class}"><span style="font-size:10px; font-weight:bold; text-transform:uppercase; opacity:0.8;">{_e(cat)}</span><div style="font-size:16px; font-weight:bold;">{_e(s['description'])}</div></div>
+        {details_html}
         <table>
             <thead><tr><th>Name</th><th style="width:100px;">Status</th><th>Notiz</th><th style="width:150px; text-align:center;">Unterschrift</th></tr></thead>
             <tbody>"""
+    if not persons:
+        html += "<tr><td colspan='4' style='text-align:center; color:#777; padding:12px;'>Keine Teilnehmer erfasst</td></tr>"
     for p in persons:
         sig_src = _sig_src(p.get('signature'))
         sig = f"<img src='{sig_src}' class='sig-img'>" if sig_src else ""
         status, color = ("Anwesend", "#198754") if p.get('is_present') == 1 else ("Abwesend", "#dc3545")
+        if p.get('status_label'):
+            status = _e(p['status_label'])
         html += f"<tr><td style='font-weight:bold;'>{_e(p['name'])}</td><td style='color:{color}; font-weight:bold;'>{status}</td><td><small>{_e(p.get('vehicle') or '')} {_e(p.get('note') or '')}</small></td><td style='text-align:center;'>{sig}</td></tr>"
     html += f"""
             </tbody>
         </table>
         <table class="sig-table">
-            <tr>
-                <td>{_e(town_name)}, den {sign_date}<div class="sig-line-text">Ort / Datum</div></td>
-                <td>{l_sig_html}<div class="sig-line-text">{sig_label}</div></td>
-            </tr>
+            <tr><td class="sig-space">{_e(town_name)}, den {sign_date}</td><td class="sig-space">{l_sig_html}</td></tr>
+            <tr><td><div class="sig-line-text">Ort / Datum</div></td><td><div class="sig-line-text">{sig_label}</div></td></tr>
         </table>
     </div>"""
     return html
@@ -119,10 +145,8 @@ def generate_year_report(gname, year, p_stats, cat_sums, town_name):
             </tbody>
         </table>
         <table class="sig-table">
-            <tr>
-                <td>{_e(town_name)}, den {today}<div class="sig-line-text">Ort / Datum</div></td>
-                <td><div style="height:75px;"></div><div class="sig-line-text">Unterschrift Wehrführung</div></td>
-            </tr>
+            <tr><td class="sig-space">{_e(town_name)}, den {today}</td><td class="sig-space"></td></tr>
+            <tr><td><div class="sig-line-text">Ort / Datum</div></td><td><div class="sig-line-text">Unterschrift Wehrführung</div></td></tr>
         </table>
     </div>"""
     return html

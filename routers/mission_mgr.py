@@ -231,17 +231,34 @@ def _prepare_mission_report_data(mission_id: int):
         cur.execute("SELECT p.name FROM users u JOIN personnel p ON p.id = u.personnel_id WHERE u.username = %s", (m["approved_by"],))
         who = cur.fetchone()
         m["approved_name"] = who["name"] if who else m["approved_by"]
+    group_name = None
+    if m.get("group_id"):
+        cur.execute("SELECT name FROM groups_table WHERE id = %s", (m["group_id"],))
+        g = cur.fetchone()
+        group_name = g["name"] if g else None
     cur.close(); conn.close()
 
-    if isinstance(m["date"], date):
-        m["date"] = str(m["date"])
+    from core.utils import get_station_name
+    town_name = get_station_name()
 
-    # We need to adapt `m` to fit `generate_single_report` which expects specific keys
-    m['gname'] = "Feuerwehr"
-    m['instructors'] = "Einsatzleiter"
+    # In die Form bringen, die generate_single_report() erwartet. Früher standen hier feste
+    # Platzhalter ("Feuerwehr", "Einsatzleiter") und der Titel "Dienstbericht".
+    report_text = (m.get('description') or '').strip()
+    m['report_title'] = "Einsatzbericht"
+    m['gname'] = group_name or town_name or "Feuerwehr"
+    m['instructors'] = False   # es gibt kein Feld für die Einsatzleitung -> Zeile weglassen
     m['category'] = "Einsatz"
-    if not m.get('description'):
-        m['description'] = m.get('stichwort', 'Einsatz') + " - " + m.get('meldung', '')
+    m['description'] = m.get('stichwort') or 'Einsatz'
+    zeit = format_time_val(m.get('time') or '')
+    ende = format_time_val(m.get('end_time') or '')
+    m['details'] = [
+        ("Alarmzeit", f"{zeit} Uhr" + (f" bis {ende} Uhr" if ende else "") if zeit else ""),
+        ("Einsatzort", m.get('adresse')),
+        ("Meldung", (m.get('meldung') or '').strip()),
+        ("Bericht", report_text),
+    ]
+    for key in ("ausrueck_zeit", "eintreff_zeit"):
+        m[key] = format_time_val(m.get(key) or '')
 
     sig = m.get("leader_signature")
     if sig:
@@ -250,18 +267,21 @@ def _prepare_mission_report_data(mission_id: int):
     # Adapt persons - Einsatz-Teilnehmer haben (anders als normale Dienste) keine
     # eigene Unterschrift pro Person in der DB, nur der Einsatzleiter unterschreibt
     # (missions.leader_signature oben).
+    # "Gerätehaus" (Wache besetzt) zählt als Teilnahme, "Entschuldigt" nicht. Angezeigt wird der
+    # tatsächliche Status; "Nein" wird nicht gespeichert, ältere Daten können "Ja" enthalten.
+    labels = {"Abgerückt": "Abgerückt", "Bereitstellung": "Bereitstellung", "Gerätehaus": "Gerätehaus",
+              "Ja": "Anwesend", "Entschuldigt": "Entschuldigt"}
     persons = []
-    for a in att:
-        is_p = 1 if a['is_present'] in ('Abgerückt', 'Bereitstellung') else 0
+    for a in sorted(att, key=lambda r: r['name']):
+        value = str(a['is_present'] or 'Nein')
+        is_p = 0 if value in ('Nein', 'Entschuldigt', '0', 'false', 'False', '') else 1
         persons.append({
             'name': a['name'],
             'is_present': is_p,
+            'status_label': labels.get(value, value if is_p else "Abwesend"),
             'vehicle': a['vehicle'],
             'signature': None
         })
-
-    from core.utils import get_station_name
-    town_name = get_station_name()
     return m, persons, town_name
 
 @router.get("/{mission_id}/report", response_class=HTMLResponse)
@@ -307,7 +327,7 @@ def create_employer_certificate(mission_id: int, personnel_id: int, cert: Employ
         raise HTTPException(status_code=404, detail="Einsatz nicht gefunden")
     cur.execute("SELECT is_present FROM mission_attendance WHERE mission_id = %s AND personnel_id = %s", (mission_id, personnel_id))
     att = cur.fetchone()
-    if not att or att["is_present"] in (None, "", "Nein", "0", "false", "False"):
+    if not att or att["is_present"] in (None, "", "Nein", "Entschuldigt", "0", "false", "False"):
         cur.close(); conn.close()
         raise HTTPException(status_code=400, detail="Keine erfasste Anwesenheit dieser Person bei diesem Einsatz - Bescheinigung kann nicht erstellt werden.")
     cur2 = conn.cursor()
@@ -374,7 +394,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
     # das war aber rein kosmetisch: ohne diese Prüfung könnte jeder eingeloggte Nutzer für
     # jede Person/jeden Einsatz eine offizielle Arbeitgeber-Bescheinigung erzeugen, auch ohne
     # erfasste oder mit verneinter Teilnahme.
-    if not att or att["is_present"] in (None, "", "Nein", "0", "false", "False"):
+    if not att or att["is_present"] in (None, "", "Nein", "Entschuldigt", "0", "false", "False"):
         raise HTTPException(status_code=400, detail="Keine erfasste Anwesenheit dieser Person bei diesem Einsatz - Bescheinigung kann nicht erstellt werden.")
 
     from core.utils import get_station_name
@@ -432,7 +452,7 @@ def get_employer_certificate(mission_id: int, personnel_id: int, request: Reques
 
     addr_str = f" ({p['address']})" if p.get("address") else ""
     today_fmt = date.today().strftime("%d.%m.%Y")
-    duration_str = f"{m.get('duration', 2.0)} Std."
+    duration_str = f"{float(m.get('duration') or 2.0):g}".replace('.', ',') + " Std."
 
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -933,7 +953,7 @@ def calculate_compensations(year: int, hourly_rate: float, request: Request):
                    FROM mission_attendance ma 
                    JOIN missions m ON ma.mission_id = m.id 
                    WHERE (ma.personnel_id = p.id OR LOWER(TRIM((SELECT pl.name FROM personnel pl WHERE pl.id = ma.personnel_id))) = LOWER(TRIM(p.name)))
-                     AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
+                     AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '') 
                      AND ma.is_present IS NOT NULL 
                      AND YEAR(m.date) = %s
                ), 0) as mission_hours

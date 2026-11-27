@@ -641,17 +641,20 @@ def get_anniversaries_pdf(request: Request, year: Optional[int] = None):
     from core.utils import get_station_name
     target_year = year if year else date.today().year
     data = _compute_anniversaries(target_year)
+    import html as _h
+    esc = lambda v: _h.escape(str(v)) if v is not None else ""
+    de = lambda iso: ".".join(reversed(str(iso).split("-")))   # 2026-05-03 -> 03.05.2026
 
     service_rows = ""
     for a in data["service_anniversaries"]:
-        service_rows += (f"<tr><td>{a['name']}</td><td>{a['rank']}</td><td>{a['years']} Jahre</td>"
-                          f"<td>{a['badge']}</td><td>{a['anniversary_date']}</td></tr>")
+        service_rows += (f"<tr><td>{esc(a['name'])}</td><td>{esc(a['rank'])}</td><td>{a['years']} Jahre</td>"
+                          f"<td>{esc(a['badge'])}</td><td>{de(a['anniversary_date'])}</td></tr>")
     if not service_rows:
         service_rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Keine Dienstjubiläen in diesem Jahr.</td></tr>"
 
     birthday_rows = ""
     for a in data["birthday_anniversaries"]:
-        birthday_rows += f"<tr><td>{a['name']}</td><td>{a['rank']}</td><td>{a['age']} Jahre</td><td>{a['birthday_date']}</td></tr>"
+        birthday_rows += f"<tr><td>{esc(a['name'])}</td><td>{esc(a['rank'])}</td><td>{a['age']} Jahre</td><td>{de(a['birthday_date'])}</td></tr>"
     if not birthday_rows:
         birthday_rows = "<tr><td colspan='4' style='text-align:center; color:#6b7280;'>Keine runden Geburtstage in diesem Jahr.</td></tr>"
 
@@ -824,7 +827,7 @@ def get_service_time_certificate(member_id: int, request: Request, year: Optiona
             JOIN missions m ON ma.mission_id = m.id
             WHERE ma.personnel_id = %s AND YEAR(m.date) = %s
               AND ma.is_present IS NOT NULL
-              AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '')
+              AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '')
         ) AS eintraege
         ORDER BY d ASC
     """, (person["name"], target_year, member_id, target_year))

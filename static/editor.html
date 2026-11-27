@@ -579,7 +579,7 @@
                     <input type="text" class="form-control form-control-sm rounded-pill ps-4" v-model="q" placeholder="Teilnehmer suchen..." style="padding-left: 35px !important;">
                     <i class="fa fa-search text-muted position-absolute" style="left: 28px; top: 50%; transform: translateY(-50%);"></i>
                 </div>
-                <div v-for="p in filteredMissionAtt" :key="p.personnel_id" class="person-row" :class="{absent: p.is_present === 'Nein', 'g26-expired-alert': p.g26_expired}">
+                <div v-for="p in filteredMissionAtt" :key="p.personnel_id" class="person-row" :class="{absent: !missionPresent(p), 'g26-expired-alert': p.g26_expired}">
                     <div class="editor-avatar">
                         <img :src="p.profile_picture || (p.has_picture ? '/api/personnel/avatar/' + p.personnel_id + '?v=' + cacheBuster : '/static/img/avatar.svg')" alt="Profilbild">
                     </div>
@@ -599,7 +599,7 @@
                                 <option value="Entschuldigt">Entschuldigt / Abgemeldet</option>
                                 <option value="Abgebrochen">Einsatzstorno / Abgebrochen</option>
                             </select>
-                            <button v-if="missionId && p.is_present !== 'Nein'" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="downloadEmployerCert(p)" title="Arbeitgeberbescheinigung als PDF öffnen"><i class="fa fa-file-invoice me-1"></i>Bescheinigung</button>
+                            <button v-if="missionId && missionPresent(p)" class="btn btn-xs btn-outline-warning rounded-pill px-2" @click="downloadEmployerCert(p)" title="Arbeitgeberbescheinigung als PDF öffnen"><i class="fa fa-file-invoice me-1"></i>Bescheinigung</button>
                         </div>
                     </div>
                 </div>
@@ -618,7 +618,7 @@
                         <div class="col-md-4">
                             <label class="small text-muted fw-bold mb-1">Kamerad (Atemschutz)</label>
                             <select v-model="newRespi.personnel_id" class="form-select form-select-sm">
-                                <option v-for="p in missionAttList.filter(x => x.is_present !== 'Nein')" :key="p.personnel_id" :value="p.personnel_id">{{p.name}}</option>
+                                <option v-for="p in missionAttList.filter(missionPresent)" :key="p.personnel_id" :value="p.personnel_id">{{p.name}}</option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -995,7 +995,7 @@
                     return p.name.toLowerCase().includes(s) && !exists;
                 });
             },
-            missionPresentCount() { return this.missionAttList.filter(p => p.is_present !== 'Nein').length; },
+            missionPresentCount() { return this.missionAttList.filter(this.missionPresent).length; },
             filteredMissionAtt() {
                 let list = [...this.missionAttList];
                 if (this.q) list = list.filter(p => p.name.toLowerCase().includes(this.q.toLowerCase()));
@@ -1342,6 +1342,8 @@
                 }
                 this.autoSave();
             },
+            // "Entschuldigt" wird gespeichert (Nachweis), zählt aber nicht als Teilnahme.
+            missionPresent(p) { return !['Nein', 'Entschuldigt'].includes(p.is_present); },
             togglePresence(p) { if(this.isReadOnly) return; p.is_present = !p.is_present; this.autoSave(); },
             setVehicle(p,v) { if(this.isReadOnly) return; p.vehicle = (p.vehicle===v) ? '' : v; if(p.vehicle) p.is_present = true; this.autoSave(); },
             setCat(c) { if(this.isReadOnly) return; this.category = c; this.autoSave(); },

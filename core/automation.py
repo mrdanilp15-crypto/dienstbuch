@@ -8,7 +8,7 @@ from database import get_db_connection
 OPEN_REPORT_DAYS = 3     # so alt muss ein Einsatz sein, bevor erinnert wird
 OPEN_REPORT_REPEAT = 7   # danach höchstens einmal pro Woche erneut
 MONTHS = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
-_NOT_PRESENT = "('Nein', '0', 'false', 'False', '')"
+_NOT_PRESENT = "('Nein', 'Entschuldigt', '0', 'false', 'False', '')"
 
 
 def check_open_reports(now: datetime.datetime = None) -> int:

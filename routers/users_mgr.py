@@ -303,14 +303,14 @@ def get_my_global_fire_stats(year: int, request: Request):
                 FROM mission_attendance ma
                 JOIN missions m ON ma.mission_id = m.id
                 JOIN personnel pl ON ma.personnel_id = pl.id
-                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_hours,
             COALESCE((
                 SELECT COUNT(DISTINCT m.id)
                 FROM mission_attendance ma
                 JOIN missions m ON ma.mission_id = m.id
                 JOIN personnel pl ON ma.personnel_id = pl.id
-                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+                WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
             ), 0) as mission_count
     """
     cur.execute(query, (klarnat_name, year, klarnat_name, year, klarnat_name, year, klarnat_name, year))
@@ -356,7 +356,7 @@ def get_my_sessions(year: int, request: Request):
             FROM mission_attendance ma
             JOIN missions m ON ma.mission_id = m.id
             JOIN personnel pl ON ma.personnel_id = pl.id
-            WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
+            WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(%s)) AND YEAR(m.date) = %s AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '') AND ma.is_present IS NOT NULL
         """, (klarnat_name, year))
         m_sessions = cur.fetchall()
         sessions.extend(m_sessions)

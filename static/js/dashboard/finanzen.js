@@ -29,7 +29,7 @@ window.DB_MIXINS.push({
                         const res = await fetch(`/api/missions/${this.newCertMissionId}`, { credentials: 'include' });
                         if (!res.ok) return;
                         const detail = await res.json();
-                        const present = (detail.attendance || []).filter(a => a.is_present && !['Nein','0','false','False'].includes(String(a.is_present)));
+                        const present = (detail.attendance || []).filter(a => a.is_present && !['Nein','Entschuldigt','0','false','False'].includes(String(a.is_present)));
                         this.certMissionAttendees = present.map(a => {
                             const p = this.personnel.find(p => p.id === a.personnel_id);
                             return { personnel_id: a.personnel_id, name: p ? p.name : `ID ${a.personnel_id}` };

@@ -133,7 +133,7 @@ def get_stats(id: int, year: int, request: Request):
                    JOIN missions m ON ma.mission_id = m.id
                    JOIN personnel pl ON ma.personnel_id = pl.id
                    WHERE LOWER(TRIM(pl.name)) = LOWER(TRIM(p.name))
-                     AND ma.is_present NOT IN ('Nein', '0', 'false', 'False', '') 
+                     AND ma.is_present NOT IN ('Nein', 'Entschuldigt', '0', 'false', 'False', '') 
                      AND ma.is_present IS NOT NULL
                      AND YEAR(m.date) = %s
                ), 0) as mission_hours
@@ -210,7 +210,7 @@ def get_attendance(group_id: int, request: Request, session_id: Optional[str] = 
             for p in persons:
                 p['signature'] = None
                 p['note'] = ""
-                p['is_present'] = bool(p.get('is_present_str') and p['is_present_str'] != 'Nein')
+                p['is_present'] = bool(p.get('is_present_str') and p['is_present_str'] not in ('Nein', 'Entschuldigt'))
                 p['has_picture'] = bool(p.get('has_picture', 0))
                 p['g26_expired'] = False
                 if p.get('is_agt') and p.get('g26_3_date'):

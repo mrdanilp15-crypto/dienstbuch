@@ -6,6 +6,19 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 38,
+        "version": "2.88",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Einsätze", "title": "Einsatzbericht überarbeitet",
+             "text": "Titel \"Einsatzbericht\", deutsches Datum, echte Einheit statt Platzhalter, Alarmzeit, Einsatzort, Meldung und Bericht. Freigabe und Ortsangabe stehen jetzt sauber auf einer Höhe über der Linie."},
+            {"type": "fix", "tag": "Einsätze", "title": "Entschuldigt zählt nicht mehr als Teilnahme",
+             "text": "Wer bei einem Einsatz als entschuldigt eingetragen war, wurde bei Stunden, Statistik, Bescheinigungen und Monatsbericht mitgezählt. \"Gerätehaus\" steht im Bericht jetzt richtig als Teilnahme."},
+            {"type": "fix", "tag": "Personal", "title": "Jubiläumsliste mit deutschem Datum",
+             "text": "Das PDF der Jubiläen zeigt die Daten jetzt als TT.MM.JJJJ."},
+        ],
+    },
+    {
         "id": 37,
         "version": "2.87",
         "date": "2026-11-26",
