@@ -431,6 +431,8 @@ applyChartTheme();
                     newDonation: { donor: '', amount: 15.00, date: localISODate() },
                     membershipFees: [],
                     feesYear: new Date().getFullYear(),
+                    atemschutz: null,           // Atemschutz-Übersicht (Personal)
+                    atemschutzOpen: false,
                     feeFilter: 'alle',          // alle | offen | bezahlt
                     feeFilterOptions: [['alle', 'Alle'], ['offen', 'Offen'], ['bezahlt', 'Bezahlt']],
                     feeSettings: { default_amount: 0, due_month: 3, due_day: 31 },
@@ -490,6 +492,7 @@ applyChartTheme();
                 canSeePersonnel() { return ['admin', 'leitung', 'gruppenfuehrer', 'geratewart', 'atemschutzwart'].includes(this.role) || this.hasPerm('personnel.manage'); },
                 canSeeYouth() { return ['admin', 'leitung', 'jugendwarte'].includes(this.role) || this.hasPerm('youth.manage'); },
                 canSeeFinance() { return this.hasPerm('verein.manage'); },
+                canSeeAtemschutz() { return ['admin', 'leitung', 'atemschutzwart'].includes(this.role) || this.hasPerm('atemschutz.manage'); },
                 canSeeStats() { return ['admin', 'leitung'].includes(this.role); },
                 canManageMaterial() { return this.hasPerm('material.manage'); },
                 // Backend /billing/... (mission_mgr.py) erlaubt dieselbe Rollenmenge -
@@ -900,6 +903,7 @@ applyChartTheme();
                         fristen: () => this.loadDueManager(),
                         logbuch: () => this.loadLogbookData(),
                         verein: () => this.loadClubData(),
+                        personal: () => { if (this.canSeeAtemschutz) this.loadAtemschutz(); },
                         uebersicht: () => { this.loadOverview(); this.loadWishes(); this.loadPolls(); }
                     };
                     const load = loaders[tab || this.activeTab];

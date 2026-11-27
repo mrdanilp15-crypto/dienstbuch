@@ -97,6 +97,19 @@ def get_due_items(window_days: int = None):
         due_date = p["g26_3_date"] + datetime.timedelta(days=round(g26_months * 30.44))
         if due_date <= window_end:
             add_item("g26", p["name"], "G26.3-Untersuchung", due_date, personnel_id=p["id"], atemschutz=True)
+    # Belastungsübung und Unterweisung der Geräteträger (Intervalle unter Einstellungen; 0 = aus). Gleicher Typ wie G26.3,
+    # damit Atemschutzwart und die Person selbst sie sehen. Wer nie erfasst ist, erscheint hier nicht (siehe Atemschutz-Übersicht).
+    for col, key, label in (("belastungslauf_date", "int_belastung", "Belastungsübung (Atemschutz)"),
+                            ("unterweisung_date", "int_unterweisung", "Atemschutz-Unterweisung")):
+        months = setting(key, 12)
+        if months <= 0:
+            continue
+        cur.execute(f"SELECT id, name, {col} AS last FROM personnel WHERE is_agt = 1 AND {col} IS NOT NULL "
+                    "AND COALESCE(NULLIF(membership_status, ''), 'Aktiv') = 'Aktiv'")
+        for p in cur.fetchall():
+            due_date = p["last"] + datetime.timedelta(days=round(months * 30.44))
+            if due_date <= window_end:
+                add_item("g26", p["name"], label, due_date, personnel_id=p["id"], atemschutz=True)
 
     # Führerscheinkontrolle: wer Einsatzfahrzeuge fährt, muss laut Halterpflicht regelmäßig (üblich: jährlich)
     # den Führerschein vorzeigen. Wer noch nie kontrolliert wurde, ist eine Erstkontrolle (kein Verzug).

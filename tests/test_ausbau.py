@@ -188,5 +188,38 @@ check("Jahresbericht: unsinniges Jahr abgelehnt", admin.get("/api/admin/annual-r
 check("Jahresbericht: aktuelles Jahr ohne Angabe", admin.get("/api/admin/annual-report").json()["year"] == datetime.date.today().year)
 sql(f"delete from mission_attendance where mission_id = {m1}; delete from missions where stichwort like '%TSTJB%'; delete from personnel_honors where title like 'TSTJB%'")
 
+# ------------------------------------------------------------ Atemschutz-Übersicht
+sql("delete from personnel where name like 'TST AGT%'")
+today = datetime.date.today()
+d = lambda days: (today + datetime.timedelta(days=days)).isoformat()
+sql("insert into personnel (name, membership_status, is_agt, g26_3_date, belastungslauf_date, unterweisung_date) values "
+    f"('TST AGT Grün', 'Aktiv', 1, '{d(-100)}', '{d(-100)}', '{d(-100)}'), "
+    f"('TST AGT Gelb', 'Aktiv', 1, '{d(-100)}', '{d(-340)}', '{d(-100)}'), "
+    f"('TST AGT Rot', 'Aktiv', 1, '{d(-100)}', '{d(-400)}', NULL), "
+    f"('TST AGT Kein', 'Aktiv', 0, NULL, NULL, NULL)")
+for role in ("mannschaft", "geratewart"):
+    check(f"Atemschutz: {role} sieht die Übersicht nicht", client(f"r_{role}").get("/api/atemschutz/overview").status_code == 403)
+ov = admin.get("/api/atemschutz/overview").json()
+by = {p["name"]: p for p in ov["people"] if p["name"].startswith("TST AGT")}
+check("Atemschutz: nur Geräteträger", set(by) == {"TST AGT Grün", "TST AGT Gelb", "TST AGT Rot"}, str(set(by)))
+check("Atemschutz: alles gültig = grün/einsatzbereit", by["TST AGT Grün"]["status"] == "green" and by["TST AGT Grün"]["ready"], str(by["TST AGT Grün"]))
+check("Atemschutz: Belastungsübung läuft bald ab = gelb", by["TST AGT Gelb"]["status"] == "yellow" and by["TST AGT Gelb"]["checks"]["belastung"]["status"] == "soon",
+      str(by["TST AGT Gelb"]["checks"]))
+check("Atemschutz: abgelaufen bzw. nie erfasst = rot, nicht einsatzbereit", by["TST AGT Rot"]["status"] == "red" and not by["TST AGT Rot"]["ready"]
+      and by["TST AGT Rot"]["checks"]["belastung"]["status"] == "expired" and by["TST AGT Rot"]["checks"]["unterweisung"]["status"] == "missing")
+check("Atemschutz: Rote stehen oben", ov["people"][0]["status"] == "red")
+check("Atemschutz: Wehrführung sieht die Daten", by["TST AGT Grün"]["checks"]["g26"]["last"] == d(-100))
+gf = client("r_gruppenfuehrer").get("/api/atemschutz/overview")
+gby = {p["name"]: p for p in gf.json()["people"]} if gf.status_code == 200 else {}
+check("Atemschutz: Gruppenführer sieht nur die Ampel, keine Gesundheitsdaten", gf.status_code == 200 and gby["TST AGT Grün"]["checks"]["g26"]["last"] is None
+      and gby["TST AGT Grün"]["checks"]["g26"]["due"] is None and gby["TST AGT Rot"]["status"] == "red", str(gf.status_code))
+aw = client("r_atemschutzwart").get("/api/atemschutz/overview").json()
+check("Atemschutz: Atemschutzwart sieht die Daten", next(p for p in aw["people"] if p["name"] == "TST AGT Grün")["checks"]["g26"]["due"] is not None)
+from core.reminders import get_due_items  # noqa: E402
+due = [i for i in get_due_items(90) if i["name"].startswith("TST AGT")]
+check("Fristen: Belastungsübung erscheint", any(i["name"] == "TST AGT Rot" and i["detail"].startswith("Belastungsübung") and i["overdue"] for i in due)
+      and any(i["name"] == "TST AGT Gelb" and i["detail"].startswith("Belastungsübung") and not i["overdue"] for i in due), str(due))
+sql("delete from personnel where name like 'TST AGT%'")
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)

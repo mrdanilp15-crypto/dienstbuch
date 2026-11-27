@@ -38,6 +38,7 @@ from routers import aao_api
 from routers import logbook_api
 from routers import planning_api
 from routers import inventur_api
+from routers import atemschutz_api
 from core.pages import dashboard_html
 
 # --- SYSTEM-KONFIGURATION ---
@@ -227,6 +228,7 @@ app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
 app.include_router(planning_api.router)
 app.include_router(inventur_api.router)
+app.include_router(atemschutz_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
