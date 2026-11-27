@@ -287,9 +287,13 @@ def create_poll(data: PollIn, request: Request):
     recipients = [r[0] for r in cur.fetchall()]
     cur.close(); conn.close()
     if recipients:
-        notify("termine", _poll_title(title, data.kind),
-               description[:200] or ("Trag dich ein, wenn du helfen kannst." if helfer else "Deine Meinung ist gefragt."),
-               "/dashboard?open=umfragen", usernames=recipients)
+        from core.schedule_notify import send_to_users
+        text = description[:200] or ("Trag dich ein, wenn du helfen kannst." if helfer else "Deine Meinung ist gefragt.")
+        if event_date:
+            text = f"Termin: {event_date.strftime('%d.%m.%Y')}" + (f", {event_time} Uhr" if event_time else "") + "\n" + text
+        if deadline:
+            text += f"\nEintragen bis {deadline.strftime('%d.%m.%Y')}."
+        send_to_users(recipients, _poll_title(title, data.kind), text, "/dashboard?open=umfragen")
     return {"status": "success", "id": poll_id}
 
 
@@ -335,7 +339,8 @@ def update_poll(poll_id: int, data: PollIn, request: Request):
         cur.close(); conn.close()
     if moved and event_date and signed_up:  # wer eingetragen ist, muss von einem neuen Termin erfahren
         when = event_date.strftime("%d.%m.%Y") + (f", {event_time} Uhr" if event_time else "")
-        notify("termine", f"Neuer Termin: {title}", f"Die Helfersuche findet jetzt am {when} statt.", "/dashboard?open=umfragen", usernames=signed_up)
+        from core.schedule_notify import send_to_users
+        send_to_users(signed_up, f"Neuer Termin: {title}", f"Die Helfersuche findet jetzt am {when} statt.", "/dashboard?open=umfragen")
     log_audit_action(user["username"], "UMFRAGE_GEÄNDERT", f"Umfrage {poll_id} ('{title}') bearbeitet.")
     return {"status": "success"}
 

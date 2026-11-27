@@ -160,6 +160,24 @@ mails.clear()
 check("Nichts Ungelesenes -> keine Mail", run_daily_digest(force=True) == 0 and not mails)
 check("Vor 7 Uhr keine Zusammenfassung", run_daily_digest(now=datetime.datetime.now().replace(hour=6, minute=0)) == 0)
 
+# --- Helfersuche: Mail wie bei Terminen (wer die Zusammenfassung gewählt hat, bekommt sie dort)
+mails.clear()
+r = admin.post("/api/polls", json={"title": "Mail-Helfer", "description": "Grillfest", "kind": "helfer", "multi": True,
+                                   "event_date": (datetime.date.today() + datetime.timedelta(days=9)).isoformat(), "event_time": "14:00",
+                                   "options": [{"label": "Grill", "capacity": 2}]})
+for _ in range(40):
+    if mails:
+        break
+    time.sleep(0.3)
+time.sleep(1.5)
+rcpts = sorted(r for m in mails for r in m[0])
+check("Helfersuche: Mail geht raus (an wb, nicht an wa)", "tim.fischer@example.org" in rcpts and "jonas.weber@example.org" not in rcpts, str(rcpts))
+hs = [i for i in range(len(mails)) if "tim.fischer@example.org" in mails[i][0]]
+if hs:
+    subj, body = mail_text(hs[0])
+    check("… mit Titel, Termin und Link", "Mail-Helfer" in subj and "14:00 Uhr" in body and "Grillfest" in body and f"{B}/dashboard?open=umfragen" in body, subj)
+sql("delete from poll_votes where poll_id in (select id from polls where title='Mail-Helfer'); delete from poll_options where poll_id in (select id from polls where title='Mail-Helfer'); delete from polls where title='Mail-Helfer'")
+
 admin.put("/api/admin/mail-settings", json={"enabled": False, "smtp_host": "", "smtp_port": 587, "smtp_security": "starttls", "sender_address": "", "app_url": "", "reminder_mail": False})
 ctl.stop()
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")

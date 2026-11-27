@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 39,
+        "version": "2.89",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Umfragen", "title": "Helfersuchen und Umfragen auch per E-Mail",
+             "text": "Neue Helfersuchen und Umfragen, ein geänderter Termin und die Erinnerung vor Fristende kommen jetzt wie Termine auch per E-Mail (wenn \"Erinnerungen per E-Mail\" eingeschaltet ist)."},
+        ],
+    },
+    {
         "id": 38,
         "version": "2.88",
         "date": "2026-11-27",

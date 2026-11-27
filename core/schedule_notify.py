@@ -37,6 +37,23 @@ def _recipients(cur, group_id, audience_ids=None):
     return cur.fetchall()
 
 
+def send_to_users(usernames, title: str, body: str, link: str = None) -> int:
+    """Wie bei Terminen: Glocke + Push und - wenn eingerichtet - E-Mail an die verknüpfte Person.
+    Für Helfersuchen und Umfragen, deren Empfänger als Konten (nicht als Personen) feststehen."""
+    usernames = sorted(set(u for u in usernames if u))
+    if not usernames:
+        return 0
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT u.username, p.email FROM users u LEFT JOIN personnel p ON p.id = u.personnel_id "
+                "WHERE u.username IN (%s)" % ", ".join(["%s"] * len(usernames)), tuple(usernames))
+    recipients = cur.fetchall()
+    cur.close()
+    conn.close()
+    _send(recipients, title, body, link)
+    return len(recipients)
+
+
 def _send(recipients, title: str, body: str, link: str = None, schedule_id=None):
     """Push an die Geraete der Empfaenger, dazu E-Mail (nur wenn die Wehr den Versand eingerichtet hat)."""
     if not recipients:
@@ -177,7 +194,6 @@ def check_schedule_reminders(now: datetime.datetime = None) -> int:
 def check_poll_reminders(now: datetime.datetime = None) -> int:
     """Kurz vor Ablauf einer Umfrage oder Helfersuche: wer noch nichts eingetragen hat, wird einmal erinnert.
     Nur tagsueber (8-21 Uhr), ab dem Tag vor der Frist, frühestens 12 Stunden nach dem Anlegen."""
-    from core.notify import notify
     now = now or datetime.datetime.now()
     if not (8 <= now.hour < 21):
         return 0
@@ -198,8 +214,8 @@ def check_poll_reminders(now: datetime.datetime = None) -> int:
         if free and missing:  # alles voll: dann gibt es nichts mehr einzutragen
             when = "heute" if poll["deadline"] == now.date() else "morgen"
             helfer = poll["kind"] == "helfer"
-            notify("termine", ("Noch Helfer gesucht: " if helfer else "Deine Stimme fehlt: ") + poll["title"],
-                   f"Eintragen geht nur noch bis {when}.", "/dashboard?open=umfragen", usernames=missing)
+            send_to_users(missing, ("Noch Helfer gesucht: " if helfer else "Deine Stimme fehlt: ") + poll["title"],
+                          f"Eintragen geht nur noch bis {when}.", "/dashboard?open=umfragen")
             sent += 1
     cur.close()
     conn.close()
