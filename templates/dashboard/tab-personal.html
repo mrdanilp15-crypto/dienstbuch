@@ -45,7 +45,7 @@
                                     </tr></thead>
                                     <tbody>
                                         <tr v-for="p in atemschutz.people" :key="p.id">
-                                            <td style="width: 1%;"><i class="fa fa-circle" :class="{ green: 'text-success', yellow: 'text-warning', red: 'text-danger' }[p.status]" :title="p.ready ? 'einsatzbereit' : 'nicht einsatzbereit'" :aria-label="p.ready ? 'einsatzbereit' : 'nicht einsatzbereit'"></i></td>
+                                            <td style="width: 1%;"><i class="fa fa-circle" :class="agtDotClass(p.status)" :title="p.ready ? 'einsatzbereit' : 'nicht einsatzbereit'" :aria-label="p.ready ? 'einsatzbereit' : 'nicht einsatzbereit'"></i></td>
                                             <td class="fw-bold text-white">{{ p.name }}<div v-if="p.rank" class="small text-muted fw-normal">{{ p.rank }}</div></td>
                                             <td v-for="k in ['g26', 'belastung', 'unterweisung']" :key="k" :class="agtCheckClass(p.checks[k])">
                                                 <i class="fa me-1" :class="agtCheckIcon(p.checks[k])"></i>{{ agtCheckLabel(p.checks[k]) }}

@@ -24,6 +24,7 @@ window.DB_MIXINS.push({
                 agtCheckLabel(c) { return ({ ok: 'gültig', soon: 'läuft bald ab', expired: 'abgelaufen', missing: 'nicht erfasst' })[c.status]; },
                 agtCheckClass(c) { return ({ ok: 'text-success', soon: 'text-warning', expired: 'text-danger fw-bold', missing: 'text-danger' })[c.status]; },
                 agtCheckIcon(c) { return ({ ok: 'fa-circle-check', soon: 'fa-clock', expired: 'fa-circle-xmark', missing: 'fa-circle-question' })[c.status]; },
+                agtDotClass(s) { return s === 'green' ? 'text-success' : (s === 'yellow' ? 'text-warning' : 'text-danger'); },
                 agtHours(min) { return min ? (Math.round(min / 6) / 10).toLocaleString('de-DE') + ' h' : '–'; },
                 openPersonnelCertificate(kind) {
                     if (!this.activePersonnel || !this.activePersonnel.id) return;
