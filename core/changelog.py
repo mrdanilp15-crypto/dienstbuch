@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 43,
+        "version": "2.93",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Alarmierung", "title": "Alarm-Anzeige im hellen Modus lesbar",
+             "text": "Der große Kasten oben unter Alarmierung („Keine aktuelle Alarmierung“, letzter Alarm, Test-Alarm) und das Alarmierungsprotokoll haben im hellen Modus jetzt dunkle Schrift auf hellem Grund."},
+        ],
+    },
+    {
         "id": 42,
         "version": "2.92",
         "date": "2026-11-27",

@@ -1079,6 +1079,25 @@
     padding: 12px 14px;
 }
 
+/* Heller Modus: Status-Hero und Protokoll lesbar (oben ist alles auf dunklen Hintergrund ausgelegt) */
+[data-theme="light"] .alarm-hero-banner { background: linear-gradient(135deg, #f8f9fa 0%, #eef1f4 100%); border-color: #dee2e6; }
+[data-theme="light"] .alarm-hero-banner.alarm-hero-active { background: linear-gradient(135deg, #fde8ea 0%, #fbd5d9 100%); border-color: #f1aeb5; box-shadow: 0 0 24px rgba(220,53,69,0.18); }
+[data-theme="light"] .alarm-hero-banner.alarm-hero-test { background: linear-gradient(135deg, #fff6d6 0%, #fff0c2 100%); border-color: #ffe08a; }
+[data-theme="light"] .alarm-hero-icon { background: #e2e6ea; color: #6c757d; }
+[data-theme="light"] .alarm-hero-active .alarm-hero-icon { background: #f8d7da; color: #b02a37; }
+[data-theme="light"] .alarm-hero-test .alarm-hero-icon { background: #ffe69c; color: #8a6100; }
+[data-theme="light"] .alarm-hero-label { color: #6c757d; }
+[data-theme="light"] .alarm-hero-title { color: #212529; }
+[data-theme="light"] .alarm-hero-active .alarm-hero-title { color: #842029; }
+[data-theme="light"] .alarm-hero-meta { color: #495057; }
+[data-theme="light"] .alarm-hero-count { border-left-color: rgba(0,0,0,0.12); border-top-color: rgba(0,0,0,0.12); }
+[data-theme="light"] .alarm-hero-count-num { color: #198754; }
+[data-theme="light"] .alarm-hero-count-label { color: #6c757d; }
+[data-theme="light"] .alarm-timeline-item:not(:last-child)::before { background: #dee2e6; }
+[data-theme="light"] .alarm-timeline-dot { background: #f8d7da; color: #b02a37; }
+[data-theme="light"] .alarm-timeline-test .alarm-timeline-dot { background: #fff3cd; color: #8a6100; }
+[data-theme="light"] .alarm-timeline-content { background: #f8f9fa; border-color: #e9ecef; }
+
 @media (max-width: 576px) {
     .alarm-hero-banner { flex-wrap: wrap; }
     .alarm-hero-title { white-space: normal; }
