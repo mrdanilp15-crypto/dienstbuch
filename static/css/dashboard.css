@@ -1693,7 +1693,9 @@ body { color: var(--text-color); }
 
 /* Handy: Menues als Blatt ueber der unteren Leiste, damit nichts abgeschnitten wird */
 @media (max-width: 991.98px) {
-    .incident-menu:not(.fab-menu) { position:fixed; left:10px; right:10px; top:auto; bottom:calc(76px + env(safe-area-inset-bottom, 0px)); min-width:0; z-index:1060; max-height:60vh; overflow-y:auto; }
+    .incident-menu:not(.fab-menu):not(.user-menu) { position:fixed; left:10px; right:10px; top:auto; bottom:calc(76px + env(safe-area-inset-bottom, 0px)); min-width:0; z-index:1060; max-height:60vh; overflow-y:auto; }
+    /* Profil-Menü oben rechts klappt direkt unter seinem Knopf auf */
+    .incident-menu.user-menu { position:absolute; right:0; left:auto; top:calc(100% + 8px); bottom:auto; min-width:250px; max-width:calc(100vw - 20px); z-index:1060; max-height:calc(100vh - 140px); overflow-y:auto; }
     .page-head:has(.incident-menu), .page-head :has(> .action-menu > .incident-menu) { overflow:visible !important; -webkit-mask-image:none !important; mask-image:none !important; }
     .mission-item:has(.incident-menu), .mission-item:has(.incident-menu):hover { transform:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
 }

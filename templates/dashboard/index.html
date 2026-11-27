@@ -253,7 +253,7 @@
                         <i class="fa-regular fa-circle-user"></i><span class="d-none d-lg-inline ms-1">{{ displayName || username }}</span><i class="fa fa-chevron-down ms-2 small d-none d-lg-inline"></i>
                         <span v-if="isAdmin && changelogUnseen" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"><span class="visually-hidden">Neuigkeiten</span></span>
                     </button>
-                    <div v-if="openIncident === 'user'" class="incident-menu" @click="openIncident = null">
+                    <div v-if="openIncident === 'user'" class="incident-menu user-menu" @click="openIncident = null">
                         <div class="incident-menu-head">{{ username }} · <span :class="isAdmin ? 'admin-badge' : 'user-badge-role'">{{ isAdmin ? 'Admin' : 'Nutzer' }}</span></div>
                         <button type="button" @click="openSelfPasswordModal"><i class="fa fa-user-gear"></i>Profil &amp; Dienststunden</button>
                         <button type="button" @click="openIdCard"><i class="fa fa-id-card"></i>Dienstausweis</button>

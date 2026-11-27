@@ -6,6 +6,15 @@ entscheidet, ob ein Admin den Eintrag schon gesehen hat.
 
 CHANGELOG = [
     {
+        "id": 44,
+        "version": "2.94",
+        "date": "2026-11-27",
+        "items": [
+            {"type": "fix", "tag": "Bedienung", "title": "Profil-Menü am Handy klappt oben auf",
+             "text": "Das Menü hinter dem Personen-Knopf oben rechts öffnet sich am Handy jetzt direkt darunter statt am unteren Rand."},
+        ],
+    },
+    {
         "id": 43,
         "version": "2.93",
         "date": "2026-11-27",
