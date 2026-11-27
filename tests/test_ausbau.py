@@ -221,5 +221,28 @@ check("Fristen: Belastungsübung erscheint", any(i["name"] == "TST AGT Rot" and 
       and any(i["name"] == "TST AGT Gelb" and i["detail"].startswith("Belastungsübung") and not i["overdue"] for i in due), str(due))
 sql("delete from personnel where name like 'TST AGT%'")
 
+# ------------------------------------------------------------ Systemzustand
+sql("delete from system_events")
+h = admin.get("/api/admin/health").json()
+keys = {c["key"]: c for c in h["checks"]}
+check("System: Version und Laufzeit", "version" in keys and "Version" in keys["version"]["detail"] and "läuft seit" in keys["version"]["detail"], str(keys.get("version")))
+check("System: Push ohne Fehler = Info", keys["push"]["status"] == "info", str(keys["push"]))
+check("System: nur Admin", client("r_leitung").get("/api/admin/health").status_code == 403)
+from core.system_events import record  # noqa: E402
+record("push_error", "tim: 500 Server Error")
+keys = {c["key"]: c for c in admin.get("/api/admin/health").json()["checks"]}
+check("System: Push-Fehler der letzten 7 Tage = Warnung", keys["push"]["status"] == "warn" and "500 Server Error" in keys["push"]["detail"], str(keys["push"]))
+from core.automation import check_system_health  # noqa: E402
+import routers.admin_api as aa  # noqa: E402
+orig = aa.compute_health
+aa.compute_health = lambda: {"overall": "error", "checks": [{"key": "backup", "label": "Datensicherung", "status": "error", "detail": "TST seit 5 Tagen keine Sicherung"}]}
+sql("delete from notifications where title = 'Systemwarnung: Datensicherung'")
+check("System: Rot meldet sich bei Admin/Leitung", check_system_health() == 1
+      and sql("select count(*) from notifications where title = 'Systemwarnung: Datensicherung' and username = 'demo'") == "1")
+check_system_health()
+check("System: Warnung höchstens einmal am Tag", sql("select count(*) from notifications where title = 'Systemwarnung: Datensicherung' and username = 'demo'") == "1")
+aa.compute_health = orig
+sql("delete from system_events; delete from notifications where title = 'Systemwarnung: Datensicherung'")
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)

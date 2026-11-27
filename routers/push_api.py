@@ -136,7 +136,19 @@ def send_push_to_all(payload_dict: dict, usernames=None):
             )
             success_count += 1
         except WebPushException as ex:
-            print("Web Push Error:", ex)
+            status = getattr(getattr(ex, "response", None), "status_code", None)
+            if status in (404, 410):
+                # Abo beim Anbieter abgelaufen (App gelöscht, Browserdaten weg): entfernen, sonst wächst die Liste ewig
+                try:
+                    c2 = get_db_connection(); k2 = c2.cursor()
+                    k2.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (sub["endpoint"],))
+                    c2.commit(); k2.close(); c2.close()
+                except Exception as e:
+                    print("Abgelaufenes Push-Abo nicht gelöscht:", e)
+            else:
+                print("Web Push Error:", ex)
+                from core.system_events import record
+                record("push_error", f"{sub.get('username') or ''}: {str(ex)[:300]}")
     return success_count
 
 @router.post("/test")

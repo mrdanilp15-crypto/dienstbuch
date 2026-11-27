@@ -113,6 +113,8 @@ def record_mail_result(error):
         conn.close()
         if error is not None:
             from core.notify import notify_admins
+            from core.system_events import record
+            record("mail_error", str(error))
             notify_admins("E-Mail-Versand fehlgeschlagen", str(error)[:300])
     except Exception as e:
         print(f"Mail-Status konnte nicht gespeichert werden: {e}")

@@ -1403,6 +1403,8 @@ def init_db_extensions():
                 print(f"Fehler bei Migration {table}.{column}:", m_err)
 
         try:
+            from core.system_events import ensure_table as _ensure_events
+            _ensure_events(cur)
             inventur_api.ensure_tables(cur)
         except Exception as m_err:
             print("Fehler beim Anlegen der Inventur-Tabellen:", m_err)
@@ -1563,7 +1565,7 @@ async def start_reminder_scheduler():
     async def _schedule_reminder_loop():
         # Stuendlich: erinnert 24 h vor jedem Termin (siehe core/schedule_notify.py)
         from core.schedule_notify import check_schedule_reminders, check_schedule_nudges, check_poll_reminders
-        from core.automation import check_open_reports, run_monthly_report, check_vehicle_returns
+        from core.automation import check_open_reports, run_monthly_report, check_vehicle_returns, check_system_health
         await asyncio.sleep(120)
         while True:
             try:
@@ -1573,6 +1575,7 @@ async def start_reminder_scheduler():
                 await asyncio.to_thread(check_open_reports)
                 await asyncio.to_thread(run_monthly_report)
                 await asyncio.to_thread(check_vehicle_returns)
+                await asyncio.to_thread(check_system_health)
             except Exception as e:
                 print(f"Termin-Erinnerung Fehler: {e}")
             await asyncio.sleep(3600)

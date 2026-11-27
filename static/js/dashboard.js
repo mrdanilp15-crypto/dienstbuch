@@ -431,6 +431,7 @@ applyChartTheme();
                     newDonation: { donor: '', amount: 15.00, date: localISODate() },
                     membershipFees: [],
                     feesYear: new Date().getFullYear(),
+                    systemAlert: null,          // Systemzustand (nur Admin) für "Zu erledigen"
                     atemschutz: null,           // Atemschutz-Übersicht (Personal)
                     atemschutzOpen: false,
                     feeFilter: 'alle',          // alle | offen | bezahlt

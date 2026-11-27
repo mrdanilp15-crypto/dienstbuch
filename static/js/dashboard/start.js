@@ -192,6 +192,7 @@ window.DB_MIXINS.push({
                     const rsvp = this.overviewUpcoming.filter(s => { const r = this.scheduleRsvpMap[s.id]; return r && !r.unlinked && !r.my_status && String(s.date).slice(0, 10) <= limit; });
                     add('rueckmeldung', rsvp.length, 'Termin ohne deine Rückmeldung', 'Termine ohne deine Rückmeldung', 'yellow');
                     add('fristen', this.overviewDue.overdue, 'überfällige Frist', 'überfällige Fristen', 'red');
+                    if (this.systemAlert) add('system', this.systemAlert.count, 'Systemhinweis: ' + this.systemAlert.label, this.systemAlert.count + ' Systemhinweise, z. B. ' + this.systemAlert.label, this.systemAlert.tone);
                     add('ausfall', (this.vehicles || []).filter(v => v.status == 6).length, 'Fahrzeug außer Dienst', 'Fahrzeuge außer Dienst', 'red');
                     if (this.canManageMaterial) add('maengel', (this.overviewDefects || []).length, 'neuer Mangel', 'neue Mängel', 'red');
                     add('umfragen', this.polls.filter(p => p.open && !p.answered).length, 'Umfrage oder Helfersuche ohne deine Antwort', 'Umfragen oder Helfersuchen ohne deine Antwort', 'yellow');
@@ -417,12 +418,22 @@ window.DB_MIXINS.push({
                     if (vis.has('pinnwand')) this.loadNotes();
                     if (vis.has('schnellzugriff')) this.loadQuickLinks();
                 },
+                async loadSystemAlert() {
+                    if (!this.isAdmin) { this.systemAlert = null; return; }
+                    try {
+                        const res = await fetch('/api/admin/health', { credentials: 'include' });
+                        const h = res.ok ? await res.json() : null;
+                        const bad = h ? h.checks.filter(c => c.status === 'error' || c.status === 'warn') : [];
+                        bad.sort((a, b) => (a.status === 'error' ? 0 : 1) - (b.status === 'error' ? 0 : 1));
+                        this.systemAlert = bad.length ? { count: bad.length, label: bad[0].label, tone: bad[0].status === 'error' ? 'red' : 'yellow' } : null;
+                    } catch (e) { this.systemAlert = null; }
+                },
                 async loadOverview() {
                     this.loadOverviewLayout();
                     try {
                         await Promise.all([
                             this.loadMissions(), this.loadSchedules(), this.loadNotifs(), this.loadBroadcasts(),
-                            this.loadDueItems(), this.loadFeeOverview(),
+                            this.loadDueItems(), this.loadFeeOverview(), this.loadSystemAlert(),
                             fetch('/api/material/defect-reports?status=Offen', { credentials: 'include' })
                                 .then(r => r.ok ? r.json() : []).then(d => { this.overviewDefects = d; }).catch(() => {})
                         ]);

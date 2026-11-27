@@ -593,6 +593,12 @@ def system_health(request: Request):
     user = get_current_user(request)
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Keine Berechtigung (Admin erforderlich)")
+    return compute_health()
+
+
+def compute_health() -> dict:
+    """Alle Prüfungen des Systemzustands. Wird auch stündlich im Hintergrund aufgerufen (core.automation.check_system_health)."""
+    from core import system_events
     checks = []
 
     def add(key, label, status, detail):
@@ -650,9 +656,34 @@ def system_health(request: Request):
         add("mail", "E-Mail-Versand", "warn", f"Der letzte Versand ist fehlgeschlagen ({when}): {mail['last_error'][:200]} - bitte unter Verwaltung > E-Mail-Versand prüfen.")
     else:
         add("mail", "E-Mail-Versand", "ok" if mail_ok else "info", "Eingerichtet." if mail_ok else "Nicht eingerichtet - „Passwort vergessen“ und Erinnerungs-Mails sind aus.")
+    if mail_ok:
+        n_mail, _ = system_events.recent(cur, "mail_error", 7)
+        if n_mail and not mail["last_error"]:
+            add("mail_recent", "E-Mail-Fehler (7 Tage)", "info", f"{n_mail} Versand-Fehler in den letzten 7 Tagen, der letzte Versand hat aber geklappt.")
     cur.execute("SELECT COUNT(*) AS c FROM push_subscriptions")
-    add("push", "Push-Benachrichtigungen", "info", f"{cur.fetchone()['c']} Gerät(e) angemeldet.")
+    devices = cur.fetchone()['c']
+    n_push, last_push = system_events.recent(cur, "push_error", 7)
+    if n_push:
+        add("push", "Push-Benachrichtigungen", "warn",
+            f"{devices} Gerät(e) angemeldet, aber {n_push} fehlgeschlagene Zustellung(en) in den letzten 7 Tagen. Zuletzt {last_push['created_at']:%d.%m.%Y %H:%M}: {last_push['detail'][:160]}")
+    else:
+        add("push", "Push-Benachrichtigungen", "info", f"{devices} Gerät(e) angemeldet, keine Zustellfehler in den letzten 7 Tagen.")
+    cur.execute("SELECT COUNT(*) AS c FROM apager_config WHERE active = 1")
+    if cur.fetchone()["c"]:
+        cur.execute("SELECT received_at, result FROM apager_webhook_log ORDER BY id DESC LIMIT 1")
+        hook = cur.fetchone()
+        if not hook:
+            add("webhook", "Alarm-Schnittstelle", "info", "Eingerichtet, bisher kam noch kein Aufruf an.")
+        else:
+            res = (hook["result"] or "").lower()
+            bad = any(w in res for w in ("fehler", "error", "ungültig", "abgelehnt", "unauthorized", "denied"))
+            add("webhook", "Alarm-Schnittstelle", "warn" if bad else "ok",
+                f"Letzter Aufruf am {hook['received_at']:%d.%m.%Y %H:%M}: {hook['result'] or 'ohne Ergebnis'}" + (" - bitte unter Alarmierung prüfen." if bad else ""))
     cur.close(); conn.close()
+    up = datetime.datetime.now() - system_events.STARTED_AT
+    up_txt = f"{up.days} Tag(en)" if up.days else f"{int(up.total_seconds() // 3600)} Stunde(n)"
+    version = getattr(__import__("sys").modules.get("main"), "CURRENT_VERSION", "?")
+    add("version", "Programmversion", "info", f"Version {version}, läuft seit {up_txt} (Start {system_events.STARTED_AT:%d.%m.%Y %H:%M}).")
 
     rank = {"ok": 0, "info": 0, "warn": 1, "error": 2}
     worst = max((c["status"] for c in checks), key=lambda s: rank[s], default="ok")

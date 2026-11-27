@@ -191,6 +191,8 @@ window.DB_MIXINS.push({
                             await this.loadDefectReports();
                             const dr = (this.defectReports || []).find(x => String(x.id) === id);
                             if (dr) await this.toggleDefectComments(dr);
+                        } else if (type === 'system' && this.isAdmin) {
+                            this.activeTab = 'verwaltung'; this.openSettingsTab('betrieb');
                         } else if (type === 'fristen') {
                             this.activeTab = 'fristen';
                         } else if (type === 'alarm') {

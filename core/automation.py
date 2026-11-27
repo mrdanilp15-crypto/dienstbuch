@@ -74,6 +74,21 @@ def check_vehicle_returns(now: datetime.datetime = None) -> int:
     return len(rows)
 
 
+def check_system_health() -> int:
+    """Stündlich: steht im Systemzustand etwas auf Rot, bekommen Admin und Leitung eine Meldung (je Punkt höchstens einmal am Tag)."""
+    from core.notify import notify_admins
+    from routers.admin_api import compute_health
+    try:
+        health = compute_health()
+    except Exception as e:
+        print(f"Systemzustand nicht prüfbar: {e}")
+        return 0
+    bad = [c for c in health["checks"] if c["status"] == "error"]
+    for c in bad:
+        notify_admins(f"Systemwarnung: {c['label']}", c["detail"][:300], "/dashboard?open=system", dedupe_hours=24)
+    return len(bad)
+
+
 def build_monthly_report(year: int, month: int):
     """(Betreff, Text) für den angegebenen Monat. Fristen und Mängel sind der Stand von heute."""
     from core.reminders import get_due_items
