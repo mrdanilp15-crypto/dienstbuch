@@ -50,11 +50,11 @@ def send_to_users(usernames, title: str, body: str, link: str = None) -> int:
     recipients = cur.fetchall()
     cur.close()
     conn.close()
-    _send(recipients, title, body, link)
+    _send(recipients, title, body, link, link_label="Jetzt eintragen")
     return len(recipients)
 
 
-def _send(recipients, title: str, body: str, link: str = None, schedule_id=None):
+def _send(recipients, title: str, body: str, link: str = None, schedule_id=None, link_label: str = "Direkt zum Termin"):
     """Push an die Geraete der Empfaenger, dazu E-Mail (nur wenn die Wehr den Versand eingerichtet hat)."""
     if not recipients:
         return
@@ -71,7 +71,7 @@ def _send(recipients, title: str, body: str, link: str = None, schedule_id=None)
             from core.digest import digest_usernames
             skip = digest_usernames()  # wer die Tageszusammenfassung gewählt hat, bekommt keine Einzelmails
             emails = [r["email"] for r in recipients if r.get("email") and r.get("username") not in skip]
-            text = body + ("\n\nDirekt zum Termin: " + s["app_url"] + (link or "/dashboard") if s.get("app_url") else "")
+            text = body + (f"\n\n{link_label}: " + s["app_url"] + (link or "/dashboard") if s.get("app_url") else "")
             send_mail_background(emails, title, text, bcc=True)
     except Exception as e:
         print(f"Termin-Mail fehlgeschlagen: {e}")

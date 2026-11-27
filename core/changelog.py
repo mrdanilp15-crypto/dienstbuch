@@ -12,6 +12,8 @@ CHANGELOG = [
         "items": [
             {"type": "fix", "tag": "Umfragen", "title": "Helfersuchen und Umfragen auch per E-Mail",
              "text": "Neue Helfersuchen und Umfragen, ein geänderter Termin und die Erinnerung vor Fristende kommen jetzt wie Termine auch per E-Mail (wenn \"Erinnerungen per E-Mail\" eingeschaltet ist)."},
+            {"type": "improved", "tag": "E-Mail", "title": "Neue Gestaltung der E-Mails",
+             "text": "Klarer Kopf mit Wehrname, Angaben im grauen Infokasten, Zahlen sauber untereinander, passende Knöpfe (z. B. \"Passwort festlegen\", \"Jetzt eintragen\") und ein Vorschautext in der Postfachliste. Im Dunkelmodus wird nichts mehr verfärbt."},
         ],
     },
     {
