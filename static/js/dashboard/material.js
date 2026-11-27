@@ -3,6 +3,21 @@
 window.DB_MIXINS = window.DB_MIXINS || [];
 window.DB_MIXINS.push({
             computed: {
+                inventurItems() {
+                    if (!this.inventur) return [];
+                    const q = (this.inventurSearch || '').toLowerCase().trim();
+                    return this.inventur.items.filter(i => {
+                        const done = i.kind === 'consumable' ? i.counted !== null : !!i.result;
+                        if (this.inventurFilter === 'offen' && done && !(this.inventurTouched[i.id] && (i.result === 'fehlt' || i.result === 'defekt'))) return false;  // Fehlt/Defekt bleibt kurz stehen, damit man die Notiz eintragen kann
+                        if (this.inventurFilter === 'probleme' && !(i.result === 'fehlt' || i.result === 'defekt' || (i.kind === 'consumable' && i.counted !== null && i.counted !== i.expected))) return false;
+                        return !q || (i.name + ' ' + i.category + ' ' + i.barcode).toLowerCase().includes(q);
+                    });
+                },
+                inventurProgress() {
+                    const s = this.inventur ? this.inventur.summary : null;
+                    return s && s.total ? Math.round((s.total - s.open) / s.total * 100) : 0;
+                },
+                inventurRunning() { return this.inventurList.find(i => !i.finished_at) || null; },
 
                 lowStockConsumables() {
                     return this.consumables.filter(c => c.min_stock > 0 && c.current_stock <= c.min_stock);
@@ -71,6 +86,96 @@ window.DB_MIXINS.push({
             },
             methods: {
 
+                // ---- Inventur
+                async loadInventories() {
+                    try {
+                        const res = await fetch('/api/inventur', { credentials: 'include' });
+                        if (!res.ok) return;
+                        const d = await res.json();
+                        this.inventurList = d.inventories; this.inventurCategories = d.categories;
+                    } catch (e) { console.error(e); }
+                },
+                async startInventur() {
+                    const res = await fetch('/api/inventur', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.inventurNew) });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok) { await appAlert(d.detail || 'Inventur konnte nicht gestartet werden.'); return; }
+                    this.inventurNew = { title: '', category: '', include_consumables: false };
+                    await this.openInventur(d.id);
+                    this.loadInventories();
+                },
+                async openInventur(id) {
+                    const res = await fetch(`/api/inventur/${id}`, { credentials: 'include' });
+                    if (!res.ok) { await appAlert('Inventur nicht gefunden.'); return; }
+                    this.inventur = await res.json();
+                    this.inventurFilter = this.inventur.finished_at ? 'alle' : 'offen';
+                    this.inventurSearch = '';
+                    this.inventurTouched = {};
+                },
+                closeInventur() { this.inventur = null; this.loadInventories(); },
+                _inventurRecount() {
+                    const s = { total: 0, ok: 0, fehlt: 0, defekt: 0, open: 0 };
+                    for (const i of this.inventur.items) {
+                        s.total++;
+                        if (i.kind === 'consumable') s[i.counted !== null ? 'ok' : 'open']++;
+                        else s[i.result || 'open']++;
+                    }
+                    this.inventur.summary = s;
+                },
+                async setInventurItem(item, changes) {
+                    const before = { result: item.result, counted: item.counted, note: item.note };
+                    if (!this.inventurScanMode) this.inventurTouched = { ...this.inventurTouched, [item.id]: true };
+                    Object.assign(item, changes);
+                    if (item.counted === '') item.counted = null;
+                    this._inventurRecount();
+                    const res = await fetch(`/api/inventur/${this.inventur.id}/items/${item.id}`, {
+                        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ result: item.result || '', counted: item.counted, note: item.note || '' })
+                    });
+                    if (!res.ok) {
+                        Object.assign(item, before); this._inventurRecount();
+                        const d = await res.json().catch(() => ({}));
+                        await appAlert(d.detail || 'Konnte nicht gespeichert werden.');
+                    }
+                },
+                async finishInventur() {
+                    const s = this.inventur.summary;
+                    const problems = s.fehlt + s.defekt;
+                    const msg = (s.open ? `${s.open} Einträge sind noch nicht geprüft und stehen dann als „nicht geprüft“ im Protokoll. ` : '')
+                        + (problems ? `${problems} ${problems === 1 ? 'Eintrag wird' : 'Einträge werden'} als Mangel gemeldet. ` : '')
+                        + 'Danach lässt sich die Inventur nicht mehr ändern.';
+                    if (!await appConfirm(msg, 'Inventur abschließen')) return;
+                    const note = await appPrompt('Bemerkung fürs Protokoll (optional):', '', 'Inventur abschließen');
+                    if (note === null) return;
+                    const res = await fetch(`/api/inventur/${this.inventur.id}/finish`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note, allow_open: true }) });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok) { await appAlert(d.detail || 'Abschließen fehlgeschlagen.'); return; }
+                    await this.openInventur(this.inventur.id);
+                    this.loadInventories();
+                    if (d.defects && this.loadDefectReports) this.loadDefectReports();
+                    await appAlert(d.defects ? `Abgeschlossen. ${d.defects} ${d.defects === 1 ? 'Mangel wurde' : 'Mängel wurden'} angelegt.` : 'Abgeschlossen.');
+                },
+                async deleteInventur(inv) {
+                    if (!await appConfirm(`Laufende Inventur „${inv.title}“ löschen? Alle Haken gehen verloren.`, 'Inventur löschen')) return;
+                    const res = await fetch(`/api/inventur/${inv.id}`, { method: 'DELETE', credentials: 'include' });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); await appAlert(d.detail || 'Löschen fehlgeschlagen.'); return; }
+                    if (this.inventur && this.inventur.id === inv.id) this.inventur = null;
+                    this.loadInventories();
+                },
+                inventurPdf(id) { window.open(`/api/inventur/${id}/pdf`, '_blank'); },
+                inventurDone(i) { return i.kind === 'consumable' ? i.counted !== null : !!i.result; },
+                startInventurScan() { this.inventurScanMode = true; this.inventurLastScan = ''; this.startQrScanner(); },
+                async handleInventurScan(code) {
+                    // Gescanntes Gerät gilt als vorhanden; der Scanner bleibt offen für das nächste Gerät
+                    if (code === this.inventurLastScan) return;
+                    this.inventurLastScan = code;
+                    const item = this.inventur && this.inventur.items.find(i => i.kind === 'equipment' && (i.barcode === code || String(i.ref_id) === code));
+                    const box = document.getElementById('qr-reader-result');
+                    if (!item) { if (box) box.textContent = `„${code}“ gehört nicht zu dieser Inventur.`; return; }
+                    if (navigator.vibrate) navigator.vibrate(80);
+                    if (box) box.textContent = `✔ ${item.name}: vorhanden`;
+                    if (item.result !== 'ok') await this.setInventurItem(item, { result: 'ok' });
+                },
+
                 async startQrScanner() {
                     if (typeof Html5Qrcode === 'undefined') { await appAlert('Scanner-Bibliothek nicht geladen'); return; }
                     this.html5Qrcode = new Html5Qrcode("qr-reader");
@@ -93,6 +198,7 @@ window.DB_MIXINS.push({
                                 const param = url.searchParams.get('eq_barcode');
                                 if (param) scannedValue = param;
                             } catch (e) { /* kein URL-Format, decodedText bleibt wie es ist */ }
+                            if (this.inventurScanMode) { await this.handleInventurScan(scannedValue); return; }
                             const eq = this.equipment.find(e => e.barcode === scannedValue || String(e.id) === scannedValue);
                             this.stopQrScanner();
                             const qrEl = document.getElementById('qrScannerModal');
@@ -120,6 +226,7 @@ window.DB_MIXINS.push({
                     });
                 },
                 stopQrScanner() {
+                    this.inventurScanMode = false;
                     if (this.html5Qrcode) {
                         const instance = this.html5Qrcode;
                         try {

@@ -76,7 +76,8 @@
                     </div>
                     <div class="modal-body p-4 text-center">
                         <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #000;"></div>
-                        <p class="text-muted mt-3 small">Halte den Kamera-Sucher über den Barcode oder QR-Code des Geräts.</p>
+                        <p v-if="inventurScanMode" id="qr-reader-result" class="fw-bold mt-3 mb-1" aria-live="polite"></p>
+                        <p class="text-muted mt-3 small">{{ inventurScanMode ? 'Inventur: Jedes gescannte Gerät wird als vorhanden abgehakt. Einfach nacheinander scannen und zum Schluss schließen.' : 'Halte den Kamera-Sucher über den Barcode oder QR-Code des Geräts.' }}</p>
                     </div>
                 </div>
             </div>

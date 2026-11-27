@@ -37,6 +37,7 @@ from routers import due_api
 from routers import aao_api
 from routers import logbook_api
 from routers import planning_api
+from routers import inventur_api
 from core.pages import dashboard_html
 
 # --- SYSTEM-KONFIGURATION ---
@@ -225,6 +226,7 @@ app.include_router(logbook_api.router)
 app.include_router(prospects_api.router)
 app.include_router(legal_api.router)
 app.include_router(planning_api.router)
+app.include_router(inventur_api.router)
 
 # --- DATENBANK VERBINDUNGSUNTERBAU (MYSQL) ---
 from database import get_db_connection
@@ -1397,6 +1399,11 @@ def init_db_extensions():
                     cur.execute(f"ALTER TABLE {table} {ddl}")
             except Exception as m_err:
                 print(f"Fehler bei Migration {table}.{column}:", m_err)
+
+        try:
+            inventur_api.ensure_tables(cur)
+        except Exception as m_err:
+            print("Fehler beim Anlegen der Inventur-Tabellen:", m_err)
 
         # Einsaetze ohne Gruppe (frueher per Alarm angelegt) bekommen die Alarm-Gruppe - sonst standen sie in jeder Dienstliste
         try:

@@ -35,10 +35,13 @@
                             </button>
                         </li>
                         <li class="nav-item" v-if="canManageMaterial">
+                            <button class="nav-link" :class="materialSubTab === 'inventur' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'inventur'; loadInventories()"><i class="fa fa-clipboard-list me-1"></i>Inventur</button>
+                        </li>
+                        <li class="nav-item" v-if="canManageMaterial">
                             <button v-if="canManageBuildings" class="nav-link" :class="materialSubTab === 'gebaeude' ? 'active bg-danger' : 'text-white'" @click="materialSubTab = 'gebaeude'; loadBuilding()"><i class="fa fa-building me-1"></i>Gerätehaus</button>
                         </li>
                         <li class="nav-item ms-auto">
-                            <button class="btn btn-outline-info rounded-pill ms-3" @click="startQrScanner"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
+                            <button class="btn btn-outline-info rounded-pill ms-3" @click="inventurScanMode = false; startQrScanner()"><i class="fa fa-barcode me-1"></i>Barcode Scannen</button>
                         </li>
                     </ul>
 
@@ -362,6 +365,107 @@
                         </div>
                     </div>
                 
+                <!-- Inventur -->
+                <div v-show="materialSubTab === 'inventur'" v-if="canManageMaterial">
+                    <div v-if="!inventur" class="row g-4">
+                        <div class="col-12 col-lg-5">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-2"><i class="fa fa-clipboard-list text-danger me-2"></i>Neue Inventur</h5>
+                                <p class="small text-muted">Alle Geräte (oder eine Kategorie) am Handy durchgehen und abhaken: vorhanden, fehlt oder defekt. Was fehlt oder defekt ist, wird beim Abschließen automatisch zum Mangel. Am Ende gibt es ein PDF-Protokoll.</p>
+                                <div v-if="inventurRunning" class="alert alert-warning small py-2">Es läuft schon eine Inventur: <strong>{{ inventurRunning.title }}</strong>. <a href="#" @click.prevent="openInventur(inventurRunning.id)">Weitermachen</a></div>
+                                <template v-else>
+                                    <div class="mb-3">
+                                        <label class="form-label">Umfang</label>
+                                        <select v-model="inventurNew.category" class="form-select">
+                                            <option value="">Alle Geräte</option>
+                                            <option v-for="c in inventurCategories" :key="c" :value="c">Nur {{ c }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="invConsumables" v-model="inventurNew.include_consumables">
+                                        <label class="form-check-label" for="invConsumables">Verbrauchsmaterial mitzählen (gezählte Menge wird neuer Bestand)</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Bezeichnung (optional)</label>
+                                        <input type="text" v-model="inventurNew.title" class="form-control" maxlength="150" placeholder="z. B. Jahresinventur 2026">
+                                    </div>
+                                    <button class="btn btn-premium rounded-pill w-100" @click="startInventur"><i class="fa fa-play me-1"></i>Inventur starten</button>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-7">
+                            <div class="card premium-card p-4">
+                                <h5 class="fw-bold text-white mb-3"><i class="fa fa-clock-rotate-left text-danger me-2"></i>Bisherige Inventuren</h5>
+                                <div v-if="!inventurList.length" class="text-muted small">Noch keine Inventur gemacht.</div>
+                                <div v-for="inv in inventurList" :key="inv.id" class="d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 border-bottom border-secondary border-opacity-10">
+                                    <div>
+                                        <div class="fw-bold text-white">{{ inv.title }} <span v-if="!inv.finished_at" class="badge bg-warning text-dark ms-1">läuft</span></div>
+                                        <div class="small text-muted">{{ dt(inv.started_at.slice(0, 10)) }} &bull; {{ inv.total }} Einträge &bull; <span class="text-success">{{ inv.ok }} ok</span><span v-if="inv.fehlt" class="text-danger"> &bull; {{ inv.fehlt }} fehlen</span><span v-if="inv.defekt" class="text-warning"> &bull; {{ inv.defekt }} defekt</span><span v-if="inv.open"> &bull; {{ inv.open }} offen</span></div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click="openInventur(inv.id)">{{ inv.finished_at ? 'Ansehen' : 'Weitermachen' }}</button>
+                                        <button class="btn btn-sm btn-outline-light rounded-pill" @click="inventurPdf(inv.id)" title="Protokoll als PDF" aria-label="Protokoll als PDF"><i class="fa fa-file-pdf"></i></button>
+                                        <button v-if="!inv.finished_at" class="btn btn-sm btn-outline-danger rounded-pill" @click="deleteInventur(inv)" title="Löschen" aria-label="Inventur löschen"><i class="fa fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else class="card premium-card p-3 p-md-4">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                            <div>
+                                <button class="btn btn-sm btn-link text-muted p-0 mb-1" @click="closeInventur"><i class="fa fa-arrow-left me-1"></i>Alle Inventuren</button>
+                                <h5 class="fw-bold text-white mb-0">{{ inventur.title }}</h5>
+                                <div class="small text-muted">{{ inventur.finished_at ? ('Abgeschlossen am ' + dt(inventur.finished_at.slice(0, 10)) + ' von ' + inventur.finished_by) : ('Begonnen von ' + inventur.started_by) }}</div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button v-if="!inventur.finished_at" class="btn btn-sm btn-outline-info rounded-pill" @click="startInventurScan"><i class="fa fa-barcode me-1"></i>Scannen</button>
+                                <button class="btn btn-sm btn-outline-light rounded-pill" @click="inventurPdf(inventur.id)"><i class="fa fa-file-pdf me-1"></i>PDF</button>
+                                <button v-if="!inventur.finished_at" class="btn btn-sm btn-premium rounded-pill" @click="finishInventur"><i class="fa fa-flag-checkered me-1"></i>Abschließen</button>
+                            </div>
+                        </div>
+                        <div class="progress mb-2" style="height: 10px;" role="progressbar" :aria-valuenow="inventurProgress" aria-valuemin="0" aria-valuemax="100" aria-label="Fortschritt">
+                            <div class="progress-bar bg-success" :style="{ width: inventurProgress + '%' }"></div>
+                        </div>
+                        <div class="small mb-3 d-flex gap-3 flex-wrap">
+                            <span>{{ inventur.summary.total - inventur.summary.open }} von {{ inventur.summary.total }} geprüft</span>
+                            <span class="text-success">{{ inventur.summary.ok }} ok</span>
+                            <span class="text-danger">{{ inventur.summary.fehlt }} fehlen</span>
+                            <span class="text-warning">{{ inventur.summary.defekt }} defekt</span>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn" :class="inventurFilter === 'offen' ? 'btn-premium' : 'btn-outline-light'" @click="inventurFilter = 'offen'; inventurTouched = {}">Offen ({{ inventur.summary.open }})</button>
+                                <button type="button" class="btn" :class="inventurFilter === 'probleme' ? 'btn-premium' : 'btn-outline-light'" @click="inventurFilter = 'probleme'">Probleme</button>
+                                <button type="button" class="btn" :class="inventurFilter === 'alle' ? 'btn-premium' : 'btn-outline-light'" @click="inventurFilter = 'alle'">Alle</button>
+                            </div>
+                            <input type="search" v-model="inventurSearch" class="form-control form-control-sm" style="max-width: 240px;" placeholder="Suchen (Name, Barcode)" aria-label="Inventur durchsuchen">
+                        </div>
+                        <div v-if="!inventurItems.length" class="text-muted small py-3 text-center">{{ inventurFilter === 'offen' ? 'Alles geprüft. Jetzt abschließen.' : 'Keine Einträge.' }}</div>
+                        <div v-for="i in inventurItems" :key="i.id" class="inv-row py-2 border-bottom border-secondary border-opacity-10">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="me-2" style="min-width: 0;">
+                                    <div class="fw-bold text-white text-truncate">{{ i.name }}</div>
+                                    <div class="small text-muted">{{ i.category }}<span v-if="i.barcode"> &bull; {{ i.barcode }}</span><span v-if="i.kind === 'consumable'"> &bull; Soll {{ i.expected }} {{ i.unit }}</span></div>
+                                </div>
+                                <div v-if="i.kind === 'equipment'" class="btn-group" role="group" :aria-label="'Ergebnis für ' + i.name">
+                                    <button type="button" class="btn btn-sm" :class="i.result === 'ok' ? 'btn-success' : 'btn-outline-success'" :disabled="!!inventur.finished_at" @click="setInventurItem(i, { result: i.result === 'ok' ? '' : 'ok' })"><i class="fa fa-check me-1"></i>Vorhanden</button>
+                                    <button type="button" class="btn btn-sm" :class="i.result === 'fehlt' ? 'btn-danger' : 'btn-outline-danger'" :disabled="!!inventur.finished_at" @click="setInventurItem(i, { result: i.result === 'fehlt' ? '' : 'fehlt' })">Fehlt</button>
+                                    <button type="button" class="btn btn-sm" :class="i.result === 'defekt' ? 'btn-warning' : 'btn-outline-warning'" :disabled="!!inventur.finished_at" @click="setInventurItem(i, { result: i.result === 'defekt' ? '' : 'defekt' })">Defekt</button>
+                                </div>
+                                <div v-else class="d-flex align-items-center gap-2">
+                                    <input type="number" step="0.5" min="0" class="form-control form-control-sm" style="width: 100px;" :value="i.counted" :disabled="!!inventur.finished_at"
+                                           @change="setInventurItem(i, { counted: $event.target.value === '' ? null : Number($event.target.value) })" :aria-label="'Gezählte Menge ' + i.name" placeholder="Gezählt">
+                                    <span class="small text-muted">{{ i.unit }}</span>
+                                </div>
+                            </div>
+                            <input v-if="i.result === 'fehlt' || i.result === 'defekt' || (i.note && i.note.length)" type="text" class="form-control form-control-sm mt-2" maxlength="500"
+                                   :value="i.note" :disabled="!!inventur.finished_at" @change="setInventurItem(i, { note: $event.target.value })" placeholder="Was genau? (kommt in den Mangel)" :aria-label="'Notiz zu ' + i.name">
+                        </div>
+                    </div>
+                </div>
+
                 <div v-show="materialSubTab === 'gebaeude'" v-if="canManageBuildings">
                     <due-strip area="gebaeude" :items="dueItems" @goto="goToDue" @done="doneDue" @done-bulk="doneDueBulk"></due-strip>
                                             <div class="card premium-card p-4">

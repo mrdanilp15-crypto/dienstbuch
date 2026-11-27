@@ -366,6 +366,13 @@ applyChartTheme();
                     
                     // Sub-tab navigation
                     materialSubTab: 'geraete',
+                    inventurList: [], inventurCategories: [],
+                    inventurNew: { title: '', category: '', include_consumables: false },
+                    inventur: null,              // geöffnete Inventur mit Einträgen
+                    inventurFilter: 'offen',     // offen | alle | probleme
+                    inventurSearch: '',
+                    inventurTouched: {},         // gerade bearbeitete Einträge bleiben unter "Offen" stehen (Notiz eintragen, Fehlklick korrigieren)
+                    inventurScanMode: false, inventurLastScan: '',
                     verwaltungTab: '',
                     myPerms: [], permissionMatrix: null, newCustomRole: { label: '', base_role: 'mannschaft' },
                     intervals: { int_g26: 36, int_belastung: 12, int_unterweisung: 12, reminder_window_days: 14, session_max_days: 30, int_fahrzeugkontrolle: 7, int_fuehrerschein: 12, int_interessent: 21 },

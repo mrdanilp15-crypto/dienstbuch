@@ -116,5 +116,52 @@ check("Monatsbericht: Fahrzeuge außer Dienst stehen drin", "Fahrzeuge außer Di
 sql(f"delete from membership_fees where year = {YEAR}")
 admin.put("/api/verein/fee-settings", json={"default_amount": 0, "due_month": 3, "due_day": 31})
 
+# ------------------------------------------------------------ Inventur
+sql("delete from inventories; delete from equipment where barcode like 'TSTINV%'; delete from consumables where name like 'TST-%'")
+sql("insert into equipment (name, barcode, category, archived) values ('TST Säge', 'TSTINV1', 'TST-Kat', 0), ('TST Lüfter', 'TSTINV2', 'TST-Kat', 0), "
+    "('TST Leiter', 'TSTINV3', 'TST-Kat', 0), ('TST Alt', 'TSTINV4', 'TST-Kat', 1)")
+sql("insert into consumables (name, unit, current_stock, min_stock) values ('TST-Bindemittel', 'Sack', 10, 2)")
+check("Inventur: Mannschaft darf nicht", crew.get("/api/inventur").status_code == 403)
+cats = admin.get("/api/inventur").json()["categories"]
+check("Inventur: Kategorien zur Auswahl", "TST-Kat" in cats, str(cats))
+r = admin.post("/api/inventur", json={"category": "TST-Kat", "include_consumables": True})
+check("Inventur: starten", r.status_code == 200, r.text)
+inv = r.json()["id"]
+check("Inventur: nur eine gleichzeitig", admin.post("/api/inventur", json={}).status_code == 409)
+d = admin.get(f"/api/inventur/{inv}").json()
+names = sorted(i["name"] for i in d["items"])
+check("Inventur: Kategorie ohne archivierte Geräte, plus Verbrauchsmaterial", names == ["TST Leiter", "TST Lüfter", "TST Säge", "TST-Bindemittel"], str(names))
+check("Inventur: Titel automatisch", d["title"].startswith("Inventur TST-Kat"), d["title"])
+item = {i["name"]: i for i in d["items"]}
+iu = lambda name, **kw: admin.put(f"/api/inventur/{inv}/items/{item[name]['id']}", json=kw)
+check("Inventur: vorhanden abhaken", iu("TST Säge", result="ok").status_code == 200)
+iu("TST Lüfter", result="defekt", note="Lager quietscht")
+check("Inventur: falsches Ergebnis abgelehnt", iu("TST Leiter", result="kaputt").status_code == 400)
+iu("TST-Bindemittel", counted=7)
+s = admin.get(f"/api/inventur/{inv}").json()["summary"]
+check("Inventur: Zwischenstand zählt richtig", s == {"total": 4, "ok": 2, "fehlt": 0, "defekt": 1, "open": 1}, str(s))
+r = admin.post(f"/api/inventur/{inv}/finish", json={})
+check("Inventur: mit offenen Einträgen nur auf ausdrücklichen Wunsch", r.status_code == 409, r.text)
+iu("TST Leiter", result="fehlt")
+pdf = admin.get(f"/api/inventur/{inv}/pdf")
+check("Inventur: Zwischenstand als PDF", pdf.status_code == 200 and pdf.content[:4] == b"%PDF")
+r = admin.post(f"/api/inventur/{inv}/finish", json={"note": "Jahresinventur"})
+check("Inventur: abschließen", r.status_code == 200 and r.json()["defects"] == 2, r.text)
+check("Inventur: Mängel angelegt (fehlt + defekt) mit Notiz",
+      sql("select count(*) from equipment_defect_reports where description like 'Inventur%Lager quietscht%'") == "1"
+      and sql("select count(*) from equipment_defect_reports d join equipment e on e.id = d.equipment_id where e.barcode = 'TSTINV3' and d.description like 'Inventur%fehlt%'") == "1")
+check("Inventur: gezählte Menge wird Bestand", sql("select current_stock from consumables where name = 'TST-Bindemittel'") == "7.00")
+check("Inventur: danach nicht mehr änderbar", iu("TST Säge", result="fehlt").status_code == 409)
+check("Inventur: abgeschlossene bleibt erhalten", admin.delete(f"/api/inventur/{inv}").status_code == 409)
+check("Inventur: Gerätewart wird über Mängel informiert", sql("select count(*) from notifications where title = 'Inventur: 2 Mängel'") not in ("", "0"))
+lst = admin.get("/api/inventur").json()["inventories"]
+check("Inventur: Liste mit Ergebnis", lst[0]["id"] == inv and lst[0]["finished_at"] and lst[0]["fehlt"] == 1 and lst[0]["defekt"] == 1, str(lst[0]))
+inv2 = admin.post("/api/inventur", json={"category": "TST-Kat"}).json()["id"]
+check("Inventur: laufende lässt sich löschen", admin.delete(f"/api/inventur/{inv2}").status_code == 200
+      and sql(f"select count(*) from inventory_items where inventory_id = {inv2}") == "0")
+check("Inventur: leere Auswahl abgelehnt", admin.post("/api/inventur", json={"category": "gibt es nicht"}).status_code == 400)
+sql("delete from equipment_defect_reports where description like 'Inventur%'; delete from inventories; "
+    "delete from equipment where barcode like 'TSTINV%'; delete from consumables where name like 'TST-%'")
+
 print("\n==> ", "ALLES OK" if not fails else f"{len(fails)} FEHLER: {fails}")
 sys.exit(1 if fails else 0)
